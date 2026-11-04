@@ -79,6 +79,9 @@ and countries:
   as "no website".
 
 
+To run the same flow in a browser, see
+[Find matches on the web](toolkit-find-match-web.md).
+
 ## If matching does not work
 
 - **Buyer not found:** use the exact Attio name or add it with `/add-buyer`.

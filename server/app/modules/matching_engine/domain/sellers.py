@@ -29,3 +29,20 @@ class SellerCandidate:
     # settings.enable_seller_meeting_notes is on (§ use_cases.py) — narrative
     # context for the reasoning prompt only, never scoring/filtering input.
     meeting_notes: list[MeetingNote] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class SellerProfile:
+    """What the CRM knows about a seller's company, for a reviewer to read.
+    A discovered seller's values come from Google Maps and basic enrichment."""
+
+    seller_role_id: str
+    description: str | None
+    hq_country: str | None
+    sector_focus: list[str]
+    website: str | None
+    employee_range: str | None
+    founded_year: int | None
+    location_count: int | None
+    est_revenue: Money | None
+    est_ebitda: Money | None

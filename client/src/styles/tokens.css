@@ -1,0 +1,35 @@
+/* Wusool Capital (wusoolcapital.com): near-black ground tinted toward its
+   midnight blue, gold-white ink, gulf blue as the one accent. The only place
+   hex values live. */
+:root {
+  /* Ground, then panels a step lighter so each region reads on its own. */
+  --canvas: #0b0c10;
+  --surface-1: #121319;
+  --surface-2: #171920;
+  --surface-3: #1e2029;
+  --surface-4: #272a34;
+  /* Dividers stay quiet; control outlines clear 3:1 (WCAG 1.4.11). */
+  --hairline: #2c2f3a;
+  --hairline-strong: #646876;
+  --hairline-tertiary: #858997;
+
+  /* Every grey clears 4.5:1 on every surface, the lightest included. */
+  --ink: #f4f2ec;
+  --ink-muted: #c3c5cc;
+  --ink-subtle: #a0a3ad;
+  --ink-tertiary: #8e919b;
+
+  /* Gulf blue (#c6e1ee) with midnight (#000523) text, as on the site's CTA. */
+  --primary: #c6e1ee;
+  --primary-hover: #dcedf6;
+  --primary-focus: #c6e1ee;
+  --on-primary: #000523;
+
+  --success: #4cc886;
+  --success-tint: #13291d;
+  --warning: #e6b866;
+  --warning-tint: #2b2416;
+  --danger: #f07890;
+  --danger-tint: #2e1922;
+  --overlay: #000000;
+}

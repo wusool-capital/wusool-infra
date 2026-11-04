@@ -5,6 +5,7 @@ reasoning output must validate against (§7, §15). Never trust raw LLM text
 past this boundary.
 """
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -15,6 +16,20 @@ RequirementSource = Literal[
     "crm_field", "advisor_context", "llm_extracted", "llm_inferred", "unavailable"
 ]
 ConfidenceLevel = Literal["high", "medium", "low"]
+
+# The model sometimes writes the next field's tool-call syntax into a string,
+# swallowing that field (seen live: `</thesis> <parameter name="ideal_target_description">`).
+_LEAKED_MARKUP = re.compile(r"<\s*/?\s*(parameter|invoke)\b", re.IGNORECASE)
+
+
+def _no_leaked_markup(value: str | None) -> str | None:
+    if value is not None and _LEAKED_MARKUP.search(value):
+        raise ValueError(
+            "contains tool-call markup such as `<parameter name=...>`; put each "
+            "field's text in its own JSON field, as plain text"
+        )
+    return value
+
 
 # Only these come from a human: the CRM record, or what the advisor typed for this run.
 _CONFIRMABLE_SOURCES: frozenset[str] = frozenset({"crm_field", "advisor_context"})
@@ -71,6 +86,11 @@ class ExtractedRequirementProfile(BaseModel):
     advisor_limits: ExtractedAdvisorLimits = Field(default_factory=ExtractedAdvisorLimits)
     search_phrase: str | None = None
 
+    @field_validator("strategic_thesis", "ideal_target_description", "search_phrase")
+    @classmethod
+    def no_leaked_markup(cls, value: str | None) -> str | None:
+        return _no_leaked_markup(value)
+
 
 class ReasoningCandidateResult(BaseModel):
     """Per-candidate Stage 3 output (§15). The LLM is responsible for the
@@ -84,6 +104,18 @@ class ReasoningCandidateResult(BaseModel):
     recommended_pitch: str
     risks_and_gaps: str
     confidence_narrative: str
+
+    @field_validator(
+        "why_it_matches",
+        "why_chosen_over_alternatives",
+        "recommended_pitch",
+        "risks_and_gaps",
+        "confidence_narrative",
+    )
+    @classmethod
+    def no_leaked_markup(cls, value: str) -> str:
+        _no_leaked_markup(value)
+        return value
 
 
 class ReasoningResult(BaseModel):

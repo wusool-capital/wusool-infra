@@ -11,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
+from app.modules.matching_engine.domain.matching.research import ResearchRecord
 from app.modules.matching_engine.domain.requirements import RequirementProfile, RequirementSource
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.utilities.domain.json_types import JsonObject
@@ -190,6 +191,21 @@ class MatchResultEntity:
     # (and its Qualified-deal write) work on them unchanged.
     origin: Literal["crm", "discovery"] = "crm"
     source_url: str | None = None
+    # Run rows only: this run's search outside the CRM, so it outlives a restart.
+    discovery: "DiscoveryRecord | None" = None
+    # Candidate rows only: full research after approving a discovered seller.
+    research: ResearchRecord | None = None
+
+
+@dataclass(frozen=True)
+class DiscoveryRecord:
+    """A run's search outside the CRM. `outcome` is None while it searches;
+    a claim with no outcome past the stale window was lost and can be retaken."""
+
+    claimed_at: datetime
+    outcome: Literal["done", "failed"] | None = None
+    message: str | None = None
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

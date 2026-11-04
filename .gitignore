@@ -69,3 +69,6 @@ outputs/
 
 # Working folders from the wusool-content Claude skill (may hold ~1 MB report HTML).
 **/wusool-content/20*/
+
+# Playwright MCP screenshots and console logs from local UI checks
+.playwright-mcp/

@@ -15,7 +15,7 @@ page on wusoolcapital.com within a few moments.
    stays locked). For rich text, **Locked share (%)** is how much sits behind
    the form, by text length (75 if blank).
 4. For an uploaded HTML file, optionally tick **Keep it interactive**.
-   After the form, readers then get the live report, with its charts and
+   After the form, readers get the live report, with its charts and
    clicks. The free preview stays flat, and the PDF is always flat.
 5. Optionally fill in the excerpt, cover image, primary silo, date, and the
    end-of-page button (text and link). The **SEO** tab sets the search and

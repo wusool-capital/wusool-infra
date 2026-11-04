@@ -8,10 +8,68 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-05
+
+### Added
+
+- Organizations and Person have 11 new interaction fields in Attio and
+  Postgres (AZM-159): first, next, email and calendar interaction dates, last
+  interaction channel, subject and owner, and strongest connection user. The
+  webhook and nightly sync mirror them. Nothing writes them yet; the
+  interactions engine will.
+
+## 2026-11-04
+
+### Changed
+
+- Match reasoning is shorter. The pitch, risks and comparison come back as
+  bullets, shown as lists in the web app and in View Full Analysis.
+  Requirement extraction or reasoning output with tool-call markup inside a
+  text field is retried once instead of being saved.
+
+### Added
+
+- Approving a seller found outside the CRM in the web app runs full research
+  on it in the page. It shows proposed fields with confidence, source and
+  reasoning, plus LinkedIn job changes and posts. Advisors save the fields they tick to
+  Attio, as `/edit-seller` would, or skip; either is final. A field filled in
+  since the research ran is never overwritten. Web approvals no longer post
+  this research to Slack, and `WEB_REVIEW_CHANNEL_ID` is gone.
+
+### Changed
+
+- The web find-match app uses the Wusool Capital logo as its mark and tab
+  icon, with Geist for text and Libre Baskerville for titles.
+
+### Fixed
+
+- **Sign out** in the web app signs out someone who signed in with Slack. It
+  used to clear the session but leave the page showing them as signed in.
+- A web approval that fails stays on screen with its error. The page used to
+  jump to the next seller and back, so the approval looked undone without a
+  reason. The Toolkit log now records why, as it does for Slack.
+
 ## 2026-11-03
 
 ### Added
 
+- A web version of find-match at `/app` on the Toolkit host. One page walks
+  through the run in order (buyer, profile check, matching, shortlist,
+  discovery, export) with a steps bar at the top. The app uses the Wusool
+  Capital palette.
+
+  The run page shows the shortlist as a ranked list beside the selected
+  seller's reasoning, with every score plotted against the discovery
+  threshold. After each decision the next seller waiting for review opens.
+  Advisors approve or reject each seller and choose between an existing Attio
+  deal and a new one. They download the shortlist as CSV with the columns
+  picked in Settings (Business by default).
+
+  Any finished run can search outside the CRM, not only one with low scores.
+  Runs show Slack's full analysis: the buyer's mandate and each seller's
+  criteria. Sellers found outside the CRM show what enrichment found, and
+  approving one posts full research to Slack. Advisors sign in with Slack, so
+  web runs and decisions carry the same Slack user as `/find-match`.
 - The home page banner's link wording ("Get the report →") is editable per
   report in Sanity, under **Banner button text**. Blank keeps "Get the
   report". No Webflow Designer edit is needed for a wording change.

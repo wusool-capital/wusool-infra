@@ -8,6 +8,7 @@
 | --- | --- |
 | Slack → Toolkit | Slack Bolt verifies every request signature. |
 | WusoolScribe → Toolkit | Every `/desktop/*` call needs the shared desktop key as a bearer token, compared in constant time. |
+| Browser → web app API | Every `/api/*` call needs the shared web key as a bearer token, compared in constant time; 503 while it is unset. |
 | Attio → Toolkit | Webhook signature check (401 on failure); events from another workspace are dropped. |
 | Sanity → Toolkit | HMAC-SHA256 signature with a timestamp (401 on failure); signatures older than 10 minutes are rejected as replays. The endpoint returns 503 until it is configured. |
 | Website → lead tools | An allowlist of website origins (403 otherwise) and per-IP rate limits (429). There is no CORS middleware. The allowlist is off if left empty. |
@@ -33,6 +34,13 @@ hold only non-secret settings and are never committed.
 The Toolkit has no user allowlist: anyone who can use the bot in its Slack
 channels can run its commands. Slack app installation and channel membership
 are the authorization boundary.
+
+The web app uses Sign in with Slack, limited to the bot's own workspace. The
+session is a signed `HttpOnly`, `SameSite=Lax` cookie. Rotating
+`env.WEB_SESSION_SECRET` signs everyone out. A person removed from Slack loses
+access within a day, which needs the bot's `users:read` scope. The shared
+`WEB_API_KEY` still opens the API as a fallback and records decisions as `web`.
+Remove it from the secret once everyone signs in with Slack.
 
 The Toolkit's role can send SES email from any verified identity.
 

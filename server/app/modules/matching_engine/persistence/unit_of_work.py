@@ -21,6 +21,7 @@ from app.modules.matching_engine.persistence.repositories.matching_repository im
 from app.modules.matching_engine.persistence.repositories.meetings_repository import (
     MeetingRepository,
 )
+from app.modules.matching_engine.persistence.repositories.sellers_repository import SellerRepository
 
 
 class SqlAlchemyMatchingUnitOfWork:
@@ -29,6 +30,7 @@ class SqlAlchemyMatchingUnitOfWork:
     meetings: MeetingRepository
     deals: DealRepository
     activities: SqlAlchemyActivityRecorder
+    sellers: SellerRepository
 
     def __init__(
         self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 3000
@@ -45,6 +47,7 @@ class SqlAlchemyMatchingUnitOfWork:
         self.meetings = MeetingRepository(self._session, max_chars=self._meeting_notes_max_chars)
         self.deals = DealRepository(self._session)
         self.activities = SqlAlchemyActivityRecorder(self._session)
+        self.sellers = SellerRepository(self._session)
         return self
 
     async def __aexit__(

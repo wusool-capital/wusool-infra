@@ -18,10 +18,12 @@ from typing import Protocol
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateBatch,
+    DiscoveryRecord,
     FilterSkipped,
     MatchResultEntity,
     MatchScoreResult,
 )
+from app.modules.matching_engine.domain.matching.research import ResearchRecord
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -72,6 +74,17 @@ class MatchResultRepositoryPort(Protocol):
         errors: JsonObject | None = None,
         completed_at: datetime | None = None,
     ) -> None: ...
+    async def claim_discovery(
+        self, run_id: uuid.UUID, *, now: datetime, stale_before: datetime
+    ) -> bool: ...
+    async def finish_discovery(self, run_id: uuid.UUID, record: DiscoveryRecord | None) -> None: ...
+    async def claim_research(
+        self, match_result_id: uuid.UUID, *, now: datetime, stale_before: datetime
+    ) -> bool: ...
+    async def claim_research_save(
+        self, match_result_id: uuid.UUID, *, now: datetime, stale_before: datetime
+    ) -> bool: ...
+    async def update_research(self, match_result_id: uuid.UUID, record: ResearchRecord) -> None: ...
     async def create_candidates(self, rows: list[JsonObject]) -> list[MatchResultEntity]: ...
     async def get_run(self, run_id: uuid.UUID) -> MatchResultEntity | None: ...
     async def get_candidates(self, run_id: uuid.UUID) -> list[MatchResultEntity]: ...

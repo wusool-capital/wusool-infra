@@ -207,3 +207,24 @@ async def test_candidates_context_meeting_notes_key_is_none_when_seller_has_no_n
     prompt = fake.reasoning_calls[0]
 
     assert "'meeting_notes': None" in prompt
+
+
+async def test_leaked_tool_call_markup_in_a_narrative_triggers_a_repair() -> None:
+    candidate = VALID_RESPONSE["candidates"][0]
+    leaked = {
+        "candidates": [
+            {
+                **candidate,
+                "recommended_pitch": 'Pitch it.</pitch> <parameter name="risks_and_gaps">',
+            }
+        ]
+    }
+    fake = FakeBedrockClient(reasoning_responses=[leaked, VALID_RESPONSE])
+    service = MatchReasoningService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    result = await service.reason(_buyer(), _profile(), _shortlist())
+
+    assert result.candidates[0].recommended_pitch == candidate["recommended_pitch"]
+    assert len(fake.reasoning_calls) == 2
