@@ -236,11 +236,13 @@ export function CandidateDetail({
   runId,
   candidate,
   threshold,
+  onDeciding,
   onDecided,
 }: {
   runId: string;
   candidate: CandidateRead;
   threshold: number;
+  onDeciding?: (candidateId: string) => void;
   onDecided?: (candidateId: string) => void;
 }): React.JSX.Element {
   const decision = useDecision(runId, candidate.id);
@@ -257,6 +259,7 @@ export function CandidateDetail({
     existing_deal_id?: string;
   }): void => {
     setChoosing(false);
+    onDeciding?.(candidate.id);
     decision.mutate(
       resolution ? { kind: "approve", resolution } : { kind: "approve" },
       {
@@ -374,6 +377,7 @@ export function CandidateDetail({
             variant="danger"
             disabled={decision.isPending}
             onClick={() => {
+              onDeciding?.(candidate.id);
               decision.mutate({ kind: "reject" }, { onSuccess: decided });
             }}
           >

@@ -19,6 +19,9 @@ for current production evidence and open handover items.
 
 - **Sign out** in the web app signs out someone who signed in with Slack. It
   used to clear the session but leave the page showing them as signed in.
+- A web approval that fails stays on screen with its error. The page used to
+  jump to the next seller and back, so the approval looked undone without a
+  reason. The Toolkit log now records why, as it does for Slack.
 
 ## 2026-11-03
 

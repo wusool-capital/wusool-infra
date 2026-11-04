@@ -1,8 +1,9 @@
-import { QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { getMatchRunQueryKey } from "@/gen/hooks/useGetMatchRun";
+import type { RunDetailResponse } from "@/gen/types/RunDetailResponse";
 import { candidate, jsonResponse, run, RUN_ID } from "@/test/fixtures";
 import { renderWithQuery } from "@/test/render";
 
@@ -203,5 +204,58 @@ describe("run review", () => {
         screen.getByRole("heading", { level: 3, name: "Riyadh Physio Group" }),
       ).toBeInTheDocument();
     });
+  });
+
+  it("keeps a failed approval on screen with its error", async () => {
+    const first = candidate();
+    const second = candidate({
+      id: "5e4d3c2b-1a0f-4e9d-8c7b-6a5f4e3d2c1b",
+      rank: 2,
+      seller_org_name: "Riyadh Physio Group",
+    });
+    const current = run({ candidates: [first, second] });
+    const key = getMatchRunQueryKey({ path: { run_id: RUN_ID } });
+    // Reads the run from the cache, as the run page does, so optimistic updates show.
+    function Live(): React.JSX.Element {
+      const { data } = useQuery<RunDetailResponse>({
+        queryKey: key,
+        queryFn: () => current,
+        initialData: current,
+        staleTime: Infinity,
+      });
+      return <Review run={data} />;
+    }
+    vi.stubGlobal(
+      "fetch",
+      // Slow enough for the optimistic approval to render before the failure.
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) =>
+            setTimeout(() => {
+              resolve(
+                jsonResponse(502, {
+                  detail: {
+                    code: "partial_write",
+                    message:
+                      "Couldn't write the deal to Attio. Nothing was saved.",
+                  },
+                }),
+              );
+            }, 50),
+          ),
+      ),
+    );
+    renderWithQuery(<Live />);
+
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(
+      await screen.findByText(
+        "Couldn't write the deal to Attio. Nothing was saved.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: "Gulf Dental Partners" }),
+    ).toBeInTheDocument();
   });
 });

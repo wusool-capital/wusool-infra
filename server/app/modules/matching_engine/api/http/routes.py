@@ -6,6 +6,7 @@ Every action re-validates against the database, as the Slack handlers do.
 import asyncio
 import csv
 import io
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -73,6 +74,8 @@ _ERRORS: dict[int | str, dict[str, type[ApiErrorResponse]]] = {
     404: {"model": ApiErrorResponse},
     503: {"model": ApiErrorResponse},
 }
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api",
@@ -232,6 +235,13 @@ async def approve_candidate(
             ),
         ) from exc
     except PartialWriteError as exc:
+        logger.error(
+            "match_approval_partial_write match_result_id=%s landed=%s",
+            candidate_id,
+            exc.landed,
+            exc_info=exc.cause,
+            extra={"match_result_id": str(candidate_id), "landed": exc.landed},
+        )
         message = (
             "Couldn't write the deal to Attio. Nothing was saved."
             if not exc.landed

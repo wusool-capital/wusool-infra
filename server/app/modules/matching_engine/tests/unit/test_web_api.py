@@ -13,7 +13,11 @@ from app.modules.matching_engine.api.buyers import BuyerSummary, _BuyerCandidate
 from app.modules.matching_engine.api.http import auth, routes
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
 from app.modules.matching_engine.application.approvals import InvalidTransitionError
-from app.modules.matching_engine.application.errors import ExistingDealsFoundError
+from app.modules.matching_engine.application.errors import (
+    DealGatewayError,
+    ExistingDealsFoundError,
+    PartialWriteError,
+)
 from app.modules.matching_engine.domain.matching.deals import ExistingDeal
 from app.modules.matching_engine.domain.matching.entities import (
     CriterionScore,
@@ -297,6 +301,23 @@ def test_approve_with_existing_deals_is_409_with_choices(api) -> None:
     assert response.status_code == 409
     assert detail["code"] == "existing_deals"
     assert detail["existing_deals"][0]["attio_id"] == "deal-1"
+
+
+def test_failed_attio_write_is_502_and_logged_with_its_cause(api, caplog) -> None:
+    candidate = _row()
+    api.service.get_match_analysis.return_value = _analysis(candidates=[candidate])
+    api.service.approve_match.side_effect = PartialWriteError(
+        [], DealGatewayError("Record with ID not found.")
+    )
+
+    response = api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/approve", json={}, headers=_HEADERS
+    )
+
+    assert response.status_code == 502
+    assert response.json()["detail"]["code"] == "partial_write"
+    logged = [r for r in caplog.records if "match_approval_partial_write" in r.getMessage()]
+    assert logged and "Record with ID not found." in str(logged[0].exc_info[1])
 
 
 def test_approve_passes_deal_choice(api) -> None:

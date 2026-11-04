@@ -202,6 +202,8 @@ export function Review({
       runId={run.run_id}
       candidate={selected}
       threshold={run.discovery_threshold}
+      // Pin it: the optimistic decision would otherwise move "first pending" away and lose a failure.
+      onDeciding={setChosen}
       onDecided={advance}
     />
   ) : null;
