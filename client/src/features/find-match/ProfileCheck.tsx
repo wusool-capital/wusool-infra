@@ -199,13 +199,13 @@ export function ProfileCheck({
         </Alert>
       )}
       {startError && (
-        <Alert tone="danger" className="pr-[120px]">
+        <Alert tone="danger" className="pr-[48px]">
           <AlertTriangle aria-hidden />
           <AlertTitle>Couldn't start the run</AlertTitle>
           <AlertDescription>{startError}</AlertDescription>
           <CopyErrorButton
             message={startError}
-            className="absolute top-xs right-xs"
+            className="absolute top-[6px] right-[6px]"
           />
         </Alert>
       )}

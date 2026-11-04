@@ -27,12 +27,20 @@ export function CopyErrorButton({
     };
   }, [state]);
 
+  const label =
+    state === "copied"
+      ? "Copied"
+      : state === "failed"
+        ? "Couldn't copy"
+        : "Copy error";
   return (
     <Button
       type="button"
-      size="sm"
+      size="icon"
       variant="tertiary"
-      className={cn("shrink-0", className)}
+      aria-label={label}
+      title={label}
+      className={cn("size-8 shrink-0", className)}
       onClick={() => {
         navigator.clipboard
           .writeText(errorReport(message))
@@ -45,12 +53,8 @@ export function CopyErrorButton({
       }}
     >
       {state === "copied" ? <Check aria-hidden /> : <Copy aria-hidden />}
-      <span aria-live="polite">
-        {state === "copied"
-          ? "Copied"
-          : state === "failed"
-            ? "Couldn't copy"
-            : "Copy error"}
+      <span aria-live="polite" className="sr-only">
+        {state === "idle" ? "" : label}
       </span>
     </Button>
   );

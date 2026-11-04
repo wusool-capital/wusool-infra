@@ -298,12 +298,12 @@ export function ResearchBlock({
     );
   else if (research.status === "failed")
     body = (
-      <Alert tone="danger" className="pr-[120px]">
+      <Alert tone="danger" className="pr-[48px]">
         <AlertTriangle aria-hidden />
         <AlertTitle>{research.error ?? "Research didn't finish."}</AlertTitle>
         <CopyErrorButton
           message={research.error ?? "Research didn't finish."}
-          className="absolute top-xs right-xs"
+          className="absolute top-[6px] right-[6px]"
         />
         <AlertDescription>
           <div className="mt-xs flex flex-wrap gap-xs">
