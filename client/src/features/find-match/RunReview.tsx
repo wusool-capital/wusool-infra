@@ -270,7 +270,7 @@ export function Review({
             <ThresholdStrip run={run} selectedId={selectedId} />
           )}
           {detail && (
-            <div className="min-h-0 flex-1 scroll-pb-24 overflow-y-auto overscroll-contain rounded-lg border border-hairline bg-surface-1 px-lg pt-lg">
+            <div className="min-h-0 scroll-pb-24 overflow-y-auto overscroll-contain rounded-lg border border-hairline bg-surface-1 px-lg pt-lg">
               {detail}
             </div>
           )}
