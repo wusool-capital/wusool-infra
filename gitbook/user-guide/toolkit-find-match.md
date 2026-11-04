@@ -100,6 +100,7 @@ The same flow runs in a browser at `/app` on the Toolkit host, for example
    **Approve** and **Reject** at the bottom. Move through the list with the
    up and down arrow keys. After each decision the next seller waiting for
    review opens.
+
    A CRM seller also shows Slack's criteria breakdown. A seller found outside
    the CRM shows what Google Maps and basic enrichment found: country,
    sector, website, employees, founding year and any revenue estimate.

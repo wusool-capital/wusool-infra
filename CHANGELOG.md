@@ -14,17 +14,21 @@ for current production evidence and open handover items.
 
 - A web version of find-match at `/app` on the Toolkit host. One page walks
   through the run in order (buyer, profile check, matching, shortlist,
-  discovery, export) with a steps bar at the top. The run page shows the
-  shortlist as a ranked list beside the selected seller's reasoning, with every
-  score plotted against the discovery threshold. After each decision the next
-  seller waiting for review opens. Advisors approve or reject each seller and
-  choose between an existing Attio deal and a new one. They download the
-  shortlist as CSV with the columns picked in Settings (Business by default). Any finished run can search outside the CRM, not only one with
-  low scores. Runs show Slack's full analysis: the buyer's mandate and each
-  seller's criteria. Sellers found outside the CRM show what enrichment found,
-  and approving one posts full research to Slack. The app uses the Wusool
-  Capital palette. Advisors sign in with Slack, so web runs and decisions
-  carry the same Slack user as `/find-match`.
+  discovery, export) with a steps bar at the top. The app uses the Wusool
+  Capital palette.
+
+  The run page shows the shortlist as a ranked list beside the selected
+  seller's reasoning, with every score plotted against the discovery
+  threshold. After each decision the next seller waiting for review opens.
+  Advisors approve or reject each seller and choose between an existing Attio
+  deal and a new one. They download the shortlist as CSV with the columns
+  picked in Settings (Business by default).
+
+  Any finished run can search outside the CRM, not only one with low scores.
+  Runs show Slack's full analysis: the buyer's mandate and each seller's
+  criteria. Sellers found outside the CRM show what enrichment found, and
+  approving one posts full research to Slack. Advisors sign in with Slack, so
+  web runs and decisions carry the same Slack user as `/find-match`.
 
 ## 2026-10-30
 
