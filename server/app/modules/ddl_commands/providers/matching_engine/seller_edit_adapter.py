@@ -64,8 +64,9 @@ class DdlCommandsSellerEditAdapter:
 
         org_values = normalize_prefill(org_edits, ORGANIZATION_FIELDS_BY_NAME)
         role_values = normalize_prefill(role_edits, SELLER_ROLE_FIELDS_BY_NAME)
-        dropped = [n for n in org_edits if n not in org_values] + [
-            n for n in role_edits if n not in role_values
+        # A trimmed list would save less than the advisor saw, so it counts as invalid too.
+        dropped = [n for n, v in org_edits.items() if org_values.get(n) != v] + [
+            n for n, v in role_edits.items() if role_values.get(n) != v
         ]
         if dropped:
             return SellerEditResult(

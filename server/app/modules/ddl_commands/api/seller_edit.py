@@ -4,8 +4,6 @@ handler so both callers share one Attio-then-Postgres ordering and one
 `PartialWriteError` shape.
 """
 
-from typing import Any
-
 from app.modules.attio import AttioError, attio_is_test, get_attio_client
 from app.modules.attio.providers.attio.entries import (
     RoleEntryNotFoundError,
@@ -23,6 +21,7 @@ from app.modules.ddl_commands.api.command_tracking import (
 )
 from app.modules.ddl_commands.api.dependencies import ddl_commands_service, resolve_seller_by_id
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
+from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.write_errors import PartialWriteError
 from app.modules.ddl_commands.application.sellers import SellerNotFoundError
@@ -40,8 +39,8 @@ async def write_seller_edit(
     *,
     seller_role_id: str,
     org_attio_id: str,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
+    org_extracted: dict[str, PrefillValue | None],
+    role_extracted: dict[str, PrefillValue | None],
     requested_by: str | None,
 ) -> None:
     async with track_command(
@@ -64,8 +63,8 @@ async def _seller_edit(
     *,
     seller_role_id: str,
     org_attio_id: str,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
+    org_extracted: dict[str, PrefillValue | None],
+    role_extracted: dict[str, PrefillValue | None],
     run: CommandTracker,
 ) -> None:
     """Attio first, then Postgres — see module docstring. Re-resolves the

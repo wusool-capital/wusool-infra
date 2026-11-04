@@ -46,8 +46,10 @@ class _Store:
         self.save_claimed = False
         self.writes: list[ResearchRecord] = []
 
+    seller_role_id: str | None = _ROLE
+
     async def get_by_id(self, _id: uuid.UUID) -> SimpleNamespace:
-        return SimpleNamespace(research=self.record, seller_role_id=_ROLE)
+        return SimpleNamespace(research=self.record, seller_role_id=self.seller_role_id)
 
     async def update_research(self, _id: uuid.UUID, record: ResearchRecord) -> None:
         self.record = record
@@ -55,7 +57,8 @@ class _Store:
         self.writes.append(record)
 
     async def claim_research_save(self, _id: uuid.UUID, **_kw: datetime) -> bool:
-        if self.save_claimed:
+        record = self.record
+        if self.save_claimed or record is None or record.outcome != "done" or record.reviewed:
             return False
         self.save_claimed = True
         return True
@@ -159,7 +162,40 @@ async def test_research_already_saved_cant_be_skipped() -> None:
     store = _Store(_done("sector_focus", saved=("sector_focus",)))
 
     with pytest.raises(ResearchAlreadyReviewedError):
-        await _service(store).skip_research(_ID)
+        await _service(store).skip_research(_ID, stale_after=timedelta(minutes=15))
+
+
+async def test_a_second_save_after_the_first_finished_is_refused() -> None:
+    store = _Store(_done("sector_focus", "region"))
+    editor = AsyncMock(return_value=SellerEditResult(outcome=SellerEditOutcome.SAVED))
+    service = _service(store)
+
+    await _save(service, editor, "sector_focus")
+    with pytest.raises(ResearchAlreadyReviewedError):
+        await _save(service, editor, "region")
+
+    assert editor.await_count == 1
+    assert store.record is not None and store.record.saved_fields == ("sector_focus",)
+
+
+async def test_saving_fields_that_arent_waiting_is_invalid_not_a_false_success() -> None:
+    store = _Store(_done("sector_focus"))
+    editor = AsyncMock()
+
+    result = await _save(_service(store), editor, "made_up")
+
+    assert result.outcome is SellerEditOutcome.INVALID
+    editor.assert_not_awaited()
+    assert store.record is not None and not store.record.reviewed
+
+
+async def test_a_candidate_without_a_seller_profile_is_not_found() -> None:
+    store = _Store(_done("sector_focus"))
+    store.seller_role_id = None
+
+    result = await _save(_service(store), AsyncMock(), "sector_focus")
+
+    assert result.outcome is SellerEditOutcome.NOT_FOUND
 
 
 # The job ---------------------------------------------------------------------
@@ -227,6 +263,25 @@ async def test_a_retry_reuses_the_stored_scan(job, monkeypatch) -> None:
 
     scan.assert_not_awaited()
     assert job.record.linkedin == kept
+
+
+async def test_a_retry_rescans_after_a_failed_scan(job, monkeypatch) -> None:
+    job.record = ResearchRecord(
+        claimed_at=datetime.now(UTC), linkedin=ResearchLinkedIn(outcome="failed")
+    )
+    scan = AsyncMock(return_value=_scan())
+    monkeypatch.setattr(web_research, "propose_for_role", AsyncMock(return_value=_proposal()))
+    monkeypatch.setattr(web_research, "scan_linkedin_for_role", scan)
+
+    await web_research.research_seller(_ID, seller_role_id=_ROLE, requested_by="U1")
+
+    scan.assert_awaited_once()
+    assert job.record.linkedin is not None and job.record.linkedin.outcome == "completed"
+
+
+def test_money_without_a_currency_shows_just_the_amount() -> None:
+    assert web_research._display({"amount": 2_000_000, "currency": None}) == "2,000,000"
+    assert web_research._display({"amount": 2_000_000, "currency": "USD"}) == "USD 2,000,000"
 
 
 async def test_a_failed_proposal_is_recorded_with_the_scan(job, monkeypatch) -> None:

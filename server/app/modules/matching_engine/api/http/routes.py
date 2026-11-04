@@ -320,8 +320,19 @@ async def start_research(
 ) -> DecisionResponse:
     """Starts or retries the research; the claim makes a repeat a no-op."""
     candidate = _research_target(await _load_run(service, run_id), candidate_id)
-    await _start_research(service, candidate, requested_by=user.slack_user_id)
-    return await _decided(service, run_id, candidate_id)
+    started = await _start_research(service, candidate, requested_by=user.slack_user_id)
+    decided = await _decided(service, run_id, candidate_id)
+    if not started and decided.candidate.research is None:
+        # Nothing running and nothing to show: say why rather than return a silent 202.
+        message = (
+            "This seller has no seller profile to research."
+            if candidate.seller_role_id is None
+            else "This seller's stored research can't be read, so it can't be rerun."
+        )
+        raise api_error(
+            status.HTTP_409_CONFLICT, ApiError(code="research_not_ready", message=message)
+        )
+    return decided
 
 
 @router.post(
@@ -433,7 +444,7 @@ async def skip_research(
 ) -> DecisionResponse:
     _research_target(await _load_run(service, run_id), candidate_id)
     try:
-        await service.skip_research(candidate_id)
+        await service.skip_research(candidate_id, stale_after=research_stale_after())
     except ResearchNotReadyError as exc:
         raise api_error(
             status.HTTP_409_CONFLICT,

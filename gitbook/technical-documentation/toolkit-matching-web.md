@@ -48,16 +48,19 @@ candidate row (`metadata.research`, no migration) and runs
 background. That is the same research Slack posts, kept on the row instead
 and shown in the page; nothing goes to Slack. The LinkedIn result is stored
 the moment it lands, because a rescan returns only posts it hasn't seen. A
-claim with no outcome past `MATCH_RUN_STALE_AFTER_MINUTES` reads as failed and
+failed scan isn't kept, so a retry scans again. A claim with no outcome past `MATCH_RUN_STALE_AFTER_MINUTES` reads as failed and
 can be retried.
 
 **Saving research.** `matching_engine` defines `SellerEditPort`;
 `ddl_commands` implements it with the `/edit-seller` write
 (`api/seller_edit.py`, Attio first, then Postgres), and `server/main.py`
-wires it. The adapter validates with the edit form's models, only writes
-fields that are still empty, and reports any filled in since as a conflict.
-A save is claimed on the row (`saving_at`), so a double click writes once.
-A save or a skip closes the review. The edit is recorded as `slack` under the
+wires it. The adapter validates with the edit form's models and refuses,
+rather than trims, a value outside a field's options. It only writes fields
+that are still empty and reports any filled in since as a conflict.
+
+A save or a skip is claimed on the row (`saving_at`) and closes the review.
+The claim refuses research that is already saved or skipped. The record is
+read again after claiming. The edit is recorded as `slack` under the
 signed-in user, so the shared key can't save.
 
 **One search per run.** Slack and the web claim a run's search outside the

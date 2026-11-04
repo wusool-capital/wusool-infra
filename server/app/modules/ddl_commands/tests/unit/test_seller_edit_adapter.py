@@ -75,6 +75,19 @@ async def test_a_value_outside_the_vocabulary_is_refused(monkeypatch, write) -> 
     write.assert_not_awaited()
 
 
+async def test_a_list_partly_outside_the_vocabulary_is_refused_not_trimmed(
+    monkeypatch, write
+) -> None:
+    _resolve(monkeypatch, _seller())
+
+    result = await _apply(
+        SellerFieldEdit("sector_focus", "organization", ["Clinic", "Not A Sector"])
+    )
+
+    assert result.outcome is SellerEditOutcome.INVALID
+    write.assert_not_awaited()
+
+
 async def test_an_unknown_field_is_refused(monkeypatch, write) -> None:
     _resolve(monkeypatch, _seller())
 

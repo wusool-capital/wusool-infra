@@ -14,7 +14,7 @@ internal fetch-then-mutate/fetch-then-derive-ids methods.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -251,7 +251,14 @@ class MatchResultRepository:
                                 "claimed_at",
                                 now.isoformat(),
                                 "linkedin",
-                                current["linkedin"],
+                                # Only a completed scan is kept; a failed one is retried.
+                                case(
+                                    (
+                                        current["linkedin"]["outcome"].astext == "completed",
+                                        current["linkedin"],
+                                    ),
+                                    else_=None,
+                                ),
                             )
                         ),
                     )
@@ -265,14 +272,20 @@ class MatchResultRepository:
     async def claim_research_save(
         self, match_result_id: uuid.UUID, *, now: datetime, stale_before: datetime
     ) -> bool:
-        """One save of finished research at a time, so a double click can't
-        write the same fields to Attio twice."""
+        """One save (or skip) of finished, unreviewed research at a time, so a
+        double click or a second tab can't write to Attio after the review closed."""
         current = MatchResult.metadata_["research"]
         stmt = (
             update(MatchResult)
             .where(
                 MatchResult.id == match_result_id,
                 current["outcome"].astext == "done",
+                # Reviewed research is closed: nothing saved yet and not skipped.
+                func.jsonb_array_length(
+                    func.coalesce(current["saved_fields"], func.jsonb_build_array())
+                )
+                == 0,
+                func.coalesce(current["skipped"].astext, "false") != "true",
                 or_(
                     ~current.has_key("saving_at"),
                     current["saving_at"].astext.is_(None),

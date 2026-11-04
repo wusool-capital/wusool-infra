@@ -93,6 +93,26 @@ async def test_research_and_save_claims() -> None:
         assert await repo_call(
             "claim_research_save", now=later, stale_before=later - timedelta(minutes=15)
         )
+
+        # Once anything is saved (or it's skipped) the review is closed for good.
+        await store(
+            ResearchRecord(
+                claimed_at=retaken.claimed_at,
+                outcome="done",
+                linkedin=scan,
+                saved_fields=("facebook",),
+            )
+        )
+        assert not await repo_call("claim_research_save", now=later, stale_before=later)
+
+        # A failed scan isn't kept on a retake, so LinkedIn is tried again.
+        failed_scan = ResearchLinkedIn(outcome="failed")
+        await store(
+            ResearchRecord(claimed_at=retaken.claimed_at, outcome="failed", linkedin=failed_scan)
+        )
+        assert await repo_call("claim_research", **window)
+        rescanning = await record()
+        assert rescanning is not None and rescanning.linkedin is None
     finally:
         async with sessionmaker() as s:
             await s.execute(text("delete from match_results where run_id = :r"), {"r": run_id})

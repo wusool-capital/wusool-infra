@@ -53,7 +53,9 @@ def _display(value: ResearchValue) -> str:
         return ", ".join(value)
     if isinstance(value, dict):
         amount, currency = value.get("amount"), value.get("currency")
-        return f"{currency} {amount:,.0f}" if isinstance(amount, int | float) else str(value)
+        if not isinstance(amount, int | float):
+            return str(value)
+        return f"{currency} {amount:,.0f}" if isinstance(currency, str) else f"{amount:,.0f}"
     if isinstance(value, float):
         return f"{value:,.0f}" if value.is_integer() else f"{value:,.2f}"
     if isinstance(value, int):
@@ -117,7 +119,7 @@ async def research_seller(
     base = ResearchRecord(claimed_at=claimed.claimed_at, linkedin=claimed.linkedin)
 
     async def linkedin() -> ResearchLinkedIn:
-        if base.linkedin is not None:
+        if base.linkedin is not None and base.linkedin.outcome == "completed":
             return base.linkedin
         try:
             scan = await scan_linkedin_for_role(

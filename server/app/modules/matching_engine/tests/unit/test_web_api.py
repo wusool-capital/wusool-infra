@@ -795,6 +795,20 @@ def test_a_second_review_is_refused(api, monkeypatch) -> None:
     assert response.json()["detail"]["code"] == "already_reviewed"
 
 
+def test_research_that_cant_start_says_why(api) -> None:
+    candidate = _approved_discovered(api)
+    api.service.claim_research.return_value = False
+
+    response = api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/research",
+        headers={**_HEADERS, auth.CLIENT_HEADER: "web"},
+    )
+
+    assert response.status_code == 409
+    assert "can't be read" in response.json()["detail"]["message"]
+    api.runner.run.assert_not_called()
+
+
 def test_skipping_research_records_it(api) -> None:
     candidate = _approved_discovered(api)
 
@@ -804,4 +818,4 @@ def test_skipping_research_records_it(api) -> None:
     )
 
     assert response.status_code == 200
-    api.service.skip_research.assert_awaited_once_with(UUID(candidate.id))
+    assert api.service.skip_research.await_args.args == (UUID(candidate.id),)
