@@ -26,6 +26,7 @@ from app.modules.matching_engine.domain.requirements import (
     SoftPreference,
 )
 from app.modules.matching_engine.domain.sellers import SellerCandidate, SellerProfile
+from app.modules.matching_engine.persistence.research_json import research_from_dict
 from app.modules.utilities.domain.json_types import JsonArray, JsonObject
 from app.modules.utilities.domain.money import Money
 
@@ -301,5 +302,8 @@ def to_match_result_entity(row: MatchResult) -> MatchResultEntity:
         source_url=_source_url(row.metadata_),
         discovery=discovery_record_from_dict((row.metadata_ or {}).get("discovery"))
         if row.rank is None
+        else None,
+        research=research_from_dict((row.metadata_ or {}).get("research"))
+        if row.rank is not None
         else None,
     )

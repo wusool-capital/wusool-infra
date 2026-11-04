@@ -22,6 +22,7 @@ from app.modules.matching_engine.application.matching.use_cases import (
     MatchResultView,
     MatchRunResult,
 )
+from app.modules.matching_engine.application.ports.seller_edits import SellerEditPort
 from app.modules.matching_engine.application.ports.unit_of_work import MatchingUnitOfWorkFactory
 from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.bootstrap import build_bedrock_client as _build_bedrock_client
@@ -42,6 +43,22 @@ from app.modules.matching_engine.providers.bedrock.client import BedrockConverse
 from app.modules.notifications import SlackWebClientNotifier
 
 logger = logging.getLogger(__name__)
+
+_seller_edit_port_holder: SellerEditPort | None = None
+
+
+def configure_seller_edit_port(port: SellerEditPort) -> None:
+    global _seller_edit_port_holder
+    _seller_edit_port_holder = port
+
+
+def seller_edit_port() -> SellerEditPort:
+    if _seller_edit_port_holder is None:
+        raise RuntimeError(
+            "matching_engine seller-edit port not configured — call "
+            "configure_seller_edit_port() at startup"
+        )
+    return _seller_edit_port_holder
 
 
 def _matching_unit_of_work_factory() -> MatchingUnitOfWorkFactory:

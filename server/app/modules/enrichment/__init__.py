@@ -15,6 +15,7 @@ listed in `__all__` here.
 from app.modules.enrichment.api.enrich_flow import (
     enrich_and_post,
     propose_basic_seller_fields,
+    propose_for_role,
     scan_linkedin_for_role,
 )
 from app.modules.enrichment.application.ports.review import EnrichmentReviewPort
@@ -52,5 +53,6 @@ __all__ = [
     "WriteTarget",
     "enrich_and_post",
     "propose_basic_seller_fields",
+    "propose_for_role",
     "scan_linkedin_for_role",
 ]
