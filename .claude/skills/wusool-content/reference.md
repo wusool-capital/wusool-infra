@@ -163,6 +163,7 @@ the flat copy after the form). Ask it as `reports.md` describes.
 | `silo` | enum | See below |
 | `publishedAt` | datetime | Always set |
 | `bannerPinned` | boolean | Pinning moves the home banner from the current report |
+| `bannerCtaText` | string ≤ 30 | Banner link wording. Blank = "Get the report"; the site adds the arrow |
 | `cta` | `{text, url}` | Both or neither. `text` max 80; `url` is full or a site path like `/sell` |
 
 ### `insights`

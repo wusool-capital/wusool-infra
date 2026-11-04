@@ -172,6 +172,15 @@ export const report = defineType({
       description: 'Unpins whichever report is in the banner now.',
     }),
     defineField({
+      name: 'bannerCtaText',
+      group: 'publishing',
+      title: 'Banner button text',
+      type: 'string',
+      description:
+        'The link text in the home page banner. Blank means "Get the report". The site adds the arrow.',
+      validation: (rule) => rule.max(30),
+    }),
+    defineField({
       name: 'cta',
       group: 'content',
       title: 'End-of-page button',

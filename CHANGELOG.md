@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-03
+
+### Added
+
+- The home page banner's link wording ("Get the report →") is editable per
+  report in Sanity, under **Banner button text**. Blank keeps "Get the
+  report". No Webflow Designer edit is needed for a wording change.
+
 ## 2026-10-30
 
 ### Added
