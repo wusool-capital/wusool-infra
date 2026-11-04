@@ -42,3 +42,21 @@ def test_candidate_header_rounds_score_not_raw_decimal() -> None:
 
     assert "52.630000000000002557953848736360669136047363281250" not in text
     assert "53/100" in text or "52/100" in text
+
+
+def test_bulleted_narrative_starts_on_its_own_line_with_slack_bullets() -> None:
+    analysis = _analysis()
+    analysis.candidates[0].risks_and_gaps = "- Ticket: unknown\n- Geography: blank"
+
+    text = _rendered_text(build_full_analysis_blocks(analysis))
+
+    assert "*Risks and gaps:*\n• Ticket: unknown\n• Geography: blank" in text
+
+
+def test_single_sentence_narrative_stays_inline() -> None:
+    analysis = _analysis()
+    analysis.candidates[0].recommended_pitch = "Lead with the cybersecurity angle."
+
+    text = _rendered_text(build_full_analysis_blocks(analysis))
+
+    assert "*Recommended pitch:* Lead with the cybersecurity angle." in text

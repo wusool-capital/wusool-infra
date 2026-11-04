@@ -10,6 +10,13 @@ for current production evidence and open handover items.
 
 ## 2026-11-04
 
+### Changed
+
+- Match reasoning is shorter. The pitch, risks and comparison come back as
+  bullets, shown as lists in the web app and in View Full Analysis.
+  Requirement extraction or reasoning output with tool-call markup inside a
+  text field is retried once instead of being saved.
+
 ### Added
 
 - Approving a seller found outside the CRM in the web app runs full research

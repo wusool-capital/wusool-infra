@@ -33,6 +33,14 @@ def _section(text: str) -> SectionBlock:
     return SectionBlock(text=_truncate(sanitize_mrkdwn(text)))
 
 
+def _narrative(label: str, value: str) -> str:
+    """Bulleted fields (`- ` lines) start on their own line, with Slack's bullet."""
+    if "\n" not in value:
+        return f"*{label}:* {value}"
+    lines = [f"• {line[2:]}" if line.startswith("- ") else line for line in value.splitlines()]
+    return f"*{label}:*\n" + "\n".join(lines)
+
+
 def build_full_analysis_blocks(analysis: MatchAnalysis) -> list[Block]:
     blocks: list[Block] = []
     profile = analysis.run.requirement_profile
@@ -108,7 +116,7 @@ def _candidate_blocks(
     ]
     for label, value in narrative_bits:
         if value:
-            blocks.append(_section(f"*{label}:* {value}"))
+            blocks.append(_section(_narrative(label, value)))
 
     blocks.append(DividerBlock())
     return blocks
