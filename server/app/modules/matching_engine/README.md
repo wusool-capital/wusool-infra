@@ -230,9 +230,14 @@ wrong one gets 401, and 503 comes back while neither is configured:
   row's status, so a repeat gets 409 `already_reviewed`.
 - **Slack parity.** `GET /match-runs/{id}` returns the requirement profile
   (`mandate`), each scored candidate's `criteria` and every candidate's
-  `profile` (`SellerRepositoryPort.get_profiles`). Approving a discovered
-  seller runs `enrich_and_post` into `WEB_REVIEW_CHANNEL_ID`, skipped when
-  unset.
+  `profile` (`SellerRepositoryPort.get_profiles`).
+- **Full research.** Approving a discovered seller claims research on its row
+  (`metadata.research`) and runs `api/http/web_research.py` in the background:
+  `enrichment.propose_for_role` plus the LinkedIn scan, kept for review in the
+  page rather than posted to Slack. `application/research.py` saves the chosen
+  fields once through `SellerEditPort` (`application/ports/seller_edits.py`),
+  which `ddl_commands` implements; a save or a skip closes the review. The port
+  and its value types are this module's only `__all__` exports.
 - **Existing deal.** Approve returns 409 with the existing Attio deals; the
   page asks to promote one or create a new deal, the same choice Slack offers.
 - **Export.** Cells starting with `=`, `+`, `-` or `@` are prefixed with `'`

@@ -15,6 +15,9 @@ deep links and caches hashed assets for a year) and its API under `/api`:
 | `POST /api/match-runs/{id}/discovery` | Starts discovery by hand. |
 | `POST /api/match-runs/{id}/candidates/{cid}/approve` | Approve, with the promote or create choice. |
 | `POST /api/match-runs/{id}/candidates/{cid}/reject` | Reject. |
+| `POST /api/match-runs/{id}/candidates/{cid}/research` | Starts or retries full research on an approved discovered seller (202). |
+| `POST /api/match-runs/{id}/candidates/{cid}/research/save` | Writes the chosen proposed fields to the seller. Needs a Slack sign-in. |
+| `POST /api/match-runs/{id}/candidates/{cid}/research/skip` | Closes the research without saving. |
 | `GET /api/match-runs/{id}/export.csv` | The candidates as CSV, with formula characters neutralised. Repeat `fields` to choose and order columns; without it, all are exported. |
 
 **Access.** People sign in with Slack (OpenID Connect, `openid profile`)
@@ -37,9 +40,25 @@ restart cut it off.
 **Parity with Slack.** The run detail carries the requirement profile as
 `mandate` and each scored candidate's `criteria`, the two parts of View Full
 Analysis. Each candidate also carries `profile`, read from its organisation
-and seller role. Approving a discovered seller queues the same full
-enrichment Slack does and posts it to `WEB_REVIEW_CHANNEL_ID`. With that
-setting unset the step is skipped. The profile check can't be skipped.
+and seller role. The profile check can't be skipped.
+
+**Full research.** Approving a discovered seller claims its research on the
+candidate row (`metadata.research`, no migration) and runs
+`enrichment.propose_for_role` and `scan_linkedin_for_role` in the
+background. That is the same research Slack posts, kept on the row instead
+and shown in the page; nothing goes to Slack. The LinkedIn result is stored
+the moment it lands, because a rescan returns only posts it hasn't seen. A
+claim with no outcome past `MATCH_RUN_STALE_AFTER_MINUTES` reads as failed and
+can be retried.
+
+**Saving research.** `matching_engine` defines `SellerEditPort`;
+`ddl_commands` implements it with the `/edit-seller` write
+(`api/seller_edit.py`, Attio first, then Postgres), and `server/main.py`
+wires it. The adapter validates with the edit form's models, only writes
+fields that are still empty, and reports any filled in since as a conflict.
+A save is claimed on the row (`saving_at`), so a double click writes once.
+A save or a skip closes the review. The edit is recorded as `slack` under the
+signed-in user, so the shared key can't save.
 
 **One search per run.** Slack and the web claim a run's search outside the
 CRM on the run row. A second click, a retry or a restart can't search
@@ -55,8 +74,8 @@ offered on runs that cleared the threshold.
 **Settings.** The web settings are entries in the `env` map of the Toolkit
 secret (`/wusool/<env>/toolkit`). A top-level key is ignored. Sign-in needs
 `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `WEB_SESSION_SECRET` and
-`WEB_PUBLIC_URL`. `WEB_API_KEY` and `WEB_REVIEW_CHANNEL_ID` are optional. `WEB_ALLOWED_ORIGINS` (CORS) stays
-empty while the app is served from the same host.
+`WEB_PUBLIC_URL`. `WEB_API_KEY` is optional. `WEB_ALLOWED_ORIGINS` (CORS)
+stays empty while the app is served from the same host.
 
 **Build and deploy.** The Toolkit image has a Node stage that builds
 `client/`, passed in as a named build context (`--build-context

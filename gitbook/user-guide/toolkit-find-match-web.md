@@ -26,18 +26,32 @@ The same flow runs in a browser at `/app` on the Toolkit host, for example
    **Buyer and mandate** shows the thesis, ideal target and hard requirements
    the run matched against.
 6. If Attio already has a deal for the pair, choose **Use this deal** (up to
-   three, each linked to Attio) or **Create a new deal**. Approving a seller
-   found outside the CRM also posts full research on it to the Slack review
-   channel, as approving it in Slack does.
+   three, each linked to Attio) or **Create a new deal**.
 7. If no seller scores 50 or more, the search outside the CRM starts by
    itself. Otherwise **Outside the CRM** offers **Find more sellers anyway**,
    as Slack's **Find more sellers** does. New sellers from Google Maps join
    the list under **Found outside the CRM** for review. Each run searches
    once.
-8. **Download CSV**, next to the title, saves the shortlist with every
+8. Approving a seller found outside the CRM starts **Full research** on it,
+   shown at the top of that seller's panel. It reads the company's website,
+   company data and LinkedIn, usually in under a minute; you can review other
+   sellers meanwhile. Nothing goes to Slack.
+
+   Each proposed field shows its value, how confident the research is, its
+   source and **Why**. Fields at 80% or more start ticked. **Save N fields to
+   Attio** writes the ticked ones, as `/edit-seller` would; **Skip** saves
+   nothing. Either one is final, so the list then locks. A field someone
+   filled in since the research ran is never overwritten: the page unticks it
+   so you can save the rest. Saving needs a Slack sign-in.
+
+   Below the fields, **LinkedIn** lists job changes and posts from the past
+   month. If research fails, **Try again** runs it once more.
+9. **Download CSV**, next to the title, saves the shortlist with every
    decision so far. Choose its columns under **Settings → CSV export**. The
    default **Business** preset keeps rank, seller, score, decision, why it
-   matches, pitch and risks. **Everything** adds the rest.
+   matches, pitch and risks. **Everything** adds the rest, including which
+   research fields were saved. A note beside it counts sellers whose research
+   still waits for review.
 
 The home page lists your recent runs with how many sellers each still has to
 review. **Settings** explains what each decision writes, picks the CSV columns for

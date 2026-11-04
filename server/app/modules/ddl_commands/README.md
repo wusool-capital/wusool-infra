@@ -101,6 +101,17 @@ beyond the `AttioClientProtocol` Port.
    write fails after the org-create succeeded, the org is *not* rolled
    back — the next `/add-*` attempt finds it via search.
 
+### Headless seller edit (web research)
+
+`api/seller_edit.py::write_seller_edit` is the Attio-first seller edit the
+`/edit-seller` submission calls, kept out of the Slack handler so
+`providers/matching_engine/seller_edit_adapter.py` can call it too. The
+adapter implements `matching_engine.SellerEditPort` for saving web research:
+it validates with `OrganizationUpdate`/`SellerUpdate`, refuses fields that
+are no longer empty (research only proposes empty ones) and returns what
+landed on a `PartialWriteError`. `server/main.py` wires it; the dependency
+edge points `ddl_commands -> matching_engine`.
+
 ### Headless seller add (discovery)
 
 `api/seller_write.py::write_seller_add` is the Attio-first seller write the
