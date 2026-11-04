@@ -35,6 +35,22 @@ class Person(Base):
     education: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
     enrichment: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="{}")
     last_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # AZM-159: written to Attio by the interactions engine, mirrored here by the webhook.
+    first_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    next_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    first_email_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    last_email_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    first_calendar_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    last_calendar_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    next_calendar_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    last_interaction_channel: Mapped[str | None] = mapped_column(Text)
+    last_interaction_subject: Mapped[str | None] = mapped_column(Text)
+    last_interaction_owner: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("users.attio_id", name="person_last_interaction_owner_fkey")
+    )
+    strongest_connection_user: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("users.attio_id", name="person_strongest_connection_user_fkey")
+    )
     # Added 2026-08-19 alongside the DEV Attio attributes of the same names
     # (Wusool Schema Handover artifact).
     job_title: Mapped[str | None] = mapped_column(Text)

@@ -214,7 +214,11 @@ _ORG_UPSERT = text(
         connection_strength, owner_attio_id, last_interaction_at, funding_raised,
         estimated_arr, angellist, facebook, instagram, twitter, twitter_follower_count,
         foundation_date, ticket_size, lead_source, lead_source_detail, employee_range,
-        linkedin, logo_url, is_active, source_place_id, raw_attio
+        linkedin, logo_url, is_active, source_place_id, raw_attio,
+        first_interaction_at, next_interaction_at, first_email_interaction_at,
+        last_email_interaction_at, first_calendar_interaction_at, last_calendar_interaction_at,
+        next_calendar_interaction_at, last_interaction_channel, last_interaction_subject,
+        last_interaction_owner, strongest_connection_user
     ) VALUES (
         :attio_id, :name, :description, :type, :client_type, :sector_focus, :stage_focus,
         :geographic_focus, :hq_country, :region, :domains, :categories, :relationship_status,
@@ -225,7 +229,14 @@ _ORG_UPSERT = text(
         :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
         :foundation_date, :ticket_size, :lead_source, :lead_source_detail, :employee_range,
         :linkedin, :logo_url, :is_active, :source_place_id,
-        CAST(:raw_attio AS jsonb)
+        CAST(:raw_attio AS jsonb),
+        :first_interaction_at, :next_interaction_at, :first_email_interaction_at,
+        :last_email_interaction_at, :first_calendar_interaction_at, :last_calendar_interaction_at,
+        :next_calendar_interaction_at, :last_interaction_channel, :last_interaction_subject,
+        CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :last_interaction_owner)
+             THEN :last_interaction_owner ELSE NULL END,
+        CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :strongest_connection_user)
+             THEN :strongest_connection_user ELSE NULL END
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, description=excluded.description, type=excluded.type,
@@ -244,6 +255,17 @@ _ORG_UPSERT = text(
         linkedin=excluded.linkedin, logo_url=excluded.logo_url,
         is_active=excluded.is_active,
         source_place_id=COALESCE(excluded.source_place_id, organizations.source_place_id),
+        first_interaction_at=excluded.first_interaction_at,
+        next_interaction_at=excluded.next_interaction_at,
+        first_email_interaction_at=excluded.first_email_interaction_at,
+        last_email_interaction_at=excluded.last_email_interaction_at,
+        first_calendar_interaction_at=excluded.first_calendar_interaction_at,
+        last_calendar_interaction_at=excluded.last_calendar_interaction_at,
+        next_calendar_interaction_at=excluded.next_calendar_interaction_at,
+        last_interaction_channel=excluded.last_interaction_channel,
+        last_interaction_subject=excluded.last_interaction_subject,
+        last_interaction_owner=excluded.last_interaction_owner,
+        strongest_connection_user=excluded.strongest_connection_user,
         raw_attio=excluded.raw_attio,
         updated_at=now(), removed_at=NULL
     """
@@ -288,6 +310,17 @@ def _organization_params(data: AttioRecord) -> OrganizationParams:
         "connection_strength": v.first(values, "connection_strength"),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
+        "first_interaction_at": v.timestamp(values, "first_interaction_at"),
+        "next_interaction_at": v.timestamp(values, "next_interaction_at"),
+        "first_email_interaction_at": v.timestamp(values, "first_email_interaction_at"),
+        "last_email_interaction_at": v.timestamp(values, "last_email_interaction_at"),
+        "first_calendar_interaction_at": v.timestamp(values, "first_calendar_interaction_at"),
+        "last_calendar_interaction_at": v.timestamp(values, "last_calendar_interaction_at"),
+        "next_calendar_interaction_at": v.timestamp(values, "next_calendar_interaction_at"),
+        "last_interaction_channel": v.first(values, "last_interaction_channel"),
+        "last_interaction_subject": v.first(values, "last_interaction_subject"),
+        "last_interaction_owner": v.actor(values, "last_interaction_owner"),
+        "strongest_connection_user": v.actor(values, "strongest_connection_user"),
         "funding_raised": v.money(values, "funding_raised"),
         "estimated_arr": v.first(values, "estimated_arr"),
         "raw_attio": data,
@@ -366,7 +399,11 @@ _PERSON_UPSERT = text(
         attio_id, name, role, company_attio_id, email, linkedin, relationship_status,
         connection_strength, owner_attio_id, last_interaction_at, job_title, contact_type,
         phone, avatar_url, angellist, facebook, instagram, twitter, twitter_follower_count,
-        raw_attio
+        raw_attio,
+        first_interaction_at, next_interaction_at, first_email_interaction_at,
+        last_email_interaction_at, first_calendar_interaction_at, last_calendar_interaction_at,
+        next_calendar_interaction_at, last_interaction_channel, last_interaction_subject,
+        last_interaction_owner, strongest_connection_user
     ) VALUES (
         :attio_id, :name, :role,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :company_attio_id)
@@ -376,7 +413,14 @@ _PERSON_UPSERT = text(
              THEN :owner_attio_id ELSE NULL END,
         :last_interaction_at, :job_title, :contact_type, :phone, :avatar_url,
         :angellist, :facebook, :instagram, :twitter, :twitter_follower_count,
-        CAST(:raw_attio AS jsonb)
+        CAST(:raw_attio AS jsonb),
+        :first_interaction_at, :next_interaction_at, :first_email_interaction_at,
+        :last_email_interaction_at, :first_calendar_interaction_at, :last_calendar_interaction_at,
+        :next_calendar_interaction_at, :last_interaction_channel, :last_interaction_subject,
+        CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :last_interaction_owner)
+             THEN :last_interaction_owner ELSE NULL END,
+        CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :strongest_connection_user)
+             THEN :strongest_connection_user ELSE NULL END
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, role=excluded.role, company_attio_id=excluded.company_attio_id,
@@ -388,6 +432,17 @@ _PERSON_UPSERT = text(
         avatar_url=excluded.avatar_url, angellist=excluded.angellist,
         facebook=excluded.facebook, instagram=excluded.instagram, twitter=excluded.twitter,
         twitter_follower_count=excluded.twitter_follower_count,
+        first_interaction_at=excluded.first_interaction_at,
+        next_interaction_at=excluded.next_interaction_at,
+        first_email_interaction_at=excluded.first_email_interaction_at,
+        last_email_interaction_at=excluded.last_email_interaction_at,
+        first_calendar_interaction_at=excluded.first_calendar_interaction_at,
+        last_calendar_interaction_at=excluded.last_calendar_interaction_at,
+        next_calendar_interaction_at=excluded.next_calendar_interaction_at,
+        last_interaction_channel=excluded.last_interaction_channel,
+        last_interaction_subject=excluded.last_interaction_subject,
+        last_interaction_owner=excluded.last_interaction_owner,
+        strongest_connection_user=excluded.strongest_connection_user,
         raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     """
 )
@@ -412,6 +467,17 @@ def _person_params(data: AttioRecord) -> PersonParams:
         "connection_strength": v.first(values, "connection_strength"),
         "owner_attio_id": v.actor(values, "owner"),
         "last_interaction_at": v.timestamp(values, "last_interaction_at"),
+        "first_interaction_at": v.timestamp(values, "first_interaction_at"),
+        "next_interaction_at": v.timestamp(values, "next_interaction_at"),
+        "first_email_interaction_at": v.timestamp(values, "first_email_interaction_at"),
+        "last_email_interaction_at": v.timestamp(values, "last_email_interaction_at"),
+        "first_calendar_interaction_at": v.timestamp(values, "first_calendar_interaction_at"),
+        "last_calendar_interaction_at": v.timestamp(values, "last_calendar_interaction_at"),
+        "next_calendar_interaction_at": v.timestamp(values, "next_calendar_interaction_at"),
+        "last_interaction_channel": v.first(values, "last_interaction_channel"),
+        "last_interaction_subject": v.first(values, "last_interaction_subject"),
+        "last_interaction_owner": v.actor(values, "last_interaction_owner"),
+        "strongest_connection_user": v.actor(values, "strongest_connection_user"),
         "job_title": v.first(values, "job_title"),
         "contact_type": v.first(values, "contact_type"),
         "phone": v.first(values, "phone"),
@@ -1362,6 +1428,10 @@ def _resolve_ref(value: str | None, valid_ids: set[str]) -> str | None:
 def _organization_batch_params(data: AttioRecord, user_ids: set[str]) -> OrganizationParams:
     params = cast(OrganizationParams, dict(_organization_params(data)))
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
+    params["last_interaction_owner"] = _resolve_ref(params["last_interaction_owner"], user_ids)
+    params["strongest_connection_user"] = _resolve_ref(
+        params["strongest_connection_user"], user_ids
+    )
     return params
 
 
@@ -1369,6 +1439,10 @@ def _person_batch_params(data: AttioRecord, org_ids: set[str], user_ids: set[str
     params = cast(PersonParams, dict(_person_params(data)))
     params["company_attio_id"] = _resolve_ref(params["company_attio_id"], org_ids)
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
+    params["last_interaction_owner"] = _resolve_ref(params["last_interaction_owner"], user_ids)
+    params["strongest_connection_user"] = _resolve_ref(
+        params["strongest_connection_user"], user_ids
+    )
     return params
 
 

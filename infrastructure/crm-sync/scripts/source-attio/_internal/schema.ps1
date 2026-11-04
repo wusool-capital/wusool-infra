@@ -151,6 +151,18 @@ $fields = @(
   [pscustomobject]@{ Title = "Connection Strength"; Slug = "connection_strength"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "strongest_connection_strength" },
   [pscustomobject]@{ Title = "Owner"; Slug = "owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Last Interaction At"; Slug = "last_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  # AZM-159: Attio computes these only on standard objects, so the interactions engine writes them here.
+  [pscustomobject]@{ Title = "First Interaction At"; Slug = "first_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Next Interaction At"; Slug = "next_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "First Email Interaction At"; Slug = "first_email_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Last Email Interaction At"; Slug = "last_email_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "First Calendar Interaction At"; Slug = "first_calendar_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Last Calendar Interaction At"; Slug = "last_calendar_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Next Calendar Interaction At"; Slug = "next_calendar_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Last Interaction Channel"; Slug = "last_interaction_channel"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @("Email", "Meeting") },
+  [pscustomobject]@{ Title = "Last Interaction Subject"; Slug = "last_interaction_subject"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Last Interaction Owner"; Slug = "last_interaction_owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
+  [pscustomobject]@{ Title = "Strongest Connection User"; Slug = "strongest_connection_user"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null },
   [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null },
   [pscustomobject]@{ Title = "Funding Raised"; Slug = "funding_raised"; Type = "currency"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; Config = @{ currency = @{ default_currency_code = "USD"; display_type = "symbol" } } },
   [pscustomobject]@{ Title = "Estimated ARR"; Slug = "estimated_arr"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; FixedOptions = @('$0-$1M', '$1M-$10M', '$10M-$50M', '$50M-$100M', '$100M-$250M', '$250M-$500M', '$500M-$1B', '$1B-$10B', '$10B+') },
@@ -496,6 +508,18 @@ $fields = @(
   [pscustomobject]@{ Title = "Connection Strength"; Slug = "connection_strength"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "strongest_connection_strength"; AllowedObject = $null },
   [pscustomobject]@{ Title = "Owner"; Slug = "owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Last Interaction At"; Slug = "last_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  # AZM-159: Attio computes these only on standard objects, so the interactions engine writes them here.
+  [pscustomobject]@{ Title = "First Interaction At"; Slug = "first_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Next Interaction At"; Slug = "next_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "First Email Interaction At"; Slug = "first_email_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Last Email Interaction At"; Slug = "last_email_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "First Calendar Interaction At"; Slug = "first_calendar_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Last Calendar Interaction At"; Slug = "last_calendar_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Next Calendar Interaction At"; Slug = "next_calendar_interaction_at"; Type = "timestamp"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Last Interaction Channel"; Slug = "last_interaction_channel"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null; FixedOptions = @("Email", "Meeting") },
+  [pscustomobject]@{ Title = "Last Interaction Subject"; Slug = "last_interaction_subject"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Last Interaction Owner"; Slug = "last_interaction_owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  [pscustomobject]@{ Title = "Strongest Connection User"; Slug = "strongest_connection_user"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null; AllowedObject = $null },
   # Created directly via the API when first migrated (2026-08-19), never
   # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
@@ -626,6 +650,38 @@ foreach ($field in @($fields | Where-Object SourceOption)) {
   }
 
   foreach ($title in $sourceTitles) {
+    $key = $title.Trim().ToLowerInvariant()
+    if ($existing.ContainsKey($key)) { continue }
+    $actions += "create_option:$($field.Slug):$title"
+    if (-not $Apply) {
+      Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
+      continue
+    }
+    Invoke-AttioRequest -Method Post -Headers $devHeaders `
+      -Path "/objects/person/attributes/$($field.Slug)/options" `
+      -Body @{ data = @{ title = $title } } | Out-Null
+    $existing[$key] = $true
+    Write-Host "CREATED OPTION: $($field.Slug) -> $title"
+  }
+}
+
+foreach ($field in @($fields | Where-Object FixedOptions)) {
+  if (-not $Apply -and -not $targetAttributes.ContainsKey($field.Slug)) {
+    foreach ($title in $field.FixedOptions) {
+      $actions += "create_option:$($field.Slug):$title"
+      Write-Host "DRY RUN: would create $($field.Slug) option '$title'."
+    }
+    continue
+  }
+
+  $targetTitles = @(Get-OptionTitles -Headers $devHeaders `
+    -ObjectSlug "person" -AttributeSlug $field.Slug)
+  $existing = @{}
+  foreach ($title in $targetTitles) {
+    $existing[$title.Trim().ToLowerInvariant()] = $true
+  }
+
+  foreach ($title in $field.FixedOptions) {
     $key = $title.Trim().ToLowerInvariant()
     if ($existing.ContainsKey($key)) { continue }
     $actions += "create_option:$($field.Slug):$title"

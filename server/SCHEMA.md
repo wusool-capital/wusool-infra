@@ -57,6 +57,12 @@ computed in Postgres and could not be rebuilt from Attio, and
 | connection_strength | text | yes | | |
 | owner_attio_id | text | yes | | FK → users.attio_id |
 | last_interaction_at | timestamptz | yes | | |
+| first_interaction_at / next_interaction_at | timestamptz | yes | | AZM-159 interactions engine, mirrored from Attio |
+| first_email_interaction_at / last_email_interaction_at | timestamptz | yes | | AZM-159 |
+| first_calendar_interaction_at / last_calendar_interaction_at / next_calendar_interaction_at | timestamptz | yes | | AZM-159 |
+| last_interaction_channel | text | yes | | `Email` or `Meeting` |
+| last_interaction_subject | text | yes | | |
+| last_interaction_owner / strongest_connection_user | text | yes | | FK → users.attio_id; NULL if the member is unknown |
 | estimated_arr | text | yes | | |
 | funding_raised | jsonb | yes | | money-shaped |
 | removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
@@ -92,6 +98,12 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | education | jsonb | no | `[]` | |
 | enrichment | jsonb | no | `{}` | |
 | last_interaction_at | timestamptz | yes | | |
+| first_interaction_at / next_interaction_at | timestamptz | yes | | AZM-159 interactions engine, mirrored from Attio |
+| first_email_interaction_at / last_email_interaction_at | timestamptz | yes | | AZM-159 |
+| first_calendar_interaction_at / last_calendar_interaction_at / next_calendar_interaction_at | timestamptz | yes | | AZM-159 |
+| last_interaction_channel | text | yes | | `Email` or `Meeting` |
+| last_interaction_subject | text | yes | | |
+| last_interaction_owner / strongest_connection_user | text | yes | | FK → users.attio_id; NULL if the member is unknown |
 | job_title / contact_type / phone / avatar_url | text | yes | | |
 | angellist / facebook / instagram / twitter | text | yes | | |
 | twitter_follower_count | integer | yes | | |

@@ -121,6 +121,26 @@ PostgreSQL changes go through reviewed Alembic migrations; runtime code never
 alters tables. Attio schema changes need the mapping, validation, and CRM
 schema documentation updated together.
 
+### Interaction fields
+
+Organizations and Person carry interaction fields that the interactions engine
+(AZM-159) writes to Attio. The webhook and the nightly resync mirror them into
+PostgreSQL like any other attribute.
+
+| Attio attribute | Type | PostgreSQL column |
+|---|---|---|
+| First / Next Interaction At | timestamp | `first_interaction_at`, `next_interaction_at` |
+| First / Last Email Interaction At | timestamp | `first_email_interaction_at`, `last_email_interaction_at` |
+| First / Last / Next Calendar Interaction At | timestamp | `first_calendar_interaction_at`, `last_calendar_interaction_at`, `next_calendar_interaction_at` |
+| Last Interaction Channel | select: Email, Meeting | `last_interaction_channel` |
+| Last Interaction Subject | text | `last_interaction_subject` |
+| Last Interaction Owner | actor reference | `last_interaction_owner` |
+| Strongest Connection User | actor reference | `strongest_connection_user` |
+
+The two actor columns reference `users.attio_id`. The sync stores NULL when
+the workspace member is not in `users` yet. `last_interaction_at` and
+`connection_strength` existed before and are unchanged.
+
 ## Code
 
 `server/app/modules/attio` (client and value handling) and
