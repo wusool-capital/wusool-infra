@@ -102,8 +102,11 @@
   :root {
     color-scheme: dark;
   }
+  /* Native scrollers (textareas, sideways rows) match ScrollArea's thumb. */
   * {
     @apply border-hairline;
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline-strong) transparent;
   }
   html,
   body,

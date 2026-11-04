@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMatchRunQueryKey } from "@/gen/hooks/useGetMatchRun";
 import { useStartDiscovery } from "@/gen/hooks/useStartDiscovery";
@@ -202,63 +203,67 @@ export function Review({
       // Pin it: the optimistic decision would otherwise move "first pending" away and lose a failure.
       onDeciding={setChosen}
       onDecided={advance}
+      framed={wide}
     />
   ) : null;
 
   return (
     // On desktop the review fills the window; list and detail scroll on their own.
     <div className="grid items-start gap-lg lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:items-stretch">
-      <div className="flex min-w-0 flex-col gap-xl lg:min-h-0 lg:overflow-y-auto lg:pb-lg">
-        <section
-          aria-labelledby="shortlist-title"
-          className="flex flex-col gap-sm"
-        >
-          <SectionTitle
-            id="shortlist-title"
-            aside={
-              all.length > 0 ? (
-                <span className="hidden lg:inline">↑ ↓ to move</span>
-              ) : undefined
-            }
+      {/* The scrollbar sits in the column gap, clear of the shortlist's edge. */}
+      <ScrollArea className="min-w-0 lg:-mr-md lg:min-h-0">
+        <div className="flex flex-col gap-xl lg:pr-md lg:pb-lg">
+          <section
+            aria-labelledby="shortlist-title"
+            className="flex flex-col gap-sm"
           >
-            Shortlist
-          </SectionTitle>
-          {run.low_match_quality && crm.length > 0 && (
-            <Alert tone="warning">
-              <AlertTriangle aria-hidden />
-              <AlertTitle>Low match quality</AlertTitle>
-              <AlertDescription>
-                The best score is {score(best)}, below the{" "}
-                {score(run.discovery_threshold)} threshold, so discovery
-                searches outside the CRM.
-              </AlertDescription>
-            </Alert>
-          )}
-          {crm.length > 0 && crm.length < 3 && (
-            <p className="text-body text-ink-subtle">
-              Only {crm.length} qualifying candidate
-              {crm.length === 1 ? "" : "s"} available — fewer than 3.
-            </p>
-          )}
-          {all.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-hairline-strong px-md py-sm text-body text-ink-muted">
-              No seller in the CRM passed the filters and the sector check for
-              this buyer.
-            </p>
-          ) : (
-            <CandidateList
-              groups={groups}
-              threshold={run.discovery_threshold}
-              selectedId={selectedId}
-              onSelect={setChosen}
-              inlineDetail={wide ? undefined : detail}
-            />
-          )}
-        </section>
-        <DiscoverySection run={run} />
-        <MandateSection run={run} />
-        {notes}
-      </div>
+            <SectionTitle
+              id="shortlist-title"
+              aside={
+                all.length > 0 ? (
+                  <span className="hidden lg:inline">↑ ↓ to move</span>
+                ) : undefined
+              }
+            >
+              Shortlist
+            </SectionTitle>
+            {run.low_match_quality && crm.length > 0 && (
+              <Alert tone="warning">
+                <AlertTriangle aria-hidden />
+                <AlertTitle>Low match quality</AlertTitle>
+                <AlertDescription>
+                  The best score is {score(best)}, below the{" "}
+                  {score(run.discovery_threshold)} threshold, so discovery
+                  searches outside the CRM.
+                </AlertDescription>
+              </Alert>
+            )}
+            {crm.length > 0 && crm.length < 3 && (
+              <p className="text-body text-ink-subtle">
+                Only {crm.length} qualifying candidate
+                {crm.length === 1 ? "" : "s"} available — fewer than 3.
+              </p>
+            )}
+            {all.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-hairline-strong px-md py-sm text-body text-ink-muted">
+                No seller in the CRM passed the filters and the sector check for
+                this buyer.
+              </p>
+            ) : (
+              <CandidateList
+                groups={groups}
+                threshold={run.discovery_threshold}
+                selectedId={selectedId}
+                onSelect={setChosen}
+                inlineDetail={wide ? undefined : detail}
+              />
+            )}
+          </section>
+          <DiscoverySection run={run} />
+          <MandateSection run={run} />
+          {notes}
+        </div>
+      </ScrollArea>
 
       {wide && (
         <aside
@@ -269,7 +274,7 @@ export function Review({
             <ThresholdStrip run={run} selectedId={selectedId} />
           )}
           {detail && (
-            <div className="min-h-0 scroll-pb-24 overflow-y-auto overscroll-contain rounded-lg border border-hairline bg-surface-1 px-lg pt-lg">
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-hairline bg-surface-1">
               {detail}
             </div>
           )}
