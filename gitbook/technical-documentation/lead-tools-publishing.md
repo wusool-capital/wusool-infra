@@ -41,7 +41,8 @@ render always wins over an older one that finishes late. The webhook returns
 Two pins are kept in step between Sanity and Webflow:
 
 - **Pin to home page banner** (reports): the "Just released" bar on the
-  home page.
+  home page. Its link wording is the report's **Banner button text**; the
+  sync always writes it (blank becomes "Get the report", plus an arrow).
 - **Pin to top of /insights** (articles): the featured article.
 
 Taking a pin unticks it everywhere else, in Sanity and Webflow. If two
