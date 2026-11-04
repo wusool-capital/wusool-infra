@@ -13,10 +13,10 @@ for current production evidence and open handover items.
 ### Added
 
 - Organizations and Person have 11 new interaction fields in Attio and
-  Postgres (AZM-159): first, next, email and calendar interaction dates, last
-  interaction channel, subject and owner, and strongest connection user. The
-  webhook and nightly sync mirror them. Nothing writes them yet; the
-  interactions engine will.
+  Postgres (AZM-159). They cover first, next, email and calendar interaction
+  dates. They also cover the last interaction's channel, subject and owner,
+  and the strongest connection user. The webhook and nightly sync mirror
+  them. Nothing writes them yet; the interactions engine will.
 
 ## 2026-11-04
 
