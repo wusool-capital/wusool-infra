@@ -74,7 +74,7 @@ from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_ana
 from app.modules.matching_engine.api.dependencies import configure_seller_edit_port
 from app.modules.matching_engine.api.http.auth_routes import router as web_auth_router
 from app.modules.matching_engine.api.http.routes import router as find_match_web_router
-from app.modules.matching_engine.api.http.spa import SpaStatic, web_app_dist
+from app.modules.matching_engine.api.http.spa import mount_web_app, web_app_dist
 from app.modules.matching_engine.api.slack.edit_gate import MatchingEngineEditGate
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
@@ -424,7 +424,7 @@ async def slack_events(req: Request) -> Response:
 # The web find-match app. Above the catch-all below, which would otherwise claim /app.
 _web_app_dist = web_app_dist(Path(__file__).resolve().parent)
 if _web_app_dist is not None:
-    app.mount("/app", SpaStatic(directory=_web_app_dist, html=True), name="web_app")
+    mount_web_app(app, _web_app_dist)
 
 # Last: a catch-all, so it never shadows /health, /readiness, /ready,
 # /slack/events, /webhooks/attio, or /desktop/* — all registered above.

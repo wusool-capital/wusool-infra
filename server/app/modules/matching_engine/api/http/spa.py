@@ -7,8 +7,9 @@ asset) stays a 404 rather than returning HTML where a script was expected.
 
 from pathlib import Path, PurePosixPath
 
+from fastapi import FastAPI, Request
 from starlette.exceptions import HTTPException
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from starlette.types import Scope
 
@@ -38,3 +39,15 @@ def web_app_dist(server_root: Path) -> Path | None:
         if (candidate / "index.html").is_file():
             return candidate
     return None
+
+
+def mount_web_app(app: FastAPI, directory: Path) -> None:
+    """Mounts the app at `/app/`. A mount only matches below the slash, so the bare
+    `/app` people type would fall through to the catch-all and 404."""
+
+    @app.get("/app", include_in_schema=False)
+    async def web_app_root(request: Request) -> RedirectResponse:
+        query = f"?{request.url.query}" if request.url.query else ""
+        return RedirectResponse(f"/app/{query}", status_code=308)
+
+    app.mount("/app", SpaStatic(directory=directory, html=True), name="web_app")
