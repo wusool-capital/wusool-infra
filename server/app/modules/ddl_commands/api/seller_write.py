@@ -68,7 +68,7 @@ async def _write_seller_add(
     source_place_id: str | None,
     run: CommandTracker,
 ) -> SellerRole:
-    """Attio first, then Postgres — same principle as `_write_seller_edit`,
+    """Attio first, then Postgres — same principle as `write_seller_edit`,
     extended to creates: when `is_new_org`, the organization itself is
     created in Attio before anything else, and its server-generated
     `record_id` becomes `org_attio_id` for the rest of the write (see
