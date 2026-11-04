@@ -29,7 +29,7 @@ export function CopyErrorButton({
       type="button"
       size="sm"
       variant="tertiary"
-      className="self-start"
+      className="self-start justify-self-start"
       onClick={() => {
         navigator.clipboard
           .writeText(errorReport(message))
