@@ -21,6 +21,7 @@ export const EXPORT_FIELDS: readonly { id: ExportField; label: string }[] = [
   { id: "data_confidence", label: "Data confidence" },
   { id: "source_url", label: "Source link" },
   { id: "seller_attio_id", label: "Attio record ID" },
+  { id: "research_saved", label: "Research saved" },
 ];
 
 export const EXPORT_PRESETS = {

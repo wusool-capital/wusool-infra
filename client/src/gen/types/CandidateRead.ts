@@ -1,6 +1,7 @@
 // @ts-nocheck
 
 import type { CriterionRead } from './CriterionRead'
+import type { ResearchRead } from './ResearchRead'
 import type { SellerProfileRead } from './SellerProfileRead'
 
 export const candidateReadOriginEnum = {
@@ -27,6 +28,7 @@ export type CandidateRead = {
   profile: SellerProfileRead | null;
   rank: number;
   recommended_pitch: string | null;
+  research: ResearchRead | null;
   risks_and_gaps: string | null;
   seller_attio_id: string | null;
   seller_org_name: string;

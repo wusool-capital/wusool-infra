@@ -53,7 +53,7 @@ function Row({
         </span>
         <span className="truncate text-small text-ink-subtle">
           {discovered
-            ? "Google Maps lead · not scored"
+            ? researchNote(candidate)
             : `Confidence ${score(candidate.data_confidence)}`}
           <span className="sm:hidden">
             {" "}
@@ -71,6 +71,14 @@ function Row({
       <ScoreFigure value={candidate.match_score} threshold={threshold} />
     </button>
   );
+}
+
+function researchNote(candidate: CandidateRead): string {
+  const research = candidate.research;
+  if (research?.status === "running") return "Researching…";
+  if (research?.status === "done" && !research.reviewed)
+    return "Research to review";
+  return "Google Maps lead · not scored";
 }
 
 // The ranked shortlist; ↑/↓ move the selection, and a phone opens the detail in place.

@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowUpRight, Check, X } from "lucide-react";
 import { useState } from "react";
 
+import { CopyErrorButton } from "@/components/CopyErrorButton";
 import { candidateStatus } from "@/components/status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -10,6 +11,7 @@ import type { ExistingDealRead } from "@/gen/types/ExistingDealRead";
 import type { SellerProfileRead } from "@/gen/types/SellerProfileRead";
 import { money, score } from "@/lib/format";
 
+import { ResearchBlock } from "./ResearchBlock";
 import { ScoreBar } from "./ScoreBar";
 import { existingDeals, useDecision } from "./useDecision";
 
@@ -236,11 +238,13 @@ export function CandidateDetail({
   runId,
   candidate,
   threshold,
+  onDeciding,
   onDecided,
 }: {
   runId: string;
   candidate: CandidateRead;
   threshold: number;
+  onDeciding?: (candidateId: string) => void;
   onDecided?: (candidateId: string) => void;
 }): React.JSX.Element {
   const decision = useDecision(runId, candidate.id);
@@ -257,6 +261,7 @@ export function CandidateDetail({
     existing_deal_id?: string;
   }): void => {
     setChoosing(false);
+    onDeciding?.(candidate.id);
     decision.mutate(
       resolution ? { kind: "approve", resolution } : { kind: "approve" },
       {
@@ -267,8 +272,6 @@ export function CandidateDetail({
       },
     );
   };
-
-  const researchChannel = decision.data?.research_channel_id ?? null;
 
   return (
     <article
@@ -327,6 +330,16 @@ export function CandidateDetail({
           Unverified and unscored; approve to open a Qualified deal.
         </p>
       )}
+      {discovered && candidate.status === "APPROVED" && (
+        <ResearchBlock
+          // A fresh mount once research lands, so its ticked fields start from the results.
+          key={candidate.research?.status ?? "none"}
+          runId={runId}
+          candidateId={candidate.id}
+          orgName={candidate.seller_org_name}
+          research={candidate.research ?? null}
+        />
+      )}
       {discovered && candidate.profile && (
         <Profile profile={candidate.profile} />
       )}
@@ -351,9 +364,13 @@ export function CandidateDetail({
         />
       )}
       {failure && (
-        <Alert tone="danger">
+        <Alert tone="danger" className="pr-[48px]">
           <AlertTriangle aria-hidden />
           <AlertTitle>{failure}</AlertTitle>
+          <CopyErrorButton
+            message={failure}
+            className="absolute top-[6px] right-[6px]"
+          />
         </Alert>
       )}
 
@@ -374,6 +391,7 @@ export function CandidateDetail({
             variant="danger"
             disabled={decision.isPending}
             onClick={() => {
+              onDeciding?.(candidate.id);
               decision.mutate({ kind: "reject" }, { onSuccess: decided });
             }}
           >
@@ -385,8 +403,6 @@ export function CandidateDetail({
       {candidate.status === "APPROVED" && decision.isSuccess && (
         <p role="status" className="text-body text-ink-muted">
           Match with {candidate.seller_org_name} approved.
-          {researchChannel &&
-            " Full research on this seller is being posted to Slack for review."}
         </p>
       )}
       {!pending && (

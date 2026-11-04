@@ -54,11 +54,7 @@ describe("CandidateDetail", () => {
   it("rejects optimistically", async () => {
     const decided = candidate({ status: "REJECTED", decision: "REJECTED" });
     const { cachedStatus } = setup(
-      vi
-        .fn()
-        .mockResolvedValue(
-          jsonResponse(200, { candidate: decided, research_channel_id: null }),
-        ),
+      vi.fn().mockResolvedValue(jsonResponse(200, { candidate: decided })),
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Reject" }));
@@ -86,7 +82,6 @@ describe("CandidateDetail", () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, {
         candidate: candidate({ status: "APPROVED" }),
-        research_channel_id: null,
       }),
     );
     await userEvent.click(

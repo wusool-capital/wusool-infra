@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.modules.ddl_commands.api.command_tracking as command_tracking_module
+import app.modules.ddl_commands.api.seller_edit as seller_edit_module
 import app.modules.ddl_commands.api.seller_write as seller_write_module
 import app.modules.ddl_commands.api.slack.handlers.actions as actions_module
 from app.modules.attio import AttioError
@@ -537,7 +538,7 @@ def test_edit_form_writes_attio_before_postgres(
     seller_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-1")
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "resolve_seller_by_id",
         _async_returning(_fake_seller_role(seller_id, org=org)),
     )
@@ -562,13 +563,13 @@ def test_edit_form_writes_attio_before_postgres(
         postgres_use_case.calls.append((args, kwargs))
         return None
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
-    monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_edit_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_edit_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
+    monkeypatch.setattr(seller_edit_module, "patch_role_entry", fake_patch_role_entry)
+    monkeypatch.setattr(seller_edit_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_edit_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(update_seller=fake_execute),
     )
@@ -607,7 +608,7 @@ def test_edit_form_attio_failure_prevents_postgres_write(
     seller_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-1")
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "resolve_seller_by_id",
         _async_returning(_fake_seller_role(seller_id, org=org)),
     )
@@ -623,11 +624,11 @@ def test_edit_form_attio_failure_prevents_postgres_write(
         postgres_calls.append((args, kwargs))
         return None
 
-    monkeypatch.setattr(actions_module, "build_attio_values", failing_build_attio_values)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_edit_module, "build_attio_values", failing_build_attio_values)
+    monkeypatch.setattr(seller_edit_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_edit_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(update_seller=fake_execute),
     )
@@ -653,7 +654,7 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
     seller_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-1")
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "resolve_seller_by_id",
         _async_returning(_fake_seller_role(seller_id, org=org)),
     )
@@ -673,13 +674,13 @@ def test_edit_form_org_patch_succeeds_role_patch_fails_reports_what_landed(
         postgres_calls.append((args, kwargs))
         return None
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "patch_organization", fake_patch_organization)
-    monkeypatch.setattr(actions_module, "resolve_role_entry_id", failing_resolve_role_entry_id)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_edit_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_edit_module, "patch_organization", fake_patch_organization)
+    monkeypatch.setattr(seller_edit_module, "resolve_role_entry_id", failing_resolve_role_entry_id)
+    monkeypatch.setattr(seller_edit_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_edit_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(update_seller=fake_execute),
     )
@@ -712,7 +713,7 @@ def test_edit_form_removed_org_is_rejected_before_any_write(
     seller_id = str(uuid.uuid4())
     org = _fake_org(attio_id="org-attio-1", removed_at=datetime.now(UTC))
     monkeypatch.setattr(
-        actions_module,
+        seller_edit_module,
         "resolve_seller_by_id",
         _async_returning(_fake_seller_role(seller_id, org=org)),
     )
@@ -723,9 +724,9 @@ def test_edit_form_removed_org_is_rejected_before_any_write(
         attio_calls.append("called")
         return {}
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(seller_edit_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(seller_edit_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(seller_edit_module, "assert_organization_in_scope", _async_returning(None))
 
     values = {"outreach_tier": {"outreach_tier": {"selected_option": {"value": "Tier 1"}}}}
     payload = _seller_edit_form_payload(seller_id, "org-attio-1", [], ["outreach_tier"], values)

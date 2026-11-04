@@ -10,9 +10,10 @@ internally, not concerns anything else in this module calls directly (see
 from app.modules.matching_engine.application.approvals import ApprovalsMixin
 from app.modules.matching_engine.application.buyers import BuyersMixin
 from app.modules.matching_engine.application.matching.use_cases import MatchingMixin
+from app.modules.matching_engine.application.research import ResearchMixin
 
 
-class MatchingEngineService(ApprovalsMixin, BuyersMixin, MatchingMixin):
+class MatchingEngineService(ApprovalsMixin, BuyersMixin, MatchingMixin, ResearchMixin):
     """No business logic of its own — combines every concern mixin above
     into one composed class. Add a new use-case area as its own
     `ServiceBase` mixin and list it here, rather than growing this class or

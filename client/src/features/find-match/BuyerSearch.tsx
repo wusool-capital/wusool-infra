@@ -1,9 +1,10 @@
 import { useId, useState } from "react";
 
-import { Skeleton } from "@/components/ui/skeleton";
+import { CopyErrorButton } from "@/components/CopyErrorButton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSearchBuyers } from "@/gen/hooks/useSearchBuyers";
 import type { BuyerSummary } from "@/gen/types/BuyerSummary";
 import { useDebounced } from "@/hooks/useDebounced";
@@ -107,7 +108,7 @@ export function BuyerSearch({
       {enabled && search.isError && (
         <div
           role="alert"
-          className="flex items-center gap-sm text-body text-ink-muted"
+          className="flex flex-wrap items-center gap-sm text-body text-ink-muted"
         >
           Couldn't search buyers.
           <Button
@@ -118,6 +119,7 @@ export function BuyerSearch({
           >
             Retry
           </Button>
+          <CopyErrorButton message={search.error.message} />
         </div>
       )}
 

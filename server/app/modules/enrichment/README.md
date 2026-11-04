@@ -144,8 +144,10 @@ only the structured providers. `propose_basic` (exported as
 `propose_basic_seller_fields`) does the same for a company that has no saved
 role yet, using the caller's draft values as the current ones; `discovery`'s
 seller writer uses it before creating a lead. The full tier then runs when a
-discovered seller is approved: `matching_engine` calls `enrich_and_post`, which
-posts a proposal for review and writes nothing. Providers also receive the
+discovered seller is approved: in Slack, `matching_engine` calls
+`enrich_and_post`, which posts a proposal for review and writes nothing; in
+the web app it calls `propose_for_role`, which returns the same proposal for
+the page to show. Providers also receive the
 company's domain when known, so a name shared by several companies still
 resolves to the right one.
 
@@ -158,7 +160,7 @@ is at most 2 seconds; a POST is never resent, since it can start a billed run.
 `EnrichmentReviewPort`, `RoleReaderPort`, `EnrichmentTarget`,
 `EnrichmentTargetKind`, `ProposedFieldValue`, `EnrichmentProposal`,
 `WriteTarget`, `enrich_and_post`, `propose_basic_seller_fields`,
-`scan_linkedin_for_role` and its result types (`LinkedInScan`, `JobChange`,
+`propose_for_role`, `scan_linkedin_for_role` and its result types (`LinkedInScan`, `JobChange`,
 `LinkedInPost`, `LinkedInProfile`, `Contact`) — see `__init__.py`.
 
 This module never writes to Attio and never renders a Slack edit form. Its only

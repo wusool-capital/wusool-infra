@@ -10,6 +10,15 @@ for current production evidence and open handover items.
 
 ## 2026-11-04
 
+### Added
+
+- Approving a seller found outside the CRM in the web app runs full research
+  on it in the page. It shows proposed fields with confidence, source and
+  reasoning, plus LinkedIn job changes and posts. Advisors save the fields they tick to
+  Attio, as `/edit-seller` would, or skip; either is final. A field filled in
+  since the research ran is never overwritten. Web approvals no longer post
+  this research to Slack, and `WEB_REVIEW_CHANNEL_ID` is gone.
+
 ### Changed
 
 - The web find-match app uses the Wusool Capital logo as its mark and tab
@@ -19,6 +28,9 @@ for current production evidence and open handover items.
 
 - **Sign out** in the web app signs out someone who signed in with Slack. It
   used to clear the session but leave the page showing them as signed in.
+- A web approval that fails stays on screen with its error. The page used to
+  jump to the next seller and back, so the approval looked undone without a
+  reason. The Toolkit log now records why, as it does for Slack.
 
 ## 2026-11-03
 
