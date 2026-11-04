@@ -20,6 +20,7 @@ from app.modules.matching_engine.application.ports.matching import (
     MatchScoreRepositoryPort,
 )
 from app.modules.matching_engine.application.ports.meetings import MeetingRepositoryPort
+from app.modules.matching_engine.application.ports.sellers import SellerRepositoryPort
 
 
 class MatchingUnitOfWork(Protocol):
@@ -38,6 +39,8 @@ class MatchingUnitOfWork(Protocol):
     def deals(self) -> DealRepositoryPort: ...
     @property
     def activities(self) -> ActivityRecorderPort: ...
+    @property
+    def sellers(self) -> SellerRepositoryPort: ...
 
     async def __aenter__(self) -> "MatchingUnitOfWork": ...
     async def __aexit__(

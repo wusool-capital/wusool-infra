@@ -8,7 +8,7 @@ concrete repository.
 from typing import Protocol
 
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
-from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.matching_engine.domain.sellers import SellerCandidate, SellerProfile
 
 
 class SellerRepositoryPort(Protocol):
@@ -22,3 +22,4 @@ class SellerRepositoryPort(Protocol):
         rejected_for_buyer_role_id: str | None,
     ) -> list[SellerCandidate]: ...
     async def get_structured_fields(self, seller_role_id: str) -> SellerCandidate | None: ...
+    async def get_profiles(self, seller_role_ids: list[str]) -> list[SellerProfile]: ...

@@ -21,10 +21,12 @@ import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slack_bolt.adapter.fastapi.async_handler import AsyncSlackRequestHandler
 from slack_bolt.async_app import AsyncApp
@@ -66,6 +68,9 @@ from app.modules.enrichment.api.slack.handlers import (
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_analytics
+from app.modules.matching_engine.api.http.auth_routes import router as web_auth_router
+from app.modules.matching_engine.api.http.routes import router as find_match_web_router
+from app.modules.matching_engine.api.http.spa import SpaStatic, web_app_dist
 from app.modules.matching_engine.api.slack.edit_gate import MatchingEngineEditGate
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
@@ -207,6 +212,16 @@ app.include_router(meetings_router)
 # Caddy hostname (see modules/toolkit-ec2's `extra_hostnames`), not a
 # separate app.
 app.include_router(lead_magnets_router)
+# The web find-match app's API (`client/`); disabled until WEB_API_KEY is set.
+app.include_router(web_auth_router)
+app.include_router(find_match_web_router)
+if settings.web_allowed_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.web_allowed_origins,
+        allow_methods=["GET", "POST"],
+        allow_headers=["Authorization", "Content-Type"],
+    )
 
 
 @app.exception_handler(Exception)
@@ -399,6 +414,11 @@ async def slack_events(req: Request) -> Response:
     """
     return await _slack_request_handler().handle(req)
 
+
+# The web find-match app. Above the catch-all below, which would otherwise claim /app.
+_web_app_dist = web_app_dist(Path(__file__).resolve().parent)
+if _web_app_dist is not None:
+    app.mount("/app", SpaStatic(directory=_web_app_dist, html=True), name="web_app")
 
 # Last: a catch-all, so it never shadows /health, /readiness, /ready,
 # /slack/events, /webhooks/attio, or /desktop/* — all registered above.

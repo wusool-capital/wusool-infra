@@ -27,8 +27,8 @@ from sqlalchemy.orm import selectinload
 
 from app.models import MatchResult, Organization, SellerRole
 from app.modules.matching_engine.domain.matching.narrowing import CandidateNarrowing
-from app.modules.matching_engine.domain.sellers import SellerCandidate
-from app.modules.matching_engine.persistence.mappers import to_seller_candidate
+from app.modules.matching_engine.domain.sellers import SellerCandidate, SellerProfile
+from app.modules.matching_engine.persistence.mappers import to_seller_candidate, to_seller_profile
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
@@ -111,6 +111,17 @@ class SellerRepository:
         )
         role = (await self._session.execute(stmt)).scalar_one_or_none()
         return to_seller_candidate(role) if role else None
+
+    async def get_profiles(self, seller_role_ids: list[str]) -> list[SellerProfile]:
+        if not seller_role_ids:
+            return []
+        stmt = (
+            select(SellerRole)
+            .where(SellerRole.id.in_([uuid.UUID(i) for i in seller_role_ids]))
+            .options(selectinload(SellerRole.organization))
+        )
+        roles = (await self._session.execute(stmt)).scalars().all()
+        return [to_seller_profile(role) for role in roles]
 
     async def get_with_organization(self, seller_role_id: str) -> SellerCandidate | None:
         stmt = (

@@ -2,7 +2,7 @@
 
 from functools import lru_cache
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.modules.utilities import SecretsManagerSettings
@@ -86,6 +86,21 @@ class Settings(SecretsManagerSettings):
 
     # Attio workspace member who owns the Qualified deal an approval creates.
     matching_deal_owner_id: str = _DEFAULT_DEAL_OWNER_ID
+
+    # Web find-match (`/api/*`, `/app`). Unset key disables the API rather than leaving it open.
+    web_api_key: SecretStr | None = None
+    web_allowed_origins: list[str] = Field(default_factory=list)
+    # A run lost to a deploy/restart never completes; after this it reads as stale.
+    match_run_stale_after_minutes: int = Field(default=15, gt=0)
+    # Slack channel for the research proposal on a discovered seller approved on the web.
+    web_review_channel_id: str | None = None
+    # Sign in with Slack: the bot's Slack app client, and the URL Slack sends people back to.
+    slack_client_id: str | None = None
+    slack_client_secret: SecretStr | None = None
+    web_public_url: str | None = None
+    # Signs the web session cookie; rotating it signs everyone out.
+    web_session_secret: SecretStr | None = None
+    web_session_days: int = Field(default=30, gt=0)
 
     scoring: ScoringSettings = Field(default_factory=ScoringSettings)
     confidence: ConfidenceSettings = Field(default_factory=ConfidenceSettings)
