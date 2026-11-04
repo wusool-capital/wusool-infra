@@ -3,8 +3,9 @@
 The [matching engine](toolkit-matching.md) also runs from a browser.
 
 The web app (`client/`) runs the same flow in a browser. The Toolkit container
-serves its build at `/app` (`SpaStatic`, which falls back to `index.html` for
-deep links and caches hashed assets for a year) and its API under `/api`:
+serves its build at `/app/` (`SpaStatic`, which falls back to `index.html` for
+deep links and caches hashed assets for a year) and its API under `/api`. A
+bare `/app` redirects to `/app/`.
 
 | Route | Does |
 | --- | --- |
