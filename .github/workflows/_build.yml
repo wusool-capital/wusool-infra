@@ -71,6 +71,7 @@ jobs:
             --cache-from type=gha,scope=wusool-toolkit \
             --cache-to type=gha,scope=wusool-toolkit,mode=max \
             -f server/Dockerfile \
+            --build-context client=client \
             -t "$IMAGE" --push server
 
           DIGEST=$(aws ecr describe-images --repository-name wusool-${{ inputs.environment }}/toolkit \

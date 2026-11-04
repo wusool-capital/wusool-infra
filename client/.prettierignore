@@ -1,0 +1,6 @@
+dist
+node_modules
+src/gen
+src/routeTree.gen.ts
+openapi.json
+DESIGN.md

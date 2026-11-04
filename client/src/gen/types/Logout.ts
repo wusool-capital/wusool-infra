@@ -1,0 +1,19 @@
+// @ts-nocheck
+
+export type LogoutStatus204 = unknown;
+
+export type LogoutOptions = {
+  body?: never;
+  path?: never;
+  query?: never;
+  headers?: never;
+};
+
+export type LogoutResponses = {
+  '204': LogoutStatus204;
+};
+
+/**
+ * @description Union of all possible responses
+ */
+export type LogoutResponse = LogoutStatus204;

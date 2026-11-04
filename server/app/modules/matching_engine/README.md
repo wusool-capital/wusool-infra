@@ -1,13 +1,13 @@
 # Matching Engine
 
-Backend for `/find-match` — Slack is the only product interface, no
-frontend. Given a buyer, checks its stored criteria against the advisor's
+Backend for `/find-match`, used from Slack and from the web app (`client/`,
+served at `/app`; see [Web app](#web-app) below). Given a buyer, checks its stored criteria against the advisor's
 own typed context via the `discrepancies` module (a peer module, called
 through `api/dependencies.py`, never owned here — see its own README),
 extracts structured requirements via Bedrock, filters and scores
 eligible sellers deterministically, asks Bedrock for narrative reasoning on
 the top-N shortlist, persists the run, and posts the result to Slack with
-Approve/Reject/View Full Analysis actions.
+Approve/Reject/View Full Analysis actions, or shows it on the web run page.
 
 Not independently deployed — `server/main.py` merges this module's Slack
 handlers with `ddl_commands`' onto one `AsyncApp` (one bot, one Slack app,
@@ -33,7 +33,7 @@ matching_engine/
   persistence/       # SQLAlchemy repositories + mappers, Unit-of-Work
   providers/         # bedrock/ (LLM) — the Firecrawl lead search moved to `discovery`
   api/                # router.py (aggregates health.py's router), Slack handlers,
-                       # dependencies.py
+                       # dependencies.py, http/ (the web app's /api/* routes)
   tests/
 ```
 
@@ -66,7 +66,12 @@ standard AWS credential provider chain), `LLM_TEMPERATURE`/`LLM_MAX_TOKENS`/
 `WEB_FALLBACK_MIN_SCORE` (this module's own threshold decision — the
 Firecrawl lead search it triggers, and `FIRECRAWL_API_KEY`, belong to
 `discovery` now), `MEETING_NOTES_MAX_CHARS`/
-`MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`.
+`MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`,
+`WEB_API_KEY` (the Toolkit secret's `env` map; a fallback to Slack sign-in),
+`SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`WEB_SESSION_SECRET`/`WEB_PUBLIC_URL`/
+`WEB_SESSION_DAYS` (Sign in with Slack; all four strings are needed to turn it on),
+`WEB_ALLOWED_ORIGINS` (CORS, empty for same-origin hosting),
+`MATCH_RUN_STALE_AFTER_MINUTES` (default 15).
 
 Bedrock needs `bedrock-runtime:Converse` on the two configured model IDs —
 deploy with an IAM role/task role attached rather than static AWS keys;
@@ -81,8 +86,10 @@ uv run uvicorn --factory app.modules.matching_engine.bootstrap:create_app --relo
 - `GET /health` — liveness, no database dependency.
 - `GET /readiness` (alias `/ready`) — confirms database connectivity, 503
   if unreachable.
-- `POST /slack/events` — Slack callback (signature-verified by Bolt); never
-  exposed as a public REST API for match/buyer/seller data.
+- `POST /slack/events` — Slack callback (signature-verified by Bolt).
+
+The deployed process also serves the web app's `/api/*` routes, behind a
+shared key (see [Web app](#web-app)).
 
 The actually-deployed process is `server/main.py`, one Slack app serving
 this module's `/find-match` plus `ddl_commands`' 4 commands together.
@@ -171,6 +178,67 @@ Not implemented, by design: pgvector/semantic retrieval, document
 ingestion, general-purpose web scraping beyond `discovery`'s lead search,
 structured seller-financial enrichment (see the `enrichment` module),
 PDF generation, outreach/email.
+
+## Web app
+
+`client/` runs the same flow in the browser as one sequential page: buyer,
+profile check, matching, shortlist, discovery, export. `server/main.py`
+serves its build at `/app` (`api/http/spa.py`, with a fallback to
+`index.html` for deep links) and includes `api/http/routes.py`.
+
+Routes, all under `/api`. Sign-in lives in `api/http/auth_routes.py`
+(`/api/auth/*`), and every other route needs a Slack session cookie
+(`api/http/session.py`) or `Authorization: Bearer <WEB_API_KEY>`. A missing or
+wrong one gets 401, and 503 comes back while neither is configured:
+
+| Route | Does |
+| --- | --- |
+| `GET /buyers?q=` | Buyer search, the same lookup as `/find-match`. |
+| `POST /buyers/{id}/preflight` | Discrepancy check against the advisor's note. A POST because conflicts depend on the note. |
+| `POST /match-runs` | Starts a run: 202 with `run_id`. |
+| `GET /match-runs/{id}` | Run state, candidates with reasoning, and discovery progress. |
+| `POST /match-runs/{id}/discovery` | Starts discovery by hand ("Find more sellers"); a repeat is a no-op. |
+| `POST /match-runs/{id}/candidates/{cid}/approve` | Approve. Takes the promote or create choice. |
+| `POST /match-runs/{id}/candidates/{cid}/reject` | Reject. |
+| `GET /match-runs/{id}/export.csv` | The candidates as CSV; repeat `fields` to choose and order columns. |
+
+- **Who.** There is no login yet: decisions are recorded with
+  `approved_by="web"` and runs with `requested_by` NULL.
+- **Running a match.** `run_match` is split into `start_run` (commits the
+  header row, returns the run id) and `execute_run` (the matching and its
+  writes). Slack still calls `run_match`, which calls both. The web route
+  returns after `start_run` and runs `execute_run` on the shared task runner.
+- **Run state.** `match_results` has no running status, so a run with no
+  `completed_at` is running, and after `MATCH_RUN_STALE_AFTER_MINUTES` it is
+  reported as stale (lost to a restart). `FAILED` is failed.
+- **Discovery.** A web run whose scores are all below `WEB_FALLBACK_MIN_SCORE`
+  starts discovery automatically, as Slack does, without posting to Slack.
+  Its progress and the run's advisor notes are kept in an in-process tracker
+  (`api/http/run_tracker.py`). A restart loses it; the run page then offers
+  **Find more sellers** to start the search by hand. Runs that cleared the
+  threshold offer it too, like Slack's button. Both paths call
+  `api.dependencies.discover_sellers_for_run`, which runs the search, adds
+  the new sellers to the run and returns a `RunDiscovery`. Slack posts it as
+  messages; the web keeps it in the tracker. One run never searches twice:
+  the search is claimed on the run row's `metadata.discovery`, atomically and
+  across restarts. A search that created sellers keeps the claim and its
+  outcome and notes. Anything else releases it so it can be retried, for
+  example after the daily cap. A claim with no outcome expires after
+  `MATCH_RUN_STALE_AFTER_MINUTES`.
+- **Double submits.** `POST /match-runs` takes a client `request_id`; a
+  repeat with it returns the first run. Approve and Reject are guarded by the
+  row's status, so a repeat gets 409 `already_reviewed`.
+- **Slack parity.** `GET /match-runs/{id}` returns the requirement profile
+  (`mandate`), each scored candidate's `criteria` and every candidate's
+  `profile` (`SellerRepositoryPort.get_profiles`). Approving a discovered
+  seller runs `enrich_and_post` into `WEB_REVIEW_CHANNEL_ID`, skipped when
+  unset.
+- **Existing deal.** Approve returns 409 with the existing Attio deals; the
+  page asks to promote one or create a new deal, the same choice Slack offers.
+- **Export.** Cells starting with `=`, `+`, `-` or `@` are prefixed with `'`
+  so LLM text can't run as a spreadsheet formula.
+- **Deploys.** Runs are in-process: a deploy or restart mid-run leaves a stale
+  run that the advisor restarts. A real job queue is the follow-up.
 
 ## Where to go next
 

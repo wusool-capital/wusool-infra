@@ -200,6 +200,8 @@ def harness(monkeypatch: pytest.MonkeyPatch):
                 run=SimpleNamespace(requirement_profile=object(), buyer_role_id="buyer-role-1")
             )
         ),
+        claim_discovery=AsyncMock(return_value=True),
+        finish_discovery=AsyncMock(),
         append_discovered_candidates=AsyncMock(),
         get_match_run_view=AsyncMock(
             return_value=MatchRunView(
@@ -451,3 +453,38 @@ async def test_approving_a_discovered_seller_passes_the_approver_to_enrichment(
     await actions._handle_decision(body, client, respond, "approve")
 
     assert calls == [("seller", "s1", "C1", "U1")]
+
+
+async def test_a_search_that_created_sellers_keeps_its_claim(monkeypatch, harness) -> None:
+    outcome = DiscoveryOutcome(
+        status="ok",
+        created=(
+            CreatedSeller(
+                seller_role_id=harness.seller_role_id,
+                org_attio_id="attio-acme",
+                org_name="Acme Co",
+                source_url="https://maps.example/acme",
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        discovery_module, "discover_and_create_sellers", AsyncMock(return_value=outcome)
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    kwargs = harness.service.finish_discovery.await_args.kwargs
+    assert kwargs["outcome"] == "done"
+    assert kwargs["message"] == "Found 1 new seller(s)"
+
+
+async def test_the_daily_cap_releases_the_claim_for_tomorrow(monkeypatch, harness) -> None:
+    monkeypatch.setattr(
+        discovery_module,
+        "discover_and_create_sellers",
+        AsyncMock(return_value=DiscoveryOutcome(status="daily_cap_reached")),
+    )
+
+    await deps.trigger_seller_discovery(uuid.uuid4(), channel_id="C1")
+
+    assert harness.service.finish_discovery.await_args.kwargs["outcome"] is None

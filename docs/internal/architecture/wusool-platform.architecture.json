@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "9957d889ba1b9c32f9d3b440f539cc9091367bee"
+      "revision": "e6f9d9a904d04591163137005f0236fb9952f015"
     },
     "viewBox": [
       1300,
@@ -34,6 +34,30 @@
         {
           "path": "server/main.py",
           "label": "Slack entrypoint"
+        }
+      ]
+    },
+    {
+      "id": "webapp",
+      "type": "external",
+      "label": "Advisors (web app)",
+      "sublabel": "find-match at /app",
+      "pos": [
+        40,
+        150
+      ],
+      "size": [
+        220,
+        56
+      ],
+      "sources": [
+        {
+          "path": "client/src/routes/_app/find-match.tsx",
+          "label": "Web find-match flow"
+        },
+        {
+          "path": "server/app/modules/matching_engine/api/http/routes.py",
+          "label": "Web API routes"
         }
       ]
     },
@@ -367,6 +391,18 @@
       "labelSegment": 0
     },
     {
+      "from": "webapp",
+      "to": "toolkit",
+      "label": "HTTPS /app + /api/*",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "top",
+      "labelAt": [
+        390,
+        162
+      ]
+    },
+    {
       "from": "website",
       "to": "toolkit",
       "label": "embed.js iframe",
@@ -494,7 +530,7 @@
       "dot": "cyan",
       "title": "One Toolkit process",
       "items": [
-        "Serves Slack, Scribe, the lead tools, and Attio and Sanity webhooks",
+        "Serves Slack, the web find-match app, Scribe, the lead tools, and Attio and Sanity webhooks",
         "Renders and gates reports; syncs Webflow cards"
       ]
     },

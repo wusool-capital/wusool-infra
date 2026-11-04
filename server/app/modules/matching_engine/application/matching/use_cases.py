@@ -21,7 +21,7 @@ not a single request-scoped Unit of Work.
 import logging
 import uuid
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Literal
 
 from app.modules.matching_engine.application.activity_events import run_completed_event
@@ -31,6 +31,7 @@ from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
     CandidateScore,
     DiscoveredCandidate,
+    DiscoveryRecord,
     MatchAnalysisData,
 )
 from app.modules.matching_engine.domain.matching.overrides import unlabelled_amount_note
@@ -39,7 +40,7 @@ from app.modules.matching_engine.domain.matching.scoring import (
     select_top_n,
 )
 from app.modules.matching_engine.domain.matching.ticket import TicketBand
-from app.modules.matching_engine.domain.sellers import SellerCandidate
+from app.modules.matching_engine.domain.sellers import SellerCandidate, SellerProfile
 
 logger = logging.getLogger(__name__)
 
@@ -92,10 +93,24 @@ class MatchRunView:
     results: list[MatchResultView]
 
 
+@dataclass(frozen=True)
+class StartedRun:
+    """The committed run header — lets a caller return the run id before matching finishes."""
+
+    run_id: uuid.UUID
+    header_row_id: str
+    buyer_role_id: uuid.UUID
+    started_at: datetime
+
+
 class MatchingMixin(ServiceBase):
     async def run_match(
         self, buyer: BuyerContext, requested_by: str | None, *, advisor_context: str | None = None
     ) -> MatchRunResult:
+        started = await self.start_run(buyer, requested_by)
+        return await self.execute_run(started, buyer, requested_by, advisor_context=advisor_context)
+
+    async def start_run(self, buyer: BuyerContext, requested_by: str | None) -> StartedRun:
         run_id = uuid.uuid4()
         buyer_role_id = uuid.UUID(buyer.buyer_role_id)
         started_at = datetime.now(UTC)
@@ -107,10 +122,32 @@ class MatchingMixin(ServiceBase):
                 buyer_role_id=buyer_role_id,
                 requested_by=requested_by,
             )
+        return StartedRun(
+            run_id=run_id,
+            header_row_id=header.id,
+            buyer_role_id=buyer_role_id,
+            started_at=started_at,
+        )
 
+    async def execute_run(
+        self,
+        started: StartedRun,
+        buyer: BuyerContext,
+        requested_by: str | None,
+        *,
+        advisor_context: str | None = None,
+    ) -> MatchRunResult:
+        run_id = started.run_id
+        buyer_role_id = started.buyer_role_id
         try:
             return await self._run(
-                run_id, header.id, buyer_role_id, buyer, requested_by, started_at, advisor_context
+                run_id,
+                started.header_row_id,
+                buyer_role_id,
+                buyer,
+                requested_by,
+                started.started_at,
+                advisor_context,
             )
         except Exception as exc:
             logger.warning(
@@ -129,7 +166,7 @@ class MatchingMixin(ServiceBase):
                 await uow.activities.record(
                     run_completed_event(
                         run_id=run_id,
-                        header_row_id=header.id,
+                        header_row_id=started.header_row_id,
                         buyer_role_id=buyer_role_id,
                         requested_by=requested_by,
                         status="FAILED",
@@ -347,6 +384,39 @@ class MatchingMixin(ServiceBase):
             scores = await uow.match_results.get_scores_for_run(run_id)
 
         return MatchAnalysisData(run=run, candidates=candidates, scores=scores)
+
+    async def claim_discovery(self, run_id: uuid.UUID, *, stale_after: timedelta) -> bool:
+        """True for the one caller allowed to search outside the CRM for this run."""
+        now = datetime.now(UTC)
+        async with self._uow_factory() as uow:
+            return await uow.match_results.claim_discovery(
+                run_id, now=now, stale_before=now - stale_after
+            )
+
+    async def finish_discovery(
+        self,
+        run_id: uuid.UUID,
+        *,
+        outcome: Literal["done", "failed"] | None,
+        message: str | None = None,
+        notes: tuple[str, ...] = (),
+    ) -> None:
+        """Keeps a search's outcome on the run; `outcome=None` releases the claim."""
+        async with self._uow_factory() as uow:
+            run = await uow.match_results.get_run(run_id)
+            claimed_at = run.discovery.claimed_at if run and run.discovery else datetime.now(UTC)
+            await uow.match_results.finish_discovery(
+                run_id,
+                DiscoveryRecord(
+                    claimed_at=claimed_at, outcome=outcome, message=message, notes=notes
+                )
+                if outcome is not None
+                else None,
+            )
+
+    async def get_seller_profiles(self, seller_role_ids: list[str]) -> list[SellerProfile]:
+        async with self._uow_factory() as uow:
+            return await uow.sellers.get_profiles(seller_role_ids)
 
     async def get_match_run_view(self, run_id: uuid.UUID) -> MatchRunView | None:
         """Rebuilds the compact Slack result-message state from persisted

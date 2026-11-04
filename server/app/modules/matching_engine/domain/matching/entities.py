@@ -190,6 +190,19 @@ class MatchResultEntity:
     # (and its Qualified-deal write) work on them unchanged.
     origin: Literal["crm", "discovery"] = "crm"
     source_url: str | None = None
+    # Run rows only: this run's search outside the CRM, so it outlives a restart.
+    discovery: "DiscoveryRecord | None" = None
+
+
+@dataclass(frozen=True)
+class DiscoveryRecord:
+    """A run's search outside the CRM. `outcome` is None while it searches;
+    a claim with no outcome past the stale window was lost and can be retaken."""
+
+    claimed_at: datetime
+    outcome: Literal["done", "failed"] | None = None
+    message: str | None = None
+    notes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
