@@ -10,6 +10,7 @@ import { getMatchRunQueryKey } from "@/gen/hooks/useGetMatchRun";
 import { useStartDiscovery } from "@/gen/hooks/useStartDiscovery";
 import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { RunDetailResponse } from "@/gen/types/RunDetailResponse";
+import { ErrorText } from "@/components/ErrorText";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useExportFields } from "@/lib/export-fields";
 import { score } from "@/lib/format";
@@ -362,9 +363,7 @@ export function DiscoverySection({
   const findMore = (
     <>
       {startDiscovery.isError && (
-        <p role="alert" className="text-body text-danger">
-          {startDiscovery.error.message}
-        </p>
+        <ErrorText message={startDiscovery.error.message} />
       )}
       <Button
         variant="secondary"
@@ -491,9 +490,7 @@ export function ExportButton({
         </span>
       )}
       {exportError && (
-        <p role="alert" className="text-small text-danger">
-          {exportError}
-        </p>
+        <ErrorText message={exportError} className="items-end text-right" />
       )}
     </div>
   );

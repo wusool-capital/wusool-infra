@@ -1,6 +1,7 @@
 import { AlertTriangle, ArrowUpRight, Check, X } from "lucide-react";
 import { useState } from "react";
 
+import { CopyErrorButton } from "@/components/CopyErrorButton";
 import { candidateStatus } from "@/components/status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -366,6 +367,9 @@ export function CandidateDetail({
         <Alert tone="danger">
           <AlertTriangle aria-hidden />
           <AlertTitle>{failure}</AlertTitle>
+          <AlertDescription>
+            <CopyErrorButton message={failure} />
+          </AlertDescription>
         </Alert>
       )}
 

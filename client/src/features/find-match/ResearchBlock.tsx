@@ -1,6 +1,8 @@
 import { AlertTriangle, ArrowUpRight, RotateCw } from "lucide-react";
 import { useState } from "react";
 
+import { CopyErrorButton } from "@/components/CopyErrorButton";
+import { ErrorText } from "@/components/ErrorText";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -281,7 +283,7 @@ export function ResearchBlock({
         >
           {busy ? "Starting…" : "Run full research"}
         </Button>
-        {failure && <p className="text-body text-danger">{failure}</p>}
+        {failure && <ErrorText message={failure} />}
       </div>
     );
   else if (research.status === "running")
@@ -300,18 +302,22 @@ export function ResearchBlock({
         <AlertTriangle aria-hidden />
         <AlertTitle>{research.error ?? "Research didn't finish."}</AlertTitle>
         <AlertDescription>
-          <Button
-            size="sm"
-            variant="secondary"
-            className="mt-xs"
-            disabled={busy}
-            onClick={() => {
-              action.mutate({ kind: "retry" });
-            }}
-          >
-            <RotateCw aria-hidden />
-            {busy ? "Starting…" : "Try again"}
-          </Button>
+          <div className="mt-xs flex flex-wrap gap-xs">
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={busy}
+              onClick={() => {
+                action.mutate({ kind: "retry" });
+              }}
+            >
+              <RotateCw aria-hidden />
+              {busy ? "Starting…" : "Try again"}
+            </Button>
+            <CopyErrorButton
+              message={research.error ?? "Research didn't finish."}
+            />
+          </div>
         </AlertDescription>
       </Alert>
     );
@@ -368,7 +374,7 @@ export function ResearchBlock({
               research ran. They're unticked; save the rest.
             </p>
           )}
-          {failure && <p className="text-body text-danger">{failure}</p>}
+          {failure && <ErrorText message={failure} />}
         </div>
         {research.reviewed ? (
           <p role="status" className="text-body text-ink-muted">

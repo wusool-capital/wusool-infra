@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 // In-block notices: colour only on the icon and a 2px leading edge, text stays ink.
 const alertVariants = cva(
-  "relative grid w-full grid-cols-[0_1fr] items-start gap-y-xxs rounded-lg border-l-2 bg-surface-2 py-sm pr-md pl-sm text-body has-[>svg]:grid-cols-[16px_1fr] has-[>svg]:gap-x-sm [&>svg]:mt-[2px] [&>svg]:size-4",
+  "relative grid w-full grid-cols-[0_minmax(0,1fr)] items-start gap-y-xxs rounded-lg border-l-2 bg-surface-2 py-sm pr-md pl-sm text-body has-[>svg]:grid-cols-[16px_minmax(0,1fr)] has-[>svg]:gap-x-sm [&>svg]:mt-[2px] [&>svg]:size-4",
   {
     variants: {
       tone: {
@@ -40,7 +40,10 @@ function AlertTitle({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="alert-title"
-      className={cn("col-start-2 font-medium text-ink", className)}
+      className={cn(
+        "col-start-2 font-medium [overflow-wrap:anywhere] text-ink",
+        className,
+      )}
       {...props}
     />
   );
@@ -53,7 +56,10 @@ function AlertDescription({
   return (
     <div
       data-slot="alert-description"
-      className={cn("col-start-2 grid gap-xxs text-ink-muted", className)}
+      className={cn(
+        "col-start-2 grid gap-xxs [overflow-wrap:anywhere] text-ink-muted",
+        className,
+      )}
       {...props}
     />
   );
