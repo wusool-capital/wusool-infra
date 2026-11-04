@@ -17,6 +17,9 @@ for current production evidence and open handover items.
   dates. They also cover the last interaction's channel, subject and owner,
   and the strongest connection user. The webhook and nightly sync mirror
   them. Nothing writes them yet; the interactions engine will.
+- Postgres has three tables for the interactions engine (AZM-159):
+  `interactions`, `interaction_participants` and `mailbox_sync_cursors`. They
+  hold email and meeting metadata, never bodies. Nothing writes them yet.
 
 ## 2026-11-04
 
