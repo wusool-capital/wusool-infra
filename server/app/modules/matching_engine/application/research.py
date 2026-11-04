@@ -22,6 +22,10 @@ class ResearchNotReadyError(Exception):
     """No finished research to act on for this candidate."""
 
 
+class ResearchAlreadyReviewedError(Exception):
+    """The research was already saved or skipped; review happens once."""
+
+
 class ResearchSaveInProgressError(Exception):
     """Another save of this candidate's research is still running."""
 
@@ -45,6 +49,8 @@ class ResearchMixin(ServiceBase):
 
     async def skip_research(self, match_result_id: uuid.UUID) -> None:
         record = await self._finished_research(match_result_id)
+        if record.reviewed:
+            raise ResearchAlreadyReviewedError(str(match_result_id))
         await self.record_research(match_result_id, replace(record, skipped=True))
 
     async def save_research(
@@ -62,6 +68,8 @@ class ResearchMixin(ServiceBase):
         record = candidate.research if candidate else None
         if candidate is None or record is None or record.outcome != "done":
             raise ResearchNotReadyError(str(match_result_id))
+        if record.reviewed:
+            raise ResearchAlreadyReviewedError(str(match_result_id))
         chosen = tuple(f for f in record.unsaved() if f.name in field_names)
         if not chosen or candidate.seller_role_id is None:
             return SellerEditResult(outcome=SellerEditOutcome.SAVED)

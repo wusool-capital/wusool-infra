@@ -240,6 +240,7 @@ export function ResearchBlock({
 }): React.JSX.Element {
   const action = useResearch(runId, candidateId);
   const unsaved = research?.fields.filter((f) => !f.saved) ?? [];
+  const savedCount = (research?.fields.length ?? 0) - unsaved.length;
   const [ticked, setTicked] = useState<Set<string>>(
     () =>
       new Set(
@@ -326,7 +327,7 @@ export function ResearchBlock({
         className="flex flex-col gap-sm"
         onSubmit={(event) => {
           event.preventDefault();
-          if (chosen.length === 0 || busy) return;
+          if (chosen.length === 0 || busy || research.reviewed) return;
           action.mutate(
             { kind: "save", fields: chosen.map((f) => f.name) },
             {
@@ -349,9 +350,10 @@ export function ResearchBlock({
               <FieldRow
                 key={field.name}
                 field={field}
-                checked={ticked.has(field.name)}
+                // A save or a skip is final, so the list locks after either.
+                checked={!research.reviewed && ticked.has(field.name)}
                 conflict={conflicts.includes(field.name)}
-                disabled={busy}
+                disabled={busy || research.reviewed}
                 onToggle={() => {
                   toggle(field.name);
                 }}
@@ -368,35 +370,30 @@ export function ResearchBlock({
           )}
           {failure && <p className="text-body text-danger">{failure}</p>}
         </div>
-        {unsaved.length > 0 ? (
+        {research.reviewed ? (
+          <p role="status" className="text-body text-ink-muted">
+            {savedCount > 0
+              ? `Saved ${String(savedCount)} field${savedCount === 1 ? "" : "s"} to Attio.`
+              : "Skipped. Nothing was saved to Attio."}
+          </p>
+        ) : (
           <div className="flex flex-wrap items-center gap-xs">
             <Button type="submit" disabled={busy || chosen.length === 0}>
-              {busy
+              {busy && action.variables.kind === "save"
                 ? "Saving…"
                 : `Save ${String(chosen.length)} field${chosen.length === 1 ? "" : "s"} to Attio`}
             </Button>
-            {!research.reviewed && (
-              <Button
-                type="button"
-                variant="tertiary"
-                disabled={busy}
-                onClick={() => {
-                  action.mutate({ kind: "skip" });
-                }}
-              >
-                Skip
-              </Button>
-            )}
-            {research.reviewed && (
-              <span className="text-small text-ink-subtle">
-                Skipped; nothing else was saved.
-              </span>
-            )}
+            <Button
+              type="button"
+              variant="tertiary"
+              disabled={busy}
+              onClick={() => {
+                action.mutate({ kind: "skip" });
+              }}
+            >
+              Skip
+            </Button>
           </div>
-        ) : (
-          <p role="status" className="text-body text-ink-muted">
-            Every proposed field is saved to Attio.
-          </p>
         )}
       </form>
     );

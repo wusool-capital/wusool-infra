@@ -329,10 +329,6 @@ export function CandidateDetail({
           Unverified and unscored; approve to open a Qualified deal.
         </p>
       )}
-      {discovered && candidate.profile && (
-        <Profile profile={candidate.profile} />
-      )}
-
       {discovered && candidate.status === "APPROVED" && (
         <ResearchBlock
           // A fresh mount once research lands, so its ticked fields start from the results.
@@ -342,6 +338,9 @@ export function CandidateDetail({
           orgName={candidate.seller_org_name}
           research={candidate.research ?? null}
         />
+      )}
+      {discovered && candidate.profile && (
+        <Profile profile={candidate.profile} />
       )}
 
       {deals !== null && (

@@ -146,10 +146,22 @@ describe("full research", () => {
       }),
     );
 
-    expect(
-      screen.getByText("Every proposed field is saved to Attio."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Saved 2 fields to Attio.")).toBeInTheDocument();
     expect(screen.queryByRole("checkbox")).toBeNull();
+  });
+
+  it("locks the list and drops the buttons once skipped", () => {
+    show(research({ reviewed: true }));
+
+    expect(
+      screen.getByText("Skipped. Nothing was saved to Attio."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Save/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    for (const box of screen.getAllByRole("checkbox")) {
+      expect(box).toBeDisabled();
+      expect(box).not.toBeChecked();
+    }
   });
 
   it("names fields the way people read them", () => {

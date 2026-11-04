@@ -67,6 +67,7 @@ from app.modules.matching_engine.application.ports.seller_edits import (
     SellerEditResult,
 )
 from app.modules.matching_engine.application.research import (
+    ResearchAlreadyReviewedError,
     ResearchNotReadyError,
     ResearchSaveInProgressError,
 )
@@ -363,6 +364,13 @@ async def save_research(
             status.HTTP_409_CONFLICT,
             ApiError(code="research_not_ready", message="The research hasn't finished yet."),
         ) from exc
+    except ResearchAlreadyReviewedError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(
+                code="already_reviewed", message="This research was already saved or skipped."
+            ),
+        ) from exc
     except ResearchSaveInProgressError as exc:
         raise api_error(
             status.HTTP_409_CONFLICT,
@@ -430,6 +438,13 @@ async def skip_research(
         raise api_error(
             status.HTTP_409_CONFLICT,
             ApiError(code="research_not_ready", message="The research hasn't finished yet."),
+        ) from exc
+    except ResearchAlreadyReviewedError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(
+                code="already_reviewed", message="This research was already saved or skipped."
+            ),
         ) from exc
     return await _decided(service, run_id, candidate_id)
 
@@ -719,7 +734,7 @@ def _research(r: ResearchRecord) -> ResearchRead:
         )
         if linkedin
         else None,
-        reviewed=status_now == "done" and (r.skipped or not r.unsaved()),
+        reviewed=status_now == "done" and r.reviewed,
     )
 
 

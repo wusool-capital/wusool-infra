@@ -22,7 +22,10 @@ from app.modules.matching_engine.application.ports.seller_edits import (
     SellerEditOutcome,
     SellerEditResult,
 )
-from app.modules.matching_engine.application.research import ResearchSaveInProgressError
+from app.modules.matching_engine.application.research import (
+    ResearchAlreadyReviewedError,
+    ResearchSaveInProgressError,
+)
 from app.modules.matching_engine.domain.matching.deals import ExistingDeal
 from app.modules.matching_engine.domain.matching.entities import (
     CriterionScore,
@@ -681,7 +684,8 @@ def test_finished_research_shows_fields_and_what_was_saved(api) -> None:
         ("sector_focus", False),
         ("region", True),
     ]
-    assert research["reviewed"] is False
+    # One save closes the review, so nothing is left to decide.
+    assert research["reviewed"] is True
 
 
 def test_saving_research_needs_a_slack_sign_in(api) -> None:
@@ -777,6 +781,18 @@ def test_retrying_research_claims_and_schedules_it(api) -> None:
 
     assert response.status_code == 202
     api.runner.run.assert_called_once()
+
+
+def test_a_second_review_is_refused(api, monkeypatch) -> None:
+    candidate = _approved_discovered(api)
+    _as_slack_user(api)
+    monkeypatch.setattr(routes, "seller_edit_port", MagicMock)
+    api.service.save_research.side_effect = ResearchAlreadyReviewedError("x")
+
+    response = _save(api, candidate)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "already_reviewed"
 
 
 def test_skipping_research_records_it(api) -> None:

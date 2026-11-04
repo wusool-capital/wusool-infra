@@ -70,6 +70,11 @@ class ResearchRecord:
             return self.outcome
         return "failed" if self.claimed_at < stale_before else "running"
 
+    @property
+    def reviewed(self) -> bool:
+        """One decision per research: a save or a skip closes it."""
+        return self.skipped or bool(self.saved_fields)
+
     def unsaved(self) -> tuple[ResearchField, ...]:
         return tuple(f for f in self.fields if f.name not in self.saved_fields)
 

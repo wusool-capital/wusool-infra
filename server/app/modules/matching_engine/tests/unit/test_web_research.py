@@ -3,6 +3,7 @@ and the save that writes the chosen fields once."""
 
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -22,6 +23,7 @@ from app.modules.matching_engine.application.ports.seller_edits import (
     SellerEditResult,
 )
 from app.modules.matching_engine.application.research import (
+    ResearchAlreadyReviewedError,
     ResearchMixin,
     ResearchNotReadyError,
     ResearchSaveInProgressError,
@@ -93,18 +95,19 @@ async def _save(service: ResearchMixin, editor: AsyncMock, *names: str) -> Selle
     )
 
 
-async def test_save_writes_only_unsaved_chosen_fields_and_records_them() -> None:
-    store = _Store(_done("sector_focus", "region", "facebook", saved=("region",)))
+async def test_save_writes_the_chosen_fields_and_closes_the_review() -> None:
+    store = _Store(_done("sector_focus", "region", "facebook"))
     editor = AsyncMock(return_value=SellerEditResult(outcome=SellerEditOutcome.SAVED))
 
     result = await _save(_service(store), editor, "sector_focus", "region")
 
     assert result.outcome is SellerEditOutcome.SAVED
     edits = editor.await_args.kwargs["edits"]
-    assert [e.name for e in edits] == ["sector_focus"]
+    assert [e.name for e in edits] == ["sector_focus", "region"]
     assert editor.await_args.kwargs["requested_by"] == "U1"
     assert store.record is not None
-    assert store.record.saved_fields == ("region", "sector_focus")
+    assert store.record.saved_fields == ("sector_focus", "region")
+    assert store.record.reviewed
     assert store.record.saving_at is None
 
 
@@ -136,14 +139,27 @@ async def test_saving_unfinished_research_is_refused() -> None:
         await _save(_service(store), AsyncMock(), "sector_focus")
 
 
-async def test_saving_already_saved_fields_writes_nothing() -> None:
-    store = _Store(_done("sector_focus", saved=("sector_focus",)))
+@pytest.mark.parametrize(
+    "record",
+    [
+        _done("sector_focus", "region", saved=("sector_focus",)),
+        replace(_done("sector_focus"), skipped=True),
+    ],
+)
+async def test_research_already_saved_or_skipped_cant_be_saved_again(record) -> None:
     editor = AsyncMock()
 
-    result = await _save(_service(store), editor, "sector_focus")
+    with pytest.raises(ResearchAlreadyReviewedError):
+        await _save(_service(_Store(record)), editor, "region")
 
-    assert result.outcome is SellerEditOutcome.SAVED
     editor.assert_not_awaited()
+
+
+async def test_research_already_saved_cant_be_skipped() -> None:
+    store = _Store(_done("sector_focus", saved=("sector_focus",)))
+
+    with pytest.raises(ResearchAlreadyReviewedError):
+        await _service(store).skip_research(_ID)
 
 
 # The job ---------------------------------------------------------------------
