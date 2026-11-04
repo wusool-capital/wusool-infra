@@ -6,10 +6,13 @@ import { candidateStatus } from "@/components/status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { ExistingDealRead } from "@/gen/types/ExistingDealRead";
 import type { SellerProfileRead } from "@/gen/types/SellerProfileRead";
+import { useMoreBelow } from "@/hooks/useMoreBelow";
 import { money, score } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 import { ResearchBlock } from "./ResearchBlock";
 import { ScoreBar } from "./ScoreBar";
@@ -240,13 +243,17 @@ export function CandidateDetail({
   threshold,
   onDeciding,
   onDecided,
+  framed = false,
 }: {
   runId: string;
   candidate: CandidateRead;
   threshold: number;
   onDeciding?: (candidateId: string) => void;
   onDecided?: (candidateId: string) => void;
+  // Desktop: the body scrolls in its own box and the decision bar stays below it.
+  framed?: boolean;
 }): React.JSX.Element {
+  const [attachBody, moreBelow] = useMoreBelow();
   const decision = useDecision(runId, candidate.id);
   const [choosing, setChoosing] = useState(false);
   const deals = choosing ? existingDeals(decision.error) : null;
@@ -273,11 +280,8 @@ export function CandidateDetail({
     );
   };
 
-  return (
-    <article
-      aria-labelledby={`candidate-${candidate.id}`}
-      className="flex animate-rise flex-col gap-lg"
-    >
+  const body = (
+    <>
       <header className="flex flex-col gap-xs">
         <div className="flex items-start justify-between gap-sm">
           <h3
@@ -373,9 +377,17 @@ export function CandidateDetail({
           />
         </Alert>
       )}
-
+      {candidate.status === "APPROVED" && decision.isSuccess && (
+        <p role="status" className="text-body text-ink-muted">
+          Match with {candidate.seller_org_name} approved.
+        </p>
+      )}
+    </>
+  );
+  const footer = (
+    <>
       {pending && deals === null && (
-        <div className="flex flex-wrap gap-xs border-t border-hairline pt-md lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:bottom-full lg:before:h-12 lg:before:bg-linear-to-t lg:before:from-surface-1 lg:before:to-transparent lg:before:opacity-0 lg:before:transition-opacity lg:before:duration-200 lg:group-data-more-below/detail:before:opacity-100">
+        <div className="flex flex-wrap gap-xs">
           <Button
             size="lg"
             disabled={decision.isPending}
@@ -400,13 +412,8 @@ export function CandidateDetail({
           </Button>
         </div>
       )}
-      {candidate.status === "APPROVED" && decision.isSuccess && (
-        <p role="status" className="text-body text-ink-muted">
-          Match with {candidate.seller_org_name} approved.
-        </p>
-      )}
       {!pending && (
-        <p className="border-t border-hairline pt-md text-body text-ink-subtle lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:bottom-full lg:before:h-12 lg:before:bg-linear-to-t lg:before:from-surface-1 lg:before:to-transparent lg:before:opacity-0 lg:before:transition-opacity lg:before:duration-200 lg:group-data-more-below/detail:before:opacity-100">
+        <p className="text-body text-ink-subtle">
           {candidate.deal_attio_id ? (
             <>
               Qualified deal in Attio{" "}
@@ -420,6 +427,42 @@ export function CandidateDetail({
             "Rejected. Nothing was written to Attio."
           )}
         </p>
+      )}
+    </>
+  );
+  const hasFooter = !pending || deals === null;
+
+  return (
+    <article
+      aria-labelledby={`candidate-${candidate.id}`}
+      className={cn(
+        "flex animate-rise flex-col",
+        framed ? "min-h-0 flex-1" : "gap-lg",
+      )}
+    >
+      {framed ? (
+        <ScrollArea
+          viewportRef={attachBody}
+          className="min-h-0 flex-1"
+          viewportClassName="overscroll-contain"
+        >
+          <div className="flex flex-col gap-lg p-lg">{body}</div>
+        </ScrollArea>
+      ) : (
+        body
+      )}
+      {hasFooter && (
+        <div
+          data-more-below={(framed && moreBelow) || undefined}
+          className={cn(
+            "border-t border-hairline pt-md",
+            // Fades the text into the bar while more of it sits below the fold.
+            framed &&
+              "relative px-lg pb-lg before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-12 before:bg-linear-to-t before:from-surface-1 before:to-transparent before:opacity-0 before:transition-opacity before:duration-200 data-more-below:before:opacity-100 motion-reduce:before:transition-none",
+          )}
+        >
+          {footer}
+        </div>
       )}
     </article>
   );
