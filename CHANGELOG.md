@@ -8,6 +8,18 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-04
+
+### Changed
+
+- The web find-match app uses the Wusool Capital logo as its mark and tab
+  icon, with Geist for text and Libre Baskerville for titles.
+
+### Fixed
+
+- **Sign out** in the web app signs out someone who signed in with Slack. It
+  used to clear the session but leave the page showing them as signed in.
+
 ## 2026-11-03
 
 ### Added

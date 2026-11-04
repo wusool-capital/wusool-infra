@@ -61,7 +61,7 @@ export function ApiKeyGate({
         className="flex w-full max-w-[400px] animate-rise flex-col gap-lg"
       >
         <div className="flex flex-col gap-md">
-          <Mark className="h-7 w-10" />
+          <Mark className="size-10" />
           <div className="flex flex-col gap-xs">
             <h1 className="font-serif text-title">Wusool Toolkit</h1>
             <p className="text-lead text-ink-muted">

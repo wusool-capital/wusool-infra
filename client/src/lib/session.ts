@@ -23,8 +23,8 @@ export function useSignOut(): () => Promise<void> {
   return async () => {
     await logout().catch(() => undefined);
     setApiKey(null);
-    queryClient.removeQueries({ queryKey: getMeQueryKey() });
-    await queryClient.invalidateQueries({ queryKey: getMeQueryKey() });
+    // Reset, not remove: a removed query leaves the page showing the old user.
+    await queryClient.resetQueries({ queryKey: getMeQueryKey() });
   };
 }
 
