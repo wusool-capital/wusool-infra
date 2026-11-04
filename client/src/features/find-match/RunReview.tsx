@@ -12,6 +12,7 @@ import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { RunDetailResponse } from "@/gen/types/RunDetailResponse";
 import { ErrorText } from "@/components/ErrorText";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useMoreBelow } from "@/hooks/useMoreBelow";
 import { useExportFields } from "@/lib/export-fields";
 import { score } from "@/lib/format";
 
@@ -193,6 +194,7 @@ export function Review({
         ]
       : []),
   ];
+  const [attachDetail, moreBelow] = useMoreBelow();
   const detail = selected ? (
     <CandidateDetail
       key={selected.id}
@@ -269,7 +271,11 @@ export function Review({
             <ThresholdStrip run={run} selectedId={selectedId} />
           )}
           {detail && (
-            <div className="min-h-0 scroll-pb-24 overflow-y-auto overscroll-contain rounded-lg border border-hairline bg-surface-1 px-lg pt-lg">
+            <div
+              ref={attachDetail}
+              data-more-below={moreBelow || undefined}
+              className="group/detail min-h-0 scroll-pb-24 overflow-y-auto overscroll-contain rounded-lg border border-hairline bg-surface-1 px-lg pt-lg"
+            >
               {detail}
             </div>
           )}

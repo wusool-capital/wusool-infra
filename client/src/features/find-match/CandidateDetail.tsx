@@ -375,7 +375,7 @@ export function CandidateDetail({
       )}
 
       {pending && deals === null && (
-        <div className="flex flex-wrap gap-xs border-t border-hairline pt-md lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
+        <div className="flex flex-wrap gap-xs border-t border-hairline pt-md lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:bottom-full lg:before:h-12 lg:before:bg-linear-to-t lg:before:from-surface-1 lg:before:to-transparent lg:before:opacity-0 lg:before:transition-opacity lg:before:duration-200 lg:group-data-more-below/detail:before:opacity-100">
           <Button
             size="lg"
             disabled={decision.isPending}
@@ -406,7 +406,7 @@ export function CandidateDetail({
         </p>
       )}
       {!pending && (
-        <p className="border-t border-hairline pt-md text-body text-ink-subtle lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
+        <p className="border-t border-hairline pt-md text-body text-ink-subtle lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg lg:before:pointer-events-none lg:before:absolute lg:before:inset-x-0 lg:before:bottom-full lg:before:h-12 lg:before:bg-linear-to-t lg:before:from-surface-1 lg:before:to-transparent lg:before:opacity-0 lg:before:transition-opacity lg:before:duration-200 lg:group-data-more-below/detail:before:opacity-100">
           {candidate.deal_attio_id ? (
             <>
               Qualified deal in Attio{" "}
