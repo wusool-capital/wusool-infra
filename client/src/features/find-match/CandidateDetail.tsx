@@ -10,6 +10,7 @@ import type { ExistingDealRead } from "@/gen/types/ExistingDealRead";
 import type { SellerProfileRead } from "@/gen/types/SellerProfileRead";
 import { money, score } from "@/lib/format";
 
+import { ResearchBlock } from "./ResearchBlock";
 import { ScoreBar } from "./ScoreBar";
 import { existingDeals, useDecision } from "./useDecision";
 
@@ -271,8 +272,6 @@ export function CandidateDetail({
     );
   };
 
-  const researchChannel = decision.data?.research_channel_id ?? null;
-
   return (
     <article
       aria-labelledby={`candidate-${candidate.id}`}
@@ -334,6 +333,17 @@ export function CandidateDetail({
         <Profile profile={candidate.profile} />
       )}
 
+      {discovered && candidate.status === "APPROVED" && (
+        <ResearchBlock
+          // A fresh mount once research lands, so its ticked fields start from the results.
+          key={candidate.research?.status ?? "none"}
+          runId={runId}
+          candidateId={candidate.id}
+          orgName={candidate.seller_org_name}
+          research={candidate.research ?? null}
+        />
+      )}
+
       {deals !== null && (
         <DealChoice
           deals={deals}
@@ -389,8 +399,6 @@ export function CandidateDetail({
       {candidate.status === "APPROVED" && decision.isSuccess && (
         <p role="status" className="text-body text-ink-muted">
           Match with {candidate.seller_org_name} approved.
-          {researchChannel &&
-            " Full research on this seller is being posted to Slack for review."}
         </p>
       )}
       {!pending && (

@@ -463,6 +463,9 @@ export function ExportButton({
   const [busy, setBusy] = useState(false);
   const fields = useExportFields();
   const preset = matchingPreset(fields);
+  const unreviewed = run.candidates.filter(
+    (c) => c.research?.status === "done" && !c.research.reviewed,
+  ).length;
   const fieldsLabel = preset
     ? `${EXPORT_PRESETS[preset].label} fields`
     : `${String(fields.length)} chosen fields`;
@@ -500,6 +503,12 @@ export function ExportButton({
       >
         {fieldsLabel} · change
       </Link>
+      {unreviewed > 0 && (
+        <span className="text-small text-ink-subtle">
+          {unreviewed} seller{unreviewed === 1 ? "'s" : "s'"} research not
+          reviewed
+        </span>
+      )}
     </>
   );
 }

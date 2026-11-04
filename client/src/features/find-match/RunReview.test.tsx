@@ -180,7 +180,6 @@ describe("run review", () => {
       vi.fn().mockResolvedValue(
         jsonResponse(200, {
           candidate: { ...first, status: "REJECTED", decision: "REJECTED" },
-          research_channel_id: null,
         }),
       ),
     );

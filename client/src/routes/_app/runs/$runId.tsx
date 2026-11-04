@@ -27,7 +27,11 @@ export const Route = createFileRoute("/_app/runs/$runId")({
 const POLL_MS = 2000;
 
 function isBusy(run: RunDetailResponse | undefined): boolean {
-  return run?.state === "running" || run?.discovery.status === "running";
+  return (
+    run?.state === "running" ||
+    run?.discovery.status === "running" ||
+    (run?.candidates.some((c) => c.research?.status === "running") ?? false)
+  );
 }
 
 // The line under the title: the one fact the advisor needs first.

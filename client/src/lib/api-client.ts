@@ -81,6 +81,8 @@ export interface ApiErrorBody {
     stage: string | null;
     web_url: string | null;
   }[];
+  // research_conflict: fields filled in since the research ran.
+  fields?: string[];
 }
 
 export class ApiRequestError extends Error {
