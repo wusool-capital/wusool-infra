@@ -280,8 +280,11 @@ class MatchResultRepository:
                 ),
             )
             .values(
-                metadata_=func.jsonb_set(
-                    MatchResult.metadata_, "{research,saving_at}", func.to_jsonb(now.isoformat())
+                metadata_=MatchResult.metadata_.op("||")(
+                    func.jsonb_build_object(
+                        "research",
+                        current.op("||")(func.jsonb_build_object("saving_at", now.isoformat())),
+                    )
                 )
             )
             .returning(MatchResult.id)

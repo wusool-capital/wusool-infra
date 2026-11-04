@@ -26,6 +26,11 @@ ApiErrorCode = Literal[
     "existing_deals",
     "partial_write",
     "run_not_ready",
+    "slack_sign_in_required",
+    "research_not_ready",
+    "research_busy",
+    "research_conflict",
+    "research_invalid",
 ]
 DiscoveryStatus = Literal[
     "not_needed", "available", "running", "done", "skipped", "unavailable", "failed"
@@ -43,6 +48,7 @@ ExportField = Literal[
     "recommended_pitch",
     "risks_and_gaps",
     "source_url",
+    "research_saved",
 ]
 
 
@@ -131,6 +137,54 @@ class MandateRead(_Schema):
     hard_requirements: list[HardRequirementRead]
 
 
+class ResearchFieldRead(_Schema):
+    name: str
+    target: Literal["organization", "seller_role"]
+    display: str
+    # 0 to 1, as enrichment reports it.
+    confidence: float
+    source_url: str
+    rationale: str
+    saved: bool
+
+
+class ResearchPostRead(_Schema):
+    url: str
+    text: str
+    author_name: str | None
+    posted_at: datetime | None
+
+
+class ResearchJobChangeRead(_Schema):
+    name: str
+    title: str | None
+    company: str | None
+    source_url: str
+
+
+class ResearchLinkedInRead(_Schema):
+    outcome: Literal["completed", "skipped", "failed"]
+    posts: list[ResearchPostRead]
+    job_changes: list[ResearchJobChangeRead]
+    contacts_without_linkedin: int
+
+
+class ResearchRead(_Schema):
+    """Full research on an approved discovered seller, for review in the page."""
+
+    status: Literal["running", "done", "failed"]
+    started_at: datetime
+    error: str | None
+    fields: list[ResearchFieldRead]
+    linkedin: ResearchLinkedInRead | None
+    # Reviewed: every field saved, or the advisor chose to skip the rest.
+    reviewed: bool
+
+
+class SaveResearchRequest(_Schema):
+    fields: list[str] = Field(min_length=1)
+
+
 class CandidateRead(_Schema):
     id: uuid.UUID
     rank: int
@@ -150,6 +204,7 @@ class CandidateRead(_Schema):
     deal_attio_id: str | None
     profile: SellerProfileRead | None
     criteria: list[CriterionRead]
+    research: ResearchRead | None = None
 
 
 class DiscoveryRead(_Schema):
@@ -184,8 +239,6 @@ class ApproveRequest(_Schema):
 
 class DecisionResponse(_Schema):
     candidate: CandidateRead
-    # Set when Slack will receive a research proposal for this seller, as Slack approvals do.
-    research_channel_id: str | None = None
 
 
 class ExistingDealRead(_Schema):
@@ -199,6 +252,8 @@ class ApiError(_Schema):
     code: ApiErrorCode
     message: str
     existing_deals: list[ExistingDealRead] = []
+    # research_conflict: fields filled in since the research ran.
+    fields: list[str] = []
 
 
 class AuthConfigResponse(_Schema):

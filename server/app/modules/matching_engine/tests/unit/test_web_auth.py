@@ -35,7 +35,6 @@ def _settings(*, key: str | None = None, slack: bool = True) -> SimpleNamespace:
         web_session_days=30,
         web_fallback_min_score=50.0,
         match_run_stale_after_minutes=15,
-        web_review_channel_id=None,
     )
 
 

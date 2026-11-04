@@ -92,8 +92,6 @@ class Settings(SecretsManagerSettings):
     web_allowed_origins: list[str] = Field(default_factory=list)
     # A run lost to a deploy/restart never completes; after this it reads as stale.
     match_run_stale_after_minutes: int = Field(default=15, gt=0)
-    # Slack channel for the research proposal on a discovered seller approved on the web.
-    web_review_channel_id: str | None = None
     # Sign in with Slack: the bot's Slack app client, and the URL Slack sends people back to.
     slack_client_id: str | None = None
     slack_client_secret: SecretStr | None = None

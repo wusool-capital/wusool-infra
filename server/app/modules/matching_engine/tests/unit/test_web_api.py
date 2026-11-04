@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app.modules.matching_engine.api.buyers import BuyerSummary, _BuyerCandidateOrg
-from app.modules.matching_engine.api.http import auth, routes
+from app.modules.matching_engine.api.http import auth, routes, web_research
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
 from app.modules.matching_engine.application.approvals import InvalidTransitionError
 from app.modules.matching_engine.application.errors import (
@@ -18,12 +18,18 @@ from app.modules.matching_engine.application.errors import (
     ExistingDealsFoundError,
     PartialWriteError,
 )
+from app.modules.matching_engine.application.ports.seller_edits import (
+    SellerEditOutcome,
+    SellerEditResult,
+)
+from app.modules.matching_engine.application.research import ResearchSaveInProgressError
 from app.modules.matching_engine.domain.matching.deals import ExistingDeal
 from app.modules.matching_engine.domain.matching.entities import (
     CriterionScore,
     DiscoveryRecord,
     ScoreDims,
 )
+from app.modules.matching_engine.domain.matching.research import ResearchField, ResearchRecord
 from app.modules.matching_engine.domain.requirements import HardRequirement
 from app.modules.matching_engine.domain.sellers import SellerProfile
 from app.modules.utilities import Money
@@ -32,12 +38,11 @@ _KEY = "test-web-key"
 _HEADERS = {"Authorization": f"Bearer {_KEY}"}
 
 
-def _settings(key: str | None = _KEY, *, review_channel: str | None = None):
+def _settings(key: str | None = _KEY):
     return SimpleNamespace(
         web_api_key=SecretStr(key) if key is not None else None,
         web_fallback_min_score=50.0,
         match_run_stale_after_minutes=15,
-        web_review_channel_id=review_channel,
         slack_client_id=None,
         slack_client_secret=None,
         web_session_secret=None,
@@ -57,6 +62,7 @@ def _row(**overrides):
         "errors": None, "started_at": datetime.now(UTC), "completed_at": datetime.now(UTC),
         "candidates_considered": 10, "candidates_filtered": 4, "origin": "crm",
         "source_url": None, "requirement_profile": None, "discovery": None,
+        "research": None,
     }  # fmt: skip
     return SimpleNamespace(**{**fields, **overrides})
 
@@ -92,6 +98,9 @@ def api(monkeypatch):
         start_run=AsyncMock(),
         approve_match=AsyncMock(),
         reject_match=AsyncMock(),
+        claim_research=AsyncMock(return_value=True),
+        save_research=AsyncMock(),
+        skip_research=AsyncMock(),
     )
     runner = MagicMock()
 
@@ -102,10 +111,11 @@ def api(monkeypatch):
     monkeypatch.setattr(routes, "open_matching_engine_service", _service)
     monkeypatch.setattr(routes, "_task_runner", runner)
     monkeypatch.setattr(routes, "get_settings", lambda: _settings())
+    monkeypatch.setattr(web_research, "get_settings", lambda: _settings())
     monkeypatch.setattr(auth, "get_settings", lambda: _settings())
     app = FastAPI()
     app.include_router(routes.router)
-    return SimpleNamespace(client=TestClient(app), service=service, runner=runner)
+    return SimpleNamespace(client=TestClient(app), service=service, runner=runner, app=app)
 
 
 def test_missing_key_is_401(api) -> None:
@@ -441,26 +451,24 @@ def _approve_discovered(api):
     )
 
 
-def test_approving_a_discovered_seller_queues_full_research(api, monkeypatch) -> None:
-    monkeypatch.setattr(routes, "get_settings", lambda: _settings(review_channel="C123"))
-
-    _, response = _approve_discovered(api)
+def test_approving_a_discovered_seller_starts_full_research(api) -> None:
+    candidate, response = _approve_discovered(api)
 
     assert response.status_code == 200
-    assert response.json()["research_channel_id"] == "C123"
+    api.service.claim_research.assert_awaited_once()
+    assert api.service.claim_research.await_args.args[0] == UUID(candidate.id)
     api.runner.run.assert_called_once()
 
 
-def test_no_review_channel_skips_research(api) -> None:
-    _, response = _approve_discovered(api)
+def test_research_already_claimed_is_not_started_twice(api) -> None:
+    api.service.claim_research.return_value = False
 
-    assert response.status_code == 200
-    assert response.json()["research_channel_id"] is None
+    _approve_discovered(api)
+
     api.runner.run.assert_not_called()
 
 
-def test_approving_a_crm_seller_never_queues_research(api, monkeypatch) -> None:
-    monkeypatch.setattr(routes, "get_settings", lambda: _settings(review_channel="C123"))
+def test_approving_a_crm_seller_never_queues_research(api) -> None:
     candidate = _row()
     decided = _row(id=candidate.id, status="APPROVED", decision="APPROVED")
     api.service.get_match_analysis.side_effect = [
@@ -613,3 +621,171 @@ def test_an_approval_reads_the_run_twice(api) -> None:
 
     assert api.service.get_match_analysis.await_count == 2
     api.service.get_seller_profiles.assert_awaited_once()
+
+
+def _approved_discovered(api, research=None):
+    candidate = _row(
+        origin="discovery", match_score=None, status="APPROVED", decision="APPROVED",
+        research=research,
+    )  # fmt: skip
+    api.service.get_match_analysis.return_value = _analysis(candidates=[candidate])
+    return candidate
+
+
+def _as_slack_user(api) -> None:
+    api.app.dependency_overrides[auth.require_web_user] = lambda: auth.WebUser("U_ALICE", "Alice")
+
+
+def _field(name: str = "sector_focus") -> ResearchField:
+    return ResearchField(name, "seller_role", ["Security"], "Security", 0.9, "https://s", "why")
+
+
+def _save(api, candidate, fields=("sector_focus",)):
+    return api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/research/save",
+        json={"fields": list(fields)},
+        headers={**_HEADERS, auth.CLIENT_HEADER: "web"},
+    )
+
+
+def test_running_research_reads_as_running_and_a_lost_one_as_failed(api) -> None:
+    now = datetime.now(UTC)
+    running = _approved_discovered(api, ResearchRecord(claimed_at=now))
+    lost = _row(
+        origin="discovery", match_score=None, status="APPROVED",
+        research=ResearchRecord(claimed_at=now - timedelta(hours=1)),
+    )  # fmt: skip
+    api.service.get_match_analysis.return_value = _analysis(candidates=[running, lost])
+
+    candidates = api.client.get(f"/api/match-runs/{uuid4()}", headers=_HEADERS).json()["candidates"]
+
+    assert candidates[0]["research"]["status"] == "running"
+    assert candidates[1]["research"]["status"] == "failed"
+    assert candidates[1]["research"]["error"] == "Research stopped before it finished."
+
+
+def test_finished_research_shows_fields_and_what_was_saved(api) -> None:
+    record = ResearchRecord(
+        claimed_at=datetime.now(UTC),
+        outcome="done",
+        fields=(_field("sector_focus"), _field("region")),
+        saved_fields=("region",),
+    )
+    _approved_discovered(api, record)
+
+    research = api.client.get(f"/api/match-runs/{uuid4()}", headers=_HEADERS).json()["candidates"][
+        0
+    ]["research"]
+
+    assert [(f["name"], f["saved"]) for f in research["fields"]] == [
+        ("sector_focus", False),
+        ("region", True),
+    ]
+    assert research["reviewed"] is False
+
+
+def test_saving_research_needs_a_slack_sign_in(api) -> None:
+    candidate = _approved_discovered(api)
+
+    response = _save(api, candidate)
+
+    assert response.status_code == 403
+    assert response.json()["detail"]["code"] == "slack_sign_in_required"
+    api.service.save_research.assert_not_awaited()
+
+
+def test_saving_research_writes_as_the_slack_user(api, monkeypatch) -> None:
+    candidate = _approved_discovered(api)
+    _as_slack_user(api)
+    port = MagicMock()
+    monkeypatch.setattr(routes, "seller_edit_port", lambda: port)
+    api.service.save_research.return_value = SellerEditResult(outcome=SellerEditOutcome.SAVED)
+
+    response = _save(api, candidate)
+
+    assert response.status_code == 200
+    kwargs = api.service.save_research.await_args.kwargs
+    assert kwargs["requested_by"] == "U_ALICE"
+    assert kwargs["field_names"] == ("sector_focus",)
+    assert kwargs["editor"] is port
+
+
+def test_a_field_filled_in_since_is_a_conflict_naming_it(api, monkeypatch) -> None:
+    candidate = _approved_discovered(api)
+    _as_slack_user(api)
+    monkeypatch.setattr(routes, "seller_edit_port", MagicMock)
+    api.service.save_research.return_value = SellerEditResult(
+        outcome=SellerEditOutcome.CONFLICT, conflicts=("sector_focus",)
+    )
+
+    response = _save(api, candidate)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "research_conflict"
+    assert response.json()["detail"]["fields"] == ["sector_focus"]
+
+
+def test_a_second_save_while_one_runs_is_refused(api, monkeypatch) -> None:
+    candidate = _approved_discovered(api)
+    _as_slack_user(api)
+    monkeypatch.setattr(routes, "seller_edit_port", MagicMock)
+    api.service.save_research.side_effect = ResearchSaveInProgressError("x")
+
+    response = _save(api, candidate)
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "research_busy"
+
+
+def test_a_partial_save_says_what_landed(api, monkeypatch) -> None:
+    candidate = _approved_discovered(api)
+    _as_slack_user(api)
+    monkeypatch.setattr(routes, "seller_edit_port", MagicMock)
+    api.service.save_research.return_value = SellerEditResult(
+        outcome=SellerEditOutcome.PARTIAL,
+        landed=("organization fields (Attio)",),
+        message="timeout",
+    )
+
+    response = _save(api, candidate)
+
+    assert response.status_code == 502
+    assert "organization fields (Attio)" in response.json()["detail"]["message"]
+
+
+def test_research_is_only_for_approved_discovered_sellers(api) -> None:
+    candidate = _row()
+    api.service.get_match_analysis.return_value = _analysis(candidates=[candidate])
+
+    response = api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/research",
+        headers={**_HEADERS, auth.CLIENT_HEADER: "web"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "research_not_ready"
+    api.runner.run.assert_not_called()
+
+
+def test_retrying_research_claims_and_schedules_it(api) -> None:
+    candidate = _approved_discovered(api)
+
+    response = api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/research",
+        headers={**_HEADERS, auth.CLIENT_HEADER: "web"},
+    )
+
+    assert response.status_code == 202
+    api.runner.run.assert_called_once()
+
+
+def test_skipping_research_records_it(api) -> None:
+    candidate = _approved_discovered(api)
+
+    response = api.client.post(
+        f"/api/match-runs/{uuid4()}/candidates/{candidate.id}/research/skip",
+        headers={**_HEADERS, auth.CLIENT_HEADER: "web"},
+    )
+
+    assert response.status_code == 200
+    api.service.skip_research.assert_awaited_once_with(UUID(candidate.id))
