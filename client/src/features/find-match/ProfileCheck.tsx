@@ -199,7 +199,7 @@ export function ProfileCheck({
         </Alert>
       )}
       {startError && (
-        <Alert tone="danger" className="pr-28">
+        <Alert tone="danger" className="pr-[120px]">
           <AlertTriangle aria-hidden />
           <AlertTitle>Couldn't start the run</AlertTitle>
           <AlertDescription>{startError}</AlertDescription>

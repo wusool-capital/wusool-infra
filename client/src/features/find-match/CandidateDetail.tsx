@@ -364,7 +364,7 @@ export function CandidateDetail({
         />
       )}
       {failure && (
-        <Alert tone="danger" className="pr-28">
+        <Alert tone="danger" className="pr-[120px]">
           <AlertTriangle aria-hidden />
           <AlertTitle>{failure}</AlertTitle>
           <CopyErrorButton

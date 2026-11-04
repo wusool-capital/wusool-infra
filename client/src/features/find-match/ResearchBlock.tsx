@@ -298,7 +298,7 @@ export function ResearchBlock({
     );
   else if (research.status === "failed")
     body = (
-      <Alert tone="danger" className="pr-28">
+      <Alert tone="danger" className="pr-[120px]">
         <AlertTriangle aria-hidden />
         <AlertTitle>{research.error ?? "Research didn't finish."}</AlertTitle>
         <CopyErrorButton
