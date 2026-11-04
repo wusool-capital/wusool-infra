@@ -11,11 +11,7 @@ import { useStartDiscovery } from "@/gen/hooks/useStartDiscovery";
 import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { RunDetailResponse } from "@/gen/types/RunDetailResponse";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import {
-  EXPORT_PRESETS,
-  matchingPreset,
-  useExportFields,
-} from "@/lib/export-fields";
+import { useExportFields } from "@/lib/export-fields";
 import { score } from "@/lib/format";
 
 import { CandidateDetail } from "./CandidateDetail";
@@ -462,20 +458,12 @@ export function ExportButton({
   const [exportError, setExportError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fields = useExportFields();
-  const preset = matchingPreset(fields);
   const unreviewed = run.candidates.filter(
     (c) => c.research?.status === "done" && !c.research.reviewed,
   ).length;
-  const fieldsLabel = preset
-    ? `${EXPORT_PRESETS[preset].label} fields`
-    : `${String(fields.length)} chosen fields`;
   return (
-    <>
-      {exportError && (
-        <p role="alert" className="text-body text-danger">
-          {exportError}
-        </p>
-      )}
+    // Anything left to review sits under the button.
+    <div className="flex flex-col items-end gap-xxs">
       <Button
         variant="secondary"
         disabled={busy || run.state !== "completed"}
@@ -496,19 +484,17 @@ export function ExportButton({
         <Download aria-hidden />
         {busy ? "Preparing…" : "Download CSV"}
       </Button>
-      <Link
-        to="/settings"
-        hash="export-title"
-        className="text-small text-ink-subtle underline-offset-4 hover:text-ink hover:underline"
-      >
-        {fieldsLabel} · change
-      </Link>
       {unreviewed > 0 && (
         <span className="text-small text-ink-subtle">
           {unreviewed} seller{unreviewed === 1 ? "'s" : "s'"} research not
           reviewed
         </span>
       )}
-    </>
+      {exportError && (
+        <p role="alert" className="text-small text-danger">
+          {exportError}
+        </p>
+      )}
+    </div>
   );
 }

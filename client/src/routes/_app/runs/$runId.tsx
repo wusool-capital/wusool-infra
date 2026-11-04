@@ -85,10 +85,13 @@ function RunPage(): React.JSX.Element {
         }
         actions={
           run ? (
-            <>
-              <StatusBadge status={run.state} />
+            <div className="flex items-start gap-xs">
+              {/* Same height as the button, so the badge lines up with it, not the column. */}
+              <span className="flex h-9 items-center">
+                <StatusBadge status={run.state} />
+              </span>
               <ExportButton run={run} />
-            </>
+            </div>
           ) : undefined
         }
       />
