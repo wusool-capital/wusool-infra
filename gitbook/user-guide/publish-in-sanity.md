@@ -21,8 +21,9 @@ page on wusoolcapital.com within a few moments.
    end-of-page button (text and link). The **SEO** tab sets the search and
    share titles; blank ones use the title and excerpt.
 6. Optionally tick **Pin to home page banner** to show "Just released:
-   {title}. Get the playbook →" across the top of the home page. It moves
-   from whichever report held it before. Visitors can close the bar; it
+   {title}. Get the report →" across the top of the home page. Change the
+   link wording in **Banner button text** (blank means "Get the report"; the
+   site adds the arrow). It moves from whichever report held it before. Visitors can close the bar; it
    returns when a different report is pinned. The top of `/reports` always
    shows the newest report.
 7. Publish.

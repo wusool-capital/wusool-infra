@@ -29,6 +29,9 @@ for current production evidence and open handover items.
   criteria. Sellers found outside the CRM show what enrichment found, and
   approving one posts full research to Slack. Advisors sign in with Slack, so
   web runs and decisions carry the same Slack user as `/find-match`.
+- The home page banner's link wording ("Get the report →") is editable per
+  report in Sanity, under **Banner button text**. Blank keeps "Get the
+  report". No Webflow Designer edit is needed for a wording change.
 
 ## 2026-10-30
 
