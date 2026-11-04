@@ -3,14 +3,17 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { errorReport } from "@/lib/error-report";
+import { cn } from "@/lib/utils";
 
 const RESET_MS = 2000;
 
 // Copies an error with its page and time, so an advisor can paste it to the team.
 export function CopyErrorButton({
   message,
+  className,
 }: {
   message: string;
+  className?: string;
 }): React.JSX.Element {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 
@@ -29,7 +32,7 @@ export function CopyErrorButton({
       type="button"
       size="sm"
       variant="tertiary"
-      className="self-start justify-self-start"
+      className={cn("shrink-0", className)}
       onClick={() => {
         navigator.clipboard
           .writeText(errorReport(message))

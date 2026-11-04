@@ -364,12 +364,13 @@ export function CandidateDetail({
         />
       )}
       {failure && (
-        <Alert tone="danger">
+        <Alert tone="danger" className="pr-28">
           <AlertTriangle aria-hidden />
           <AlertTitle>{failure}</AlertTitle>
-          <AlertDescription>
-            <CopyErrorButton message={failure} />
-          </AlertDescription>
+          <CopyErrorButton
+            message={failure}
+            className="absolute top-xs right-xs"
+          />
         </Alert>
       )}
 

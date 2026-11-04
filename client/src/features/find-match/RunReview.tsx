@@ -490,7 +490,7 @@ export function ExportButton({
         </span>
       )}
       {exportError && (
-        <ErrorText message={exportError} className="items-end text-right" />
+        <ErrorText message={exportError} className="max-w-[420px]" />
       )}
     </div>
   );
