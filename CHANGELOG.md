@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-05
+
+### Added
+
+- Organizations and Person have 11 new interaction fields in Attio and
+  Postgres (AZM-159): first, next, email and calendar interaction dates, last
+  interaction channel, subject and owner, and strongest connection user. The
+  webhook and nightly sync mirror them. Nothing writes them yet; the
+  interactions engine will.
+
 ## 2026-11-04
 
 ### Changed

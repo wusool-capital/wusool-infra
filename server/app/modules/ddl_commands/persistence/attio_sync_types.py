@@ -43,6 +43,17 @@ class OrganizationParams(TypedDict):
     connection_strength: str | None
     owner_attio_id: str | None
     last_interaction_at: datetime | None
+    first_interaction_at: datetime | None
+    next_interaction_at: datetime | None
+    first_email_interaction_at: datetime | None
+    last_email_interaction_at: datetime | None
+    first_calendar_interaction_at: datetime | None
+    last_calendar_interaction_at: datetime | None
+    next_calendar_interaction_at: datetime | None
+    last_interaction_channel: str | None
+    last_interaction_subject: str | None
+    last_interaction_owner: str | None
+    strongest_connection_user: str | None
     funding_raised: MoneyJson | None
     estimated_arr: str | None
     raw_attio: AttioRecord
@@ -73,6 +84,17 @@ class PersonParams(TypedDict):
     connection_strength: str | None
     owner_attio_id: str | None
     last_interaction_at: datetime | None
+    first_interaction_at: datetime | None
+    next_interaction_at: datetime | None
+    first_email_interaction_at: datetime | None
+    last_email_interaction_at: datetime | None
+    first_calendar_interaction_at: datetime | None
+    last_calendar_interaction_at: datetime | None
+    next_calendar_interaction_at: datetime | None
+    last_interaction_channel: str | None
+    last_interaction_subject: str | None
+    last_interaction_owner: str | None
+    strongest_connection_user: str | None
     job_title: str | None
     contact_type: str | None
     phone: str | None
