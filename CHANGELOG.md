@@ -12,8 +12,8 @@ for current production evidence and open handover items.
 
 ### Changed
 
-- Match reasoning is shorter: the pitch, risks and comparison come back as
-  bullets, shown as lists in the web app and in Slack's View Full Analysis.
+- Match reasoning is shorter. The pitch, risks and comparison come back as
+  bullets, shown as lists in the web app and in View Full Analysis.
   Requirement extraction or reasoning output with tool-call markup inside a
   text field is retried once instead of being saved.
 
