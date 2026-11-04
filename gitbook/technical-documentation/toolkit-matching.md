@@ -62,7 +62,8 @@ Qualified Buy-side deal in Attio.
    shown.
 6. **Explain.** The top three sellers form the shortlist. One Bedrock call
    writes reasoning for them. It can't change their scores, and its prompt
-   tells it to use only the facts it was given.
+   tells it to use only the facts it was given. The pitch, risks, and
+   comparison come back as short `- ` bullets.
 7. **Save.** Scores, candidates, and the completed run are committed in one
    transaction, then posted to Slack with **Approve**, **Reject**, **View Full
    Analysis**, and **Find more sellers**.
@@ -120,7 +121,8 @@ The browser app and its API are on
 ## Failure behavior
 
 - If requirement extraction or reasoning fails, the run stops with an error
-  instead of producing a partial result.
+  instead of producing a partial result. Output with tool-call markup inside
+  a text field counts as a failure and gets one repair retry.
 - If Attio accepts the deal but the database write fails, the approver is
   told what was saved. The Attio webhook or nightly resync fills in the
   database.

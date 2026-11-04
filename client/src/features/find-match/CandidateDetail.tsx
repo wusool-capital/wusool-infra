@@ -14,6 +14,7 @@ import { useMoreBelow } from "@/hooks/useMoreBelow";
 import { money, score } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
+import { parseNarrative } from "./narrative";
 import { ResearchBlock } from "./ResearchBlock";
 import { ScoreBar } from "./ScoreBar";
 import { existingDeals, useDecision } from "./useDecision";
@@ -37,7 +38,19 @@ function Reasoning({
       {sections.map(([label, text]) => (
         <div key={label} className="flex flex-col gap-xxs">
           <dt className="text-small text-ink-subtle">{label}</dt>
-          <dd className="text-body text-ink-muted">{text}</dd>
+          <dd className="flex flex-col gap-xs text-body text-ink-muted">
+            {parseNarrative(text).map((block, i) =>
+              block.kind === "list" ? (
+                <ul key={i} className="flex list-disc flex-col gap-xxs pl-md">
+                  {block.items.map((item, j) => (
+                    <li key={j}>{item}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p key={i}>{block.text}</p>
+              ),
+            )}
+          </dd>
         </div>
       ))}
     </dl>
