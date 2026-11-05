@@ -145,6 +145,9 @@ env var), so don't do this against dev's own data expecting it to mirror.
 
 ## 7. Go live in Webflow
 
+Always load `embed.js` with `async`: a synchronous script blocks the whole Webflow page while
+the toolkit is down, and `defer` still holds up DOM-ready, which the menu waits on (AZM-163).
+
 Each tool page is already final — `embed.js`'s `TOOLS` map points straight
 at `/benchmark/`, `/readiness/`, `/valuation/`, `/buyers/` and
 `/get-started/` on this host; there's no separate "old service" fallback
@@ -153,7 +156,7 @@ once per tool, **replacing** (not adding to) whatever Render/Vercel/Tally
 embed is there today:
 
 ```html
-<script src="https://tools.wusoolcapital.com/embed.js" data-tool="benchmark"></script>
+<script async src="https://tools.wusoolcapital.com/embed.js" data-tool="benchmark"></script>
 ```
 
 Do this one tool at a time, benchmark first (it already creates a full
@@ -168,7 +171,7 @@ extra attributes, and `data-trigger` must select the button already on the
 page:
 
 ```html
-<script src="https://tools.wusoolcapital.com/embed.js"
+<script async src="https://tools.wusoolcapital.com/embed.js"
         data-tool="get-started" data-modal data-trigger="#get-started-btn"></script>
 ```
 
@@ -211,7 +214,7 @@ needed per report:
    from the page URL (`/reports/<slug>`).
 
    ```html
-   <script src="https://tools.wusoolcapital.com/embed.js" data-tool="report"></script>
+   <script async src="https://tools.wusoolcapital.com/embed.js" data-tool="report"></script>
    ```
 
    Below it, add the end-of-page button bound to **CTA Text** and **CTA
@@ -297,7 +300,7 @@ Insights collection page template and add one Embed element after the article's
 rich text:
 
 ```html
-<script src="https://tools.wusoolcapital.com/embed.js" data-tool="insight"></script>
+<script async src="https://tools.wusoolcapital.com/embed.js" data-tool="insight"></script>
 ```
 
 Publish the Webflow site. Without it, articles show the still images only. In

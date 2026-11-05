@@ -8,6 +8,26 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-05
+
+### Fixed
+
+- The Toolkit no longer stalls when someone downloads a large report PDF. On
+  2026-11-03 one download of the 70-page padel report starved the server for
+  about an hour. Nothing restarted it or paged anyone.
+  A report's PDF is now printed once, when it is published, and stored in
+  Sanity. The download button only sends the reader to that file.
+  Reports published earlier need one run of
+  `server/scripts/backfill_report_pdfs.py`. Until then their download shows
+  "PDF not ready".
+- A host watchdog now probes `/health` through Caddy every 30 seconds. After
+  three misses it restarts the stack. After three more it reboots the host.
+  The Toolkit container is capped at 1.2 GB of memory, and a stuck browser is
+  stopped after 10 seconds. Two new alarms report watchdog recoveries and a
+  silent app log.
+- Webflow pages should load `embed.js` with `async`, so a Toolkit outage
+  can't slow the site. See `server/app/modules/lead_magnets/DEPLOYMENT.md`.
+
 ## 2026-11-03
 
 ### Added
