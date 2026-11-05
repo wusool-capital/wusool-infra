@@ -45,6 +45,8 @@ class ReportDocument:
     og_title: str | None = None
     # CDN file of the live bundle; only an unlocked reader of an interactive report is given it.
     interactive_url: str | None = None
+    # Printed once per version at publish; `None` until then, so downloads never run Chromium.
+    pdf_url: str | None = None
 
     @property
     def pins(self) -> list[Pin]:
@@ -67,6 +69,8 @@ class ReportSource:
     revision: str
     html: str
     rendered_from: str | None
+    # CDN URL of the printed PDF; empty or `None` when the last print failed or never ran.
+    rendered_pdf: str | None = None
     # Pasted HTML only: pages shown before the gate. A rich report carries its own gate.
     free_pages: int = 1
 

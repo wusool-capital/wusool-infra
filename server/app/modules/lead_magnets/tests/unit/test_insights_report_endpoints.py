@@ -30,6 +30,7 @@ from app.modules.lead_magnets.persistence.unlock_challenges import InMemoryUnloc
 
 _REST = "GATED-REST-OF-THE-REPORT"
 _HTML = "".join(f"<p>part {n} " + "word " * 50 + "</p>" for n in range(3)) + f"<p>{_REST}</p>"
+_PDF_URL = "https://cdn.sanity.io/files/proj/production/abc-report.pdf"
 _REPORT = ReportDocument(
     document_id="doc-1",
     slug="buyouts-in-the-gcc",
@@ -37,6 +38,7 @@ _REPORT = ReportDocument(
     html=_HTML,
     excerpt="E",
     preview_end=len(split_report(_HTML, share=0.25)[0]),
+    pdf_url=_PDF_URL,
 )
 _OTHER = ReportDocument(
     document_id="doc-1",
@@ -45,6 +47,7 @@ _OTHER = ReportDocument(
     html=_HTML,
     excerpt="E",
     preview_end=_REPORT.preview_end,
+    pdf_url=_PDF_URL,
 )
 _LIVE_URL = "https://cdn.sanity.io/files/proj/production/abc-live.html"
 _LIVE = replace(_REPORT, slug="live-report", interactive_url=_LIVE_URL)
@@ -72,7 +75,6 @@ class _World:
     runs: dict[UUID, ToolRunRecord] = field(default_factory=dict)
     synced: list[tuple[str | None, str | None]] = field(default_factory=list)
     articles: list[tuple[str | None, str | None]] = field(default_factory=list)
-    printed: list[str] = field(default_factory=list)
     emails: list[tuple[list[str], str, str]] = field(default_factory=list)
     events: list[ReportEvent] = field(default_factory=list)
 
@@ -114,11 +116,6 @@ def world(monkeypatch) -> _World:
         async def sync(self, *, slug, previous_slug):
             world.articles.append((slug, previous_slug))
 
-    class _Renderer:
-        async def pdf(self, html: str) -> bytes:
-            world.printed.append(html)
-            return b"%PDF-1.7 fake"
-
     class _Mailer:
         async def send(
             self, *, to, from_addr, subject, body, is_html=False, reply_to=None, text=None
@@ -146,7 +143,6 @@ def world(monkeypatch) -> _World:
     monkeypatch.setattr(endpoints, "build_report_source", lambda: source)
     monkeypatch.setattr(endpoints, "build_report_sync", lambda: _Sync())
     monkeypatch.setattr(endpoints, "build_article_sync", lambda: _ArticleSync())
-    monkeypatch.setattr(endpoints, "build_report_renderer", lambda: _Renderer())
     monkeypatch.setattr(endpoints, "build_submission_service", lambda session: _Service())
     monkeypatch.setattr(endpoints, "build_tool_runs", lambda session: _ToolRuns())
     monkeypatch.setattr(endpoints, "run_completion", fake_completion)
@@ -404,39 +400,35 @@ def test_unlock_works_without_an_organisation(client, world) -> None:
 
 
 def test_the_pdf_is_locked_until_the_reader_unlocks(client, world) -> None:
-    assert client.get("/reports/buyouts-in-the-gcc/pdf").status_code == 403
-    assert world.printed == [], "a locked reader never costs a Chromium launch"
+    assert client.get("/reports/buyouts-in-the-gcc/pdf", follow_redirects=False).status_code == 403
 
     client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
-    response = client.get("/reports/buyouts-in-the-gcc/pdf")
+    response = client.get("/reports/buyouts-in-the-gcc/pdf", follow_redirects=False)
 
-    assert response.status_code == 200
-    assert response.content == b"%PDF-1.7 fake"
-    assert response.headers["content-type"] == "application/pdf"
-    assert response.headers["content-disposition"] == (
-        'attachment; filename="buyouts-in-the-gcc.pdf"'
-    )
+    assert response.status_code == 307
+    assert response.headers["location"] == f"{_PDF_URL}?dl=buyouts-in-the-gcc.pdf"
     assert response.headers["cache-control"] == "no-store"
-    assert world.printed == [_HTML], "the whole report, not the preview"
     assert world.recorded == [], "the report this reader unlocked is already one run"
 
 
-def test_a_pdf_that_times_out_in_the_queue_is_a_503_not_a_crash(client, world, monkeypatch) -> None:
-    class _Busy:
-        async def pdf(self, html: str) -> bytes:
-            raise TimeoutError
+def test_a_report_without_a_printed_pdf_is_a_503_not_a_crash(client, world, monkeypatch) -> None:
+    unprinted = replace(_REPORT, pdf_url=None)
 
-    monkeypatch.setattr(endpoints, "build_report_renderer", lambda: _Busy())
+    class _Unprinted(_Source):
+        async def get(self, slug: str) -> ReportDocument | None:
+            return unprinted
+
+    monkeypatch.setattr(endpoints, "build_report_source", lambda: _Unprinted(world))
     client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
 
-    assert client.get("/reports/buyouts-in-the-gcc/pdf").status_code == 503
+    assert client.get("/reports/buyouts-in-the-gcc/pdf", follow_redirects=False).status_code == 503
 
 
 def test_a_pdf_of_another_report_records_its_own_read(client, world) -> None:
     reader = _reader_run(world, slug="buyouts-in-the-gcc")
     client.cookies.set("wusool_reader", str(reader))
 
-    assert client.get("/reports/other-report/pdf").status_code == 200
+    assert client.get("/reports/other-report/pdf", follow_redirects=False).status_code == 307
 
     (recorded,) = world.recorded
     assert recorded["payload"]["submission_id"] == f"{reader}:other-report"
@@ -520,13 +512,16 @@ def test_pdf_downloads_have_their_own_per_ip_limit_apart_from_the_unlock(client,
     world.settings.lead_magnet_report_downloads_per_hour = 1
     client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
 
-    downloads = [client.get("/reports/buyouts-in-the-gcc/pdf").status_code for _ in range(2)]
+    downloads = [
+        client.get("/reports/buyouts-in-the-gcc/pdf", follow_redirects=False).status_code
+        for _ in range(2)
+    ]
     unlock = client.post(
         "/reports/buyouts-in-the-gcc/unlock",
         json={"submission_id": "s", "name": "D", "email": "dana@acme.ae"},
     )
 
-    assert downloads == [200, 429]
+    assert downloads == [307, 429]
     assert unlock.status_code == 200, "downloading never uses up the unlock budget"
 
 
@@ -610,7 +605,7 @@ def test_a_known_reader_sends_a_view_for_each_page_and_pdf(client, world) -> Non
     client.cookies.set("wusool_reader", str(_reader_run(world, slug="buyouts-in-the-gcc")))
     client.get("/reports/buyouts-in-the-gcc")
     client.get("/reports/buyouts-in-the-gcc")
-    client.get("/reports/other-report/pdf")
+    client.get("/reports/other-report/pdf", follow_redirects=False)
 
     assert _sent(world) == [
         ("report_viewed", "html"),

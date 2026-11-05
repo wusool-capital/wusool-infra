@@ -24,6 +24,7 @@ from fastapi import (
     Response,
     status,
 )
+from fastapi.responses import RedirectResponse
 
 from app.modules.lead_magnets.api.dependencies import (
     SANITY_SIGNATURE_HEADER,
@@ -51,7 +52,6 @@ from app.modules.lead_magnets.application.shared.ports import ReportSourcePort
 from app.modules.lead_magnets.bootstrap import (
     build_analytics,
     build_article_sync,
-    build_report_renderer,
     build_report_source,
     build_report_sync,
     build_report_unlock,
@@ -132,8 +132,8 @@ def _unlocked(report: ReportDocument) -> ReportResponse:
 
 @router.get(
     "/reports/{slug}/pdf",
-    response_class=Response,
-    responses={200: {"content": {"application/pdf": {}}}},
+    response_class=RedirectResponse,
+    status_code=status.HTTP_307_TEMPORARY_REDIRECT,
     dependencies=[Depends(rate_limit_downloads)],
 )
 async def download_report_pdf(
@@ -142,24 +142,20 @@ async def download_report_pdf(
     session: SessionDep,
     background: BackgroundTasks,
     wusool_reader: Annotated[str | None, Cookie()] = None,
-) -> Response:
-    """The whole report as a PDF, for unlocked readers only. Printed on each
-    download, on its own per-IP budget, because each one launches Chromium."""
+) -> RedirectResponse:
+    """The whole report as a PDF, for unlocked readers only. Printed once per version at
+    publish, so a download is a redirect to that file and never launches Chromium."""
     report = await _published(source, slug)
     if not await _record_read(session, background, report, wusool_reader, "pdf"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "unlock the report first")
-    try:
-        pdf = await build_report_renderer().pdf(report.html)
-    except TimeoutError:
-        logger.warning("insights_report_pdf_timeout slug=%s", slug)
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "busy, try again") from None
-    return Response(
-        pdf,
-        media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'attachment; filename="{slug}.pdf"',
-            "Cache-Control": "no-store",
-        },
+    if report.pdf_url is None:
+        logger.warning("insights_report_pdf_missing slug=%s", slug)
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "PDF not ready, try again later")
+    # Sanity's `dl` parameter makes the CDN send the file as a named download.
+    return RedirectResponse(
+        f"{report.pdf_url}?dl={slug}.pdf",
+        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        headers={"Cache-Control": "no-store"},
     )
 
 
