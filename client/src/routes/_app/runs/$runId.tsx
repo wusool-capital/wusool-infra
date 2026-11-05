@@ -27,7 +27,11 @@ export const Route = createFileRoute("/_app/runs/$runId")({
 const POLL_MS = 2000;
 
 function isBusy(run: RunDetailResponse | undefined): boolean {
-  return run?.state === "running" || run?.discovery.status === "running";
+  return (
+    run?.state === "running" ||
+    run?.discovery.status === "running" ||
+    (run?.candidates.some((c) => c.research?.status === "running") ?? false)
+  );
 }
 
 // The line under the title: the one fact the advisor needs first.
@@ -81,10 +85,13 @@ function RunPage(): React.JSX.Element {
         }
         actions={
           run ? (
-            <>
-              <StatusBadge status={run.state} />
+            <div className="flex items-start gap-xs">
+              {/* Same height as the button, so the badge lines up with it, not the column. */}
+              <span className="flex h-9 items-center">
+                <StatusBadge status={run.state} />
+              </span>
               <ExportButton run={run} />
-            </>
+            </div>
           ) : undefined
         }
       />

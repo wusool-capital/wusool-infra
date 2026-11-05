@@ -235,7 +235,16 @@ needed per report:
    twice still shows the newer report.
 
    The Collection Item is the visible bar, reading "Just released: {Name}.
-   Get the playbook →", and it carries `data-slug` bound to **Slug**. Its
+   {Banner CTA Text}", and it carries `data-slug` bound to **Slug**. The link
+   text (`latest-read__cta`, its **Text Content**) is bound to **Banner CTA
+   Text** (`banner-cta-text`, plain text), not to **CTA Text**, which is the
+   end-of-report button. The sync always writes it as the Sanity **Banner
+   button text** plus " →", or "Get the report →" when blank. Add the field to
+   `Reports` and `Reports (test)` before deploying the server, since Webflow
+   rejects a write to an unknown field. Then add `bannerCtaText` to the webhook
+   filter, redeploy the Studio, re-sync the pinned report so the field is
+   filled, and only then bind the text and publish the site. Binding earlier
+   blanks the live banner. Its
    Embed draws the blue flow and the close button, and remembers the
    dismissed slug in `localStorage`. The Embed script also does two jobs:
    - It points the link at `/reports/<slug>`. The Designer API can't set a

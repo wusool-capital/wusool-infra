@@ -25,6 +25,7 @@ export const exportMatchRunFieldsEnum = {
   recommended_pitch: 'recommended_pitch',
   risks_and_gaps: 'risks_and_gaps',
   source_url: 'source_url',
+  research_saved: 'research_saved',
 } as const;
 
 export type ExportMatchRunFieldsEnumKey = (typeof exportMatchRunFieldsEnum)[keyof typeof exportMatchRunFieldsEnum];

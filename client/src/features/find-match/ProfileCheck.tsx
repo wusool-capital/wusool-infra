@@ -3,6 +3,7 @@ import { AlertTriangle, CircleCheck } from "lucide-react";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 
+import { CopyErrorButton } from "@/components/CopyErrorButton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -198,10 +199,14 @@ export function ProfileCheck({
         </Alert>
       )}
       {startError && (
-        <Alert tone="danger">
+        <Alert tone="danger" className="pr-[48px]">
           <AlertTriangle aria-hidden />
           <AlertTitle>Couldn't start the run</AlertTitle>
           <AlertDescription>{startError}</AlertDescription>
+          <CopyErrorButton
+            message={startError}
+            className="absolute top-[6px] right-[6px]"
+          />
         </Alert>
       )}
     </form>

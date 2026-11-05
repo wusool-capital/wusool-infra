@@ -30,7 +30,7 @@ export function PageHeader({
             {parent.label}
           </Link>
         )}
-        <h1 className="font-serif text-[26px] text-balance md:text-title">
+        <h1 className="font-serif text-[22px] font-medium tracking-[-0.01em] text-balance md:text-[28px]">
           {title}
         </h1>
         {sub && <div className="text-lead text-ink-muted">{sub}</div>}

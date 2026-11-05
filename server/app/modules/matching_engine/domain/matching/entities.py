@@ -11,6 +11,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
+from app.modules.matching_engine.domain.matching.research import ResearchRecord
 from app.modules.matching_engine.domain.requirements import RequirementProfile, RequirementSource
 from app.modules.matching_engine.domain.sellers import SellerCandidate
 from app.modules.utilities.domain.json_types import JsonObject
@@ -192,6 +193,8 @@ class MatchResultEntity:
     source_url: str | None = None
     # Run rows only: this run's search outside the CRM, so it outlives a restart.
     discovery: "DiscoveryRecord | None" = None
+    # Candidate rows only: full research after approving a discovered seller.
+    research: ResearchRecord | None = None
 
 
 @dataclass(frozen=True)

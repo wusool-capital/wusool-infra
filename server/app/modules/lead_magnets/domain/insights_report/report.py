@@ -35,6 +35,8 @@ class ReportDocument:
     updated_at: str | None = None
     cover_url: str | None = None
     banner_pinned: bool = False
+    # The home banner's link wording; blank means the default.
+    banner_cta_text: str | None = None
     silo: str | None = None
     # The button at the end of the report page.
     cta_text: str | None = None

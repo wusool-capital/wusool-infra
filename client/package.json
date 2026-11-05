@@ -15,8 +15,8 @@
     "gen:api": "kubb generate"
   },
   "dependencies": {
-    "@fontsource-variable/instrument-sans": "^5.3.0",
-    "@fontsource/instrument-serif": "^5.3.0",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/libre-baskerville": "^5.3.0",
     "@hookform/resolvers": "^7.0.1",
     "@tanstack/react-query": "^5.105.3",
     "@tanstack/react-router": "^1.170.46",

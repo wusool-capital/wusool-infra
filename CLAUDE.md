@@ -162,6 +162,11 @@ stack. PowerShell changes: `Invoke-ScriptAnalyzer` (Warning + Error) clean.
 - CRM writes go to Attio first, then Postgres (see
   `server/app/modules/ddl_commands/README.md` for why).
 
+### Frontend
+
+- Always follow the guidelines in `docs/frontend-guidance.md` while making
+  changes to the frontend (`client/`).
+
 ### After the change
 
 - **Hard rule: always keep GitBook up to date.** Any user-visible,

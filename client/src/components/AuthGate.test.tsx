@@ -4,7 +4,18 @@ import userEvent from "@testing-library/user-event";
 import { jsonResponse } from "@/test/fixtures";
 import { renderWithQuery } from "@/test/render";
 
+import { useSignOut } from "@/lib/session";
+
 import { AuthGate } from "./AuthGate";
+
+function SignOutButton(): React.JSX.Element {
+  const signOut = useSignOut();
+  return (
+    <button type="button" onClick={() => void signOut()}>
+      Sign out
+    </button>
+  );
+}
 
 function serve(routes: Record<string, () => Response>): void {
   vi.stubGlobal(
@@ -91,6 +102,39 @@ describe("AuthGate", () => {
 
     expect(
       await screen.findByText("Sign in with your Wusool Slack account."),
+    ).toBeInTheDocument();
+  });
+
+  it("signs a Slack user out", async () => {
+    let signedIn = true;
+    serve({
+      "/api/auth/config": () =>
+        jsonResponse(200, { slack_sign_in: true, api_key: false }),
+      "/api/auth/me": () =>
+        signedIn
+          ? jsonResponse(200, {
+              slack_user_id: "U1",
+              name: "Alice",
+              via: "slack",
+            })
+          : unauthorized(),
+      "/api/auth/logout": () => {
+        signedIn = false;
+        return new Response(null, { status: 204 });
+      },
+    });
+    renderWithQuery(
+      <AuthGate>
+        <SignOutButton />
+      </AuthGate>,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Sign out" }),
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Sign in with Slack" }),
     ).toBeInTheDocument();
   });
 });

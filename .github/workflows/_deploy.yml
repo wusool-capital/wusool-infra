@@ -109,7 +109,8 @@ jobs:
           # server/ is the single project now (models, migrations, and app
           # code all live under it) — no separate database/ path dependency
           # to watch, a schema/model-only change is already a server/ change.
-          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^infrastructure/terraform/stacks/toolkit/|^infrastructure/terraform/modules/toolkit-ec2/|^infrastructure/terraform/modules/bedrock-access/|^server/" && deploy_toolkit=true
+          # client/ is built into the Toolkit image, so a web-only change ships it too.
+          matches "$CHANGED_TOOLKIT" "$FORCE_ALL|^infrastructure/terraform/stacks/toolkit/|^infrastructure/terraform/modules/toolkit-ec2/|^infrastructure/terraform/modules/bedrock-access/|^server/|^client/" && deploy_toolkit=true
 
           deploy_postgres=false
           matches "$CHANGED_POSTGRES" "$FORCE_ALL|^infrastructure/terraform/stacks/postgres/|^infrastructure/terraform/modules/postgres-rds/" && deploy_postgres=true

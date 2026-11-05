@@ -37,6 +37,7 @@ _SANITY_REPORT = {
     "updatedAt": "2026-10-05T09:00:00Z",
     "coverUrl": "https://cdn.sanity.io/images/p/production/cover.jpg",
     "silo": "Buy a Business",
+    "bannerCtaText": "Read it now",
     "ctaText": "Get your free valuation",
     "ctaUrl": "/valuation-tool",
     "seoTitle": "GCC buyouts guide",
@@ -75,6 +76,7 @@ async def test_sanity_report_is_parsed_and_cached(monkeypatch) -> None:
 
     assert report is not None and report.silo == "Buy a Business"
     assert report.banner_pinned is False
+    assert report.banner_cta_text == "Read it now"
     assert report.cover_url == "https://cdn.sanity.io/images/p/production/cover.jpg?w=1600&fm=jpg"
     assert (report.cta_text, report.cta_url) == ("Get your free valuation", "/valuation-tool")
     assert (report.seo_title, report.seo_description, report.og_title) == (
@@ -193,6 +195,30 @@ async def test_card_fills_every_required_webflow_field(monkeypatch) -> None:
     assert data["featured-image"]["url"] == "https://cdn.sanity.io/cover.jpg"
     assert data["cta-text"] == "Get your free valuation"
     assert data["cta-url"] == "/valuation-tool"
+
+
+@pytest.mark.parametrize(
+    ("typed", "written"),
+    [
+        ("Read it now", "Read it now →"),
+        ("  Read it now  ", "Read it now →"),
+        (None, "Get the report →"),
+        ("", "Get the report →"),
+        ("   ", "Get the report →"),
+    ],
+)
+async def test_banner_text_is_always_written_with_a_default(
+    monkeypatch, typed: str | None, written: str
+) -> None:
+    _use_transport(monkeypatch, _webflow_handler)
+    cms = WebflowReportsCms(token="t", collection_id="reports")
+    report = ReportDocument(
+        document_id="doc-1", slug="r", title="T", html="<p>x</p>", banner_cta_text=typed
+    )
+
+    data = (await cms.field_data(report)).model_dump(by_alias=True, exclude_none=True)
+
+    assert data["banner-cta-text"] == written, "Webflow can't clear a field, so blank is rewritten"
 
 
 async def test_a_report_needs_only_a_title_and_its_html(monkeypatch) -> None:

@@ -57,6 +57,12 @@ computed in Postgres and could not be rebuilt from Attio, and
 | connection_strength | text | yes | | |
 | owner_attio_id | text | yes | | FK → users.attio_id |
 | last_interaction_at | timestamptz | yes | | |
+| first_interaction_at / next_interaction_at | timestamptz | yes | | AZM-159 interactions engine, mirrored from Attio |
+| first_email_interaction_at / last_email_interaction_at | timestamptz | yes | | AZM-159 |
+| first_calendar_interaction_at / last_calendar_interaction_at / next_calendar_interaction_at | timestamptz | yes | | AZM-159 |
+| last_interaction_channel | text | yes | | `Email` or `Meeting` |
+| last_interaction_subject | text | yes | | |
+| last_interaction_owner / strongest_connection_user | text | yes | | FK → users.attio_id; NULL if the member is unknown |
 | estimated_arr | text | yes | | |
 | funding_raised | jsonb | yes | | money-shaped |
 | removed_at | timestamptz | yes | | Postgres-only soft-delete marker; no Attio attribute behind it |
@@ -92,6 +98,12 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | education | jsonb | no | `[]` | |
 | enrichment | jsonb | no | `{}` | |
 | last_interaction_at | timestamptz | yes | | |
+| first_interaction_at / next_interaction_at | timestamptz | yes | | AZM-159 interactions engine, mirrored from Attio |
+| first_email_interaction_at / last_email_interaction_at | timestamptz | yes | | AZM-159 |
+| first_calendar_interaction_at / last_calendar_interaction_at / next_calendar_interaction_at | timestamptz | yes | | AZM-159 |
+| last_interaction_channel | text | yes | | `Email` or `Meeting` |
+| last_interaction_subject | text | yes | | |
+| last_interaction_owner / strongest_connection_user | text | yes | | FK → users.attio_id; NULL if the member is unknown |
 | job_title / contact_type / phone / avatar_url | text | yes | | |
 | angellist / facebook / instagram / twitter | text | yes | | |
 | twitter_follower_count | integer | yes | | |
@@ -414,6 +426,55 @@ no CRM record yet.
 | draft | jsonb | no | | the prefilled add-seller values, parsed by `discovery.persistence` |
 | flagged_at | timestamptz | no | `now()` | reset on every re-flag; the 30-day window counts from it |
 | posted_at | timestamptz | yes | | set once the card reached Slack; unposted rows never suppress |
+
+### `interactions` (`interaction.py`) — new, AZM-159
+
+One Gmail message or Calendar event occurrence per mailbox, read from
+metadata only. Postgres-only, never synced to Attio.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| mailbox | text | no | | team mailbox the row was read from |
+| channel | text | no | | `email` or `meeting` |
+| source_id | text | no | | Gmail message id or Calendar event id; unique with mailbox and channel |
+| dedupe_key | text | no | | Message-ID header, or iCalUID plus start; same in every mailbox, indexed |
+| occurred_at | timestamptz | no | | indexed DESC |
+| direction | text | yes | | `inbound` or `outbound`; NULL for meetings |
+| thread_id | text | yes | | |
+| subject | text | yes | | |
+| cancelled | boolean | no | `false` | |
+| created_at / updated_at | timestamptz | no | `now()` | |
+
+### `interaction_participants` (`interaction_participant.py`) — new, AZM-159
+
+One address on an interaction. Links to Person and Organization are filled
+once the record exists.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| interaction_id | uuid | no | | FK → interactions.id, on delete cascade |
+| email | text | no | | lowercased, indexed; unique with interaction_id and role |
+| domain | text | no | | indexed |
+| role | text | no | | `from`, `to`, `cc` or `attendee` |
+| person_attio_id | text | yes | | FK → person.attio_id, on delete set null, indexed |
+| organization_attio_id | text | yes | | FK → organizations.attio_id, on delete set null, indexed |
+| created_at | timestamptz | no | `now()` | |
+
+### `mailbox_sync_cursors` (`mailbox_sync_cursor.py`) — new, AZM-159
+
+Sync position per mailbox and source, so each poll reads only new changes.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| mailbox | text | no | | PK with source |
+| source | text | no | | `gmail` or `calendar` |
+| cursor | text | yes | | Gmail history id or Calendar sync token |
+| backfill_page_token | text | yes | | where the 12-month backfill resumes |
+| backfill_completed_at | timestamptz | yes | | |
+| last_synced_at | timestamptz | yes | | drives the 30-minute stale-mailbox alert |
+| created_at / updated_at | timestamptz | no | `now()` | |
 
 ---
 

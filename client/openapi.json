@@ -11,7 +11,12 @@
               "already_reviewed",
               "existing_deals",
               "partial_write",
-              "run_not_ready"
+              "run_not_ready",
+              "slack_sign_in_required",
+              "research_not_ready",
+              "research_busy",
+              "research_conflict",
+              "research_invalid"
             ],
             "title": "Code",
             "type": "string"
@@ -24,6 +29,14 @@
             "title": "Existing Deals",
             "type": "array"
           },
+          "fields": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
           "message": {
             "title": "Message",
             "type": "string"
@@ -32,7 +45,8 @@
         "required": [
           "code",
           "message",
-          "existing_deals"
+          "existing_deals",
+          "fields"
         ],
         "title": "ApiError",
         "type": "object"
@@ -253,6 +267,16 @@
             ],
             "title": "Recommended Pitch"
           },
+          "research": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "risks_and_gaps": {
             "anyOf": [
               {
@@ -335,7 +359,8 @@
           "decided_at",
           "deal_attio_id",
           "profile",
-          "criteria"
+          "criteria",
+          "research"
         ],
         "title": "CandidateRead",
         "type": "object"
@@ -508,22 +533,10 @@
         "properties": {
           "candidate": {
             "$ref": "#/components/schemas/CandidateRead"
-          },
-          "research_channel_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Research Channel Id"
           }
         },
         "required": [
-          "candidate",
-          "research_channel_id"
+          "candidate"
         ],
         "title": "DecisionResponse",
         "type": "object"
@@ -853,6 +866,238 @@
         "title": "PreflightResponse",
         "type": "object"
       },
+      "ResearchFieldRead": {
+        "properties": {
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "display": {
+            "title": "Display",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rationale": {
+            "title": "Rationale",
+            "type": "string"
+          },
+          "saved": {
+            "title": "Saved",
+            "type": "boolean"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "target": {
+            "enum": [
+              "organization",
+              "seller_role"
+            ],
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "target",
+          "display",
+          "confidence",
+          "source_url",
+          "rationale",
+          "saved"
+        ],
+        "title": "ResearchFieldRead",
+        "type": "object"
+      },
+      "ResearchJobChangeRead": {
+        "properties": {
+          "company": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source_url": {
+            "title": "Source Url",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "name",
+          "title",
+          "company",
+          "source_url"
+        ],
+        "title": "ResearchJobChangeRead",
+        "type": "object"
+      },
+      "ResearchLinkedInRead": {
+        "properties": {
+          "contacts_without_linkedin": {
+            "title": "Contacts Without Linkedin",
+            "type": "integer"
+          },
+          "job_changes": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchJobChangeRead"
+            },
+            "title": "Job Changes",
+            "type": "array"
+          },
+          "outcome": {
+            "enum": [
+              "completed",
+              "skipped",
+              "failed"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchPostRead"
+            },
+            "title": "Posts",
+            "type": "array"
+          }
+        },
+        "required": [
+          "outcome",
+          "posts",
+          "job_changes",
+          "contacts_without_linkedin"
+        ],
+        "title": "ResearchLinkedInRead",
+        "type": "object"
+      },
+      "ResearchPostRead": {
+        "properties": {
+          "author_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author Name"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "text",
+          "author_name",
+          "posted_at"
+        ],
+        "title": "ResearchPostRead",
+        "type": "object"
+      },
+      "ResearchRead": {
+        "description": "Full research on an approved discovered seller, for review in the page.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/ResearchFieldRead"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "linkedin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResearchLinkedInRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewed": {
+            "title": "Reviewed",
+            "type": "boolean"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "started_at",
+          "error",
+          "fields",
+          "linkedin",
+          "reviewed"
+        ],
+        "title": "ResearchRead",
+        "type": "object"
+      },
       "RunDetailResponse": {
         "properties": {
           "buyer_org_name": {
@@ -982,6 +1227,23 @@
           "mandate"
         ],
         "title": "RunDetailResponse",
+        "type": "object"
+      },
+      "SaveResearchRequest": {
+        "properties": {
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "fields"
+        ],
+        "title": "SaveResearchRequest",
         "type": "object"
       },
       "SellerProfileRead": {
@@ -1813,6 +2075,316 @@
         ]
       }
     },
+    "/api/match-runs/{run_id}/candidates/{candidate_id}/research": {
+      "post": {
+        "description": "Starts or retries the research; the claim makes a repeat a no-op.",
+        "operationId": "start_research",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Start Research",
+        "tags": [
+          "find-match"
+        ]
+      }
+    },
+    "/api/match-runs/{run_id}/candidates/{candidate_id}/research/save": {
+      "post": {
+        "operationId": "save_research",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveResearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Save Research",
+        "tags": [
+          "find-match"
+        ]
+      }
+    },
+    "/api/match-runs/{run_id}/candidates/{candidate_id}/research/skip": {
+      "post": {
+        "operationId": "skip_research",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Skip Research",
+        "tags": [
+          "find-match"
+        ]
+      }
+    },
     "/api/match-runs/{run_id}/discovery": {
       "post": {
         "description": "The web's \"Find more sellers\": a repeat call is a no-op, as in Slack.",
@@ -1922,7 +2494,8 @@
                       "why_chosen_over_alternatives",
                       "recommended_pitch",
                       "risks_and_gaps",
-                      "source_url"
+                      "source_url",
+                      "research_saved"
                     ],
                     "type": "string"
                   },

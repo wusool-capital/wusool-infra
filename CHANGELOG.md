@@ -10,6 +10,17 @@ for current production evidence and open handover items.
 
 ## 2026-11-05
 
+### Added
+
+- Organizations and Person have 11 new interaction fields in Attio and
+  Postgres (AZM-159). They cover first, next, email and calendar interaction
+  dates. They also cover the last interaction's channel, subject and owner,
+  and the strongest connection user. The webhook and nightly sync mirror
+  them. Nothing writes them yet; the interactions engine will.
+- Postgres has three tables for the interactions engine (AZM-159):
+  `interactions`, `interaction_participants` and `mailbox_sync_cursors`. They
+  hold email and meeting metadata, never bodies. Nothing writes them yet.
+
 ### Fixed
 
 - The Toolkit no longer stalls when someone downloads a large report PDF. On
@@ -27,6 +38,37 @@ for current production evidence and open handover items.
   silent app log.
 - Webflow pages should load `embed.js` with `async`, so a Toolkit outage
   can't slow the site. See `server/app/modules/lead_magnets/DEPLOYMENT.md`.
+
+## 2026-11-04
+
+### Changed
+
+- Match reasoning is shorter. The pitch, risks and comparison come back as
+  bullets, shown as lists in the web app and in View Full Analysis.
+  Requirement extraction or reasoning output with tool-call markup inside a
+  text field is retried once instead of being saved.
+
+### Added
+
+- Approving a seller found outside the CRM in the web app runs full research
+  on it in the page. It shows proposed fields with confidence, source and
+  reasoning, plus LinkedIn job changes and posts. Advisors save the fields they tick to
+  Attio, as `/edit-seller` would, or skip; either is final. A field filled in
+  since the research ran is never overwritten. Web approvals no longer post
+  this research to Slack, and `WEB_REVIEW_CHANNEL_ID` is gone.
+
+### Changed
+
+- The web find-match app uses the Wusool Capital logo as its mark and tab
+  icon, with Geist for text and Libre Baskerville for titles.
+
+### Fixed
+
+- **Sign out** in the web app signs out someone who signed in with Slack. It
+  used to clear the session but leave the page showing them as signed in.
+- A web approval that fails stays on screen with its error. The page used to
+  jump to the next seller and back, so the approval looked undone without a
+  reason. The Toolkit log now records why, as it does for Slack.
 
 ## 2026-11-03
 
@@ -49,6 +91,9 @@ for current production evidence and open handover items.
   criteria. Sellers found outside the CRM show what enrichment found, and
   approving one posts full research to Slack. Advisors sign in with Slack, so
   web runs and decisions carry the same Slack user as `/find-match`.
+- The home page banner's link wording ("Get the report →") is editable per
+  report in Sanity, under **Banner button text**. Blank keeps "Get the
+  report". No Webflow Designer edit is needed for a wording change.
 
 ## 2026-10-30
 

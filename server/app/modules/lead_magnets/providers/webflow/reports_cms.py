@@ -21,6 +21,13 @@ from app.modules.lead_magnets.providers.webflow.collection import (
 
 logger = logging.getLogger(__name__)
 
+_DEFAULT_BANNER_CTA = "Get the report"
+
+
+def banner_cta(text: str | None) -> str:
+    """The banner link text; the arrow is added here so editors never type it."""
+    return f"{(text or '').strip() or _DEFAULT_BANNER_CTA} →"
+
 
 class ReportFieldData(BaseModel):
     """The card written for a gated report. Required Webflow fields: `name` and `slug`."""
@@ -32,6 +39,8 @@ class ReportFieldData(BaseModel):
     # Reports aren't pinned to /reports; writing False clears any pin set before.
     featured: bool = False
     pin_to_banner: bool = Field(alias="pin-to-banner")
+    # Always written: Webflow can't clear a field, and the banner binds it with no fallback.
+    banner_cta_text: str = Field(alias="banner-cta-text")
     excerpt: str | None = None
     # The template's <title> and meta tags bind these, so they must never be blank.
     seo_title: str = Field(alias="seo-title")
@@ -104,6 +113,7 @@ class WebflowReportsCms:
             name=report.title,
             slug=report.slug,
             pin_to_banner=report.banner_pinned,
+            banner_cta_text=banner_cta(report.banner_cta_text),
             excerpt=report.excerpt,
             seo_title=report.seo_title or report.title,
             seo_description=report.seo_description or report.excerpt or report.title,

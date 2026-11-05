@@ -15,14 +15,15 @@ page on wusoolcapital.com within a few moments.
    stays locked). For rich text, **Locked share (%)** is how much sits behind
    the form, by text length (75 if blank).
 4. For an uploaded HTML file, optionally tick **Keep it interactive**.
-   After the form, readers then get the live report, with its charts and
+   After the form, readers get the live report, with its charts and
    clicks. The free preview stays flat, and the PDF is always flat.
 5. Optionally fill in the excerpt, cover image, primary silo, date, and the
    end-of-page button (text and link). The **SEO** tab sets the search and
    share titles; blank ones use the title and excerpt.
 6. Optionally tick **Pin to home page banner** to show "Just released:
-   {title}. Get the playbook →" across the top of the home page. It moves
-   from whichever report held it before. Visitors can close the bar; it
+   {title}. Get the report →" across the top of the home page. Change the
+   link wording in **Banner button text** (blank means "Get the report"; the
+   site adds the arrow). It moves from whichever report held it before. Visitors can close the bar; it
    returns when a different report is pinned. The top of `/reports` always
    shows the newest report.
 7. Publish.

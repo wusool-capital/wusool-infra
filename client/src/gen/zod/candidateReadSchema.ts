@@ -2,6 +2,7 @@
 
 import * as z from 'zod'
 import { criterionReadSchema } from './criterionReadSchema'
+import { researchReadSchema } from './researchReadSchema'
 import { sellerProfileReadSchema } from './sellerProfileReadSchema'
 
 export const candidateReadSchema = z.object({
@@ -16,6 +17,7 @@ export const candidateReadSchema = z.object({
   profile: z.union([sellerProfileReadSchema, z.null()]),
   rank: z.int(),
   recommended_pitch: z.union([z.string(), z.null()]),
+  research: z.union([researchReadSchema, z.null()]),
   risks_and_gaps: z.union([z.string(), z.null()]),
   seller_attio_id: z.union([z.string(), z.null()]),
   seller_org_name: z.string(),

@@ -13,7 +13,7 @@ from app.modules.enrichment.api.dependencies import (
     resolve_target,
 )
 from app.modules.enrichment.domain.linkedin import LinkedInScan, ScanOutcome
-from app.modules.enrichment.domain.proposals import BasicEnrichment
+from app.modules.enrichment.domain.proposals import BasicEnrichment, EnrichmentProposal
 from app.modules.utilities.domain.json_types import JsonObject
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,18 @@ async def enrich_and_post(
         logger.warning("enrich_and_post_target_not_found", extra={"kind": kind, "role_id": role_id})
         return
     await propose_and_post(target, channel_id=channel_id, requested_by=requested_by)
+
+
+async def propose_for_role(*, kind: str, role_id: str) -> EnrichmentProposal | None:
+    """The full research `enrich_and_post` posts to Slack, returned instead, for
+    a caller that shows it itself. None when the role is unknown. Writes nothing."""
+    target = await resolve_target(kind=kind, role_id=uuid.UUID(role_id))
+    if target is None:
+        logger.warning(
+            "propose_for_role_target_not_found", extra={"kind": kind, "role_id": role_id}
+        )
+        return None
+    return await enrichment_service().propose(target)
 
 
 async def scan_linkedin_for_role(

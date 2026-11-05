@@ -172,6 +172,44 @@ async def test_still_malformed_after_repair_fails_closed() -> None:
     assert len(fake.structured_calls) == 2  # no infinite retries
 
 
+async def test_leaked_tool_call_markup_triggers_a_repair_naming_it() -> None:
+    """Seen live: the next field's markup inside the thesis, losing the ideal target."""
+    leaked = {
+        **VALID_RESPONSE,
+        "strategic_thesis": (
+            'Roll-up of regional fintechs.</thesis> <parameter name="ideal_target_description">'
+            "Profitable fintech"
+        ),
+        "ideal_target_description": None,
+    }
+    fake = FakeBedrockClient(structured_responses=[leaked, VALID_RESPONSE])
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert profile.strategic_thesis == VALID_RESPONSE["strategic_thesis"]
+    assert profile.ideal_target_description == VALID_RESPONSE["ideal_target_description"]
+    assert "tool-call markup" in fake.structured_calls[1]
+
+
+async def test_a_plain_angle_bracket_is_not_mistaken_for_markup() -> None:
+    fake = FakeBedrockClient(
+        structured_responses=[
+            {**VALID_RESPONSE, "strategic_thesis": "EBITDA <USD 5M, margins >20%"}
+        ]
+    )
+    service = BuyerRequirementExtractionService(
+        fake, model_id="test-model", inference_config=_inference_config()
+    )
+
+    profile = await service.extract(_buyer(), next_version=1)
+
+    assert profile.strategic_thesis == "EBITDA <USD 5M, margins >20%"
+    assert len(fake.structured_calls) == 1
+
+
 async def test_prompt_unchanged_when_no_meeting_notes() -> None:
     """Regression guard for the "omit entirely when empty" rule."""
     fake = FakeBedrockClient(structured_responses=[VALID_RESPONSE])

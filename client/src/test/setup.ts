@@ -15,3 +15,14 @@ Object.defineProperty(window, "matchMedia", {
     removeEventListener: () => undefined,
   }),
 });
+
+// jsdom has no ResizeObserver; layout never changes there, so observing can be a no-op.
+class ResizeObserverStub {
+  observe = (): undefined => undefined;
+  unobserve = (): undefined => undefined;
+  disconnect = (): undefined => undefined;
+}
+Object.defineProperty(window, "ResizeObserver", {
+  writable: true,
+  value: ResizeObserverStub,
+});

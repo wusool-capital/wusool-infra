@@ -26,6 +26,7 @@ export function candidate(
     decided_at: null,
     deal_attio_id: null,
     profile: null,
+    research: null,
     criteria: [
       {
         criterion: "sector",

@@ -50,6 +50,9 @@ from app.modules.ddl_commands.providers.discovery.seller_writer_adapter import (
     DdlCommandsSellerWriterAdapter,
 )
 from app.modules.ddl_commands.providers.enrichment.review_adapter import DdlCommandsReviewAdapter
+from app.modules.ddl_commands.providers.matching_engine.seller_edit_adapter import (
+    DdlCommandsSellerEditAdapter,
+)
 from app.modules.discovery.api.dependencies import (
     configure_seller_draft_port,
     configure_seller_writer_port,
@@ -68,9 +71,10 @@ from app.modules.enrichment.api.slack.handlers import (
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_analytics
+from app.modules.matching_engine.api.dependencies import configure_seller_edit_port
 from app.modules.matching_engine.api.http.auth_routes import router as web_auth_router
 from app.modules.matching_engine.api.http.routes import router as find_match_web_router
-from app.modules.matching_engine.api.http.spa import SpaStatic, web_app_dist
+from app.modules.matching_engine.api.http.spa import mount_web_app, web_app_dist
 from app.modules.matching_engine.api.slack.edit_gate import MatchingEngineEditGate
 from app.modules.matching_engine.api.slack.handlers import (
     register_handlers as register_matching_engine_handlers,
@@ -109,9 +113,11 @@ configure_seller_writer_port(DdlCommandsSellerWriterAdapter())
 # points the other way) — this is the composition root that already
 # imports both sides, so it wires the Port here.
 configure_criteria_reader_port(MatchingEngineCriteriaReaderAdapter())
-# `ddl_commands` never imports `matching_engine` either: the popup an edit form
-# can be opened from lives there, so this wires the Port the other way round.
+# `matching_engine` never imports `ddl_commands`: the popup an edit form can be
+# opened from lives there, so this wires the Port the other way round.
 configure_edit_gate_port(MatchingEngineEditGate())
+# Saving web research goes through `/edit-seller`'s write, owned by `ddl_commands`.
+configure_seller_edit_port(DdlCommandsSellerEditAdapter())
 
 # Which service owns each command/interaction trigger Slack can send. Bolt's
 # own global error handler always logs a caught exception under its own
@@ -418,7 +424,7 @@ async def slack_events(req: Request) -> Response:
 # The web find-match app. Above the catch-all below, which would otherwise claim /app.
 _web_app_dist = web_app_dist(Path(__file__).resolve().parent)
 if _web_app_dist is not None:
-    app.mount("/app", SpaStatic(directory=_web_app_dist, html=True), name="web_app")
+    mount_web_app(app, _web_app_dist)
 
 # Last: a catch-all, so it never shadows /health, /readiness, /ready,
 # /slack/events, /webhooks/attio, or /desktop/* — all registered above.

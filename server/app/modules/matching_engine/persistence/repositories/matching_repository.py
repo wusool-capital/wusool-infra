@@ -14,7 +14,7 @@ internal fetch-then-mutate/fetch-then-derive-ids methods.
 import uuid
 from datetime import datetime
 
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, case, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -25,6 +25,7 @@ from app.modules.matching_engine.domain.matching.entities import (
     MatchResultEntity,
     MatchScoreResult,
 )
+from app.modules.matching_engine.domain.matching.research import ResearchRecord
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.persistence.mappers import (
     discovery_record_to_dict,
@@ -33,6 +34,7 @@ from app.modules.matching_engine.persistence.mappers import (
     to_match_result_entity,
     to_match_score_result,
 )
+from app.modules.matching_engine.persistence.research_json import research_to_dict
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -217,6 +219,97 @@ class MatchResultRepository:
         else:
             metadata["discovery"] = discovery_record_to_dict(record)
         run.metadata_ = metadata
+        await self._session.flush()
+
+    async def claim_research(
+        self, match_result_id: uuid.UUID, *, now: datetime, stale_before: datetime
+    ) -> bool:
+        """Atomically starts a candidate's full research: only the first caller
+        wins. A failed or abandoned run can be retaken; a finished one cannot.
+        A stored LinkedIn result is kept, since a rescan returns only new posts."""
+        current = MatchResult.metadata_["research"]
+        stmt = (
+            update(MatchResult)
+            .where(
+                MatchResult.id == match_result_id,
+                MatchResult.rank.is_not(None),
+                or_(
+                    ~MatchResult.metadata_.has_key("research"),
+                    current["outcome"].astext == "failed",
+                    and_(
+                        ~current.has_key("outcome") | (current["outcome"].astext.is_(None)),
+                        current["claimed_at"].astext < stale_before.isoformat(),
+                    ),
+                ),
+            )
+            .values(
+                metadata_=MatchResult.metadata_.op("||")(
+                    func.jsonb_build_object(
+                        "research",
+                        func.jsonb_strip_nulls(
+                            func.jsonb_build_object(
+                                "claimed_at",
+                                now.isoformat(),
+                                "linkedin",
+                                # Only a completed scan is kept; a failed one is retried.
+                                case(
+                                    (
+                                        current["linkedin"]["outcome"].astext == "completed",
+                                        current["linkedin"],
+                                    ),
+                                    else_=None,
+                                ),
+                            )
+                        ),
+                    )
+                )
+            )
+            .returning(MatchResult.id)
+            .execution_options(synchronize_session=False)
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def claim_research_save(
+        self, match_result_id: uuid.UUID, *, now: datetime, stale_before: datetime
+    ) -> bool:
+        """One save (or skip) of finished, unreviewed research at a time, so a
+        double click or a second tab can't write to Attio after the review closed."""
+        current = MatchResult.metadata_["research"]
+        stmt = (
+            update(MatchResult)
+            .where(
+                MatchResult.id == match_result_id,
+                current["outcome"].astext == "done",
+                # Reviewed research is closed: nothing saved yet and not skipped.
+                func.jsonb_array_length(
+                    func.coalesce(current["saved_fields"], func.jsonb_build_array())
+                )
+                == 0,
+                func.coalesce(current["skipped"].astext, "false") != "true",
+                or_(
+                    ~current.has_key("saving_at"),
+                    current["saving_at"].astext.is_(None),
+                    current["saving_at"].astext < stale_before.isoformat(),
+                ),
+            )
+            .values(
+                metadata_=MatchResult.metadata_.op("||")(
+                    func.jsonb_build_object(
+                        "research",
+                        current.op("||")(func.jsonb_build_object("saving_at", now.isoformat())),
+                    )
+                )
+            )
+            .returning(MatchResult.id)
+            .execution_options(synchronize_session=False)
+        )
+        return (await self._session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def update_research(self, match_result_id: uuid.UUID, record: ResearchRecord) -> None:
+        row = await self._session.get(MatchResult, match_result_id)
+        if row is None:
+            return
+        row.metadata_ = {**(row.metadata_ or {}), "research": research_to_dict(record)}
         await self._session.flush()
 
     async def create_candidates(self, rows: list[JsonObject]) -> list[MatchResultEntity]:

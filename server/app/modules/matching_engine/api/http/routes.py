@@ -6,6 +6,7 @@ Every action re-validates against the database, as the Slack handlers do.
 import asyncio
 import csv
 import io
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -13,13 +14,13 @@ from typing import Annotated, get_args
 
 from fastapi import APIRouter, Depends, Query, Response, status
 
-from app.modules.enrichment import enrich_and_post
 from app.modules.matching_engine.api.buyers import BuyerSummary
 from app.modules.matching_engine.api.dependencies import (
     find_buyer_discrepancies,
     open_matching_engine_service,
     resolve_buyer,
     resolve_buyer_by_id,
+    seller_edit_port,
 )
 from app.modules.matching_engine.api.http.auth import CurrentUser, api_error, require_web_user
 from app.modules.matching_engine.api.http.run_tracker import TrackedDiscovery, run_tracker
@@ -40,11 +41,18 @@ from app.modules.matching_engine.api.http.schemas import (
     MoneyRead,
     PreflightRequest,
     PreflightResponse,
+    ResearchFieldRead,
+    ResearchJobChangeRead,
+    ResearchLinkedInRead,
+    ResearchPostRead,
+    ResearchRead,
     RunDetailResponse,
+    SaveResearchRequest,
     SellerProfileRead,
     StartRunRequest,
     StartRunResponse,
 )
+from app.modules.matching_engine.api.http.web_research import research_seller, research_stale_after
 from app.modules.matching_engine.api.http.web_runs import discover_for_web_run, execute_web_run
 from app.modules.matching_engine.application.approvals import (
     InvalidTransitionError,
@@ -54,12 +62,22 @@ from app.modules.matching_engine.application.errors import (
     ExistingDealsFoundError,
     PartialWriteError,
 )
+from app.modules.matching_engine.application.ports.seller_edits import (
+    SellerEditOutcome,
+    SellerEditResult,
+)
+from app.modules.matching_engine.application.research import (
+    ResearchAlreadyReviewedError,
+    ResearchNotReadyError,
+    ResearchSaveInProgressError,
+)
 from app.modules.matching_engine.application.service import MatchingEngineService
 from app.modules.matching_engine.config import get_settings
 from app.modules.matching_engine.domain.matching.entities import (
     MatchAnalysisData,
     MatchResultEntity,
 )
+from app.modules.matching_engine.domain.matching.research import ResearchRecord
 from app.modules.matching_engine.domain.matching.run_state import run_state
 from app.modules.matching_engine.domain.matching.scoring import needs_web_fallback
 from app.modules.matching_engine.domain.requirements import RequirementProfile
@@ -73,6 +91,8 @@ _ERRORS: dict[int | str, dict[str, type[ApiErrorResponse]]] = {
     404: {"model": ApiErrorResponse},
     503: {"model": ApiErrorResponse},
 }
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/api",
@@ -232,6 +252,13 @@ async def approve_candidate(
             ),
         ) from exc
     except PartialWriteError as exc:
+        logger.error(
+            "match_approval_partial_write match_result_id=%s landed=%s",
+            candidate_id,
+            exc.landed,
+            exc_info=exc.cause,
+            extra={"match_result_id": str(candidate_id), "landed": exc.landed},
+        )
         message = (
             "Couldn't write the deal to Attio. Nothing was saved."
             if not exc.landed
@@ -245,22 +272,192 @@ async def approve_candidate(
     except (MatchNotFoundError, InvalidTransitionError) as exc:
         raise _decision_error(exc) from exc
     decided = await _decided(service, run_id, candidate_id)
-    channel_id = get_settings().web_review_channel_id
     if decided.candidate.origin == "discovery" and decided.candidate.status == "APPROVED":
-        role_id = candidate.seller_role_id
-        if channel_id and role_id:
-            # Discovery only paid for basic enrichment; an approved seller earns the full research.
-            _task_runner.run(
-                lambda: enrich_and_post(
-                    kind="seller",
-                    role_id=role_id,
-                    channel_id=channel_id,
-                    requested_by=user.slack_user_id,
-                ),
-                name=f"web-enrich-approved:{role_id}",
-            )
-            decided.research_channel_id = channel_id
+        # Discovery only paid for basic enrichment; an approved seller earns the full research.
+        if await _start_research(service, candidate, requested_by=user.slack_user_id):
+            decided = await _decided(service, run_id, candidate_id)
     return decided
+
+
+async def _start_research(
+    service: MatchingEngineService, candidate: MatchResultEntity, *, requested_by: str | None
+) -> bool:
+    """Claims here, so the response already shows the research running."""
+    role_id = candidate.seller_role_id
+    match_result_id = uuid.UUID(candidate.id)
+    if role_id is None or not await service.claim_research(
+        match_result_id, stale_after=research_stale_after()
+    ):
+        return False
+    _task_runner.run(
+        lambda: research_seller(match_result_id, seller_role_id=role_id, requested_by=requested_by),
+        name=f"web-research:{candidate.id}",
+    )
+    return True
+
+
+def _research_target(analysis: MatchAnalysisData, candidate_id: uuid.UUID) -> MatchResultEntity:
+    candidate = _require_candidate(analysis, candidate_id)
+    if candidate.origin != "discovery" or candidate.status != "APPROVED":
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(
+                code="research_not_ready",
+                message="Full research is for approved sellers found outside the CRM.",
+            ),
+        )
+    return candidate
+
+
+@router.post(
+    "/match-runs/{run_id}/candidates/{candidate_id}/research",
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=DecisionResponse,
+    responses={409: {"model": ApiErrorResponse}},
+)
+async def start_research(
+    run_id: uuid.UUID, candidate_id: uuid.UUID, service: Service, user: CurrentUser
+) -> DecisionResponse:
+    """Starts or retries the research; the claim makes a repeat a no-op."""
+    candidate = _research_target(await _load_run(service, run_id), candidate_id)
+    started = await _start_research(service, candidate, requested_by=user.slack_user_id)
+    decided = await _decided(service, run_id, candidate_id)
+    if not started and decided.candidate.research is None:
+        # Nothing running and nothing to show: say why rather than return a silent 202.
+        message = (
+            "This seller has no seller profile to research."
+            if candidate.seller_role_id is None
+            else "This seller's stored research can't be read, so it can't be rerun."
+        )
+        raise api_error(
+            status.HTTP_409_CONFLICT, ApiError(code="research_not_ready", message=message)
+        )
+    return decided
+
+
+@router.post(
+    "/match-runs/{run_id}/candidates/{candidate_id}/research/save",
+    response_model=DecisionResponse,
+    responses={
+        403: {"model": ApiErrorResponse},
+        409: {"model": ApiErrorResponse},
+        422: {"model": ApiErrorResponse},
+        502: {"model": ApiErrorResponse},
+    },
+)
+async def save_research(
+    run_id: uuid.UUID,
+    candidate_id: uuid.UUID,
+    body: SaveResearchRequest,
+    service: Service,
+    user: CurrentUser,
+) -> DecisionResponse:
+    if user.slack_user_id is None:
+        # Attio edits are recorded under a Slack user, as `/edit-seller` records them.
+        raise api_error(
+            status.HTTP_403_FORBIDDEN,
+            ApiError(
+                code="slack_sign_in_required",
+                message="Sign in with Slack to save research to Attio.",
+            ),
+        )
+    _research_target(await _load_run(service, run_id), candidate_id)
+    try:
+        result = await service.save_research(
+            candidate_id,
+            field_names=tuple(body.fields),
+            requested_by=user.slack_user_id,
+            editor=seller_edit_port(),
+            stale_after=research_stale_after(),
+        )
+    except ResearchNotReadyError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(code="research_not_ready", message="The research hasn't finished yet."),
+        ) from exc
+    except ResearchAlreadyReviewedError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(
+                code="already_reviewed", message="This research was already saved or skipped."
+            ),
+        ) from exc
+    except ResearchSaveInProgressError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(code="research_busy", message="These fields are already being saved."),
+        ) from exc
+    if result.outcome is not SellerEditOutcome.SAVED:
+        logger.warning(
+            "web_research_save_failed match_result_id=%s outcome=%s message=%s",
+            candidate_id,
+            result.outcome,
+            result.message,
+        )
+        raise _save_error(result)
+    return await _decided(service, run_id, candidate_id)
+
+
+def _save_error(result: SellerEditResult) -> Exception:
+    match result.outcome:
+        case SellerEditOutcome.CONFLICT:
+            return api_error(
+                status.HTTP_409_CONFLICT,
+                ApiError(
+                    code="research_conflict",
+                    message="Someone filled in these fields since the research ran. "
+                    "Untick them to save the rest.",
+                    fields=list(result.conflicts),
+                ),
+            )
+        case SellerEditOutcome.NOT_FOUND:
+            return api_error(
+                status.HTTP_404_NOT_FOUND, _not_found("This seller is no longer in the CRM.")
+            )
+        case SellerEditOutcome.PARTIAL:
+            landed = "; ".join(result.landed)
+            message = (
+                f"Saving failed partway through. Already saved: {landed}. "
+                if landed
+                else "Couldn't write to Attio. Nothing was saved. "
+            ) + f"({result.message})"
+            return api_error(
+                status.HTTP_502_BAD_GATEWAY, ApiError(code="partial_write", message=message)
+            )
+        case _:
+            return api_error(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                ApiError(
+                    code="research_invalid",
+                    message=result.message or "These values couldn't be saved.",
+                ),
+            )
+
+
+@router.post(
+    "/match-runs/{run_id}/candidates/{candidate_id}/research/skip",
+    response_model=DecisionResponse,
+    responses={409: {"model": ApiErrorResponse}},
+)
+async def skip_research(
+    run_id: uuid.UUID, candidate_id: uuid.UUID, service: Service, user: CurrentUser
+) -> DecisionResponse:
+    _research_target(await _load_run(service, run_id), candidate_id)
+    try:
+        await service.skip_research(candidate_id, stale_after=research_stale_after())
+    except ResearchNotReadyError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(code="research_not_ready", message="The research hasn't finished yet."),
+        ) from exc
+    except ResearchAlreadyReviewedError as exc:
+        raise api_error(
+            status.HTTP_409_CONFLICT,
+            ApiError(
+                code="already_reviewed", message="This research was already saved or skipped."
+            ),
+        ) from exc
+    return await _decided(service, run_id, candidate_id)
 
 
 @router.post(
@@ -308,6 +505,9 @@ def _export_value(c: CandidateRead, field: ExportField) -> str | int | float | N
             return c.risks_and_gaps
         case "source_url":
             return c.source_url
+        case "research_saved":
+            saved = [f.name for f in c.research.fields if f.saved] if c.research else []
+            return ", ".join(saved) or None
 
 
 @router.get(
@@ -502,6 +702,50 @@ def _candidate(
         criteria=criteria.get(c.seller_attio_id, [])
         if c.seller_attio_id and c.match_score is not None
         else [],
+        research=_research(c.research) if c.research else None,
+    )
+
+
+def _research(r: ResearchRecord) -> ResearchRead:
+    stale_before = datetime.now(UTC) - research_stale_after()
+    status_now = r.status(stale_before=stale_before)
+    linkedin = r.linkedin
+    return ResearchRead(
+        status=status_now,
+        started_at=r.claimed_at,
+        error=r.error
+        or ("Research stopped before it finished." if status_now == "failed" else None),
+        fields=[
+            ResearchFieldRead(
+                name=f.name,
+                target=f.target,
+                display=f.display,
+                confidence=f.confidence,
+                source_url=f.source_url,
+                rationale=f.rationale,
+                saved=f.name in r.saved_fields,
+            )
+            for f in r.fields
+        ],
+        linkedin=ResearchLinkedInRead(
+            outcome=linkedin.outcome,
+            posts=[
+                ResearchPostRead(
+                    url=p.url, text=p.text, author_name=p.author_name, posted_at=p.posted_at
+                )
+                for p in linkedin.posts
+            ],
+            job_changes=[
+                ResearchJobChangeRead(
+                    name=j.name, title=j.title, company=j.company, source_url=j.source_url
+                )
+                for j in linkedin.job_changes
+            ],
+            contacts_without_linkedin=linkedin.contacts_without_linkedin,
+        )
+        if linkedin
+        else None,
+        reviewed=status_now == "done" and r.reviewed,
     )
 
 

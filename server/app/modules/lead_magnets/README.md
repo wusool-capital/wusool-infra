@@ -275,6 +275,9 @@ its free part open and the rest behind one short form. There are three parts:
   - One pin, `bannerPinned` -> Webflow `pin-to-banner` (home page bar), is
     level-triggered. Every sync writes the report's own tick. The sync always
     writes the card's `featured` off; the top of `/reports` is the newest card.
+  - `bannerCtaText` -> Webflow `banner-cta-text` is written on every sync, as
+    the text plus " →", with "Get the report" for blank. Webflow can't clear
+    a field, and the home banner binds it with no fallback.
   - Taking the pin unticks it on the other reports in Sanity (drafts included,
     release versions left alone) and Webflow, only after this card is live.
     Sanity goes first, in one transaction. Each loser's own

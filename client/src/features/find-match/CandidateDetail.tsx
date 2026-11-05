@@ -1,15 +1,21 @@
 import { AlertTriangle, ArrowUpRight, Check, X } from "lucide-react";
 import { useState } from "react";
 
+import { CopyErrorButton } from "@/components/CopyErrorButton";
 import { candidateStatus } from "@/components/status";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { CandidateRead } from "@/gen/types/CandidateRead";
 import type { ExistingDealRead } from "@/gen/types/ExistingDealRead";
 import type { SellerProfileRead } from "@/gen/types/SellerProfileRead";
+import { useMoreBelow } from "@/hooks/useMoreBelow";
 import { money, score } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
+import { parseNarrative } from "./narrative";
+import { ResearchBlock } from "./ResearchBlock";
 import { ScoreBar } from "./ScoreBar";
 import { existingDeals, useDecision } from "./useDecision";
 
@@ -32,7 +38,19 @@ function Reasoning({
       {sections.map(([label, text]) => (
         <div key={label} className="flex flex-col gap-xxs">
           <dt className="text-small text-ink-subtle">{label}</dt>
-          <dd className="text-body text-ink-muted">{text}</dd>
+          <dd className="flex flex-col gap-xs text-body text-ink-muted">
+            {parseNarrative(text).map((block, i) =>
+              block.kind === "list" ? (
+                <ul key={i} className="flex list-disc flex-col gap-xxs pl-md">
+                  {block.items.map((item, j) => (
+                    <li key={j}>{item}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p key={i}>{block.text}</p>
+              ),
+            )}
+          </dd>
         </div>
       ))}
     </dl>
@@ -236,13 +254,19 @@ export function CandidateDetail({
   runId,
   candidate,
   threshold,
+  onDeciding,
   onDecided,
+  framed = false,
 }: {
   runId: string;
   candidate: CandidateRead;
   threshold: number;
+  onDeciding?: (candidateId: string) => void;
   onDecided?: (candidateId: string) => void;
+  // Desktop: the body scrolls in its own box and the decision bar stays below it.
+  framed?: boolean;
 }): React.JSX.Element {
+  const [attachBody, moreBelow] = useMoreBelow();
   const decision = useDecision(runId, candidate.id);
   const [choosing, setChoosing] = useState(false);
   const deals = choosing ? existingDeals(decision.error) : null;
@@ -257,6 +281,7 @@ export function CandidateDetail({
     existing_deal_id?: string;
   }): void => {
     setChoosing(false);
+    onDeciding?.(candidate.id);
     decision.mutate(
       resolution ? { kind: "approve", resolution } : { kind: "approve" },
       {
@@ -268,13 +293,8 @@ export function CandidateDetail({
     );
   };
 
-  const researchChannel = decision.data?.research_channel_id ?? null;
-
-  return (
-    <article
-      aria-labelledby={`candidate-${candidate.id}`}
-      className="flex animate-rise flex-col gap-lg"
-    >
+  const body = (
+    <>
       <header className="flex flex-col gap-xs">
         <div className="flex items-start justify-between gap-sm">
           <h3
@@ -327,6 +347,16 @@ export function CandidateDetail({
           Unverified and unscored; approve to open a Qualified deal.
         </p>
       )}
+      {discovered && candidate.status === "APPROVED" && (
+        <ResearchBlock
+          // A fresh mount once research lands, so its ticked fields start from the results.
+          key={candidate.research?.status ?? "none"}
+          runId={runId}
+          candidateId={candidate.id}
+          orgName={candidate.seller_org_name}
+          research={candidate.research ?? null}
+        />
+      )}
       {discovered && candidate.profile && (
         <Profile profile={candidate.profile} />
       )}
@@ -351,14 +381,26 @@ export function CandidateDetail({
         />
       )}
       {failure && (
-        <Alert tone="danger">
+        <Alert tone="danger" className="pr-[48px]">
           <AlertTriangle aria-hidden />
           <AlertTitle>{failure}</AlertTitle>
+          <CopyErrorButton
+            message={failure}
+            className="absolute top-[6px] right-[6px]"
+          />
         </Alert>
       )}
-
+      {candidate.status === "APPROVED" && decision.isSuccess && (
+        <p role="status" className="text-body text-ink-muted">
+          Match with {candidate.seller_org_name} approved.
+        </p>
+      )}
+    </>
+  );
+  const footer = (
+    <>
       {pending && deals === null && (
-        <div className="flex flex-wrap gap-xs border-t border-hairline pt-md lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
+        <div className="flex flex-wrap gap-xs">
           <Button
             size="lg"
             disabled={decision.isPending}
@@ -374,6 +416,7 @@ export function CandidateDetail({
             variant="danger"
             disabled={decision.isPending}
             onClick={() => {
+              onDeciding?.(candidate.id);
               decision.mutate({ kind: "reject" }, { onSuccess: decided });
             }}
           >
@@ -382,15 +425,8 @@ export function CandidateDetail({
           </Button>
         </div>
       )}
-      {candidate.status === "APPROVED" && decision.isSuccess && (
-        <p role="status" className="text-body text-ink-muted">
-          Match with {candidate.seller_org_name} approved.
-          {researchChannel &&
-            " Full research on this seller is being posted to Slack for review."}
-        </p>
-      )}
       {!pending && (
-        <p className="border-t border-hairline pt-md text-body text-ink-subtle lg:sticky lg:bottom-0 lg:-mx-lg lg:bg-surface-1 lg:px-lg lg:pb-lg">
+        <p className="text-body text-ink-subtle">
           {candidate.deal_attio_id ? (
             <>
               Qualified deal in Attio{" "}
@@ -404,6 +440,42 @@ export function CandidateDetail({
             "Rejected. Nothing was written to Attio."
           )}
         </p>
+      )}
+    </>
+  );
+  const hasFooter = !pending || deals === null;
+
+  return (
+    <article
+      aria-labelledby={`candidate-${candidate.id}`}
+      className={cn(
+        "flex animate-rise flex-col",
+        framed ? "min-h-0 flex-1" : "gap-lg",
+      )}
+    >
+      {framed ? (
+        <ScrollArea
+          viewportRef={attachBody}
+          className="min-h-0 flex-1"
+          viewportClassName="overscroll-contain"
+        >
+          <div className="flex flex-col gap-lg p-lg">{body}</div>
+        </ScrollArea>
+      ) : (
+        body
+      )}
+      {hasFooter && (
+        <div
+          data-more-below={(framed && moreBelow) || undefined}
+          className={cn(
+            "border-t border-hairline pt-md",
+            // Fades the text into the bar while more of it sits below the fold.
+            framed &&
+              "relative px-lg pb-lg before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-12 before:bg-linear-to-t before:from-surface-1 before:to-transparent before:opacity-0 before:transition-opacity before:duration-200 data-more-below:before:opacity-100 motion-reduce:before:transition-none",
+          )}
+        >
+          {footer}
+        </div>
       )}
     </article>
   );
