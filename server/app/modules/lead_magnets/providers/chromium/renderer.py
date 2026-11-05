@@ -29,13 +29,17 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from playwright.async_api import Page, Route, WebSocketRoute, async_playwright
+from playwright._impl._transport import PipeTransport
+from playwright.async_api import Browser, Page, Route, WebSocketRoute, async_playwright
 
 _QUIET_MS = 1500
 _SETTLE_MAX_MS = 8_000
 _TIMEOUT_MS = 20_000
 _RENDER_TIMEOUT_S = 30
+_CLOSE_TIMEOUT_S = 10
 _ISOLATED = [
+    # Docker's default 64 MB /dev/shm is too small for a 70-page report.
+    "--disable-dev-shm-usage",
     "--proxy-server=127.0.0.1:9",
     "--proxy-bypass-list=<-loopback>",
     "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
@@ -187,13 +191,28 @@ async def _settle(page: Page, html: str) -> None:
 
 @asynccontextmanager
 async def _isolated_page() -> AsyncIterator[Page]:
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(args=_ISOLATED)
-        try:
-            page = await browser.new_page(viewport={"width": 1200, "height": 900})
-            page.set_default_timeout(_TIMEOUT_MS)
-            await page.route("**/*", _block)
-            await page.route_web_socket("**/*", _block_socket)
-            yield page
-        finally:
+    manager = async_playwright()
+    playwright = await manager.start()
+    browser: Browser | None = None
+
+    async def close() -> None:
+        if browser is not None:
             await browser.close()
+        await manager.__aexit__(None, None, None)
+
+    try:
+        browser = await playwright.chromium.launch(args=_ISOLATED)
+        page = await browser.new_page(viewport={"width": 1200, "height": 900})
+        page.set_default_timeout(_TIMEOUT_MS)
+        await page.route("**/*", _block)
+        await page.route_web_socket("**/*", _block_socket)
+        yield page
+    finally:
+        # An unbounded close on a starved host held the render lock for an hour (AZM-163).
+        try:
+            await asyncio.wait_for(close(), _CLOSE_TIMEOUT_S)
+        except TimeoutError:
+            # shortcut: private API, no public handle; Chromium exits once its pipe closes.
+            transport = manager._connection._transport
+            if isinstance(transport, PipeTransport):
+                transport._proc.kill()
