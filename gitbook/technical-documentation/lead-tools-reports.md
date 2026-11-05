@@ -66,10 +66,11 @@ readers get no confirmation or team emails.
 - A report that hasn't been rendered yet returns 404, and so does every
   `/reports` route when Sanity isn't configured.
 - The PDF is printed in the publish sync, under the renderer's one-at-a-time
-  lock and a 120-second cap, and stored in Sanity as `renderedPdf`. A failed
-  print is logged (`insights_report_pdf_failed`) and doesn't hold back the
-  report; the next sync of the same version prints it again. Reports published
-  before this change get theirs from `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py`.
+  lock and a 120-second cap. It is stored in Sanity as `renderedPdf`.
+- A failed print is logged (`insights_report_pdf_failed`) and doesn't hold
+  back the report. The next sync of the same version prints it again.
+- Reports published before this change get their PDF from
+  `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py`.
 
 ## Who read what
 

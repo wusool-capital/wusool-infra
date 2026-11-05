@@ -22,10 +22,11 @@ can't prove that recipients accepted them.
 
 An unhealthy Toolkit container is restarted automatically by an `autoheal`
 container on the instance. A systemd watchdog on the host also probes `/health`
-through Caddy every 30 seconds. After three misses it restarts the stack, and
-after ten in a row (about five minutes) it reboots the host (at most once an hour); that is what the
-watchdog alarm reports. The Toolkit container is capped at 1.2 GB of memory, so
-a runaway Chromium is killed instead of starving the host.
+through Caddy every 30 seconds. After three misses it restarts the stack.
+After ten in a row (about five minutes) it reboots the host, at most once an
+hour. The watchdog alarm reports both. The Toolkit container is capped at
+1.2 GB of memory, so a runaway Chromium is killed instead of starving the
+host.
 
 Slack shows repeat alerts for the same alarm as thread replies, which don't
 notify by default. Turn on "Get notified about all replies" for the alerts
