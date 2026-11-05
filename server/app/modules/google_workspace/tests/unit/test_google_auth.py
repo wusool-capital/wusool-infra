@@ -6,12 +6,12 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from google.auth import jwt
 
-from app.modules.interactions.providers.google.auth import (
+from app.modules.google_workspace.providers.google.auth import (
     DelegatedTokenSource,
     GoogleAuthError,
     ServiceAccountKey,
 )
-from app.modules.interactions.tests.fakes.google import http_client
+from app.modules.google_workspace.tests.fakes.google import http_client
 
 JULES = "jules@wusoolcapital.com"
 RAMZY = "ramzy@wusoolcapital.com"

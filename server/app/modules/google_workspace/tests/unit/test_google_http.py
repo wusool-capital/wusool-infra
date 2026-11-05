@@ -2,8 +2,8 @@ import httpx
 import pytest
 from pydantic import BaseModel
 
-from app.modules.interactions.providers.google.http import GoogleApiError, get_model
-from app.modules.interactions.tests.fakes.google import (
+from app.modules.google_workspace.providers.google.http import GoogleApiError, get_model
+from app.modules.google_workspace.tests.fakes.google import (
     RecordedSleeps,
     StaticTokenSource,
     http_client,

@@ -5,13 +5,13 @@ from datetime import UTC, date, datetime
 
 import httpx
 
-from app.modules.interactions.application.errors import CursorExpired
-from app.modules.interactions.application.ports.mail_source import MailPage
-from app.modules.interactions.application.ports.token_source import TokenSource
-from app.modules.interactions.domain.addresses import normalize_address, parse_address_list
-from app.modules.interactions.domain.model import MailMessage
-from app.modules.interactions.providers.google.http import GoogleApiError, Sleep, get_model
-from app.modules.interactions.providers.google.models import (
+from app.modules.google_workspace.application.errors import CursorExpired
+from app.modules.google_workspace.application.ports.mail_source import MailPage
+from app.modules.google_workspace.application.ports.token_source import TokenSource
+from app.modules.google_workspace.domain.addresses import normalize_address, parse_address_list
+from app.modules.google_workspace.domain.model import MailMessage
+from app.modules.google_workspace.providers.google.http import GoogleApiError, Sleep, get_model
+from app.modules.google_workspace.providers.google.models import (
     GmailHistory,
     GmailList,
     GmailMessage,

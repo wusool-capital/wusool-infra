@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Protocol
 
-from app.modules.interactions.domain.model import MailMessage
+from app.modules.google_workspace.domain.model import MailMessage
 
 
 @dataclass(frozen=True)

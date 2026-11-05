@@ -3,11 +3,11 @@ from datetime import UTC, datetime, timedelta, timezone
 import httpx
 import pytest
 
-from app.modules.interactions.application.errors import CursorExpired
-from app.modules.interactions.domain.model import Attendee
-from app.modules.interactions.providers.google.calendar import CalendarClient
-from app.modules.interactions.providers.google.http import GoogleApiError
-from app.modules.interactions.tests.fakes.google import (
+from app.modules.google_workspace.application.errors import CursorExpired
+from app.modules.google_workspace.domain.model import Attendee
+from app.modules.google_workspace.providers.google.calendar import CalendarClient
+from app.modules.google_workspace.providers.google.http import GoogleApiError
+from app.modules.google_workspace.tests.fakes.google import (
     RecordedSleeps,
     StaticTokenSource,
     http_client,

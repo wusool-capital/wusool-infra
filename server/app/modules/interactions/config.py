@@ -10,7 +10,7 @@ from functools import lru_cache
 from pydantic import field_validator
 from pydantic_settings import SettingsConfigDict
 
-from app.modules.interactions.domain.addresses import normalize_address
+from app.modules.google_workspace import normalize_address
 from app.modules.interactions.domain.model import ScoringRules
 from app.modules.utilities import SecretsManagerSettings
 
@@ -37,9 +37,6 @@ class InteractionsSettings(SecretsManagerSettings):
     interactions_next_window_days: int = 180
     # Lower bounds of Weak, Good, Strong and Very strong; tuned in the shadow week.
     interactions_label_cutoffs: str = "1 3 7 15"
-
-    # The service-account key lives in Secrets Manager, never in `.env`.
-    interactions_google_service_account_json: str | None = None
 
     @field_validator("interactions_mailboxes")
     @classmethod

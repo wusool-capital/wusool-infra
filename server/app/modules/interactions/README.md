@@ -10,36 +10,29 @@ _New to this codebase's layering? See
 
 ## Status
 
-Read-only and unfinished. The module holds the pure domain rules, the settings
-and the Gmail and Calendar clients. Storing the fetched rows, the ingest pass
-and the poll loop come next. Nothing writes to Attio: that is a later PR,
-gated by the shadow-week calibration. Nothing calls the Google clients yet.
+Read-only and unfinished. The module holds the pure domain rules and the
+settings. Storing the fetched rows, the ingest pass and the poll loop come
+next. Nothing writes to Attio: that is a later PR, gated by the shadow-week
+calibration.
 
 ## Structure
 
 ```
-domain/                  # Touch, scoring, summarize, ignore filter, addresses, fetched-data types
-application/ports/       # MailSourcePort, CalendarSourcePort, TokenSource (Protocols)
-application/errors.py    # CursorExpired
-providers/google/        # auth (delegated tokens), gmail, calendar, models, http (retries)
-config.py                # InteractionsSettings: every tunable, prefixed interactions_
+domain/       # Touch, scoring, summarize, ignore filter, internal-address rules
+config.py     # InteractionsSettings: every tunable, prefixed interactions_
 ```
 
-Planned: `persistence/` (the three tables from migration `d5f8b2a17c94`),
-`application/ingest.py` and `retention.py`, `bootstrap.py` (the poll loop).
+Planned: `application/` (ingest, retention), `persistence/` (the three tables
+from migration `d5f8b2a17c94`), `bootstrap.py` (the poll loop).
 
 ## Google access
 
-A service account with domain-wide delegation acts as each mailbox. The key
-is the Secrets Manager value `INTERACTIONS_GOOGLE_SERVICE_ACCOUNT_JSON`, held
-in the existing toolkit secret next to the other keys. `google-auth` only
-signs the token request; all calls go through `httpx`, and every reply is
-parsed into a Pydantic model in `providers/google/models.py`.
-
-Gmail messages are fetched with `format=metadata` and a fixed header list, so
-a body is never requested. Failed calls with a transient status are retried
-with backoff; a dropped Gmail history bookmark or Calendar sync token raises
-`CursorExpired` for the ingest pass to handle.
+Reading Gmail and Calendar is the job of the
+[`google_workspace`](../google_workspace/README.md) module, which this module
+uses through its public names only. It owns the service-account key
+(`GOOGLE_SERVICE_ACCOUNT_JSON`), delegated tokens and the typed clients, and
+Scribe will reuse it. This module passes the scopes it needs: `GMAIL_READONLY`
+and `CALENDAR_READONLY`.
 
 ## Public contract
 

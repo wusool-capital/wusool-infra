@@ -23,6 +23,7 @@ from app.modules.ddl_commands.config import Settings as DdlCommandsSettings
 from app.modules.discovery.config import Settings as DiscoverySettings
 from app.modules.discrepancies.config import Settings as DiscrepanciesSettings
 from app.modules.enrichment.config import Settings as EnrichmentSettings
+from app.modules.google_workspace.config import GoogleWorkspaceSettings
 from app.modules.interactions.config import InteractionsSettings
 from app.modules.lead_magnets.config import Settings as LeadMagnetsSettings
 from app.modules.matching_engine.config import Settings as MatchingEngineSettings
@@ -40,6 +41,7 @@ _SETTINGS_CLASSES = (
     DiscrepanciesSettings,
     LeadMagnetsSettings,
     InteractionsSettings,
+    GoogleWorkspaceSettings,
     SecretLocation,
 )
 
@@ -68,7 +70,7 @@ _SECRETS_MANAGER_KEYS = frozenset(
         "LEAD_MAGNET_WEBFLOW_API_TOKEN",
         "LEAD_MAGNET_POSTHOG_API_KEY",
         "ARCHITECTURE_BASIC_AUTH_PASSWORD",
-        "INTERACTIONS_GOOGLE_SERVICE_ACCOUNT_JSON",
+        "GOOGLE_SERVICE_ACCOUNT_JSON",
     }
 )
 

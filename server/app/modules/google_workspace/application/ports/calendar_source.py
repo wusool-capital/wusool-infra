@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from app.modules.interactions.domain.model import CalendarEvent
+from app.modules.google_workspace.domain.model import CalendarEvent
 
 
 @dataclass(frozen=True)

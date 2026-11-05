@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable, Sequence
 import httpx
 from pydantic import BaseModel
 
-from app.modules.interactions.application.ports.token_source import TokenSource
+from app.modules.google_workspace.application.ports.token_source import TokenSource
 
 _ATTEMPTS = 4
 _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
