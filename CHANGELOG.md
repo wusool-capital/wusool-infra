@@ -18,7 +18,7 @@ for current production evidence and open handover items.
   A report's PDF is now printed once, when it is published, and stored in
   Sanity. The download button only sends the reader to that file.
   Reports published earlier need one run of
-  `server/scripts/backfill_report_pdfs.py`. Until then their download shows
+  `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py`. Until then their download shows
   "PDF not ready".
 - A host watchdog now probes `/health` through Caddy every 30 seconds. After
   three misses it restarts the stack. After ten in a row (about five minutes) it reboots the host.

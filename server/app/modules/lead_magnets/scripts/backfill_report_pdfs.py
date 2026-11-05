@@ -11,7 +11,7 @@ Chromium runs on this machine, not the toolkit server, so the large render
 never touches production. Needs `aws sso login` (the Sanity and Webflow secrets
 come from Secrets Manager) and `uv run playwright install --only-shell chromium`.
 
-Usage: uv run python scripts/backfill_report_pdfs.py
+Usage, from server/: uv run python -m app.modules.lead_magnets.scripts.backfill_report_pdfs
 """
 
 import asyncio

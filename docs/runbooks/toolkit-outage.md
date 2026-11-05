@@ -102,7 +102,7 @@ memory, so a runaway Chromium is killed in its own cgroup.
 
 - `/pdf` answers 503 "PDF not ready": the print failed or has not run. Look for
   `insights_report_pdf_failed` in the logs, then republish the report in Sanity, or run
-  `server/scripts/backfill_report_pdfs.py` from a laptop (`aws sso login` first).
+  `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py` from a laptop (`aws sso login` first).
 - Do not render PDFs on the request path again: on 2026-11-03 one PDF request starved the
   host for an hour.
 

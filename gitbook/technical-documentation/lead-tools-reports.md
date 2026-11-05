@@ -69,7 +69,7 @@ readers get no confirmation or team emails.
   lock and a 120-second cap, and stored in Sanity as `renderedPdf`. A failed
   print is logged (`insights_report_pdf_failed`) and doesn't hold back the
   report; the next sync of the same version prints it again. Reports published
-  before this change get theirs from `server/scripts/backfill_report_pdfs.py`.
+  before this change get theirs from `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py`.
 
 ## Who read what
 
