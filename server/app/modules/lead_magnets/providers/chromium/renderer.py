@@ -36,6 +36,8 @@ _QUIET_MS = 1500
 _SETTLE_MAX_MS = 8_000
 _TIMEOUT_MS = 20_000
 _RENDER_TIMEOUT_S = 30
+# The padel report took 19 s on a laptop (2026-11-05); a 2 vCPU host needs headroom.
+_PDF_TIMEOUT_S = 120
 _CLOSE_TIMEOUT_S = 10
 _ISOLATED = [
     # Docker's default 64 MB /dev/shm is too small for a 70-page report.
@@ -104,8 +106,7 @@ async def _fetch_print_asset(route: Route) -> None:
 
 class ChromiumReportRenderer:
     def __init__(self) -> None:
-        # ponytail: one Chromium at a time, PDF downloads included (~300 MB peak, 2 GB t3.small).
-        # Cache PDFs per version if downloads start queueing.
+        # ponytail: one Chromium at a time (padel PDF peaks near 750 MB; 2 GB t3.small, 1.2 GB cap).
         self._lock = asyncio.Lock()
 
     async def render(self, html: str, *, free_pages: int = 1) -> str:
@@ -128,8 +129,8 @@ class ChromiumReportRenderer:
             async with self._lock:
                 return await self._pdf(html)
 
-        # The queue counts toward the cap, so downloads fail fast rather than pile up.
-        return await asyncio.wait_for(locked(), _RENDER_TIMEOUT_S)
+        # Runs once per version at publish, in the background, so no reader waits on it.
+        return await asyncio.wait_for(locked(), _PDF_TIMEOUT_S)
 
     async def _render(self, html: str, free_pages: int) -> str:
         async with _isolated_page() as page:
