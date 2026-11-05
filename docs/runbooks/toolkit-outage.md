@@ -56,7 +56,7 @@ corruption as P0 and escalate immediately.
 
 0. The host watchdog (`/opt/toolkit/watchdog.sh`, systemd timer `toolkit-watchdog`) acts
    first: after 3 failed `/health` probes through Caddy it runs `docker compose up -d`
-   and `restart`; after 3 more it reboots the host, at most once an hour. Its lines are
+   and `restart`; after 10 in a row (about 5 minutes) it reboots the host, at most once an hour. Its lines are
    in the Toolkit log group, stream `<instance-id>/watchdog`. If the host is up but still
    failing, the watchdog and autoheal have already tried; go on to step 1.
 1. For a transient unhealthy container, use Systems Manager on the current

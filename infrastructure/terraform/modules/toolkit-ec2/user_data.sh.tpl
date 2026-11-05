@@ -122,8 +122,8 @@ services:
     # Reaps orphaned Chromium processes; PID 1 is Python and never waits on them.
     init: true
     # 2026-11-03: an uncapped Chromium starved the 2 GB host for an hour. Over the cap the
-    # kernel kills Chromium in this cgroup, so dockerd, Caddy and the watchdog stay alive.
-    # Equal swap limit stops it spilling to swap. Size from a measured PDF render peak.
+    # OOM kill stays inside this cgroup (usually Chromium, the largest process), so dockerd,
+    # Caddy and the watchdog stay alive. Equal swap limit stops swapping. Padel PDF peaks near 900 MB.
     mem_limit: 1200m
     memswap_limit: 1200m
     expose:
@@ -209,7 +209,7 @@ done
 
 # Host-level watchdog, outside Docker: autoheal only sees containers that Docker marks
 # unhealthy, so it misses a stopped Caddy, a hung Caddy and a stalled dockerd. This probes
-# /health through Caddy; 3 misses restart the stack, 3 more reboot (at most once an hour).
+# /health through Caddy; 3 misses restart the stack, 10 reboot (about 5 minutes, at most once an hour).
 cat > /opt/toolkit/watchdog.sh <<'WDEOF'
 #!/bin/bash
 set -u
@@ -235,7 +235,7 @@ if [ "$n" -eq 3 ]; then
   # `up -d` revives a stopped container; `restart` unwedges a running one.
   timeout 120 docker compose up -d
   timeout 120 docker compose restart
-elif [ "$n" -ge 6 ] && { [ ! -e "$REBOOT_STAMP" ] || [ -n "$(find "$REBOOT_STAMP" -mmin +60)" ]; }; then
+elif [ "$n" -ge 10 ] && { [ ! -e "$REBOOT_STAMP" ] || [ -n "$(find "$REBOOT_STAMP" -mmin +60)" ]; }; then
   log reboot "$n"
   touch "$REBOOT_STAMP"
   systemctl reboot

@@ -3,7 +3,9 @@
 Reports flattened before PDFs were printed at publish have no `renderedPdf`, so
 their download answers 503 until this runs. It re-syncs each published report,
 which prints only the ones missing a PDF; reports with one are left alone. The
-sync also rewrites each report's Webflow card, which is idempotent.
+sync also rewrites each report's Webflow card, which is idempotent, and flattens
+again any report whose source or renderer version changed. A failed report is
+listed at the end and the rest still run.
 
 Chromium runs on this machine, not the toolkit server, so the large render
 never touches production. Needs `aws sso login` (the Sanity and Webflow secrets
@@ -46,11 +48,20 @@ async def main() -> None:
         settings.lead_magnet_sanity_project_id, settings.lead_magnet_sanity_dataset
     )
     sync, source = build_report_sync(), build_report_source()
+    failed: list[str] = []
     for slug in slugs:
-        await sync.sync(slug=slug, previous_slug=None)
-        report = await source.refresh(slug)
+        try:
+            await sync.sync(slug=slug, previous_slug=None)
+            report = await source.refresh(slug)
+        except Exception:  # noqa: BLE001 - one bad report must not stop the rest
+            logging.exception("backfill_failed slug=%s", slug)
+            report = None
         pdf_url = report.pdf_url if report else None
         print(f"{slug}: {pdf_url or 'NO PDF - see the log above'}")
+        if not pdf_url:
+            failed.append(slug)
+    if failed:
+        raise SystemExit(f"{len(failed)} report(s) have no PDF: {', '.join(failed)}")
 
 
 if __name__ == "__main__":

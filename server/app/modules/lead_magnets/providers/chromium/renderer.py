@@ -23,14 +23,16 @@ as it stands rather than holding the render lock forever.
 """
 
 import asyncio
+import logging
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from playwright._impl._transport import PipeTransport
 from playwright.async_api import Browser, Page, Route, WebSocketRoute, async_playwright
+
+logger = logging.getLogger(__name__)
 
 _QUIET_MS = 1500
 _SETTLE_MAX_MS = 8_000
@@ -118,11 +120,11 @@ class ChromiumReportRenderer:
             return await asyncio.wait_for(self._text(html), _RENDER_TIMEOUT_S)
 
     async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
-        async def locked() -> dict[str, bytes]:
-            async with self._lock:
-                return await self._exhibit_images(html, exhibit_ids)
-
-        return await asyncio.wait_for(locked(), _RENDER_TIMEOUT_S)
+        # Queued outside the cap like `render`: a publish waits for a PDF print, it doesn't fail.
+        async with self._lock:
+            return await asyncio.wait_for(
+                self._exhibit_images(html, exhibit_ids), _RENDER_TIMEOUT_S
+            )
 
     async def pdf(self, html: str) -> bytes:
         async def locked() -> bytes:
@@ -214,6 +216,11 @@ async def _isolated_page() -> AsyncIterator[Page]:
             await asyncio.wait_for(close(), _CLOSE_TIMEOUT_S)
         except TimeoutError:
             # shortcut: private API, no public handle; Chromium exits once its pipe closes.
-            transport = manager._connection._transport
-            if isinstance(transport, PipeTransport):
-                transport._proc.kill()
+            try:
+                from playwright._impl._transport import PipeTransport
+
+                transport = manager._connection._transport
+                if isinstance(transport, PipeTransport):
+                    transport._proc.kill()
+            except (ImportError, AttributeError):
+                logger.error("chromium_driver_kill_unavailable")

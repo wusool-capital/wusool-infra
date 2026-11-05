@@ -21,7 +21,7 @@ for current production evidence and open handover items.
   `server/scripts/backfill_report_pdfs.py`. Until then their download shows
   "PDF not ready".
 - A host watchdog now probes `/health` through Caddy every 30 seconds. After
-  three misses it restarts the stack. After three more it reboots the host.
+  three misses it restarts the stack. After ten in a row (about five minutes) it reboots the host.
   The Toolkit container is capped at 1.2 GB of memory, and a stuck browser is
   stopped after 10 seconds. Two new alarms report watchdog recoveries and a
   silent app log.
