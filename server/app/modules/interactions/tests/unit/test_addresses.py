@@ -5,6 +5,7 @@ from app.modules.interactions.domain.addresses import (
     is_internal,
     normalize_address,
     org_domain_candidates,
+    parse_address_list,
     team_member_of,
 )
 
@@ -23,6 +24,16 @@ from app.modules.interactions.domain.addresses import (
 )
 def test_normalize_address(raw: str, expected: str | None) -> None:
     assert normalize_address(raw) == expected
+
+
+def test_an_address_list_keeps_quoted_commas_and_drops_repeats_and_junk() -> None:
+    value = '"Chasles, Jules" <Jules@WusoolCapital.com>, sara@acme.com, SARA@acme.com, junk'
+
+    assert parse_address_list(value) == ("jules@wusoolcapital.com", "sara@acme.com")
+
+
+def test_an_empty_address_list_is_empty() -> None:
+    assert parse_address_list("") == ()
 
 
 def test_domain_of_takes_the_part_after_the_last_at() -> None:

@@ -10,21 +10,36 @@ _New to this codebase's layering? See
 
 ## Status
 
-Read-only and unfinished. Today the module holds the pure domain rules and
-the settings. Google ingest, storage of the fetched rows and the poll loop
-come next. Nothing writes to Attio: that is a later PR, gated by the
-shadow-week calibration.
+Read-only and unfinished. The module holds the pure domain rules, the settings
+and the Gmail and Calendar clients. Storing the fetched rows, the ingest pass
+and the poll loop come next. Nothing writes to Attio: that is a later PR,
+gated by the shadow-week calibration. Nothing calls the Google clients yet.
 
 ## Structure
 
 ```
-domain/       # Touch, scoring (score_pair, label_for), summarize, ignore filter, addresses
-config.py     # InteractionsSettings: every tunable, prefixed interactions_
+domain/                  # Touch, scoring, summarize, ignore filter, addresses, fetched-data types
+application/ports/       # MailSourcePort, CalendarSourcePort, TokenSource (Protocols)
+application/errors.py    # CursorExpired
+providers/google/        # auth (delegated tokens), gmail, calendar, models, http (retries)
+config.py                # InteractionsSettings: every tunable, prefixed interactions_
 ```
 
-Planned layers: `application/` (ingest, retention, ports), `providers/google/`
-(Gmail and Calendar over `httpx`), `persistence/` (the three tables from
-migration `d5f8b2a17c94`), `bootstrap.py` (the poll loop).
+Planned: `persistence/` (the three tables from migration `d5f8b2a17c94`),
+`application/ingest.py` and `retention.py`, `bootstrap.py` (the poll loop).
+
+## Google access
+
+A service account with domain-wide delegation acts as each mailbox. The key
+is the Secrets Manager value `INTERACTIONS_GOOGLE_SERVICE_ACCOUNT_JSON`, held
+in the existing toolkit secret next to the other keys. `google-auth` only
+signs the token request; all calls go through `httpx`, and every reply is
+parsed into a Pydantic model in `providers/google/models.py`.
+
+Gmail messages are fetched with `format=metadata` and a fixed header list, so
+a body is never requested. Failed calls with a transient status are retried
+with backoff; a dropped Gmail history bookmark or Calendar sync token raises
+`CursorExpired` for the ingest pass to handle.
 
 ## Public contract
 
