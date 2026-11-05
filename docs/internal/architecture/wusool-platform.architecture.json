@@ -12,7 +12,7 @@
       "revision": "e6f9d9a904d04591163137005f0236fb9952f015"
     },
     "viewBox": [
-      1300,
+      1240,
       760
     ]
   },
@@ -88,7 +88,7 @@
       "sublabel": "desktop meeting API",
       "pos": [
         40,
-        460
+        470
       ],
       "size": [
         220,
@@ -149,7 +149,7 @@
       "sublabel": "private RDS / wusool_crm",
       "tag": "encrypted",
       "pos": [
-        980,
+        920,
         335
       ],
       "size": [
@@ -169,7 +169,7 @@
       "label": "AWS Bedrock",
       "sublabel": "matching + summaries",
       "pos": [
-        980,
+        920,
         255
       ],
       "size": [
@@ -189,7 +189,7 @@
       "label": "Research providers",
       "sublabel": "Firecrawl · Diffbot · PDL · Apify · Places",
       "pos": [
-        1000,
+        940,
         650
       ],
       "size": [
@@ -213,7 +213,7 @@
       "label": "GitHub Actions",
       "sublabel": "OIDC · build · OpenTofu · SSM",
       "pos": [
-        980,
+        920,
         20
       ],
       "size": [
@@ -237,7 +237,7 @@
       "label": "AWS operations",
       "sublabel": "SSM access · logs · Secrets",
       "pos": [
-        980,
+        920,
         520
       ],
       "size": [
@@ -262,7 +262,7 @@
       "sublabel": "reports and articles",
       "pos": [
         40,
-        390
+        400
       ],
       "size": [
         180,
@@ -301,7 +301,7 @@
       "label": "PostHog",
       "sublabel": "tool + report events",
       "pos": [
-        760,
+        740,
         600
       ],
       "size": [
@@ -321,7 +321,7 @@
       "label": "Amazon SES",
       "sublabel": "lead emails + report codes",
       "pos": [
-        980,
+        920,
         425
       ],
       "size": [
@@ -407,7 +407,10 @@
       "to": "toolkit",
       "label": "embed.js iframe",
       "variant": "emphasis",
-      "labelSegment": 0
+      "labelAt": [
+        232,
+        388
+      ]
     },
     {
       "from": "sanity",
@@ -486,14 +489,20 @@
       "to": "bedrock",
       "label": "instance role",
       "variant": "dashed",
-      "labelSegment": 2
+      "labelAt": [
+        908,
+        247
+      ]
     },
     {
       "from": "toolkit",
       "to": "operations",
       "label": "secrets at startup (instance role)",
-      "labelDy": 60,
-      "variant": "dashed"
+      "variant": "dashed",
+      "labelAt": [
+        794,
+        534
+      ]
     },
     {
       "from": "toolkit",
@@ -522,7 +531,16 @@
       "to": "sanity",
       "label": "live report and charts (CDN)",
       "variant": "dashed",
-      "labelSegment": 0
+      "labelAt": [
+        130,
+        388
+      ]
+    },
+    {
+      "from": "toolkit",
+      "to": "sanity",
+      "label": "rendered report + PDF",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -531,7 +549,7 @@
       "title": "One Toolkit process",
       "items": [
         "Serves Slack, the web find-match app, Scribe, the lead tools, and Attio and Sanity webhooks",
-        "Renders and gates reports; syncs Webflow cards"
+        "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards"
       ]
     },
     {
@@ -549,7 +567,8 @@
         "GitHub OIDC deploys through OpenTofu and SSM",
         "Alarms and GuardDuty findings reach Slack via AWS Chatbot",
         "The nightly resync runs on its own narrow OIDC role; a heartbeat alarm flags a missed run",
-        "App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret"
+        "App secrets are read from Secrets Manager at startup, with no secret files on the instance; devs read only the dev secret",
+        "A host watchdog restarts the stack when /health stops answering through Caddy; the app container is memory-capped"
       ]
     }
   ]

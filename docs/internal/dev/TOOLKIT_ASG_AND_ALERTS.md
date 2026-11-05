@@ -35,11 +35,13 @@ Auto Scaling Group, min=max=desired=1  ← modules/toolkit-ec2/main.tf
 EC2 instance
    ├─ toolkit container   (the app)
    ├─ caddy container     (TLS, reverse proxy — unchanged)
-   └─ autoheal container  (watches Docker HEALTHCHECK, force-restarts)
+   ├─ autoheal container  (watches Docker HEALTHCHECK, force-restarts)
+   └─ toolkit-watchdog    (systemd timer on the host, outside Docker: probes /health
+                           through Caddy every 30s; restarts the stack, then reboots)
 
 Route 53 health check (us-east-1, hits /health from outside AWS)
    → CloudWatch alarm (us-east-1)
-   → SNS topic (eu-central-1, cross-region subscription — see gotcha below)
+   → SNS topic (us-east-1, `...-infrastructure-alerts-use1` — see gotcha below)
    → AWS Chatbot → #infra-alerts
 ```
 
@@ -49,6 +51,7 @@ Three failure modes, three different mechanisms — **they do not overlap**:
 |---|---|---|---|
 | Instance terminated/dead | AWS's own EC2 status checks (ASG `health_check_type = "EC2"`) | ASG launches a replacement, which self-associates the EIP on boot | **~3.5 min** (drilled 2026-09-09: terminated 12:50:36 UTC, `/health` 200 again at 12:54:09) |
 | Process hung but instance alive | Docker `HEALTHCHECK` (30s interval, 3 retries) | `autoheal` container force-restarts the toolkit container | **under 1 min** (drilled: paused 12:49:xx, healthy again by 12:50:09 — much faster than the ~2-3 min textbook estimate) |
+| Host starved, Caddy stopped or hung, or dockerd stalled (2026-11-03: a 70-page PDF render starved the 2 GB host for an hour; autoheal never fired) | `toolkit-watchdog` systemd timer, `curl --resolve <host>:443:127.0.0.1 https://<host>/health` every 30s | 3 misses: `docker compose up -d` + `restart`. 10 in a row (about 5 min): reboot (at most once an hour). Logs `toolkit_watchdog_action` and pages `toolkit-watchdog-recovery` | restart within about 90s by design (not drilled yet) |
 | Network-path blip, instance and process both fine | Route 53 health check, from outside AWS | **Alert only.** Nothing auto-heals this — see below. | N/A |
 
 **The third row is the one that actually matches the original incident**, and
@@ -59,17 +62,19 @@ automating, the next step is a Lambda that calls
 `autoscaling:SetInstanceHealth` off this alarm — not built, because it adds
 real Lambda-authoring/IAM surface and there's no evidence yet it's needed.
 
-## Alarms (all three route to `#infra-alerts`)
+## Alarms (all route to `#infra-alerts`)
 
 | Alarm | Namespace / region | Fires when |
 |---|---|---|
 | `wusool-<env>-toolkit-not-in-service` | `AWS/AutoScaling`, eu-central-1 | ASG has 0 in-service instances |
 | `wusool-<env>-toolkit-high-cpu` | `AWS/EC2`, eu-central-1 | Toolkit instance CPU > 85% for 3×5min |
 | `wusool-<env>-toolkit-unreachable` | `AWS/Route53`, **us-east-1** | External `/health` check fails |
+| `wusool-<env>-toolkit-watchdog-recovery` | log metric filter, eu-central-1 | The host watchdog restarted the stack or rebooted the host |
+| `wusool-<env>-toolkit-app-logs-silent` | log metric filter, eu-central-1 | No app log line for 10 minutes (the healthcheck alone logs every 30s) |
 
-All three notify the same per-environment SNS topic
-(`stacks/base`'s `aws_sns_topic.alerts`), which is what Chatbot subscribes
-to — nothing alarm-specific to configure when adding a sixth alarm later,
+The eu-central-1 alarms notify the per-environment SNS topic
+(`stacks/base`'s `aws_sns_topic.alerts`), and `toolkit-unreachable` the us-east-1 one;
+Chatbot subscribes to both — nothing alarm-specific to configure when adding another alarm,
 as long as it points its `alarm_actions` at `var.alarm_topic_arn` (or, for a
 `us-east-1`-namespace alarm, `var.us_east_1_alarm_topic_arn`).
 

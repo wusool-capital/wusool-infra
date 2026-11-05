@@ -45,7 +45,8 @@ _QUERY = (
     'excerpt, publishedAt, "updatedAt": _updatedAt, "coverUrl": cover.asset->url, '
     'bannerPinned, bannerCtaText, silo, "ctaText": cta.text, "ctaUrl": cta.url, '
     "seoTitle, seoDescription, ogTitle, "
-    '"interactiveUrl": select(interactive == true => htmlFile.asset->url)}'
+    '"interactiveUrl": select(interactive == true => htmlFile.asset->url), '
+    '"pdfUrl": renderedPdf}'
 )
 # Raw perspective so open drafts are unticked too; publishing one must not re-pin it.
 # Release versions are left alone: they are the editor's staged content, not live state.
@@ -58,7 +59,7 @@ _PINNED_QUERY = (
 _SOURCE_QUERY = (
     '*[_type == "report" && slug.current == $slug][0]{_id, _rev, title, bodyFormat, '
     '"body": body[]{..., _type == "image" => {"url": asset->url}}, html, '
-    '"htmlFileUrl": htmlFile.asset->url, renderedFrom, '
+    '"htmlFileUrl": htmlFile.asset->url, renderedFrom, renderedPdf, '
     '"freePages": coalesce(freePages, 1), "lockedPercent": coalesce(lockedPercent, 75)}'
 )
 
@@ -84,6 +85,7 @@ class _SanityReport(BaseModel):
     seo_description: str | None = Field(default=None, alias="seoDescription")
     og_title: str | None = Field(default=None, alias="ogTitle")
     interactive_url: str | None = Field(default=None, alias="interactiveUrl")
+    pdf_url: str | None = Field(default=None, alias="pdfUrl")
 
 
 class _QueryResponse(BaseModel):
@@ -103,6 +105,7 @@ class _SanitySource(BaseModel):
     html: str | None = None
     html_file_url: str | None = Field(default=None, alias="htmlFileUrl")
     rendered_from: str | None = Field(default=None, alias="renderedFrom")
+    rendered_pdf: str | None = Field(default=None, alias="renderedPdf")
     free_pages: int = Field(default=1, ge=1, alias="freePages")
     locked_percent: int = Field(default=75, alias="lockedPercent")
 
@@ -145,6 +148,14 @@ class _RenderedFields(BaseModel):
     rendered_html: str = Field(alias="renderedHtml")
     rendered_preview_end: int = Field(alias="renderedPreviewEnd")
     rendered_from: str = Field(alias="renderedFrom")
+    # Empty clears the previous version's PDF; `exclude_none` would drop a `None`.
+    rendered_pdf: str = Field(alias="renderedPdf")
+
+
+class _PdfField(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    rendered_pdf: str = Field(alias="renderedPdf")
 
 
 class _Patch(BaseModel):
@@ -153,7 +164,7 @@ class _Patch(BaseModel):
     id: str
     # Sanity rejects the patch (409) if the document moved on since it was read.
     if_revision_id: str | None = Field(default=None, alias="ifRevisionID")
-    set_: _RenderedFields | _Unpinned = Field(alias="set")
+    set_: _RenderedFields | _PdfField | _Unpinned = Field(alias="set")
 
 
 class _PatchMutation(BaseModel):
@@ -209,15 +220,33 @@ class SanityReportSource:
             revision=doc.rev,
             html=html,
             rendered_from=doc.rendered_from,
+            rendered_pdf=doc.rendered_pdf,
             free_pages=doc.free_pages,
         )
 
     async def save_rendered(
-        self, source: ReportSource, *, html: str, preview_end: int, rendered_from: str
+        self,
+        source: ReportSource,
+        *,
+        html: str,
+        preview_end: int,
+        rendered_from: str,
+        pdf_url: str,
     ) -> bool:
-        fields = _RenderedFields(
-            rendered_html=html, rendered_preview_end=preview_end, rendered_from=rendered_from
+        return await self._save(
+            source,
+            _RenderedFields(
+                rendered_html=html,
+                rendered_preview_end=preview_end,
+                rendered_from=rendered_from,
+                rendered_pdf=pdf_url,
+            ),
         )
+
+    async def save_pdf(self, source: ReportSource, pdf_url: str) -> bool:
+        return await self._save(source, _PdfField(rendered_pdf=pdf_url))
+
+    async def _save(self, source: ReportSource, fields: _RenderedFields | _PdfField) -> bool:
         patch = _Patch(id=source.document_id, if_revision_id=source.revision, set_=fields)
         response = await self._mutate(_Mutations(mutations=[_PatchMutation(patch=patch)]))
         if response.status_code == 409:
@@ -334,4 +363,5 @@ class SanityReportSource:
             seo_description=doc.seo_description,
             og_title=doc.og_title,
             interactive_url=self._own_file(doc.interactive_url),
+            pdf_url=self._own_file(doc.pdf_url),
         )

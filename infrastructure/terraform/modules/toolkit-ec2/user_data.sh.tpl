@@ -119,6 +119,13 @@ services:
   ${app.name}:
     image: ${app.image}
     restart: always
+    # Reaps orphaned Chromium processes; PID 1 is Python and never waits on them.
+    init: true
+    # 2026-11-03: an uncapped Chromium starved the 2 GB host for an hour. Over the cap the
+    # OOM kill stays inside this cgroup (usually Chromium, the largest process), so dockerd,
+    # Caddy and the watchdog stay alive. Equal swap limit stops swapping. Padel PDF peaks near 900 MB.
+    mem_limit: 1200m
+    memswap_limit: 1200m
     expose:
       - "8000"
     env_file:
@@ -156,6 +163,14 @@ services:
     environment:
       AUTOHEAL_CONTAINER_LABEL: all
       AUTOHEAL_INTERVAL: 30
+    # Without this its restarts leave no trace once the container is recreated.
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: ${aws_region}
+        awslogs-group: ${cloudwatch_log_group}
+        awslogs-stream: $INSTANCE_ID/autoheal
+        awslogs-create-group: "true"
     volumes:
       # NOT :ro — autoheal issues `docker restart` over this socket, which
       # needs write access; a read-only mount breaks that silently rather
@@ -191,6 +206,68 @@ for attempt in 1 2 3; do
   sleep 5
   [ "$attempt" -eq 3 ] && exit 1
 done
+
+# Host-level watchdog, outside Docker: autoheal only sees containers that Docker marks
+# unhealthy, so it misses a stopped Caddy, a hung Caddy and a stalled dockerd. This probes
+# /health through Caddy; 3 misses restart the stack, 10 reboot (about 5 minutes, at most once an hour).
+cat > /opt/toolkit/watchdog.sh <<'WDEOF'
+#!/bin/bash
+set -u
+STATE=/run/toolkit-watchdog.failures
+REBOOT_STAMP=/var/lib/toolkit-watchdog.reboot
+log() { echo "$(date -u +%FT%TZ) toolkit_watchdog_action=$1 failures=$2" >> /var/log/toolkit-watchdog.log; }
+
+failed=0
+# Caddy has no localhost site, so resolve each hostname to this host to keep TLS valid.
+for host in ${join(" ", [for app in apps : app.hostname])}; do
+  curl -fsS -m 5 -o /dev/null --resolve "$host:443:127.0.0.1" "https://$host/health" || failed=1
+done
+if [ "$failed" -eq 0 ]; then
+  rm -f "$STATE"
+  exit 0
+fi
+
+n=$(( $(cat "$STATE" 2>/dev/null || echo 0) + 1 ))
+echo "$n" > "$STATE"
+cd /opt/toolkit
+if [ "$n" -eq 3 ]; then
+  log restart "$n"
+  # `up -d` revives a stopped container; `restart` unwedges a running one.
+  timeout 120 docker compose up -d
+  timeout 120 docker compose restart
+elif [ "$n" -ge 10 ] && { [ ! -e "$REBOOT_STAMP" ] || [ -n "$(find "$REBOOT_STAMP" -mmin +60)" ]; }; then
+  log reboot "$n"
+  touch "$REBOOT_STAMP"
+  systemctl reboot
+fi
+WDEOF
+chmod +x /opt/toolkit/watchdog.sh
+
+cat > /etc/systemd/system/toolkit-watchdog.service <<'WDEOF'
+[Unit]
+Description=Restart the toolkit stack when /health stops answering through Caddy
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/toolkit/watchdog.sh
+WDEOF
+
+# OnBootSec gives Caddy time to get its certificates before the first probe.
+cat > /etc/systemd/system/toolkit-watchdog.timer <<'WDEOF'
+[Unit]
+Description=Run the toolkit watchdog every 30 seconds
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=30s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+WDEOF
+systemctl daemon-reload
+systemctl enable --now toolkit-watchdog.timer
 
 # Each deploy leaves its old image behind; on 2026-10-13 they filled the root
 # disk and the next pull failed. ECR keeps every image for rollback.

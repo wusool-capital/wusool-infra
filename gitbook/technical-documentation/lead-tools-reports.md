@@ -22,14 +22,16 @@ readers become leads.
    records the reader through the
    [write contract](lead-tools.md#the-write-contract), returns the whole
    report, and sets a reader cookie.
-4. **`GET /reports/{slug}/pdf`** prints the stored report to A4 on each
-   download. It returns 403 without a reader cookie.
+4. **`GET /reports/{slug}/pdf`** redirects to the report's PDF in Sanity. The
+   PDF is printed to A4 once per report version at publish, so a download never
+   starts Chromium. It returns 403 without a reader cookie, and 503 while the
+   PDF isn't ready.
 
 An **interactive** report adds `interactive_url` to steps 1 and 3. It is the
 Sanity CDN URL of the report's HTML file, next to the whole stored report. The
 browser fetches that file and runs it in a sandboxed frame with no access to the
 page. If that fails, the stored copy stays. A locked reader never receives the
-URL. The PDF still prints the stored copy.
+URL. The PDF is printed from the stored copy.
 
 A returning reader skips the form. Their first visit to a different report
 records one more run, so every report a person reads becomes one activity.
@@ -63,9 +65,12 @@ readers get no confirmation or team emails.
   misses.
 - A report that hasn't been rendered yet returns 404, and so does every
   `/reports` route when Sanity isn't configured.
-- PDFs share the renderer's one-at-a-time lock and 30-second cap. For a
-  download, the 30 seconds include time spent waiting for the lock; a
-  download still waiting then returns 503.
+- The PDF is printed in the publish sync, under the renderer's one-at-a-time
+  lock and a 120-second cap. It is stored in Sanity as `renderedPdf`.
+- A failed print is logged (`insights_report_pdf_failed`) and doesn't hold
+  back the report. The next sync of the same version prints it again.
+- Reports published before this change get their PDF from
+  `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py`.
 
 ## Who read what
 

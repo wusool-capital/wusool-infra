@@ -23,19 +23,27 @@ as it stands rather than holding the render lock forever.
 """
 
 import asyncio
+import logging
 import re
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from playwright.async_api import Page, Route, WebSocketRoute, async_playwright
+from playwright.async_api import Browser, Page, Route, WebSocketRoute, async_playwright
+
+logger = logging.getLogger(__name__)
 
 _QUIET_MS = 1500
 _SETTLE_MAX_MS = 8_000
 _TIMEOUT_MS = 20_000
 _RENDER_TIMEOUT_S = 30
+# The padel report took 19 s on a laptop (2026-11-05); a 2 vCPU host needs headroom.
+_PDF_TIMEOUT_S = 120
+_CLOSE_TIMEOUT_S = 10
 _ISOLATED = [
+    # Docker's default 64 MB /dev/shm is too small for a 70-page report.
+    "--disable-dev-shm-usage",
     "--proxy-server=127.0.0.1:9",
     "--proxy-bypass-list=<-loopback>",
     "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
@@ -100,8 +108,7 @@ async def _fetch_print_asset(route: Route) -> None:
 
 class ChromiumReportRenderer:
     def __init__(self) -> None:
-        # ponytail: one Chromium at a time, PDF downloads included (~300 MB peak, 2 GB t3.small).
-        # Cache PDFs per version if downloads start queueing.
+        # ponytail: one Chromium at a time (padel PDF peaks near 750 MB; 2 GB t3.small, 1.2 GB cap).
         self._lock = asyncio.Lock()
 
     async def render(self, html: str, *, free_pages: int = 1) -> str:
@@ -113,19 +120,19 @@ class ChromiumReportRenderer:
             return await asyncio.wait_for(self._text(html), _RENDER_TIMEOUT_S)
 
     async def exhibit_images(self, html: str, exhibit_ids: tuple[str, ...]) -> dict[str, bytes]:
-        async def locked() -> dict[str, bytes]:
-            async with self._lock:
-                return await self._exhibit_images(html, exhibit_ids)
-
-        return await asyncio.wait_for(locked(), _RENDER_TIMEOUT_S)
+        # Queued outside the cap like `render`: a publish waits for a PDF print, it doesn't fail.
+        async with self._lock:
+            return await asyncio.wait_for(
+                self._exhibit_images(html, exhibit_ids), _RENDER_TIMEOUT_S
+            )
 
     async def pdf(self, html: str) -> bytes:
         async def locked() -> bytes:
             async with self._lock:
                 return await self._pdf(html)
 
-        # The queue counts toward the cap, so downloads fail fast rather than pile up.
-        return await asyncio.wait_for(locked(), _RENDER_TIMEOUT_S)
+        # Runs once per version at publish, in the background, so no reader waits on it.
+        return await asyncio.wait_for(locked(), _PDF_TIMEOUT_S)
 
     async def _render(self, html: str, free_pages: int) -> str:
         async with _isolated_page() as page:
@@ -187,13 +194,33 @@ async def _settle(page: Page, html: str) -> None:
 
 @asynccontextmanager
 async def _isolated_page() -> AsyncIterator[Page]:
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(args=_ISOLATED)
-        try:
-            page = await browser.new_page(viewport={"width": 1200, "height": 900})
-            page.set_default_timeout(_TIMEOUT_MS)
-            await page.route("**/*", _block)
-            await page.route_web_socket("**/*", _block_socket)
-            yield page
-        finally:
+    manager = async_playwright()
+    playwright = await manager.start()
+    browser: Browser | None = None
+
+    async def close() -> None:
+        if browser is not None:
             await browser.close()
+        await manager.__aexit__(None, None, None)
+
+    try:
+        browser = await playwright.chromium.launch(args=_ISOLATED)
+        page = await browser.new_page(viewport={"width": 1200, "height": 900})
+        page.set_default_timeout(_TIMEOUT_MS)
+        await page.route("**/*", _block)
+        await page.route_web_socket("**/*", _block_socket)
+        yield page
+    finally:
+        # An unbounded close on a starved host held the render lock for an hour (AZM-163).
+        try:
+            await asyncio.wait_for(close(), _CLOSE_TIMEOUT_S)
+        except TimeoutError:
+            # shortcut: private API, no public handle; Chromium exits once its pipe closes.
+            try:
+                from playwright._impl._transport import PipeTransport
+
+                transport = manager._connection._transport
+                if isinstance(transport, PipeTransport):
+                    transport._proc.kill()
+            except (ImportError, AttributeError):
+                logger.error("chromium_driver_kill_unavailable")

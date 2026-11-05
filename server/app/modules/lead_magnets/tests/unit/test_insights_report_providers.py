@@ -414,6 +414,7 @@ async def test_source_reads_the_pasted_html_and_its_rendered_version(monkeypatch
 
     assert source is not None
     assert (source.document_id, source.revision, source.rendered_from) == ("doc-1", "r1", "abc")
+    assert source.rendered_pdf is None
 
 
 async def test_source_carries_the_editors_lock_settings(monkeypatch) -> None:
@@ -636,9 +637,13 @@ async def test_save_rendered_is_guarded_by_the_revision_it_read(monkeypatch) -> 
     store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
     read = ReportSource(document_id="doc-1", revision="r1", html="<p>raw</p>", rendered_from=None)
 
-    assert await store.save_rendered(read, html="<p>flat</p>", preview_end=3, rendered_from="abc")
+    assert await store.save_rendered(
+        read, html="<p>flat</p>", preview_end=3, rendered_from="abc", pdf_url="https://cdn/x.pdf"
+    )
     status = 409
-    assert not await store.save_rendered(read, html="<p>x</p>", preview_end=1, rendered_from="d")
+    assert not await store.save_rendered(
+        read, html="<p>x</p>", preview_end=1, rendered_from="d", pdf_url=""
+    )
 
     request = sent[0]
     assert request.url.path == "/v2025-02-19/data/mutate/production"
@@ -653,11 +658,50 @@ async def test_save_rendered_is_guarded_by_the_revision_it_read(monkeypatch) -> 
                         "renderedHtml": "<p>flat</p>",
                         "renderedPreviewEnd": 3,
                         "renderedFrom": "abc",
+                        "renderedPdf": "https://cdn/x.pdf",
                     },
                 }
             }
         ]
     }
+
+
+async def test_save_pdf_sets_only_the_pdf_guarded_by_the_revision_it_read(monkeypatch) -> None:
+    sent: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return httpx.Response(200, json={})
+
+    _use_transport(monkeypatch, handler)
+    store = SanityReportSource(project_id="p", dataset="production", write_token="tok")
+    read = ReportSource(document_id="doc-1", revision="r1", html="<p>raw</p>", rendered_from="abc")
+
+    assert await store.save_pdf(read, "https://cdn/x.pdf")
+
+    patch = json.loads(sent[0].content)["mutations"][0]["patch"]
+    assert patch == {
+        "id": "doc-1",
+        "ifRevisionID": "r1",
+        "set": {"renderedPdf": "https://cdn/x.pdf"},
+    }
+
+
+async def test_the_pdf_is_read_back_and_only_this_datasets_own_files_are_served(
+    monkeypatch,
+) -> None:
+    own = "https://cdn.sanity.io/files/p/production/abc.pdf"
+    docs = iter(
+        [
+            {**_SANITY_REPORT, "pdfUrl": own},
+            {**_SANITY_REPORT, "pdfUrl": "https://evil.example/x.pdf"},
+            {**_SANITY_REPORT, "pdfUrl": ""},
+        ]
+    )
+    _use_transport(monkeypatch, lambda request: httpx.Response(200, json={"result": next(docs)}))
+    store = SanityReportSource(project_id="p", dataset="production")
+
+    assert [(await store.refresh(f"r{n}")).pdf_url for n in range(3)] == [own, None, None]
 
 
 @pytest.mark.parametrize(("mime", "kind"), [("image/png", "images"), ("image/avif", "files")])

@@ -27,14 +27,23 @@ def _report(slug: str = "buyouts-in-the-gcc", *, banner_pinned: bool = False) ->
 
 
 class _FakeSource:
-    """Every report already flattened from its current HTML, unless `stale`."""
+    """Every report already flattened and printed from its current HTML, unless `stale`
+    (neither) or `unprinted` (flattened only)."""
 
-    def __init__(self, *reports: ReportDocument, stale: bool = False, free_pages: int = 1) -> None:
+    def __init__(
+        self,
+        *reports: ReportDocument,
+        stale: bool = False,
+        unprinted: bool = False,
+        free_pages: int = 1,
+    ) -> None:
         self._reports = {r.slug: r for r in reports}
         self._stale = stale
+        self._unprinted = unprinted
         self.free_pages = free_pages
         self.superseded = False
         self.saved: list[tuple[str, str, int, str]] = []
+        self.pdfs: list[str] = []
         self.uploaded: list[tuple[bytes, str]] = []
         # Per pin, the slugs of the other reports still ticked in Sanity.
         self.ticked: dict[str, list[str]] = {"banner": []}
@@ -56,20 +65,37 @@ class _FakeSource:
             revision="rev-1",
             html=report.html,
             rendered_from=rendered_from,
+            rendered_pdf=None
+            if self._stale or self._unprinted
+            else "https://cdn.sanity.io/old.pdf",
             free_pages=self.free_pages,
         )
 
     async def save_rendered(
-        self, source: ReportSource, *, html: str, preview_end: int, rendered_from: str
+        self,
+        source: ReportSource,
+        *,
+        html: str,
+        preview_end: int,
+        rendered_from: str,
+        pdf_url: str,
     ) -> bool:
         if self.superseded:
             return False
         self.saved.append((source.document_id, html, preview_end, rendered_from))
+        self.pdfs.append(pdf_url)
+        return True
+
+    async def save_pdf(self, source: ReportSource, pdf_url: str) -> bool:
+        if self.superseded:
+            return False
+        self.pdfs.append(pdf_url)
         return True
 
     async def upload_image(self, data: bytes, mime: str) -> str:
         self.uploaded.append((data, mime))
-        return f"https://cdn.sanity.io/images/p/d/{len(self.uploaded)}.png"
+        kind = "files" if mime == "application/pdf" else "images"
+        return f"https://cdn.sanity.io/{kind}/p/d/{len(self.uploaded)}.{mime.split('/')[1]}"
 
     async def unpin_others(self, pins, document_id: str, *, pinned_at: str | None):
         self.unpinned.append((tuple(pins), document_id, pinned_at))
@@ -84,6 +110,7 @@ class _FakeSource:
 class _FakeRenderer:
     def __init__(self) -> None:
         self.rendered: list[str] = []
+        self.printed: list[str] = []
         self.free_pages: list[int] = []
 
     async def render(self, html: str, *, free_pages: int = 1) -> str:
@@ -95,7 +122,8 @@ class _FakeRenderer:
         raise AssertionError("a report has no charts to capture")
 
     async def pdf(self, html: str) -> bytes:
-        raise AssertionError("the sync never prints")
+        self.printed.append(html)
+        return b"%PDF"
 
 
 def _sync(*, source: _FakeSource, cms: "_FakeCms", renderer: _FakeRenderer | None = None):
@@ -286,7 +314,7 @@ async def test_embedded_images_are_uploaded_once_and_swapped_before_the_split() 
 
     await _sync(source=source, cms=_FakeCms()).sync(slug="buyouts-in-the-gcc", previous_slug=None)
 
-    assert source.uploaded == [(b"\x00\x00\x00", "image/png")]
+    assert [u for u in source.uploaded if u[1] == "image/png"] == [(b"\x00\x00\x00", "image/png")]
     _, saved, preview_end, _ = source.saved[0]
     assert "data:image" not in saved
     assert saved.count("https://cdn.sanity.io/images/p/d/1.png") == 2
@@ -306,3 +334,52 @@ async def test_a_failed_image_upload_stops_the_sync_before_anything_is_saved() -
         await _sync(source=source, cms=cms).sync(slug="buyouts-in-the-gcc", previous_slug=None)
 
     assert source.saved == [] and cms.calls == []
+
+
+async def test_a_new_version_is_printed_once_and_its_pdf_saved_with_it() -> None:
+    source, renderer = _FakeSource(_report(), stale=True), _FakeRenderer()
+
+    await _sync(source=source, cms=_FakeCms(), renderer=renderer).sync(
+        slug="buyouts-in-the-gcc", previous_slug=None
+    )
+
+    assert renderer.printed == ["<flat><p>x</p></flat>"], "the flattened report, not the paste"
+    assert source.uploaded == [(b"%PDF", "application/pdf")]
+    assert source.pdfs == ["https://cdn.sanity.io/files/p/d/1.pdf"]
+
+
+async def test_a_failed_print_still_publishes_the_report_with_no_pdf() -> None:
+    class _Broken(_FakeRenderer):
+        async def pdf(self, html: str) -> bytes:
+            raise TimeoutError
+
+    source, cms = _FakeSource(_report(), stale=True), _FakeCms()
+
+    await _sync(source=source, cms=cms, renderer=_Broken()).sync(
+        slug="buyouts-in-the-gcc", previous_slug=None
+    )
+
+    assert source.pdfs == [""], "empty also clears the previous version's PDF"
+    assert cms.calls == [("create", "buyouts-in-the-gcc")]
+
+
+async def test_a_flattened_report_without_a_pdf_is_printed_without_flattening_again() -> None:
+    source, renderer = _FakeSource(_report(), unprinted=True), _FakeRenderer()
+
+    await _sync(source=source, cms=_FakeCms(), renderer=renderer).sync(
+        slug="buyouts-in-the-gcc", previous_slug=None
+    )
+
+    assert renderer.rendered == [] and source.saved == []
+    assert renderer.printed == ["<p>x</p>"]
+    assert source.pdfs == ["https://cdn.sanity.io/files/p/d/1.pdf"]
+
+
+async def test_a_report_that_already_has_its_pdf_is_not_printed_again() -> None:
+    source, renderer = _FakeSource(_report()), _FakeRenderer()
+
+    await _sync(source=source, cms=_FakeCms(), renderer=renderer).sync(
+        slug="buyouts-in-the-gcc", previous_slug=None
+    )
+
+    assert renderer.printed == [] and source.pdfs == []

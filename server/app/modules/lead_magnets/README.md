@@ -180,7 +180,7 @@ posts to, so repointing it is a host change rather than a path change.
 | `GET /reports/{slug}` | serves | Gated insights report: the free part for a new reader, the whole report for a returning one |
 | `POST /reports/{slug}/unlock` | serves | The report gate (name, email, optional organisation); emails a 6-digit code through SES and returns a `challenge_id`. Records nothing |
 | `POST /reports/{slug}/unlock/verify` | serves | Takes `{challenge_id, code}`. On a match it returns the whole report and records the reader. A wrong code is 400; an expired, used-up or unknown code is 410 |
-| `GET /reports/{slug}/pdf` | serves | The whole report as an A4 PDF, printed per download; 403 until the reader unlocks |
+| `GET /reports/{slug}/pdf` | serves | Redirects to the report's A4 PDF, printed once per version at publish; 403 until the reader unlocks, 503 while it isn't ready |
 | `POST /reports/webhooks/sanity` | serves | Signed Sanity publish webhook for both document types; syncs the Webflow Reports card or Insights article |
 | `GET /analytics/config` | serves | The public PostHog key, host and `is_test` a page loads PostHog with. Fetched only after the visitor accepts tracking |
 | `GET /analytics/consent` | serves | A pixel the banner fires on Accept or Decline (`?choice=granted` or `denied`). Counts the choice anonymously and returns 204 |
@@ -254,12 +254,14 @@ its free part open and the rest behind one short form. There are three parts:
   - Their first visit to a *different* report records one more run, keyed
     `<reader>:<slug>`, so every report read becomes one `activities` row
     for PRD 2.
-  - `GET /reports/{slug}/pdf` prints the stored `renderedHtml` to A4 on
-    each download, under the same Chromium lock, network block and 30 s cap
-    as the render; a download still queued at 30 s is a 503. Google Fonts
+  - `ReportSync` prints the stored `renderedHtml` to A4 once per version, under
+    the same Chromium lock and network block as the render, with a 120 s cap, and
+    stores the Sanity file URL in `renderedPdf`. A failed print leaves it empty and
+    is retried by the next sync (`insights_report_pdf_failed`).
+    `GET /reports/{slug}/pdf` only redirects to that file. Google Fonts
     are the one exception to the block: the server fetches them from a fixed
     host list and hands them to Chromium. It returns 403 without a reader
-    cookie, has its own per-IP budget (`LEAD_MAGNET_REPORT_DOWNLOADS_PER_HOUR`),
+    cookie (503 until the PDF exists), has its own per-IP budget (`LEAD_MAGNET_REPORT_DOWNLOADS_PER_HOUR`),
     and records a run on another report's cookie the same way a page view does.
 - **Card.** `application/insights_report/sync.py`, triggered by the Sanity
   webhook, creates or updates the item in the Webflow Reports collection.
@@ -346,7 +348,7 @@ A report with `interactive` on keeps its charts and clicks for unlocked readers.
 the Sanity CDN URL of the uploaded `htmlFile`. `html` is still the whole static
 copy, so a failed live load leaves the report readable. A locked reader never
 gets the URL, and the provider drops any URL outside this dataset's own files.
-The PDF still prints the flattened copy.
+The PDF is printed from the flattened copy.
 
 The browser fetches the file straight from the CDN and runs it in a sandboxed
 `srcdoc` frame (`static/shared/interactive.js`). The frame has an opaque origin,

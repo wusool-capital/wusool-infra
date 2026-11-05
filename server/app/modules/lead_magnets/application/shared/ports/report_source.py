@@ -26,14 +26,27 @@ class ReportSourcePort(Protocol):
         ...
 
     async def save_rendered(
-        self, source: ReportSource, *, html: str, preview_end: int, rendered_from: str
+        self,
+        source: ReportSource,
+        *,
+        html: str,
+        preview_end: int,
+        rendered_from: str,
+        pdf_url: str,
     ) -> bool:
-        """Stores the flattened HTML that `get` serves from then on. `False`
-        when the document changed since `source` was read; nothing is saved."""
+        """Stores the flattened HTML that `get` serves from then on, with the URL of its
+        PDF (empty when printing failed, which also clears the previous version's PDF).
+        `False` when the document changed since `source` was read; nothing is saved."""
+        ...
+
+    async def save_pdf(self, source: ReportSource, pdf_url: str) -> bool:
+        """Stores only the PDF of the already flattened report. `False` when the
+        document changed since `source` was read; nothing is saved."""
         ...
 
     async def upload_image(self, data: bytes, mime: str) -> str:
-        """Stores one image and returns its CDN URL; the same bytes give the same URL."""
+        """Stores one file and returns its CDN URL; the same bytes give the same URL.
+        Images go through Sanity's image pipeline, any other type (a PDF) up as a plain file."""
         ...
 
     async def unpin_others(

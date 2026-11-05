@@ -18,7 +18,9 @@ Insights articles. Two document types:
 3. The toolkit server opens the pasted HTML once in headless Chromium and
    saves what it draws back to the report as static HTML, in the hidden
    `renderedHtml` field (with `renderedPreviewEnd`, where the free part ends). This is how exports that build their pages with
-   JavaScript, like "Buyouts in the GCC", become splittable. It then creates
+   JavaScript, like "Buyouts in the GCC", become splittable. It also prints the report's
+   PDF once, uploads it to Sanity and stores its URL in the hidden `renderedPdf` field;
+   the download button redirects to that file. It then creates
    or updates the matching card in the Webflow Reports collection, through
    the live API. This is
    meant to need no Publish in Webflow, which is not yet verified against
