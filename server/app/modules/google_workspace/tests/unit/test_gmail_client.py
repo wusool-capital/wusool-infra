@@ -36,7 +36,8 @@ class _Gmail:
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        return self.routes[request.url.path.removeprefix(USERS)]
+        # /gmail/v1/users/<mailbox>/<route...>
+        return self.routes["/" + "/".join(request.url.path.split("/")[5:])]
 
 
 def _client(http: httpx.AsyncClient, sleeps: RecordedSleeps) -> GmailClient:
@@ -201,9 +202,8 @@ async def test_an_empty_history_still_returns_the_bookmark() -> None:
     assert (page.messages, page.history_id, page.next_page_token) == ((), "901", None)
 
 
-@pytest.mark.parametrize("status", [404, 410])
-async def test_a_dropped_bookmark_raises_cursor_expired(status: int) -> None:
-    gmail = _Gmail({"/history": httpx.Response(status)})
+async def test_a_dropped_bookmark_raises_cursor_expired() -> None:
+    gmail = _Gmail({"/history": httpx.Response(404)})
     async with http_client(gmail) as http:
         with pytest.raises(CursorExpired):
             await _client(http, RecordedSleeps()).changes_page(MAILBOX, "1", None)
@@ -228,3 +228,61 @@ async def test_transient_errors_are_retried_before_giving_up() -> None:
         )
 
     assert sleeps.calls == [1.0]
+
+
+class _FrozenClock:
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def _backfill_of(count: int) -> _Gmail:
+    ids = [f"m{i}" for i in range(count)]
+    listing = {"messages": [{"id": i, "threadId": "t"} for i in ids]}
+    routes = {"/messages": httpx.Response(200, json=listing)}
+    routes.update({f"/messages/{i}": httpx.Response(200, json=_message(i, [])) for i in ids})
+    return _Gmail(routes)
+
+
+async def test_message_fetches_are_spaced_to_stay_under_the_mailbox_quota() -> None:
+    gmail = _backfill_of(4)
+    sleeps = RecordedSleeps()
+
+    async with http_client(gmail) as http:
+        client = GmailClient(http, StaticTokenSource(), sleeps, _FrozenClock())
+        page = await client.backfill_page(MAILBOX, date(2025, 11, 5), None)
+
+    assert len(page.messages) == 4
+    # 250 fetches a minute is one every 0.24s: the first goes at once, the rest queue behind it.
+    assert sorted(sleeps.calls) == pytest.approx([0.24, 0.48, 0.72])
+
+
+async def test_the_pace_is_kept_per_mailbox() -> None:
+    gmail = _backfill_of(1)
+    sleeps = RecordedSleeps()
+    other = "ramzy@wusoolcapital.com"
+
+    async with http_client(gmail) as http:
+        client = GmailClient(http, StaticTokenSource(), sleeps, _FrozenClock())
+        await client._get_message(MAILBOX, "m0")
+        await client._get_message(other, "m0")
+        # A second fetch for the first mailbox is the one that has to queue.
+        await client._get_message(MAILBOX, "m0")
+
+    assert sleeps.calls == pytest.approx([0.24])
+
+
+async def test_a_fetch_after_the_slot_has_passed_does_not_wait() -> None:
+    gmail = _backfill_of(1)
+    sleeps = RecordedSleeps()
+    clock = _FrozenClock()
+
+    async with http_client(gmail) as http:
+        client = GmailClient(http, StaticTokenSource(), sleeps, clock)
+        await client._get_message(MAILBOX, "m0")
+        clock.now += 1.0
+        await client._get_message(MAILBOX, "m0")
+
+    assert sleeps.calls == []

@@ -65,14 +65,46 @@ every reply is parsed into a Pydantic model before it leaves `providers/`.
 - A live calendar event with no start or `iCalUID` is dropped, since it can't be
   keyed. A cancelled event may arrive with only its id and is kept.
 
-## Not yet checked against Google's docs
+## Checked against Google's docs (6 Nov 2026)
 
-These were built from memory, and each fails visibly if wrong:
+- **Expired Gmail bookmark is a 404.** History is kept "at least one week and often
+  longer", and the client must then do a full sync
+  ([sync guide](https://developers.google.com/workspace/gmail/api/guides/sync)).
+- **Expired Calendar sync token is a 410** (`fullSyncRequired`); the client must
+  clear its store and re-sync
+  ([errors](https://developers.google.com/workspace/calendar/api/guides/errors)).
+- **A sync token rules out `timeMin`, `timeMax` and `updatedMin`, and `showDeleted`
+  may not be false.** Every other parameter must match the first request
+  ([events.list](https://developers.google.com/workspace/calendar/api/v3/reference/events/list)).
+  The backfill and the incremental calls share their parameters for this reason.
+- **A bounded first sync is allowed.** Google's own sample sets `timeMin` on the
+  full sync ([sync guide](https://developers.google.com/workspace/calendar/api/guides/sync)).
+- **Rate limits come as 403 or 429.** Calendar's `rateLimitExceeded` "can return
+  either 403 or 429" and `userRateLimitExceeded` is a 403; both get exponential
+  backoff ([errors](https://developers.google.com/workspace/calendar/api/guides/errors)).
+- **`gmail.metadata` cannot use the `q` filter**, so the date-filtered backfill
+  needs `gmail.readonly`. `history.list` accepts either scope
+  ([messages.list](https://developers.google.com/workspace/gmail/api/reference/rest/v1/users.messages/list)).
+- **The delegation token request matches Google's example:** claims `iss`, `sub`,
+  `scope`, `aud`, `iat` and `exp` (at most one hour), signed RS256, with the
+  `jwt-bearer` grant type
+  ([service accounts](https://developers.google.com/identity/protocols/oauth2/service-account)).
+- **Gmail quota is 6,000 units a minute per user.** `messages.get` costs 20,
+  `messages.list` 5, `history.list` 2 and `getProfile` 1
+  ([usage limits](https://developers.google.com/workspace/gmail/api/reference/quota)),
+  so a mailbox allows about 300 message fetches a minute. The client paces its
+  fetches to 250 a minute per mailbox. A 12-month backfill of a large mailbox is
+  therefore slow by design: 20,000 messages take about 80 minutes.
 
-- Gmail answers an expired `startHistoryId` with 404. 410 is treated the same.
-- Calendar answers an expired sync token with 410.
-- Whether Calendar issues a sync token when the first request has `timeMin` and
-  `timeMax`. `CalendarPage.next_sync_token` is `None` when it doesn't.
-- Whether the delegation accepts an alias address as the mailbox. Use primary
-  addresses.
-- That quota limits arrive as 403 with a `rateLimitExceeded` reason.
+## Still not documented
+
+- Whether `sub` may be an alias address. Google describes it as "the email address
+  of the user". Use primary addresses.
+- Whether a first request with `timeMax` as well as `timeMin` still returns a sync
+  token. `CalendarPage.next_sync_token` is `None` when it doesn't. The documented
+  fallback is `updatedMin`, which answers 410 `updatedMinTooLongAgo` when too old.
+
+## Worth knowing when you consume it
+
+An incremental Calendar sync cannot be limited by time, so it returns changes to
+events of any date. The consumer must drop what falls outside the window it keeps.

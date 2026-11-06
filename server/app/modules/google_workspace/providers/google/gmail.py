@@ -1,6 +1,8 @@
 """Gmail over HTTPS: message headers and labels only, never a body."""
 
 import asyncio
+import time
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 
 import httpx
@@ -32,15 +34,25 @@ _METADATA_HEADERS = (
 _LIST_PAGE_SIZE = "100"
 _HISTORY_PAGE_SIZE = "500"
 _FETCH_CONCURRENCY = 10
+# A mailbox gets 6,000 quota units a minute and messages.get costs 20, so 300 fetches at most.
+# 250 leaves room for the list, history and profile calls.
+_GETS_PER_MINUTE = 250
+_GET_INTERVAL_S = 60.0 / _GETS_PER_MINUTE
 
 
 class GmailClient:
     def __init__(
-        self, http: httpx.AsyncClient, tokens: TokenSource, sleep: Sleep = asyncio.sleep
+        self,
+        http: httpx.AsyncClient,
+        tokens: TokenSource,
+        sleep: Sleep = asyncio.sleep,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._http = http
         self._tokens = tokens
         self._sleep = sleep
+        self._clock = clock
+        self._next_fetch_at: dict[str, float] = {}
 
     async def current_history_id(self, mailbox: str) -> str:
         profile = await get_model(
@@ -92,9 +104,8 @@ class GmailClient:
                 self._sleep,
             )
         except GoogleApiError as error:
-            # A bookmark Gmail has dropped answers 404; 410 is accepted too, so a wrong guess
-            # about which one it sends re-reads the recent period instead of failing forever.
-            if error.status in (404, 410):
+            # Gmail answers 404 when the start id is outside its history, kept a week or more.
+            if error.status == 404:
                 raise CursorExpired(f"Gmail history bookmark expired for {mailbox}") from error
             raise
         added = (item.message.id for record in history.history for item in record.messages_added)
@@ -115,8 +126,17 @@ class GmailClient:
         fetched = await asyncio.gather(*(one(message_id) for message_id in message_ids))
         return tuple(message for message in fetched if message is not None)
 
+    async def _pace(self, mailbox: str) -> None:
+        """Reserves this fetch's slot, so concurrent fetches stay under the mailbox's quota."""
+        now = self._clock()
+        slot = max(now, self._next_fetch_at.get(mailbox, now))
+        self._next_fetch_at[mailbox] = slot + _GET_INTERVAL_S
+        if slot > now:
+            await self._sleep(slot - now)
+
     async def _get_message(self, mailbox: str, message_id: str) -> MailMessage | None:
         params = [("format", "metadata"), *(("metadataHeaders", h) for h in _METADATA_HEADERS)]
+        await self._pace(mailbox)
         try:
             raw = await get_model(
                 self._http,
