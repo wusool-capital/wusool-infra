@@ -28,6 +28,7 @@ It ignores internal-only mail and meetings, spam, trash, drafts, and chat. It al
 
 1. The first time, it records Gmail's change bookmark, then reads the last 12 months one page at a time. It saves its place after every page, so a restart resumes.
 2. After that, each poll reads only the changes since the saved bookmark. Calendar works the same way with a sync token.
+   Calendar also reads the slice that just came inside its 180-day window, because nobody has edited those meetings.
 3. If Google drops a bookmark, Gmail re-reads from the last sync minus one day. Calendar re-reads its full window.
 4. Rows and the saved position are written in one transaction. A re-read email is skipped. A re-read meeting is updated in place. Cancelled, declined, and moved-away meetings are flagged so they stop counting.
 5. Each outside address is then matched to a Person and an Organization.

@@ -130,12 +130,15 @@ class FakeCalendar:
         self.backfill_pages: list[CalendarPage] = [CalendarPage((), None, "sync-1")]
         self.change_pages: list[CalendarPage] = []
         self.expire_changes = False
+        self.fail_backfill = False
         self.windows: list[tuple[datetime, datetime]] = []
         self.sync_tokens_used: list[str] = []
 
     async def backfill_page(
         self, mailbox: str, time_min: datetime, time_max: datetime, page_token: str | None
     ) -> CalendarPage:
+        if self.fail_backfill:
+            raise RuntimeError("calendar is down")
         self.windows.append((time_min, time_max))
         return self.backfill_pages.pop(0)
 

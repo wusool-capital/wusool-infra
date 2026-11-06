@@ -67,6 +67,11 @@ one row in `mailbox_sync_cursors`.
   runs again for that mailbox.
 - **After that:** only changes since the saved bookmark are read. The bookmark moves
   once every page of the poll is saved.
+- **Calendar's far edge:** Google's changes list never mentions a meeting nobody edited, so
+  a meeting that has just come inside the 180-day window would be missed. Each poll
+  therefore also reads that new slice, from where the window ended at the last sync
+  (minus a day) to where it ends now. It is usually one empty request. The sync
+  position moves only after this read works, so a failure leaves no gap.
 - **Expired bookmark or token:** Gmail re-reads from `last_synced_at` minus a day, so an
   outage of any length is covered. Calendar re-reads the full window.
 - **No Calendar sync token** (if Google does not issue one): the next passes re-read the

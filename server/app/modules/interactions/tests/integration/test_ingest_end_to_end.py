@@ -97,9 +97,11 @@ async def test_a_pass_stores_links_and_then_polls_without_repeating_itself(
 
     mail.change_pages = [MailPage((), None, "h101")]
     calendar.change_pages = [CalendarPage((), None, "sync-2")]
+    # The second poll also reads the slice that just came inside the window; it is empty here.
+    calendar.backfill_pages = [CalendarPage((), None, None)]
     second = await service.run_pass()
 
-    assert second.written == 0
+    assert (second.written, second.failures) == (0, ())
     after = await store.read_cursor(mailbox, Source.GMAIL)
     assert after is not None
     assert after.cursor == "h101"

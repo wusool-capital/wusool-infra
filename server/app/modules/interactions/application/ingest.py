@@ -196,10 +196,16 @@ class IngestService:
         if cursor.cursor is None:
             return await self._calendar_read(cursor, now, now - _RECENT_CALENDAR_WINDOW, False)
         try:
-            return await self._calendar_changes(cursor, cursor.cursor, now)
+            written, sync_token = await self._calendar_changes(cursor, cursor.cursor, now)
         except CursorExpired:
             logger.warning("interactions_calendar_sync_token_expired mailbox=%s", mailbox)
             return await self._calendar_full(cursor, now)
+        written += await self._calendar_horizon(cursor, now)
+        # Saved last, once everything above worked, so a failure re-reads the same ground.
+        await self._save(
+            mailbox, Source.CALENDAR, (), (), replace(cursor, cursor=sync_token, last_synced_at=now)
+        )
+        return written
 
     async def _calendar_full(self, cursor: SyncCursor, now: datetime) -> int:
         time_min = months_before(now, self._config.backfill_months)
@@ -228,18 +234,36 @@ class IngestService:
             if token is None:
                 return written
 
-    async def _calendar_changes(self, cursor: SyncCursor, sync_token: str, now: datetime) -> int:
+    async def _calendar_changes(
+        self, cursor: SyncCursor, sync_token: str, now: datetime
+    ) -> tuple[int, str]:
+        """Saves the changed events and returns how many, with the token for the next poll."""
         token: str | None = None
         written = 0
         while True:
             page = await self._calendar.changes_page(cursor.mailbox, sync_token, token)
             token = page.next_page_token
-            final = (
-                replace(cursor, cursor=page.next_sync_token or sync_token, last_synced_at=now)
-                if token is None
-                else None
-            )
-            written += await self._save_events(cursor.mailbox, page.events, now, final)
+            written += await self._save_events(cursor.mailbox, page.events, now, None)
+            if token is None:
+                return written, page.next_sync_token or sync_token
+
+    async def _calendar_horizon(self, cursor: SyncCursor, now: datetime) -> int:
+        """Reads the slice of calendar that has just come inside the window.
+
+        A changes-only sync can't see it: nobody edited those meetings. The slice runs from where
+        the window ended at the last sync, minus a day, to where it ends now.
+        """
+        if cursor.last_synced_at is None:
+            return 0
+        window = timedelta(days=self._config.next_window_days)
+        time_min = cursor.last_synced_at + window - timedelta(days=1)
+        time_max = now + window
+        token: str | None = None
+        written = 0
+        while True:
+            page = await self._calendar.backfill_page(cursor.mailbox, time_min, time_max, token)
+            token = page.next_page_token
+            written += await self._save_events(cursor.mailbox, page.events, now, None)
             if token is None:
                 return written
 
