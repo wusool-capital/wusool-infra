@@ -68,6 +68,7 @@ from app.modules.enrichment.api.dependencies import configure_review_port
 from app.modules.enrichment.api.slack.handlers import (
     register_handlers as register_enrichment_handlers,
 )
+from app.modules.interactions.bootstrap import run_interactions_forever
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_analytics
@@ -201,12 +202,17 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     # (a failed AI/Attio call) without waiting for a request to trigger it.
     # See `lead_magnets/application/shared/sweeper.py`.
     sweeper_task = asyncio.create_task(run_sweeper_forever())
+    # Reads Gmail and Calendar into Postgres. Returns at once unless INTERACTIONS_ENABLED is set.
+    interactions_task = asyncio.create_task(run_interactions_forever())
     try:
         yield
     finally:
         sweeper_task.cancel()
+        interactions_task.cancel()
         with suppress(asyncio.CancelledError):
             await sweeper_task
+        with suppress(asyncio.CancelledError):
+            await interactions_task
         await shutdown_analytics()
 
 

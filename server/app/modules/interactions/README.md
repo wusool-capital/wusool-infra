@@ -10,11 +10,10 @@ _New to this codebase's layering? See
 
 ## Status
 
-Read-only and unfinished. The module can read and store Gmail and Calendar
-metadata and link it to CRM records: `IngestService.run_pass()` does one pass.
-Nothing calls it yet, because the poll loop that runs it is the next step.
-Nothing writes to Attio: that is a later PR, gated by the shadow-week
-calibration.
+Read-only and unfinished. The module reads and stores Gmail and Calendar
+metadata and links it to CRM records. `IngestService.run_pass()` does one pass,
+and `run_interactions_forever()` runs it on a timer, off by default. Nothing
+writes to Attio: that is a later PR, gated by the shadow-week calibration.
 
 ## Structure
 
@@ -24,11 +23,28 @@ application/
   ingest.py     # IngestService: backfill, polling, recovery, linking, retention
   mapping.py    # fetched Gmail and Calendar data -> rows to store (pure)
   ports/        # InteractionStorePort, RecordDirectoryPort (Protocols) and the records they carry
-persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory (tables from d5f8b2a17c94)
+persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory, advisory lock
+bootstrap.py    # run_interactions_forever(): wires everything and runs the poll loop
 config.py       # InteractionsSettings: every tunable, prefixed interactions_
 ```
 
-Planned: `bootstrap.py` (the poll loop, gated by `interactions_enabled`).
+## The poll loop
+
+`main.py`'s lifespan starts `run_interactions_forever()` beside the lead-magnet
+sweeper and cancels it on shutdown. It returns at once, doing nothing, unless
+**`INTERACTIONS_ENABLED=true`** and **`GOOGLE_SERVICE_ACCOUNT_JSON`** is a valid
+key. A missing or malformed key is logged and never echoed.
+
+Every `INTERACTIONS_POLL_INTERVAL_S` (900) it takes a Postgres advisory lock and
+runs one pass. If another instance holds the lock, that round is skipped. This
+matters because dev and prod can share a database and a Google tenant, and a
+deploy briefly runs two containers. The lock lives on a connection of its own, so
+a crashed process releases it. A failed pass is logged and the loop carries on.
+
+Once a day, after a pass, it purges interactions older than
+`INTERACTIONS_RETENTION_MONTHS` (12). A failed purge is retried on the next pass.
+
+Turn it on in **one** environment only. It reads three real mailboxes.
 
 ## How a pass works
 
