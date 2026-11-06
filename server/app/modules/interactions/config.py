@@ -18,6 +18,8 @@ from app.modules.utilities import SecretsManagerSettings
 class InteractionsSettings(SecretsManagerSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    database_url: str
+
     # Off by default: dev and prod share one Attio workspace and one Google tenant.
     interactions_enabled: bool = False
     interactions_poll_interval_s: int = 900
@@ -37,6 +39,14 @@ class InteractionsSettings(SecretsManagerSettings):
     interactions_next_window_days: int = 180
     # Lower bounds of Weak, Good, Strong and Very strong; tuned in the shadow week.
     interactions_label_cutoffs: str = "1 3 7 15"
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        """Deploy and CI pass a plain `postgresql://` URL; the async engine needs asyncpg."""
+        if value.startswith("postgresql://"):
+            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return value
 
     @field_validator("interactions_mailboxes")
     @classmethod

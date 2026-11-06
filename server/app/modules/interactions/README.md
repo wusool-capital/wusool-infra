@@ -10,20 +10,54 @@ _New to this codebase's layering? See
 
 ## Status
 
-Read-only and unfinished. The module holds the pure domain rules and the
-settings. Storing the fetched rows, the ingest pass and the poll loop come
-next. Nothing writes to Attio: that is a later PR, gated by the shadow-week
+Read-only and unfinished. The module can read and store Gmail and Calendar
+metadata and link it to CRM records: `IngestService.run_pass()` does one pass.
+Nothing calls it yet, because the poll loop that runs it is the next step.
+Nothing writes to Attio: that is a later PR, gated by the shadow-week
 calibration.
 
 ## Structure
 
 ```
-domain/       # Touch, scoring, summarize, ignore filter, internal-address rules
-config.py     # InteractionsSettings: every tunable, prefixed interactions_
+domain/         # Touch, scoring, summarize, ignore filter, linking rules, month windows
+application/
+  ingest.py     # IngestService: backfill, polling, recovery, linking, retention
+  mapping.py    # fetched Gmail and Calendar data -> rows to store (pure)
+  ports/        # InteractionStorePort, RecordDirectoryPort (Protocols) and the records they carry
+persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory (tables from d5f8b2a17c94)
+config.py       # InteractionsSettings: every tunable, prefixed interactions_
 ```
 
-Planned: `application/` (ingest, retention), `persistence/` (the three tables
-from migration `d5f8b2a17c94`), `bootstrap.py` (the poll loop).
+Planned: `bootstrap.py` (the poll loop, gated by `interactions_enabled`).
+
+## How a pass works
+
+For each mailbox, Gmail and Calendar are synced separately. Each source keeps
+one row in `mailbox_sync_cursors`.
+
+- **First time:** Gmail's change bookmark is recorded *before* any mail is read, so
+  mail that arrives during the backfill is picked up by the first poll. Then the
+  last 12 months are read a page at a time. The page token is saved with each
+  page, so a restart resumes. `backfill_completed_at` marks it done, and it never
+  runs again for that mailbox.
+- **After that:** only changes since the saved bookmark are read. The bookmark moves
+  once every page of the poll is saved.
+- **Expired bookmark or token:** Gmail re-reads from `last_synced_at` minus a day, so an
+  outage of any length is covered. Calendar re-reads the full window.
+- **No Calendar sync token** (if Google does not issue one): the next passes re-read the
+  last seven days instead.
+
+Rows are saved with their sync position in one transaction. A re-read email is
+skipped, and a re-read meeting is updated in place, so a moved or renamed meeting
+keeps one row. Meetings Google reports as cancelled are flagged.
+
+Afterwards, outside addresses that have no Person or Organization are matched: a
+unique address links its Person, and the domain (or a parent domain) links its
+Organization. An address shared by several Persons, or a domain shared by several
+Organizations, links nothing. Counts of those are reported; the review table that
+will hold them comes in a later PR. Links are only ever filled in, never replaced.
+
+`purge_expired()` deletes interactions older than the retention window.
 
 ## Google access
 
