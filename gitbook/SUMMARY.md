@@ -31,6 +31,7 @@
   * [Speaker separation](technical-documentation/scribe-speakers.md)
   * [Summaries and proofread](technical-documentation/scribe-summaries.md)
 * [Attio and database sync](technical-documentation/attio-sync.md)
+* [Interactions engine](technical-documentation/interactions.md)
 * [Website lead tools](technical-documentation/lead-tools.md)
   * [Valuation](technical-documentation/lead-tools-valuation.md)
   * [M&A Readiness](technical-documentation/lead-tools-readiness.md)
