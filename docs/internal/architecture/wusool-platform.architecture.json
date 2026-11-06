@@ -362,6 +362,30 @@
           "label": "Release workflow"
         }
       ]
+    },
+    {
+      "id": "google",
+      "type": "external",
+      "label": "Google Workspace",
+      "sublabel": "Gmail + Calendar, read-only",
+      "pos": [
+        720,
+        104
+      ],
+      "size": [
+        190,
+        56
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/google_workspace/README.md",
+          "label": "Google access"
+        },
+        {
+          "path": "gitbook/technical-documentation/interactions.md",
+          "label": "Interactions engine"
+        }
+      ]
     }
   ],
   "boundaries": [
@@ -412,7 +436,7 @@
       "label": "embed.js iframe",
       "variant": "emphasis",
       "labelAt": [
-        232,
+        300,
         388
       ]
     },
@@ -479,30 +503,19 @@
       "from": "attio",
       "to": "toolkit",
       "label": "signed POST /webhooks/attio",
-      "variant": "security",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelDy": 70,
-      "labelDx": -82
+      "variant": "security"
     },
     {
       "from": "toolkit",
       "to": "attio",
       "label": "writes",
-      "variant": "dashed",
-      "fromSide": "top",
-      "toSide": "bottom",
-      "labelDx": 32,
-      "labelDy": -60
+      "variant": "dashed"
     },
     {
       "from": "github",
       "to": "toolkit",
       "label": "deploy + nightly resync via SSM",
-      "variant": "emphasis",
-      "fromSide": "left",
-      "toSide": "top",
-      "labelDy": 14
+      "variant": "emphasis"
     },
     {
       "from": "toolkit",
@@ -574,6 +587,12 @@
       "to": "sanity",
       "label": "rendered report + PDF",
       "variant": "dashed"
+    },
+    {
+      "from": "toolkit",
+      "to": "google",
+      "label": "mail + calendar metadata (delegated, read-only)",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -582,7 +601,8 @@
       "title": "One Toolkit process",
       "items": [
         "Serves Slack, the web find-match app, Scribe, the lead tools, and Attio and Sanity webhooks",
-        "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards"
+        "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards",
+        "Optionally reads Gmail and Calendar metadata into PostgreSQL (the interactions loop, off by default)"
       ]
     },
     {
@@ -590,7 +610,8 @@
       "title": "Data ownership",
       "items": [
         "Attio is the CRM of record and is written first",
-        "PostgreSQL mirrors it via webhook and nightly resync"
+        "PostgreSQL mirrors it via webhook and nightly resync",
+        "Interaction metadata (headers and subjects, never bodies) is kept 12 months; nothing writes it to Attio yet"
       ]
     },
     {
