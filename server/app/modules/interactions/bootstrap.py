@@ -65,23 +65,49 @@ async def run_loop(
         try:
             async with lock() as won:
                 if won:
-                    await service.run_pass()
-                    now = clock()
-                    if last_purge is None or now - last_purge >= _PURGE_EVERY:
-                        purged = await service.purge_expired()
-                        # Set only after it worked, so a failed purge is retried next pass.
-                        last_purge = now
-                        logger.info("interactions_purged rows=%d", purged)
+                    last_purge = await _round(service, clock, last_purge)
                 else:
                     logger.info("interactions_pass_skipped: another instance holds the lock")
         except asyncio.CancelledError:
             raise
         except Exception:
+            # Reaching here means the lock itself failed; the round's own failures are handled.
             logger.exception("interactions_pass_failed")
         await sleep(interval_s)
 
 
+async def _round(
+    service: PassRunner, clock: Callable[[], datetime], last_purge: datetime | None
+) -> datetime | None:
+    """One pass, then the daily purge. Each is guarded alone, so neither can skip the other."""
+    try:
+        await service.run_pass()
+    except Exception:
+        logger.exception("interactions_pass_failed")
+    now = clock()
+    if last_purge is not None and now - last_purge < _PURGE_EVERY:
+        return last_purge
+    try:
+        purged = await service.purge_expired()
+    except Exception:
+        logger.exception("interactions_purge_failed")
+        return last_purge  # unchanged, so the next round tries again
+    logger.info("interactions_purged rows=%d", purged)
+    return now
+
+
 async def run_interactions_forever() -> None:
+    """Never raises except to be cancelled. `main.py` awaits this task at shutdown, and a
+    startup failure must not become an error there that skips the rest of shutdown."""
+    try:
+        await _start()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("interactions_stopped: could not start or keep running")
+
+
+async def _start() -> None:
     settings = get_settings()
     if not settings.interactions_enabled:
         logger.info("interactions_disabled: set INTERACTIONS_ENABLED=true to start the loop")
@@ -106,7 +132,12 @@ async def run_interactions_forever() -> None:
         next_window_days=settings.interactions_next_window_days,
     )
     async with httpx.AsyncClient(timeout=_HTTP_TIMEOUT_S) as http:
-        tokens = DelegatedTokenSource(key, http, (GMAIL_READONLY, CALENDAR_READONLY))
+        try:
+            tokens = DelegatedTokenSource(key, http, (GMAIL_READONLY, CALENDAR_READONLY))
+        except ValueError:
+            # Generic on purpose, like the check above: never echo anything from the key.
+            logger.error("interactions_not_started: the service-account private key can't be read")
+            return
         service = IngestService(
             SqlAlchemyInteractionStore(sessionmaker),
             SqlAlchemyRecordDirectory(sessionmaker),

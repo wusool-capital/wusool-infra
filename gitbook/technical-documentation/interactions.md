@@ -29,7 +29,7 @@ It ignores internal-only mail and meetings, spam, trash, drafts, and chat. It al
 1. The first time, it records Gmail's change bookmark, then reads the last 12 months one page at a time. It saves its place after every page, so a restart resumes.
 2. After that, each poll reads only the changes since the saved bookmark. Calendar works the same way with a sync token.
 3. If Google drops a bookmark, Gmail re-reads from the last sync minus one day. Calendar re-reads its full window.
-4. Rows and the saved position are written in one transaction. A re-read email is skipped. A re-read meeting is updated in place, and cancelled meetings are flagged.
+4. Rows and the saved position are written in one transaction. A re-read email is skipped. A re-read meeting is updated in place. Cancelled, declined, and moved-away meetings are flagged so they stop counting.
 5. Each outside address is then matched to a Person and an Organization.
 6. Once a day, it deletes interactions older than 12 months.
 
@@ -52,11 +52,11 @@ The key is the Secrets Manager value `GOOGLE_SERVICE_ACCOUNT_JSON`. Deleting the
 | Setting | Default | Purpose |
 | --- | --- | --- |
 | `INTERACTIONS_ENABLED` | `false` | Turns the loop on. Set it in one environment only. |
-| `INTERACTIONS_POLL_INTERVAL_S` | `900` | Seconds between passes. |
+| `INTERACTIONS_POLL_INTERVAL_S` | `900` | Seconds between passes. At least 60. |
 | `INTERACTIONS_MAILBOXES` | Jules and Ramzy | Primary addresses to read, separated by spaces. |
 | `INTERACTIONS_INTERNAL_DOMAINS` | both company domains | Team domains. The first is the main one. |
 | `INTERACTIONS_BACKFILL_MONTHS` | `12` | How far back the first read goes. |
-| `INTERACTIONS_RETENTION_MONTHS` | `12` | How long interactions are kept. |
+| `INTERACTIONS_RETENTION_MONTHS` | `12` | How long interactions are kept. At least 1. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | none | The service-account key. Secrets Manager only. |
 
 The scoring settings, which are the points, half-life, bonus, and label cut-offs, start at the plan's values. They are tuned during the shadow week.

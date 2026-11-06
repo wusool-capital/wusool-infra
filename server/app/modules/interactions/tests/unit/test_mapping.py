@@ -101,6 +101,20 @@ def test_every_guest_and_the_organizer_is_recorded_as_an_attendee() -> None:
     assert {p.role for p in item.participants} == {Role.ATTENDEE}
 
 
+def test_an_organizer_who_is_listed_and_declined_is_not_added_back() -> None:
+    item = _meeting(
+        attendees=(
+            Attendee(JULES, "accepted", True),
+            Attendee("boss@acme.com", "declined", False),
+            Attendee(SARA, "accepted", False),
+        ),
+        organizer="boss@acme.com",
+    )
+
+    assert item is not None
+    assert "boss@acme.com" not in {p.email for p in item.participants}
+
+
 def test_a_guest_who_declined_is_not_recorded() -> None:
     item = _meeting(
         attendees=(

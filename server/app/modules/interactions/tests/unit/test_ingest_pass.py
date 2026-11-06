@@ -33,6 +33,18 @@ async def test_one_failing_mailbox_does_not_stop_the_others() -> None:
     assert (JULES, Source.GMAIL) not in store.cursors
 
 
+async def test_a_linking_failure_is_reported_and_does_not_lose_what_was_saved() -> None:
+    store, mail = FakeStore(), FakeMail()
+    mail.backfill_pages = [MailPage((message("m1"), message("m2")), None)]
+    directory = FakeDirectory(fails=True)
+
+    report = await make_service(store, mail, directory=directory).run_pass()
+
+    assert report.failures == ("linking",)
+    assert report.written == 2
+    assert [i.source_id for i in store.items] == ["m1", "m2"]
+
+
 async def test_a_clean_pass_reports_no_failures_and_what_it_wrote() -> None:
     store, mail = FakeStore(), FakeMail()
     mail.backfill_pages = [MailPage((message("m1"), message("m2")), None)]

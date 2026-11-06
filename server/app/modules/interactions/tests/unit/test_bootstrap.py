@@ -292,3 +292,68 @@ async def test_the_enabled_loop_asks_for_both_scopes_and_runs_under_the_lock(
     assert (seen.lock_engine_id, seen.lock_key) == (id(engine), LOCK_KEY)
     assert seen.config is not None
     assert seen.config.mailboxes == ("jules@wusoolcapital.com",)
+
+
+async def test_a_failing_pass_does_not_skip_the_purge() -> None:
+    service = _Service(failing_passes=1)
+
+    await _run(service, _locks(), passes=1)
+
+    assert service.passes == 1
+    assert service.purges == 1
+
+
+async def test_a_startup_failure_is_logged_and_never_raised(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    def broken() -> None:
+        raise RuntimeError("database config is broken")
+
+    monkeypatch.setattr(
+        bootstrap, "get_settings", lambda: InteractionsSettings(interactions_enabled=True)
+    )
+    monkeypatch.setattr(
+        bootstrap,
+        "get_google_settings",
+        lambda: GoogleWorkspaceSettings(google_service_account_json=KEY_JSON),
+    )
+    monkeypatch.setattr(bootstrap, "get_sessionmaker", broken)
+
+    with caplog.at_level(logging.ERROR):
+        await bootstrap.run_interactions_forever()
+
+    assert "interactions_stopped" in caplog.text
+
+
+async def test_cancellation_still_propagates_out_of_the_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def cancelled() -> None:
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(bootstrap, "_start", cancelled)
+
+    with pytest.raises(asyncio.CancelledError):
+        await bootstrap.run_interactions_forever()
+
+
+async def test_an_unreadable_private_key_stops_the_loop_without_echoing_it(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        bootstrap, "get_settings", lambda: InteractionsSettings(interactions_enabled=True)
+    )
+    monkeypatch.setattr(
+        bootstrap,
+        "get_google_settings",
+        lambda: GoogleWorkspaceSettings(google_service_account_json=KEY_JSON),
+    )
+    monkeypatch.setattr(bootstrap, "get_sessionmaker", lambda: object())
+    monkeypatch.setattr(bootstrap, "get_engine", lambda: object())
+
+    with caplog.at_level(logging.ERROR):
+        await bootstrap.run_interactions_forever()
+
+    # The key in KEY_JSON is the text "pem", which is not a real RSA key.
+    assert "private key can't be read" in caplog.text
+    assert "pem" not in caplog.text

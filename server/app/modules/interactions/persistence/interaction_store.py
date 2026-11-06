@@ -1,5 +1,6 @@
 """Implements `InteractionStorePort` on the tables from migration `d5f8b2a17c94`."""
 
+import uuid
 from collections.abc import Sequence
 from datetime import datetime
 from typing import cast
@@ -182,7 +183,7 @@ def _row(item: NewInteraction) -> dict[str, str | datetime | None]:
 
 
 async def _add_participants(
-    session: AsyncSession, items: list[NewInteraction], ids: dict[str, object]
+    session: AsyncSession, items: list[NewInteraction], ids: dict[str, uuid.UUID]
 ) -> None:
     rows = [
         {

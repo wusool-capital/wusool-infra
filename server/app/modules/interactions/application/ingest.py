@@ -89,7 +89,13 @@ class IngestService:
                         "interactions_sync_failed mailbox=%s source=%s", mailbox, source
                     )
                     failures.append(f"{mailbox}:{source}")
-        linked, shared_emails, shared_domains = await self._link_participants()
+        linked = shared_emails = shared_domains = 0
+        try:
+            linked, shared_emails, shared_domains = await self._link_participants()
+        except Exception:
+            # Linking can be retried next pass; the rows it follows are already saved.
+            logger.exception("interactions_link_failed")
+            failures.append("linking")
         report = PassReport(written, linked, shared_emails, shared_domains, tuple(failures))
         logger.info(
             "interactions_pass written=%d linked=%d shared_emails=%d shared_domains=%d failures=%d",
@@ -256,6 +262,9 @@ class IngestService:
             item = event_to_item(mailbox, event, self._config.internal_domains)
             if item is not None and earliest <= item.occurred_at <= latest:
                 items.append(item)
+            else:
+                # We may already hold this meeting; a declined or moved-away one must stop counting.
+                cancelled.append(event.source_id)
         return await self._save(mailbox, Source.CALENDAR, tuple(items), tuple(cancelled), cursor)
 
     # --- Shared --------------------------------------------------------------------------

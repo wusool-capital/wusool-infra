@@ -4,11 +4,14 @@ Dev and prod can share a database and a Google tenant, and a deploy briefly runs
 containers. The lock is what stops them reading and writing the same mailboxes at once.
 """
 
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -17,6 +20,7 @@ async def try_advisory_lock(engine: AsyncEngine, key: int) -> AsyncIterator[bool
 
     The lock belongs to one connection, so it is taken on a connection of its own and never
     returned to the pool while held. If the process dies, Postgres drops the lock with it.
+    A connection that drops mid-block loses the lock too; the block is not told.
     """
     async with engine.connect() as connection:
         # Autocommit keeps a transaction from staying open for as long as a backfill runs.
@@ -26,4 +30,8 @@ async def try_advisory_lock(engine: AsyncEngine, key: int) -> AsyncIterator[bool
             yield won
         finally:
             if won:
-                await connection.execute(select(func.pg_advisory_unlock(key)))
+                try:
+                    await connection.execute(select(func.pg_advisory_unlock(key)))
+                except Exception:
+                    # A dead connection has already lost the lock; don't mask the block's error.
+                    logger.warning("interactions_lock_release_failed")

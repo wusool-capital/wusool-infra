@@ -7,7 +7,7 @@ Lists are space-separated strings, like `lead_magnet_frame_ancestors`.
 
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
 
 from app.modules.google_workspace import normalize_address
@@ -22,21 +22,23 @@ class InteractionsSettings(SecretsManagerSettings):
 
     # Off by default: dev and prod share one Attio workspace and one Google tenant.
     interactions_enabled: bool = False
-    interactions_poll_interval_s: int = 900
+    # At least a minute: a smaller value would hammer Google's quota and the database.
+    interactions_poll_interval_s: int = Field(default=900, ge=60)
     # Primary addresses to impersonate. Hugo's is added once the admin confirms it.
     interactions_mailboxes: str = "jules@wusoolcapital.com ramzy@wusoolcapital.com"
     # The first domain is canonical; the rest are aliases of it.
     interactions_internal_domains: str = "wusoolcapital.com dopaminecap.com"
-    interactions_backfill_months: int = 12
-    interactions_retention_months: int = 12
+    interactions_backfill_months: int = Field(default=12, ge=1)
+    # At least one month: zero would delete almost every interaction on the next purge.
+    interactions_retention_months: int = Field(default=12, ge=1)
 
-    interactions_email_sent_points: float = 1.0
-    interactions_email_received_points: float = 1.5
-    interactions_meeting_points: float = 4.0
-    interactions_half_life_days: float = 90.0
-    interactions_two_way_bonus: float = 1.5
-    interactions_two_way_window_days: int = 180
-    interactions_next_window_days: int = 180
+    interactions_email_sent_points: float = Field(default=1.0, ge=0)
+    interactions_email_received_points: float = Field(default=1.5, ge=0)
+    interactions_meeting_points: float = Field(default=4.0, ge=0)
+    interactions_half_life_days: float = Field(default=90.0, gt=0)
+    interactions_two_way_bonus: float = Field(default=1.5, gt=0)
+    interactions_two_way_window_days: int = Field(default=180, ge=1)
+    interactions_next_window_days: int = Field(default=180, ge=1)
     # Lower bounds of Weak, Good, Strong and Very strong; tuned in the shadow week.
     interactions_label_cutoffs: str = "1 3 7 15"
 

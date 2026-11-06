@@ -81,12 +81,15 @@ class FakeStore:
 
 
 class FakeDirectory:
-    def __init__(self, directory: RecordDirectory | None = None) -> None:
+    def __init__(self, directory: RecordDirectory | None = None, *, fails: bool = False) -> None:
         self._directory = directory or RecordDirectory({}, {})
+        self._fails = fails
         self.loads = 0
 
     async def load(self) -> RecordDirectory:
         self.loads += 1
+        if self._fails:
+            raise RuntimeError("directory is down")
         return self._directory
 
 

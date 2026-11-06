@@ -57,7 +57,9 @@ def event_to_item(
         return None
     # An attendee who declined never took part, so their address is not recorded.
     attending = [a.address for a in event.attendees if a.response_status != "declined"]
-    if event.organizer and event.organizer not in attending:
+    listed = {a.address for a in event.attendees}
+    # An organizer missing from the guest list took part; one who is listed and declined did not.
+    if event.organizer and event.organizer not in listed:
         attending.append(event.organizer)
     participants = _participants([(Role.ATTENDEE, attending)], internal_domains)
     raw = RawItem(

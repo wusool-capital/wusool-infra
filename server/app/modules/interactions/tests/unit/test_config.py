@@ -39,3 +39,26 @@ def test_tuned_values_reach_the_scoring_rules() -> None:
 def test_label_cutoffs_need_four_ascending_numbers(cutoffs: str) -> None:
     with pytest.raises(ValidationError):
         InteractionsSettings(interactions_label_cutoffs=cutoffs)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("interactions_poll_interval_s", 0),
+        ("interactions_poll_interval_s", 59),
+        ("interactions_retention_months", 0),
+        ("interactions_backfill_months", 0),
+        ("interactions_half_life_days", 0),
+        ("interactions_two_way_window_days", 0),
+        ("interactions_next_window_days", 0),
+        ("interactions_two_way_bonus", 0),
+        ("interactions_meeting_points", -1),
+    ],
+)
+def test_values_that_would_harm_a_live_run_are_rejected(field: str, value: float) -> None:
+    with pytest.raises(ValidationError):
+        InteractionsSettings(**{field: value})
+
+
+def test_the_shortest_allowed_poll_interval_is_one_minute() -> None:
+    assert InteractionsSettings(interactions_poll_interval_s=60).interactions_poll_interval_s == 60

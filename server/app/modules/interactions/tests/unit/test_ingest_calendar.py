@@ -1,6 +1,6 @@
 from datetime import UTC, datetime, timedelta
 
-from app.modules.google_workspace import CalendarPage, MailPage
+from app.modules.google_workspace import Attendee, CalendarPage, MailPage
 from app.modules.interactions.application.ports.interaction_store import (
     PageBatch,
     Source,
@@ -14,7 +14,7 @@ from app.modules.interactions.tests.fakes.ingest import (
     event,
     make_service,
 )
-from app.modules.interactions.tests.fakes.touches import JULES, NOW
+from app.modules.interactions.tests.fakes.touches import JULES, NOW, SARA
 
 LAST_SYNC = NOW - timedelta(days=10)
 FINISHED = datetime(2026, 10, 1, tzinfo=UTC)
@@ -91,6 +91,30 @@ async def test_changes_to_events_outside_the_kept_window_are_dropped() -> None:
     await make_service(store, FakeMail(), calendar).run_pass()
 
     assert [i.source_id for i in store.items] == ["near"]
+    # A stored meeting that moved out of the window must stop counting, so it is hidden.
+    assert sorted(store.cancelled) == ["far", "old"]
+
+
+async def test_a_stored_meeting_the_team_member_then_declines_is_hidden() -> None:
+    store, calendar = FakeStore(), FakeCalendar()
+    _seed_calendar(store)
+    declined = (Attendee(JULES, "declined", True), Attendee(SARA, "accepted", False))
+    calendar.change_pages = [CalendarPage((event("e1", attendees=declined),), None, "sync-10")]
+
+    await make_service(store, FakeMail(), calendar).run_pass()
+
+    assert store.items == []
+    assert store.cancelled == ["e1"]
+
+
+async def test_an_all_day_update_of_a_stored_meeting_hides_it() -> None:
+    store, calendar = FakeStore(), FakeCalendar()
+    _seed_calendar(store)
+    calendar.change_pages = [CalendarPage((event("e1", all_day=True),), None, "sync-10")]
+
+    await make_service(store, FakeMail(), calendar).run_pass()
+
+    assert store.cancelled == ["e1"]
 
 
 async def test_a_cancelled_meeting_is_reported_even_when_its_date_is_unknown() -> None:
