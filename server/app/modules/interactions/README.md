@@ -28,6 +28,15 @@ bootstrap.py    # run_interactions_forever(): wires everything and runs the poll
 config.py       # InteractionsSettings: every tunable, prefixed interactions_
 ```
 
+## Reads CRM tables directly
+
+`persistence/directory.py` reads `person` and `organizations` itself, rather than
+going through the modules that own them. It is read-only, and it is deliberate:
+`organizations`' public lookup returns one organization and can't see a domain
+shared by two, and `ddl_commands` exposes no Person lookup. This module writes
+only its own three tables. If `organizations` gains a lookup that lists every
+domain, switch to it.
+
 ## The poll loop
 
 `main.py`'s lifespan starts `run_interactions_forever()` beside the lead-magnet
