@@ -345,6 +345,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         count: segments.length,
         getScrollElement: () => scrollRef.current,
         estimateSize: () => 60, // Estimated height per segment
+        // Heights follow the line, not its position: Tidy Lines and deletes shift lines without resizing them.
+        getItemKey: (index) => segments[index].id,
         overscan: 10, // Render extra items above/below viewport
         onChange: () => {
             startTransition(() => {

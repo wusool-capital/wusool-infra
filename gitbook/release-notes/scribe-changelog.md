@@ -15,6 +15,13 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Changing your microphone or system audio in Settings shows straight away on the home screen.
 * Select All (⌘A) only selects text inside text fields. You can still drag to select text in summaries, transcripts, and meeting titles and headings.
 * Long meeting titles in a folder end with "…" instead of pushing the date off the edge of the window.
+* New meetings are named like "Meeting · 7 Nov, 18:22" instead of a file-style timestamp. Your own titles are never replaced by the summary's title.
+* Dialogs look sharp instead of slightly blurry, with a lighter background behind them. **Rename Meeting** selects the current name so you can type over it.
+
+### Fixed
+
+* The CoreML download bar fills as the download progresses and shows the real size, instead of sitting at 100%.
+* After **Tidy Lines**, transcript lines no longer overlap until you resize the window.
 
 ## 0.8.1
 
