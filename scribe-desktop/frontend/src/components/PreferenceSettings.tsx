@@ -7,6 +7,7 @@ import { invoke } from "@tauri-apps/api/core"
 import Analytics from "@/lib/analytics"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
 import { useTheme } from "@/contexts/ThemeContext"
+import { SpeakerSettings } from "./SpeakerSettings"
 
 export function PreferenceSettings() {
   const {
@@ -173,6 +174,8 @@ export function PreferenceSettings() {
           <Switch checked={notificationsEnabledValue} onCheckedChange={setNotificationsEnabled} />
         </div>
       </div>
+
+      <SpeakerSettings />
 
       {/* Data Storage Locations Section */}
       <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
