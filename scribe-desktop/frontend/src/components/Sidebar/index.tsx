@@ -76,8 +76,21 @@ function formatMeetingDate(createdAt?: string | null): string | null {
 }
 
 const SIDEBAR_MIN_WIDTH = 256;
+// Wide enough for long meeting titles; beyond this the sidebar crowds the transcript.
+const SIDEBAR_MAX_WIDTH = 420;
 const SIDEBAR_MAX_VIEWPORT_RATIO = 0.7;
 const SIDEBAR_WIDTH_STORAGE_KEY = 'sidebarWidth';
+
+const clampSidebarWidth = (width: number) =>
+  Math.round(Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_VIEWPORT_RATIO)));
+
+const saveSidebarWidth = (width: number) => {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(width));
+  } catch (error) {
+    console.error('Failed to save sidebar width:', error);
+  }
+};
 
 const Sidebar: React.FC = () => {
   const router = useRouter();
@@ -91,39 +104,56 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
-      if (saved >= SIDEBAR_MIN_WIDTH) setSidebarWidth(saved);
+      if (saved >= SIDEBAR_MIN_WIDTH) setSidebarWidth(Math.min(saved, SIDEBAR_MAX_WIDTH));
     } catch (error) {
       console.error('Failed to load sidebar width:', error);
     }
   }, []);
 
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
     e.preventDefault();
+    const handle = e.currentTarget;
+    const pointerId = e.pointerId;
+    // Capture keeps the release coming here even if it happens outside the window or a system dialog steals focus.
+    handle.setPointerCapture(pointerId);
     setIsResizing(true);
     // Body-level cursor/select overrides keep the drag smooth when the pointer leaves the thin handle.
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    let latestWidth = sidebarWidth;
+    const startWidth = sidebarWidth;
+    let latestWidth = startWidth;
+    let ended = false;
 
     const onMove = (event: PointerEvent) => {
-      const maxWidth = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_VIEWPORT_RATIO);
-      latestWidth = Math.round(Math.min(Math.max(event.clientX, SIDEBAR_MIN_WIDTH), maxWidth));
+      latestWidth = clampSidebarWidth(event.clientX);
       setSidebarWidth(latestWidth);
     };
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      handle.removeEventListener('lostpointercapture', end);
+      window.removeEventListener('blur', end);
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       setIsResizing(false);
-      try {
-        localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(latestWidth));
-      } catch (error) {
-        console.error('Failed to save sidebar width:', error);
-      }
+      // A click on the handle without a drag must not overwrite the saved width.
+      if (latestWidth !== startWidth) saveSidebarWidth(latestWidth);
     };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    handle.addEventListener('lostpointercapture', end);
+    window.addEventListener('blur', end);
+  };
+
+  const resetSidebarWidth = () => {
+    setSidebarWidth(SIDEBAR_MIN_WIDTH);
+    saveSidebarWidth(SIDEBAR_MIN_WIDTH);
   };
 
   const {
@@ -801,7 +831,7 @@ const Sidebar: React.FC = () => {
           isCollapsed && 'w-16'
         )}
         // maxWidth re-clamps a saved width when the window later shrinks.
-        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: `${SIDEBAR_MAX_VIEWPORT_RATIO * 100}vw` }}
+        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: `min(${SIDEBAR_MAX_WIDTH}px, ${SIDEBAR_MAX_VIEWPORT_RATIO * 100}vw)` }}
       >
         {/*  Header with traffic light spacing */}
         <div className="flex-shrink-0">
@@ -992,7 +1022,9 @@ const Sidebar: React.FC = () => {
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize sidebar"
+          title="Drag to resize. Double-click to reset."
           onPointerDown={handleResizeStart}
+          onDoubleClick={resetSidebarWidth}
           className={cn(
             'absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 transition-colors hover:bg-primary/30',
             isResizing && 'bg-primary/40'
