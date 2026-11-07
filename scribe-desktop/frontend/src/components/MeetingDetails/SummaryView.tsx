@@ -73,7 +73,7 @@ export function SummaryView({ summary }: { summary: Record<string, unknown> }) {
   const keywords = items(summary, 'keywords');
   return (
     // ~70 characters per line keeps long summaries comfortable to read.
-    <div className="max-w-[70ch] space-y-8 text-base leading-relaxed text-foreground">
+    <div className="max-w-[70ch] select-text space-y-8 text-base leading-relaxed text-foreground">
       {LEAD_SECTIONS.map((section) => (
         <ListSection key={section.key} summary={summary} section={section} />
       ))}

@@ -183,7 +183,7 @@ export function PushedMeetingView({
           <ScrollArea className="h-full">
             <section className="max-w-[70ch] space-y-3 p-6">
               <h2 className="text-base font-semibold text-foreground">Recording Folder</h2>
-              <p className="break-all text-sm text-muted-foreground">
+              <p className="select-text break-all text-sm text-muted-foreground">
                 {folderPath || 'This meeting has no recording folder.'}
               </p>
               <Button size="sm" variant="outline" onClick={onOpenMeetingFolder} disabled={!folderPath}>

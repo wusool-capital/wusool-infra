@@ -114,6 +114,21 @@ export default function RootLayout({
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
 
+  // Like a native app, Cmd/Ctrl+A only selects inside a text field, never the whole window.
+  useEffect(() => {
+    const guardSelectAll = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'a' || !(event.metaKey || event.ctrlKey)) return;
+      const target = document.activeElement;
+      const editable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (!editable) event.preventDefault();
+    };
+    window.addEventListener('keydown', guardSelectAll);
+    return () => window.removeEventListener('keydown', guardSelectAll);
+  }, []);
+
   useEffect(() => {
     // Check onboarding status first
     invoke<{ completed: boolean } | null>('get_onboarding_status')

@@ -236,7 +236,7 @@
   }
 }
 
-/* Desktop-app behaviour: only editable fields select text, so Cmd+A never highlights the whole window. */
+/* Desktop-app behaviour: chrome is not selectable; fields and reading text (marked select-text) are. */
 body {
   -webkit-user-select: none;
   user-select: none;

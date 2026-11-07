@@ -278,7 +278,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                     ) : (
                         <p
                             className={cn(
-                                'px-2 py-1 text-base leading-relaxed break-words',
+                                'select-text px-2 py-1 text-base leading-relaxed break-words',
                                 isStreaming ? 'rounded-md bg-muted text-foreground' : 'text-foreground',
                             )}
                         >
