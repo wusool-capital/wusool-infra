@@ -81,6 +81,12 @@ renaming a speaker changes one row.
 - **Voice library:** naming a voice stores its embedding in
   `speaker_profiles`. Later meetings auto-name voices whose cosine
   similarity is at least 0.7, and never give two voices the same person.
+- **Naming panel:** `get_speaker_overview` returns each voice's line
+  count, talk time and a sample line (the longest of its first five).
+  Unnamed voices scoring 0.5 or more against a profile not already in the
+  meeting get a one-click suggestion. `speaker_voice_clip` cuts up to six
+  seconds of the sample line from `system.mp4` with ffmpeg and returns it
+  as WAV bytes, played from a `blob:` URL (allowed by `media-src`).
 - **Models:** about 32 MB for CPU, plus 272 MB for CoreML. They are
   downloaded once into the app data folder, from a pinned revision of the
   `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0).

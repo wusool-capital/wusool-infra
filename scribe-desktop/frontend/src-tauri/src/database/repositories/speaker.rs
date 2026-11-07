@@ -9,6 +9,7 @@ use sqlx::{Connection, FromRow, Sqlite, SqlitePool, Transaction};
 use uuid::Uuid;
 
 use crate::diarization::assign::mean_embedding;
+use crate::diarization::overview::NamedProfile;
 use crate::diarization::SpeakerLabel;
 
 /// A named voice, as listed in settings.
@@ -48,6 +49,48 @@ pub struct AttributableSegment {
     pub audio_end_time: f64,
 }
 
+/// A diarized voice's share of a meeting, with one line to recognise it by.
+#[derive(Debug, Clone)]
+pub struct VoiceOverviewRow {
+    pub label: SpeakerLabel,
+    pub profile_id: Option<String>,
+    pub name: Option<String>,
+    pub embedding: Vec<f32>,
+    pub line_count: i64,
+    pub talk_seconds: f64,
+    pub sample: Option<VoiceSample>,
+}
+
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct VoiceSample {
+    pub segment_id: String,
+    pub text: String,
+    pub start: f64,
+    pub end: f64,
+}
+
+#[derive(FromRow)]
+struct VoiceStatsRow {
+    label: SpeakerLabel,
+    line_count: i64,
+    talk_seconds: f64,
+}
+
+#[derive(FromRow)]
+struct VoiceSampleRow {
+    label: SpeakerLabel,
+    #[sqlx(flatten)]
+    sample: VoiceSample,
+}
+
+#[derive(FromRow)]
+struct StoredVoiceRow {
+    label: SpeakerLabel,
+    profile_id: Option<String>,
+    name: Option<String>,
+    embedding: Vec<u8>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum SpeakerRepositoryError {
     #[error(transparent)]
@@ -72,6 +115,16 @@ impl SpeakerRepository {
         Ok(rows
             .into_iter()
             .map(|(id, blob)| StoredProfile { id, embedding: decode_embedding(&blob) })
+            .collect())
+    }
+
+    pub async fn named_profiles(pool: &SqlitePool) -> Result<Vec<NamedProfile>, sqlx::Error> {
+        let rows: Vec<(String, String, Vec<u8>)> = sqlx::query_as("SELECT id, name, embedding FROM speaker_profiles")
+            .fetch_all(pool)
+            .await?;
+        Ok(rows
+            .into_iter()
+            .map(|(id, name, blob)| NamedProfile { id, name, embedding: decode_embedding(&blob) })
             .collect())
     }
 
@@ -103,6 +156,68 @@ impl SpeakerRepository {
         .bind(meeting_id)
         .fetch_all(pool)
         .await
+    }
+
+    /// Every diarized voice in a meeting with its talk time and a sample line.
+    pub async fn voice_overview(pool: &SqlitePool, meeting_id: &str) -> Result<Vec<VoiceOverviewRow>, sqlx::Error> {
+        let voices: Vec<StoredVoiceRow> = sqlx::query_as(
+            "SELECT ms.label, ms.profile_id, sp.name, ms.embedding
+             FROM meeting_speakers ms
+             LEFT JOIN speaker_profiles sp ON sp.id = ms.profile_id
+             WHERE ms.meeting_id = ?",
+        )
+        .bind(meeting_id)
+        .fetch_all(pool)
+        .await?;
+        let stats: Vec<VoiceStatsRow> = sqlx::query_as(
+            "SELECT speaker AS label, COUNT(*) AS line_count,
+                    COALESCE(SUM(audio_end_time - audio_start_time), 0.0) AS talk_seconds
+             FROM transcripts
+             WHERE meeting_id = ? AND audio_start_time IS NOT NULL AND audio_end_time IS NOT NULL
+               AND speaker LIKE 'speaker\\_%' ESCAPE '\\'
+             GROUP BY speaker",
+        )
+        .bind(meeting_id)
+        .fetch_all(pool)
+        .await?;
+        // Longest of each voice's first five lines: long enough to recognise, and early
+        // enough that the transcript has usually loaded it.
+        let samples: Vec<VoiceSampleRow> = sqlx::query_as(
+            "WITH ordered AS (
+                SELECT id, speaker, transcript, audio_start_time, audio_end_time,
+                       ROW_NUMBER() OVER (PARTITION BY speaker ORDER BY audio_start_time) AS position
+                FROM transcripts
+                WHERE meeting_id = ? AND audio_start_time IS NOT NULL AND audio_end_time IS NOT NULL
+                  AND speaker LIKE 'speaker\\_%' ESCAPE '\\'
+             ), ranked AS (
+                SELECT *, ROW_NUMBER() OVER (
+                    PARTITION BY speaker ORDER BY audio_end_time - audio_start_time DESC
+                ) AS rank
+                FROM ordered WHERE position <= 5
+             )
+             SELECT speaker AS label, id AS segment_id, transcript AS text,
+                    audio_start_time AS start, audio_end_time AS end
+             FROM ranked WHERE rank = 1",
+        )
+        .bind(meeting_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(voices
+            .into_iter()
+            .map(|voice| {
+                let stat = stats.iter().find(|s| s.label == voice.label);
+                VoiceOverviewRow {
+                    label: voice.label,
+                    profile_id: voice.profile_id,
+                    name: voice.name,
+                    embedding: decode_embedding(&voice.embedding),
+                    line_count: stat.map_or(0, |s| s.line_count),
+                    talk_seconds: stat.map_or(0.0, |s| s.talk_seconds),
+                    sample: samples.iter().find(|s| s.label == voice.label).map(|s| s.sample.clone()),
+                }
+            })
+            .collect())
     }
 
     /// Meeting-audio segments: never diarized ("others"), or diarized before and being re-run.
@@ -349,6 +464,36 @@ mod tests {
         assert_eq!(speakers.len(), 2);
         // Diarized rows must still be picked up by a re-run.
         assert_eq!(SpeakerRepository::attributable_segments(&pool, MEETING).await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn voice_overview_counts_talk_time_and_picks_the_longest_early_line() {
+        let pool = pool_with_meeting().await;
+        sqlx::query(
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
+             VALUES ('t-3', ?, 'a much longer line', 'ts', 10.0, 14.0, 4.0, 'others')",
+        )
+        .bind(MEETING)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let labels = vec![
+            ("t-1".to_string(), SpeakerLabel::Speaker(0)),
+            ("t-2".to_string(), SpeakerLabel::Speaker(1)),
+            ("t-3".to_string(), SpeakerLabel::Speaker(0)),
+        ];
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0]), voice(1, vec![0.0, 1.0])], &labels)
+            .await
+            .unwrap();
+
+        let overview = SpeakerRepository::voice_overview(&pool, MEETING).await.unwrap();
+        let first = overview.iter().find(|v| v.label == SpeakerLabel::Speaker(0)).unwrap();
+        assert_eq!(first.line_count, 2);
+        assert!((first.talk_seconds - 5.0).abs() < 1e-9);
+        assert_eq!(first.sample.as_ref().unwrap().segment_id, "t-3");
+        assert_eq!(first.embedding, vec![1.0, 0.0]);
+        let second = overview.iter().find(|v| v.label == SpeakerLabel::Speaker(1)).unwrap();
+        assert_eq!(second.line_count, 1);
     }
 
     #[tokio::test]

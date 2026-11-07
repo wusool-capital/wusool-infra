@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MeetingSpeaker, diarizedIndex, speakerDisplayName } from '../../src/lib/speakers';
+import { MeetingSpeaker, diarizedIndex, formatTalkTime, speakerDisplayName } from '../../src/lib/speakers';
 
 const speakers: MeetingSpeaker[] = [
   { label: 'speaker_0', profile_id: 'p-1', name: 'Alice' },
@@ -32,5 +32,14 @@ describe('diarizedIndex', () => {
     expect(diarizedIndex('speaker_3')).toBe(3);
     expect(diarizedIndex('me')).toBeNull();
     expect(diarizedIndex('others')).toBeNull();
+  });
+});
+
+describe('formatTalkTime', () => {
+  test('reads at a glance from seconds to hours', () => {
+    expect(formatTalkTime(44.6)).toBe('45 s');
+    expect(formatTalkTime(840)).toBe('14 min');
+    expect(formatTalkTime(3600)).toBe('1 h');
+    expect(formatTalkTime(3900)).toBe('1 h 5 min');
   });
 });

@@ -11,7 +11,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
 use super::engine::{self, DiarizationBackend, DownloadProgress};
-use super::service::{diarize_and_notify, DiarizationOutcome};
+use super::overview::{build_overview, SpeakerOverview};
+use super::service::{diarize_and_notify, system_track_path, DiarizationOutcome};
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository};
 use crate::state::AppState;
@@ -123,6 +124,49 @@ pub async fn get_meeting_speakers(
     SpeakerRepository::meeting_speakers(state.db_manager.pool(), &meeting_id)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn get_speaker_overview(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<Vec<SpeakerOverview>, String> {
+    let pool = state.db_manager.pool();
+    let voices = SpeakerRepository::voice_overview(pool, &meeting_id).await.map_err(|e| e.to_string())?;
+    let profiles = SpeakerRepository::named_profiles(pool).await.map_err(|e| e.to_string())?;
+    Ok(build_overview(voices, &profiles))
+}
+
+// Long enough to recognise a voice; capped at the sample line so it never runs into the next speaker.
+const VOICE_CLIP_MAX_SECS: f64 = 6.0;
+
+/// A few seconds of a voice from the meeting audio, as WAV bytes the transcript can play.
+#[tauri::command]
+pub async fn speaker_voice_clip(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    label: SpeakerLabel,
+) -> Result<tauri::ipc::Response, String> {
+    let pool = state.db_manager.pool();
+    let voices = SpeakerRepository::voice_overview(pool, &meeting_id).await.map_err(|e| e.to_string())?;
+    let sample = voices
+        .into_iter()
+        .find(|v| v.label == label)
+        .and_then(|v| v.sample)
+        .ok_or_else(|| format!("{label} has no lines in this meeting"))?;
+    let track = system_track_path(pool, &meeting_id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "The meeting audio for this recording is missing".to_string())?;
+
+    let duration = (sample.end - sample.start).clamp(0.5, VOICE_CLIP_MAX_SECS);
+    let wav = tokio::task::spawn_blocking(move || {
+        super::audio::decode_16k_mono_clip(&track, sample.start, duration).map(|samples| super::audio::wav_16k_mono(&samples))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| format!("{e:#}"))?;
+    Ok(tauri::ipc::Response::new(wav))
 }
 
 #[tauri::command]

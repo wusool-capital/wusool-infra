@@ -6,6 +6,9 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 
 ### What's new
 
+* **Who Spoke?** above the transcript lists every separated voice with how long they spoke and one of their lines. Play a few seconds of a voice, type a name and press Enter to move on to the next person, with no scrolling.
+* When a voice sounds close to someone you've named before, Scribe asks "Sounds like Faisal?" so you can confirm with one click.
+* The meeting header shows how many speakers are still to name.
 * Turning on **Faster Speaker Separation (CoreML)** downloads its models straight away with a progress bar. Turning it off asks whether to keep the models, so switching back on later needs no download.
 
 ### Changed

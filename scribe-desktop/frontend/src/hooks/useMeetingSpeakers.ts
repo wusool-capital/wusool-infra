@@ -7,6 +7,7 @@ import {
   DiarizationUpdatedEvent,
   MeetingSpeaker,
   SeparationState,
+  SpeakerOverview,
   SpeakerProfileSummary,
   speakerDisplayName,
 } from '@/lib/speakers';
@@ -24,6 +25,10 @@ export interface SpeakerNames {
   separation: SeparationState;
   /** Runs (or re-runs) speaker separation for a saved meeting. */
   separate?: () => Promise<void>;
+  /** Every separated voice with its talk time, longest first, for naming them in one place. */
+  overview: SpeakerOverview[];
+  /** Re-reads names and talk time after the transcript itself changes. */
+  refresh: () => Promise<void>;
 }
 
 /**
@@ -32,6 +37,7 @@ export interface SpeakerNames {
  */
 export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => void): SpeakerNames {
   const [speakers, setSpeakers] = useState<MeetingSpeaker[]>([]);
+  const [overview, setOverview] = useState<SpeakerOverview[]>([]);
   const [profiles, setProfiles] = useState<SpeakerProfileSummary[]>([]);
   const [selfName, setSelfName] = useState<string | null>(null);
   const [separation, setSeparation] = useState<SeparationState>({ status: 'idle' });
@@ -40,12 +46,14 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     try {
       setSelfName(await invoke<string | null>('get_self_speaker_name'));
       if (!meetingId) return;
-      const [meetingSpeakers, library] = await Promise.all([
+      const [meetingSpeakers, library, voices] = await Promise.all([
         invoke<MeetingSpeaker[]>('get_meeting_speakers', { meetingId }),
         invoke<SpeakerProfileSummary[]>('list_speaker_profiles'),
+        invoke<SpeakerOverview[]>('get_speaker_overview', { meetingId }),
       ]);
       setSpeakers(meetingSpeakers);
       setProfiles(library);
+      setOverview(voices);
     } catch (error) {
       console.error('Failed to load speaker names:', error);
     }
@@ -115,5 +123,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     voiceCount: speakers.length,
     separation,
     separate: meetingId ? separate : undefined,
+    overview,
+    refresh: load,
   };
 }

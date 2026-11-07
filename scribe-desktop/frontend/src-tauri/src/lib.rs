@@ -780,6 +780,8 @@ pub fn run() {
             push::get_push_config,
             diarization::commands::diarize_meeting,
             diarization::commands::get_meeting_speakers,
+            diarization::commands::get_speaker_overview,
+            diarization::commands::speaker_voice_clip,
             diarization::commands::name_meeting_speaker,
             diarization::commands::list_speaker_profiles,
             diarization::commands::delete_speaker_profile,

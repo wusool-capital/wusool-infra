@@ -31,11 +31,12 @@ function formatDate(value: string | null | undefined, options: Intl.DateTimeForm
 }
 
 /** "6 Nov 2026, 10:00 · 19 lines · Sent to Attio 6 Nov 2026": when, how much, and whether it was pushed. */
-function meetingSummaryLine(createdAt: string, lineCount: number, pushedAt?: string | null): string {
+function meetingSummaryLine(createdAt: string, lineCount: number, pushedAt?: string | null, unnamedSpeakers = 0): string {
   const when = formatDate(createdAt, { dateStyle: 'medium', timeStyle: 'short' });
   const lines = `${new Intl.NumberFormat().format(lineCount)} ${lineCount === 1 ? 'line' : 'lines'}`;
   const sent = formatDate(pushedAt, { dateStyle: 'medium' });
-  return [when, lines, sent && `Sent to Attio ${sent}`].filter(Boolean).join(' · ');
+  const toName = unnamedSpeakers > 0 && `${unnamedSpeakers} ${unnamedSpeakers === 1 ? 'speaker' : 'speakers'} to name`;
+  return [when, lines, toName, sent && `Sent to Attio ${sent}`].filter(Boolean).join(' · ');
 }
 
 export default function PageContent({
@@ -79,6 +80,7 @@ export default function PageContent({
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [unnamedSpeakers, setUnnamedSpeakers] = useState(0);
 
   // A meeting is locked for editing once it's been pushed to Scribe --
   // pushed_at is persisted so this holds across app restarts, not just
@@ -232,7 +234,7 @@ export default function PageContent({
           </div>
         )}
         <h1 className="select-text truncate text-xl font-semibold text-foreground">{meeting.title}</h1>
-        <p className="select-text text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length, meeting.pushed_at)}</p>
+        <p className="select-text text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length, meeting.pushed_at, isPushed ? 0 : unnamedSpeakers)}</p>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
@@ -273,6 +275,7 @@ export default function PageContent({
             editable={!isPushed}
             editor={transcriptEditor}
             onSummarize={() => setShowSummaryDialog(true)}
+            onUnnamedSpeakersChange={setUnnamedSpeakers}
           />
         )}
       </div>

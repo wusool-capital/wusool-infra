@@ -13,6 +13,34 @@ export interface SpeakerProfileSummary {
   sample_count: number;
 }
 
+// Mirrors the Rust `SpeakerOverview` returned by get_speaker_overview.
+export interface VoiceSample {
+  segment_id: string;
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface SpeakerOverview {
+  label: SpeakerLabel;
+  name: string | null;
+  line_count: number;
+  talk_seconds: number;
+  sample: VoiceSample | null;
+  suggestion: { profile_id: string; name: string } | null;
+}
+
+/** "45 s", "14 min" or "1 h 5 min": how long a voice spoke, at a glance. */
+export function formatTalkTime(seconds: number): string {
+  const total = Math.max(0, Math.round(seconds));
+  if (total < 60) return `${total} s`;
+  const minutes = Math.round(total / 60);
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} h` : `${hours} h ${rest} min`;
+}
+
 // Mirrors the Rust `DiarizationStarted` / `DiarizationEvent` payloads.
 export type DiarizationUpdatedEvent =
   | { meeting_id: string; status: 'running' }

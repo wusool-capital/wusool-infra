@@ -73,9 +73,16 @@ Scribe labels each speaker's turn in the transcript:
   **Settings → General → Speakers**. It uses up to 2.7 GB of memory while
   it runs. Turning it on downloads about 300 MB with a progress bar; turning it
   off asks whether to keep that download for next time.
-- **Click a speaker's name** to say who they are. Every line they spoke in
-  that meeting is renamed, and Scribe recognises their voice in later
-  meetings.
+- **Name everyone in one place.** Above the transcript, **Who Spoke?**
+  lists every separated voice, most talk time first, with one of their
+  lines. Press ▶ to hear a few seconds of their voice, type a name and
+  press Enter to move on to the next person. Every line they spoke in that
+  meeting is renamed, and Scribe recognises their voice in later meetings.
+  Click a quoted line to jump to it in the transcript.
+- **Confirm a likely match.** When a voice sounds close to someone you've
+  named before, Scribe asks "Sounds like Faisal?". Press **Yes** to name
+  them, or **No** to type a different name.
+- You can still click a speaker's name on any line to rename them.
 
 Voice fingerprints are stored only on your Mac. To make Scribe forget
 someone, delete them under **Settings → General → Speakers**.

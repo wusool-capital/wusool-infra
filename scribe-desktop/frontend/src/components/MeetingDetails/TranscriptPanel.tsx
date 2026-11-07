@@ -6,8 +6,9 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { TranscriptSelectionBar } from './TranscriptSelectionBar';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
+import { SpeakersPanel } from '@/components/SpeakersPanel';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -40,6 +41,8 @@ interface TranscriptPanelProps {
   // Hide the Copy/Recording/Enhance action bar entirely (e.g. inside a
   // read-only tab of an already-pushed meeting).
   showActions?: boolean;
+  /** Voices still waiting for a name, for the meeting header; editable meetings only. */
+  onUnnamedSpeakersChange?: (count: number) => void;
 }
 
 export function TranscriptPanel({
@@ -63,8 +66,10 @@ export function TranscriptPanel({
   editor,
   onSummarize,
   showActions = true,
+  onUnnamedSpeakersChange,
 }: TranscriptPanelProps) {
   const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
+  const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
 
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
@@ -81,6 +86,19 @@ export function TranscriptPanel({
       speaker: t.speaker,
     }));
   }, [transcripts, usePagination, segments]);
+
+  const unnamedCount = speakers.overview.filter((voice) => voice.name === null).length;
+  useEffect(() => {
+    if (editable) onUnnamedSpeakersChange?.(unnamedCount);
+  }, [editable, unnamedCount, onUnnamedSpeakersChange]);
+
+  // Edits, tidying and deletes change talk time and sample lines; a short delay batches a burst of edits.
+  const { refresh } = speakers;
+  useEffect(() => {
+    if (!editable) return;
+    const timer = setTimeout(() => void refresh(), 400);
+    return () => clearTimeout(timer);
+  }, [editable, convertedSegments, refresh]);
 
   const hasUnseparatedLines = useMemo(
     () => convertedSegments.some((segment) => segment.speaker === 'others'),
@@ -124,6 +142,14 @@ export function TranscriptPanel({
         </div>
       )}
 
+      {editable && meetingId && (
+        <SpeakersPanel
+          meetingId={meetingId}
+          speakers={speakers}
+          onShowLine={(segmentId) => setFocusRequest({ segmentId, nonce: Date.now() })}
+        />
+      )}
+
       {editable && editor && editor.suggestions.size > 0 && (
         <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
           <span className="text-sm text-foreground tabular-nums" aria-live="polite">
@@ -160,6 +186,7 @@ export function TranscriptPanel({
           onEditSegment={onEditSegment}
           editor={editable ? editor : undefined}
           speakers={speakers}
+          focusRequest={focusRequest}
         />
       </div>
 

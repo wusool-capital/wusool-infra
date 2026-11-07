@@ -83,16 +83,20 @@ pub async fn diarize_and_notify<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePoo
     outcome
 }
 
-async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meeting_id: &str) -> Result<DiarizationOutcome> {
+/// The meeting's separate meeting-audio recording, which every diarized voice comes from.
+pub async fn system_track_path(pool: &SqlitePool, meeting_id: &str) -> Result<Option<PathBuf>> {
     let folder: Option<(Option<String>,)> = sqlx::query_as("SELECT folder_path FROM meetings WHERE id = ?")
         .bind(meeting_id)
         .fetch_optional(pool)
         .await?;
-    let Some(system_track) = folder
+    Ok(folder
         .and_then(|(path,)| path)
         .map(|path| PathBuf::from(path).join(SYSTEM_TRACK_FILE))
-        .filter(|path| path.exists())
-    else {
+        .filter(|path| path.exists()))
+}
+
+async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meeting_id: &str) -> Result<DiarizationOutcome> {
+    let Some(system_track) = system_track_path(pool, meeting_id).await? else {
         return Ok(skipped("no separate meeting-audio track was recorded"));
     };
 

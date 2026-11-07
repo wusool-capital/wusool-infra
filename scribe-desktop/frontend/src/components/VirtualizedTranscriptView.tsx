@@ -62,6 +62,8 @@ export interface VirtualizedTranscriptViewProps {
     speakers?: SpeakerNames;
     /** Shown when there are no lines and nothing is recording. */
     emptyState?: React.ReactNode;
+    /** Scrolls to and briefly highlights a line; a new nonce repeats the jump. */
+    focusRequest?: { segmentId: string; nonce: number };
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -331,6 +333,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     editor,
     speakers,
     emptyState,
+    focusRequest,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -399,6 +402,35 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             onSplit={editor?.splitAt}
         />
     );
+
+    const [highlightedId, setHighlightedId] = useState<string | null>(null);
+    const handledFocusRef = useRef<number | null>(null);
+    const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    useEffect(() => {
+        if (!focusRequest || handledFocusRef.current === focusRequest.nonce) return;
+        const index = segments.findIndex((s) => s.id === focusRequest.segmentId);
+        if (index === -1) {
+            // Not loaded yet: fetch the next page, and this runs again when it arrives.
+            if (hasMore && !isLoadingMore) onLoadMore?.();
+            else if (!hasMore) handledFocusRef.current = focusRequest.nonce;
+            return;
+        }
+        handledFocusRef.current = focusRequest.nonce;
+        if (segments.length >= VIRTUALIZATION_THRESHOLD) {
+            virtualizer.scrollToIndex(index, { align: 'center' });
+        } else {
+            scrollRef.current
+                ?.querySelector(`[data-segment-id="${CSS.escape(focusRequest.segmentId)}"]`)
+                ?.scrollIntoView({ block: 'center' });
+        }
+        setHighlightedId(focusRequest.segmentId);
+        // A ref, not effect cleanup: new pages arriving must not cancel the fade.
+        clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = setTimeout(() => setHighlightedId(null), 1600);
+    }, [focusRequest, segments, hasMore, isLoadingMore, onLoadMore, virtualizer]);
+    useEffect(() => () => clearTimeout(highlightTimerRef.current), []);
+    const highlightClass = (id: string) =>
+        cn('rounded-md transition-colors duration-500', highlightedId === id && 'bg-foreground/10');
 
     // Infinite scroll: IntersectionObserver to trigger loading more
     useEffect(() => {
@@ -490,6 +522,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                 <div
                                     key={segment.id}
                                     data-index={virtualRow.index}
+                                    data-segment-id={segment.id}
+                                    className={highlightClass(segment.id)}
                                     ref={virtualizer.measureElement}
                                     style={{
                                         position: "absolute",
@@ -531,6 +565,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             return (
                                 <motion.div
                                     key={segment.id}
+                                    data-segment-id={segment.id}
+                                    className={highlightClass(segment.id)}
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.15 }}
