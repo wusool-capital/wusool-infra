@@ -33,6 +33,7 @@
                 "media-src": "'self' blob:",
                 "connect-src": "'self' http://localhost:11434 http://localhost:5167 http://localhost:8178 https://api.ollama.ai"
             },
+            "dangerousDisableAssetCspModification": ["style-src"],
             "assetProtocol": {
                 "enable": true,
                 "scope": [

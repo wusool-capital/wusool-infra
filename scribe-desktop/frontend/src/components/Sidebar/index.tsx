@@ -831,7 +831,6 @@ const Sidebar: React.FC = () => {
           !isResizing && 'transition-all duration-300',
           isCollapsed && 'w-16'
         )}
-        // Plain pixel limits: the system WebKit ignored the width when max-width used min() with vw.
         style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: SIDEBAR_MAX_WIDTH }}
       >
         {/*  Header with traffic light spacing */}
