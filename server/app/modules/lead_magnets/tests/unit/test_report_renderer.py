@@ -14,6 +14,7 @@ import pytest
 from playwright.async_api import async_playwright
 
 from app.modules.lead_magnets.domain.insights_report.split import split_report
+from app.modules.lead_magnets.providers.chromium import renderer as renderer_module
 from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 
 _EXPORT = """<!DOCTYPE html><html><head>
@@ -66,6 +67,24 @@ async def test_a_script_built_export_becomes_static_html() -> None:
     assert "SOURCE TEMPLATE WITH EVERY PAGE" not in html, "the hidden source would leak"
     assert ":not(:defined)" not in html, "it would hide the page once scripts are gone"
     assert "width: 794px" in html, "the shadow-DOM page width is copied inline"
+
+
+async def test_a_close_that_overruns_kills_the_playwright_driver(monkeypatch) -> None:
+    await _require_chromium()
+    managers = []
+    real = renderer_module.async_playwright
+    monkeypatch.setattr(
+        renderer_module, "async_playwright", lambda: managers.append(real()) or managers[-1]
+    )
+    # A zero cap makes every close "overrun", standing in for a starved host.
+    monkeypatch.setattr(renderer_module, "_CLOSE_TIMEOUT_S", 0)
+
+    pdf = await ChromiumReportRenderer().pdf("<p>one page</p>")
+
+    assert pdf.startswith(b"%PDF")
+    driver = managers[0]._connection._transport._proc
+    await asyncio.wait_for(driver.wait(), 5)
+    assert driver.returncode is not None, "a hung close must not leave the driver running"
 
 
 async def test_pages_keep_the_viewers_gaps_on_screen_but_print_one_per_sheet() -> None:

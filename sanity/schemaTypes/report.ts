@@ -214,5 +214,6 @@ export const report = defineType({
     defineField({name: 'renderedHtml', group: 'publishing', type: 'text', hidden: true, readOnly: true}),
     defineField({name: 'renderedPreviewEnd', group: 'publishing', type: 'number', hidden: true, readOnly: true}),
     defineField({name: 'renderedFrom', group: 'publishing', type: 'string', hidden: true, readOnly: true}),
+    defineField({name: 'renderedPdf', group: 'publishing', type: 'string', hidden: true, readOnly: true}),
   ],
 })

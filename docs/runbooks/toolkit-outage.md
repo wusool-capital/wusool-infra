@@ -18,6 +18,8 @@ reachable; use `/readiness` for that distinction.
 - Slack reports connection errors or commands do not acknowledge.
 - CloudWatch reports Toolkit container health, external `/health`, CPU, or
   in-service-instance alarms.
+- The `toolkit-watchdog-recovery` or `toolkit-app-logs-silent` alarm fires, or the app
+  log stream goes quiet while AWS status checks stay green (a starved host).
 
 ## Severity
 
@@ -52,6 +54,11 @@ corruption as P0 and escalate immediately.
 
 ## Recovery
 
+0. The host watchdog (`/opt/toolkit/watchdog.sh`, systemd timer `toolkit-watchdog`) acts
+   first: after 3 failed `/health` probes through Caddy it runs `docker compose up -d`
+   and `restart`; after 10 in a row (about 5 minutes) it reboots the host, at most once an hour. Its lines are
+   in the Toolkit log group, stream `<instance-id>/watchdog`. If the host is up but still
+   failing, the watchdog and autoheal have already tried; go on to step 1.
 1. For a transient unhealthy container, use Systems Manager on the current
    instance to restart the affected Docker Compose service, with human review
    of the target instance and command.
@@ -86,6 +93,18 @@ verified in this repository.
 - Do not copy Secrets Manager values, `.env.production`, tokens, or customer
   payloads into tickets or logs.
 - Do not edit mirrored PostgreSQL records directly to fix an application symptom.
+
+## Report PDFs
+
+A report PDF is printed once per version at publish and stored in Sanity (`renderedPdf`);
+`/reports/<slug>/pdf` only redirects to it. The Toolkit container is capped at 1.2 GB of
+memory, so a runaway Chromium is killed in its own cgroup.
+
+- `/pdf` answers 503 "PDF not ready": the print failed or has not run. Look for
+  `insights_report_pdf_failed` in the logs, then republish the report in Sanity, or run
+  `server/app/modules/lead_magnets/scripts/backfill_report_pdfs.py` from a laptop (`aws sso login` first).
+- Do not render PDFs on the request path again: on 2026-11-03 one PDF request starved the
+  host for an hour.
 
 ## Root Cause Follow-Up
 

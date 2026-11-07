@@ -229,6 +229,10 @@ locals {
       file_path       = "/var/log/cloud-init-output.log"
       log_group_name  = aws_cloudwatch_log_group.wusool_toolkit.name
       log_stream_name = "{instance_id}/cloud-init"
+      }, {
+      file_path       = "/var/log/toolkit-watchdog.log"
+      log_group_name  = aws_cloudwatch_log_group.wusool_toolkit.name
+      log_stream_name = "{instance_id}/watchdog"
     }],
     [for app in local.apps_resolved : {
       file_path       = "/var/lib/docker/volumes/toolkit_caddy_data/_data/${app.name}-access.log"
@@ -522,6 +526,66 @@ resource "aws_cloudwatch_metric_alarm" "history_write_failed" {
   statistic           = "Sum"
   threshold           = 1
   treat_missing_data  = "notBreaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+}
+
+# Host watchdog (user_data.sh.tpl) logs one line when it restarts the stack or reboots the host.
+resource "aws_cloudwatch_log_metric_filter" "watchdog_recovery" {
+  name           = "${var.project}-${var.environment}-toolkit-watchdog-recovery"
+  log_group_name = aws_cloudwatch_log_group.wusool_toolkit.name
+  pattern        = "\"toolkit_watchdog_action\""
+
+  metric_transformation {
+    name          = "WatchdogRecovery"
+    namespace     = "${var.project}/${var.environment}/toolkit"
+    value         = "1"
+    default_value = 0
+  }
+}
+
+# One recovery is already an incident the watchdog fixed itself; no data means none happened.
+resource "aws_cloudwatch_metric_alarm" "watchdog_recovery" {
+  alarm_name          = "${var.project}-${var.environment}-toolkit-watchdog-recovery"
+  alarm_description   = "The toolkit stopped answering /health and the host watchdog restarted the stack or rebooted the host. See docs/runbooks/toolkit-outage.md."
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = aws_cloudwatch_log_metric_filter.watchdog_recovery.metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.watchdog_recovery.metric_transformation[0].namespace
+  period              = 60
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+}
+
+# Every app JSON line carries "service"; Caddy and cloud-init lines do not, so they cannot mask silence.
+resource "aws_cloudwatch_log_metric_filter" "app_log_lines" {
+  name           = "${var.project}-${var.environment}-toolkit-app-log-lines"
+  log_group_name = aws_cloudwatch_log_group.wusool_toolkit.name
+  pattern        = "{ $.service = * }"
+
+  metric_transformation {
+    name      = "AppLogLines"
+    namespace = "${var.project}/${var.environment}/toolkit"
+    value     = "1"
+  }
+}
+
+# The healthcheck alone logs every 30 s, so silence means the app is wedged or the host is
+# starved (2026-11-03: 65 minutes with no alert). No default_value: no lines publishes no data.
+resource "aws_cloudwatch_metric_alarm" "app_logs_silent" {
+  alarm_name          = "${var.project}-${var.environment}-toolkit-app-logs-silent"
+  alarm_description   = "The toolkit app wrote no log lines for 10 minutes; it is hung or the host is starved. See docs/runbooks/toolkit-outage.md."
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = aws_cloudwatch_log_metric_filter.app_log_lines.metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.app_log_lines.metric_transformation[0].namespace
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "breaching"
   alarm_actions       = local.alarm_actions
   ok_actions          = local.alarm_actions
 }

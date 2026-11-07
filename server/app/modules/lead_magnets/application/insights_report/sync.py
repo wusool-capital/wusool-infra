@@ -45,15 +45,25 @@ class ReportSync:
             return
 
         source = await self._source.source(slug)
-        if source is not None and source.rendered_from != (
-            version := fingerprint(source.html, source.free_pages)
-        ):
-            rendered = await self._renderer.render(source.html, free_pages=source.free_pages)
-            rendered = await self._externalize_images(rendered)
-            preview, _ = split_report(rendered)
-            saved = await self._source.save_rendered(
-                source, html=rendered, preview_end=len(preview), rendered_from=version
-            )
+        if source is not None:
+            version = fingerprint(source.html, source.free_pages)
+            if source.rendered_from != version:
+                rendered = await self._renderer.render(source.html, free_pages=source.free_pages)
+                rendered = await self._externalize_images(rendered)
+                preview, _ = split_report(rendered)
+                saved = await self._source.save_rendered(
+                    source,
+                    html=rendered,
+                    preview_end=len(preview),
+                    rendered_from=version,
+                    pdf_url=await self._print(slug, rendered),
+                )
+            elif not source.rendered_pdf and (current := await self._source.refresh(slug)):
+                # Flattened before PDFs existed, or the last print failed: print it now.
+                pdf_url = await self._print(slug, current.html)
+                saved = not pdf_url or await self._source.save_pdf(source, pdf_url)
+            else:
+                saved = True
             if not saved:
                 # Edited again mid-render; that edit's own webhook syncs the newer version.
                 logger.info("insights_report_sync_superseded slug=%s", slug)
@@ -80,6 +90,16 @@ class ReportSync:
         for other in lost:
             if other_id := await self._cms.find(other.slug):
                 await self._cms.unpin(other_id, other.pins)
+
+    async def _print(self, slug: str, html: str) -> str:
+        """The PDF's CDN URL, or empty when printing failed. A failed print must not keep a
+        finished report off the site: a later sync of the same version prints it again."""
+        try:
+            pdf = await self._renderer.pdf(html)
+            return await self._source.upload_image(pdf, "application/pdf")
+        except Exception:  # noqa: BLE001 - Chromium, the upload and the timeout all fail differently
+            logger.exception("insights_report_pdf_failed slug=%s", slug)
+            return ""
 
     async def _externalize_images(self, html: str) -> str:
         """Embedded pictures break Sanity's 4 MB save limit. Runs before the split."""

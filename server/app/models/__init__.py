@@ -34,8 +34,11 @@ from app.models.discovery_review import DiscoveryReview
 from app.models.document import Document
 from app.models.feedback_submission import FeedbackSubmission
 from app.models.graph_edge import GraphEdge
+from app.models.interaction import Interaction
+from app.models.interaction_participant import InteractionParticipant
 from app.models.investor_lender_role import InvestorLenderRole
 from app.models.linkedin_scan import LinkedInScan
+from app.models.mailbox_sync_cursor import MailboxSyncCursor
 from app.models.match_result import MatchResult
 from app.models.match_score import MatchScore
 from app.models.meeting import Meeting
@@ -64,7 +67,10 @@ __all__ = [
     "Document",
     "FeedbackSubmission",
     "GraphEdge",
+    "Interaction",
+    "InteractionParticipant",
     "InvestorLenderRole",
+    "MailboxSyncCursor",
     "MatchResult",
     "MatchScore",
     "Meeting",

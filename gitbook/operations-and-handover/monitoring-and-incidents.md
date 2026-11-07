@@ -12,6 +12,8 @@ can't prove that recipients accepted them.
 | Toolkit not in service | No healthy instance for two minutes | Email and Slack | A replacement instance is launched |
 | Toolkit unreachable | Route 53's HTTPS check of `/health` fails three times | **Slack only** (its topic is in `us-east-1`, with no email) | None |
 | Toolkit high CPU | Above 85% for 15 minutes | Email and Slack | None |
+| Toolkit watchdog recovery | The host watchdog restarted the stack or rebooted the host after three failed `/health` probes | Email and Slack | The watchdog already did the restart; find out why it was needed |
+| Toolkit app logs silent | The app wrote no log line for 10 minutes | Email and Slack | None |
 | Lead email send failed | An email fails after SES's own retries, at least once in 5 minutes | Email and Slack | The sweeper tries again later |
 | Nightly Attio resync failed | The production workflow run fails, including when no Toolkit instance is running | Email and Slack | None |
 | Nightly Attio resync heartbeat | No successful run for 30 hours, for example the workflow is disabled or never starts | Email and Slack | None |
@@ -19,7 +21,16 @@ can't prove that recipients accepted them.
 | Security Hub finding | High or critical | **Email only** | None |
 
 An unhealthy Toolkit container is restarted automatically by an `autoheal`
-container on the instance; this isn't an alarm.
+container on the instance. A systemd watchdog on the host also probes `/health`
+through Caddy every 30 seconds. After three misses it restarts the stack.
+After ten in a row (about five minutes) it reboots the host, at most once an
+hour. The watchdog alarm reports both. The Toolkit container is capped at
+1.2 GB of memory, so a runaway Chromium is killed instead of starving the
+host.
+
+Slack shows repeat alerts for the same alarm as thread replies, which don't
+notify by default. Turn on "Get notified about all replies" for the alerts
+channel, or a second alert can be missed.
 
 ## What isn't alarmed
 
