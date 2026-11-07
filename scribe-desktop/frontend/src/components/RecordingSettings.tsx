@@ -8,6 +8,7 @@ import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { SettingsRow, SettingsSection } from '@/components/settings/SettingsSection';
+import { useConfig } from '@/contexts/ConfigContext';
 
 export interface RecordingPreferences {
   save_folder: string;
@@ -23,6 +24,7 @@ interface RecordingSettingsProps {
 }
 
 export function RecordingSettings({ onSave }: RecordingSettingsProps) {
+  const { setSelectedDevices } = useConfig();
   const [preferences, setPreferences] = useState<RecordingPreferences>({
     save_folder: '',
     auto_save: true,
@@ -175,6 +177,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     try {
       await invoke('set_recording_preferences', { preferences: prefs });
       onSave?.(prefs);
+      // The app-wide selection drives the home screen and the next recording, so it follows the saved choice.
+      setSelectedDevices({ micDevice: prefs.preferred_mic_device, systemDevice: prefs.preferred_system_device });
 
       // Show success toast with device details
       const micDevice = prefs.preferred_mic_device || 'Default';

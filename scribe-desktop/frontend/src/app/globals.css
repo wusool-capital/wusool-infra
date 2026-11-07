@@ -235,3 +235,16 @@
     overflow: visible !important;
   }
 }
+
+/* Desktop-app behaviour: only editable fields select text, so Cmd+A never highlights the whole window. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""] {
+  -webkit-user-select: text;
+  user-select: text;
+}
