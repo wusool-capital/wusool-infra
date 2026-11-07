@@ -402,7 +402,7 @@ export function ParakeetModelManager({
         <motion.div
           initial={{ opacity: 0, y: -5 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-xs text-muted-foreground text-center pt-2"
+          className="text-xs text-muted-foreground pt-2"
         >
           Using {getModelDisplayName(selectedModel)} for transcription
         </motion.div>

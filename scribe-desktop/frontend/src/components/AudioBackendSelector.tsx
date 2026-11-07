@@ -137,9 +137,9 @@ export function AudioBackendSelector({
           return (
             <label
               key={backend.id}
-              className={`flex items-start p-3 border rounded-lg transition-all ${
+              className={`flex items-start p-3 border rounded-lg transition-colors ${
                 currentBackend === backend.id
-                  ? 'border-primary bg-primary/10'
+                  ? 'border-foreground/60 bg-muted'
                   : 'border-border hover:border-foreground/30 bg-card'
               } ${isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
@@ -150,7 +150,7 @@ export function AudioBackendSelector({
                 checked={currentBackend === backend.id}
                 onChange={() => handleBackendChange(backend.id)}
                 disabled={isDisabled}
-                className="mt-1 h-4 w-4 text-primary focus:ring-ring border-border"
+                className="mt-1 h-4 w-4 accent-foreground focus:ring-ring border-border"
               />
               <div className="ml-3 flex-1">
                 <div className="flex items-center justify-between">
@@ -158,7 +158,7 @@ export function AudioBackendSelector({
                     {backend.name}
                   </span>
                   {currentBackend === backend.id && (
-                    <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-0.5 rounded">
+                    <span className="text-xs font-medium text-foreground bg-background px-2 py-0.5 rounded">
                       Active
                     </span>
                   )}
@@ -175,11 +175,9 @@ export function AudioBackendSelector({
         })}
       </div>
 
-      <div className="text-xs text-muted-foreground space-y-1">
-        <p>• Backend selection only affects system audio capture</p>
-        <p>• Microphone always uses the default method</p>
-        <p>• Changes apply to new recording sessions</p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Applies to system audio only, from the next recording.
+      </p>
     </div>
   );
 }

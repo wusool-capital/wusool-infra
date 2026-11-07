@@ -98,15 +98,16 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
     return (
         <div>
             <div>
-                {/* <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-foreground">Transcript Settings</h3>
-                </div> */}
+                <div className="mb-3">
+                    <h2 className="text-base font-semibold text-foreground">Transcription</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">The speech-to-text model that runs on this Mac.</p>
+                </div>
                 <div className="space-y-4 pb-6">
                     <div>
-                        <Label className="block text-sm font-medium text-foreground/90 mb-1">
+                        <Label className="block text-sm font-medium text-foreground mb-1">
                             Transcript Model
                         </Label>
-                        <div className="flex space-x-2 mx-1">
+                        <div className="flex space-x-2">
                             <Select
                                 value={uiProvider}
                                 onValueChange={(value) => {
@@ -121,12 +122,12 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                                     <SelectValue placeholder="Select provider" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="parakeet">⚡ Parakeet (Recommended - Real-time / Accurate)</SelectItem>
-                                    <SelectItem value="localWhisper">🏠 Local Whisper (High Accuracy)</SelectItem>
-                                    {/* <SelectItem value="deepgram">☁️ Deepgram (Backup)</SelectItem>
-                                    <SelectItem value="elevenLabs">☁️ ElevenLabs</SelectItem>
-                                    <SelectItem value="groq">☁️ Groq</SelectItem>
-                                    <SelectItem value="openai">☁️ OpenAI</SelectItem> */}
+                                    <SelectItem value="parakeet">Parakeet (recommended, real-time)</SelectItem>
+                                    <SelectItem value="localWhisper">Local Whisper (highest accuracy)</SelectItem>
+                                    {/* <SelectItem value="deepgram">Deepgram (Backup)</SelectItem>
+                                    <SelectItem value="elevenLabs">ElevenLabs</SelectItem>
+                                    <SelectItem value="groq">Groq</SelectItem>
+                                    <SelectItem value="openai">OpenAI</SelectItem> */}
                                 </SelectContent>
                             </Select>
 
@@ -178,7 +179,7 @@ export function TranscriptSettings({ transcriptModelConfig, setTranscriptModelCo
                             <Label className="block text-sm font-medium text-foreground/90 mb-1">
                                 API Key
                             </Label>
-                            <div className="relative mx-1">
+                            <div className="relative">
                                 <Input
                                     type={showApiKey ? "text" : "password"}
                                     className={`pr-24 focus:ring-1 focus:ring-ring focus:border-ring ${isApiKeyLocked ? 'bg-muted cursor-not-allowed' : ''

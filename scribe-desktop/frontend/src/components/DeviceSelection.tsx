@@ -372,8 +372,6 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
 
       {/* Info text */}
       <div className="text-xs text-muted-foreground space-y-1">
-        <p>• <strong>Microphone:</strong> Records your voice and ambient sound</p>
-        <p>• <strong>System Audio:</strong> Records computer audio (music, calls, etc.)</p>
         {isMonitoring && (
           <p>• <strong>Mic Levels:</strong> Green = good, Yellow = loud, Red = too loud</p>
         )}
