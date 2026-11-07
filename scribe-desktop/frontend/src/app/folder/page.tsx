@@ -175,7 +175,8 @@ function FolderView({ tagSlug, folderName }: FolderViewProps) {
         </div>
       </div>
 
-      <ScrollArea className="flex-1 min-h-0">
+      {/* Radix wraps content in display:table, which widens to long titles and defeats truncate. */}
+      <ScrollArea className="flex-1 min-h-0 [&>div>div]:!block">
         <div className="p-8 pt-4">
           {folderMeetings.length === 0 ? (
             <p className="text-sm text-muted-foreground ">No meetings in this folder.</p>
