@@ -77,12 +77,12 @@ function formatMeetingDate(createdAt?: string | null): string | null {
 
 const SIDEBAR_MIN_WIDTH = 256;
 // Wide enough for long meeting titles; beyond this the sidebar crowds the transcript.
+// Well under any window (minimum 900px), so no viewport-relative cap is needed.
 const SIDEBAR_MAX_WIDTH = 420;
-const SIDEBAR_MAX_VIEWPORT_RATIO = 0.7;
 const SIDEBAR_WIDTH_STORAGE_KEY = 'sidebarWidth';
 
 const clampSidebarWidth = (width: number) =>
-  Math.round(Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH, Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_VIEWPORT_RATIO)));
+  Math.round(Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH));
 
 const saveSidebarWidth = (width: number) => {
   try {
@@ -748,7 +748,7 @@ const Sidebar: React.FC = () => {
             </>
           ) : (
             <div className="flex flex-col w-full">
-              <div className="flex items-center w-full">
+              <div className="relative flex items-center w-full">
                 {isMeetingItem ? (
                   <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-muted">
                     <File className="w-3.5 h-3.5 text-muted-foreground" />
@@ -760,14 +760,15 @@ const Sidebar: React.FC = () => {
                 )}
                 <span className="flex-1 truncate min-w-0" title={item.title}>{item.title}</span>
                 {isMeetingItem && (formatMeetingDate(item.createdAt) || formatDuration(item.durationSeconds)) && (
-                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap">
+                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap group-hover:invisible group-focus-within:invisible">
                     {[formatMeetingDate(item.createdAt), formatDuration(item.durationSeconds)]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>
                 )}
                 {isMeetingItem && (
-                  <div className="flex items-center gap-1 ml-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  // Overlaid on the date while hovered, so the hidden buttons never take space from the title.
+                  <div className="absolute inset-y-0 right-0 flex items-center gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity duration-150">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -830,8 +831,8 @@ const Sidebar: React.FC = () => {
           !isResizing && 'transition-all duration-300',
           isCollapsed && 'w-16'
         )}
-        // maxWidth re-clamps a saved width when the window later shrinks.
-        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: `min(${SIDEBAR_MAX_WIDTH}px, ${SIDEBAR_MAX_VIEWPORT_RATIO * 100}vw)` }}
+        // Plain pixel limits: the system WebKit ignored the width when max-width used min() with vw.
+        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: SIDEBAR_MAX_WIDTH }}
       >
         {/*  Header with traffic light spacing */}
         <div className="flex-shrink-0">
