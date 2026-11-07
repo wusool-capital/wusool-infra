@@ -16,6 +16,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * The home screen shows which microphone and system audio a recording will use, with one **Start Recording** button.
 * **Test Mic** in Settings shows the real level of the selected microphone. It used to show a simulated level.
 * Live transcripts break into full sentences instead of short fragments, which also makes them more accurate. Lines appear a second or two after people stop speaking.
+* Dropdowns and menus clearly highlight the option under the pointer, in light and dark mode.
 
 ## 0.8.0
 
