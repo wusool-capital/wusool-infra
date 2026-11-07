@@ -42,6 +42,7 @@ pub mod autostart;
 pub mod config;
 pub mod console_utils;
 pub mod database;
+pub mod diarization;
 pub mod feedback;
 pub mod notifications;
 pub mod ollama;

@@ -1,4 +1,5 @@
 use crate::api::{TranscriptSearchResult, TranscriptSegment};
+use crate::diarization::SpeakerLabel;
 use chrono::Utc;
 use regex::{NoExpand, Regex};
 use serde::{Deserialize, Serialize};
@@ -17,7 +18,7 @@ pub struct TranscriptRow {
     pub audio_start_time: Option<f64>,
     pub audio_end_time: Option<f64>,
     pub duration: Option<f64>,
-    pub speaker: Option<String>,
+    pub speaker: Option<SpeakerLabel>,
 }
 
 /// Row state around one edit. Undo applies `before`, redo applies `after`,
@@ -427,8 +428,8 @@ impl TranscriptsRepository {
         for segment in transcripts {
             let transcript_id = format!("transcript-{}", Uuid::new_v4());
             let result = sqlx::query(
-                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
             )
             .bind(&transcript_id)
             .bind(&meeting_id)
@@ -437,6 +438,7 @@ impl TranscriptsRepository {
             .bind(segment.audio_start_time)
             .bind(segment.audio_end_time)
             .bind(segment.duration)
+            .bind(segment.speaker)
             .execute(&mut *transaction)
             .await;
 
@@ -586,7 +588,7 @@ mod tests {
         TranscriptsRepository::apply_edit(&pool, MEETING, &[], &edit.before).await.unwrap();
         let rows = TranscriptsRepository::list_meeting_rows(&pool, MEETING).await.unwrap();
         assert_eq!(rows.len(), 3);
-        assert_eq!(rows[0].speaker.as_deref(), Some("mic"));
+        assert_eq!(rows[0].speaker, Some(SpeakerLabel::Me));
     }
 
     #[tokio::test]

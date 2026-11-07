@@ -4,6 +4,9 @@ export interface Message {
   timestamp: string;
 }
 
+/** Stable speaker key from the backend; display names are resolved per meeting. */
+export type SpeakerLabel = 'me' | 'others' | `speaker_${number}`;
+
 export interface Transcript {
   id: string;
   text: string;
@@ -16,12 +19,14 @@ export interface Transcript {
   audio_start_time?: number; // Seconds from recording start (e.g., 125.3)
   audio_end_time?: number;   // Seconds from recording start (e.g., 128.6)
   duration?: number;          // Segment duration in seconds (e.g., 3.3)
+  speaker?: SpeakerLabel | null;
 }
 
 export interface TranscriptUpdate {
   text: string;
   timestamp: string; // Wall-clock time for reference
   source: string;
+  speaker: SpeakerLabel;
   sequence_id: number;
   chunk_start_time: number; // Legacy field
   is_partial: boolean;

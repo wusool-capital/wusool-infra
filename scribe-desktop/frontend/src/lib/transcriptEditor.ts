@@ -1,4 +1,5 @@
 // Mirrors the Rust `TranscriptRow` / `TranscriptEdit` serialization (snake_case).
+import type { SpeakerLabel } from "@/types";
 export interface TranscriptRow {
   id: string;
   meeting_id: string;
@@ -7,7 +8,7 @@ export interface TranscriptRow {
   audio_start_time: number | null;
   audio_end_time: number | null;
   duration: number | null;
-  speaker: string | null;
+  speaker: SpeakerLabel | null;
 }
 
 export interface TranscriptEdit {

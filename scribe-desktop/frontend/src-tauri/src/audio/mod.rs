@@ -18,6 +18,7 @@ pub mod ffmpeg_mixer;  // NEW: FFmpeg-style adaptive audio mixer
 // New simplified audio system
 pub mod recording_state;
 pub mod pipeline;
+pub mod bleed_gate;
 pub mod stream;
 pub mod recording_manager;
 pub mod recording_commands;

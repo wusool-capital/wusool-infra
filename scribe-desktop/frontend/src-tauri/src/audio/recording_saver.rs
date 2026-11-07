@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 
 use super::recording_state::AudioChunk;
+use crate::diarization::SpeakerLabel;
 use super::audio_processing::create_meeting_folder;
 use super::incremental_saver::IncrementalAudioSaver;
 
@@ -22,6 +23,9 @@ pub struct TranscriptSegment {
     pub display_time: String,   // Formatted time for display like "[02:15]"
     pub confidence: f32,
     pub sequence_id: u64,
+    // Absent in transcripts.json files written before speaker attribution existed.
+    #[serde(default)]
+    pub speaker: Option<SpeakerLabel>,
 }
 
 /// Meeting metadata structure
@@ -129,6 +133,7 @@ impl RecordingSaver {
             display_time: "[00:00]".to_string(),
             confidence: 1.0,
             sequence_id: 0,
+            speaker: None,
         };
         self.add_transcript_segment(segment);
     }
