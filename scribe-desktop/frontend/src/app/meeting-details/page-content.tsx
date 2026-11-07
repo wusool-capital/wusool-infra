@@ -24,14 +24,18 @@ import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperatio
 import { useConfig } from '@/contexts/ConfigContext';
 import { useTranscriptEditor } from '@/hooks/meeting-details/useTranscriptEditor';
 
-/** "6 Nov 2026, 10:00 · 19 lines": when the meeting happened and how much was said. */
-function meetingSummaryLine(createdAt: string, lineCount: number): string {
-  const date = new Date(createdAt);
-  const when = Number.isNaN(date.getTime())
-    ? null
-    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+function formatDate(value: string | null | undefined, options: Intl.DateTimeFormatOptions): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : new Intl.DateTimeFormat(undefined, options).format(date);
+}
+
+/** "6 Nov 2026, 10:00 · 19 lines · Sent to Attio 6 Nov 2026": when, how much, and whether it was pushed. */
+function meetingSummaryLine(createdAt: string, lineCount: number, pushedAt?: string | null): string {
+  const when = formatDate(createdAt, { dateStyle: 'medium', timeStyle: 'short' });
   const lines = `${new Intl.NumberFormat().format(lineCount)} ${lineCount === 1 ? 'line' : 'lines'}`;
-  return when ? `${when} · ${lines}` : lines;
+  const sent = formatDate(pushedAt, { dateStyle: 'medium' });
+  return [when, lines, sent && `Sent to Attio ${sent}`].filter(Boolean).join(' · ');
 }
 
 export default function PageContent({
@@ -228,7 +232,7 @@ export default function PageContent({
           </div>
         )}
         <h1 className="truncate text-xl font-semibold text-foreground">{meeting.title}</h1>
-        <p className="text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length)}</p>
+        <p className="text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length, meeting.pushed_at)}</p>
       </header>
 
       <div className="flex flex-1 overflow-hidden">

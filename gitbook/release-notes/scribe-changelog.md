@@ -16,6 +16,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 ### Changed
 
 * The meeting page shows the meeting's name and date at the top. Long lines are no longer cut off when the window is narrow, and tick boxes appear only when you hover or start selecting.
+* A sent meeting's summary opens with its action items and decisions, and the page header shows when it was sent to Attio. Copy sits beside the tabs.
 * Settings are grouped into clearer sections, and the auto-stop description no longer runs under its switch.
 * Transcripts show filler words such as "um" as recorded, matching the text that Summarize and Attio receive.
 * While recording, one bar at the bottom shows the status, timer, a live microphone level, and Pause and Stop. The level meter now reflects what the microphone actually hears.
