@@ -231,8 +231,8 @@ export default function PageContent({
           </TooltipProvider>
           </div>
         )}
-        <h1 className="truncate text-xl font-semibold text-foreground">{meeting.title}</h1>
-        <p className="text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length, meeting.pushed_at)}</p>
+        <h1 className="select-text truncate text-xl font-semibold text-foreground">{meeting.title}</h1>
+        <p className="select-text text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length, meeting.pushed_at)}</p>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
