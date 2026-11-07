@@ -33,6 +33,8 @@ use uuid::Uuid;
 
 use crate::database::models::MeetingModel;
 use crate::database::repositories::meeting::MeetingsRepository;
+use crate::database::repositories::speaker::SpeakerRepository;
+use crate::diarization::SpeakerLabel;
 use crate::database::repositories::transcript::TranscriptsRepository;
 use crate::state::AppState;
 
@@ -414,12 +416,26 @@ pub struct DesktopMeetingStatusResponse {
     pub summary: Option<serde_json::Value>,
 }
 
-/// speaker isn't real per-person diarization in this build (see
-/// meetily/CLAUDE.md and app/audio/transcription — no pyannote
-/// integration is compiled in), so every turn gets a single generic
-/// label. The backend's SummarizeMeetingCommand only reads
-/// speaker+text and doesn't require it to be meaningful.
+/// Label for segments saved before speaker attribution existed.
 const GENERIC_SPEAKER_LABEL: &str = "Participant";
+
+/// The name the backend sees for a segment: a person's name where one is known, so the
+/// summary can say who said what, otherwise a stable placeholder.
+fn speaker_display_name(
+    label: Option<SpeakerLabel>,
+    names: &HashMap<SpeakerLabel, String>,
+    self_name: Option<&str>,
+) -> String {
+    match label {
+        None => GENERIC_SPEAKER_LABEL.to_string(),
+        Some(SpeakerLabel::Me) => self_name.unwrap_or("Me").to_string(),
+        Some(SpeakerLabel::Others) => "Others".to_string(),
+        Some(label @ SpeakerLabel::Speaker(n)) => names
+            .get(&label)
+            .cloned()
+            .unwrap_or_else(|| format!("Speaker {}", n + 1)),
+    }
+}
 
 #[tauri::command]
 pub async fn push_meeting<R: Runtime>(
@@ -454,11 +470,19 @@ pub async fn push_meeting<R: Runtime>(
         return Err("This meeting has no transcript to push.".to_string());
     }
 
+    let speaker_names: HashMap<SpeakerLabel, String> = SpeakerRepository::meeting_speakers(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load speakers for {}: {}", meeting_id, e))?
+        .into_iter()
+        .filter_map(|s| Some((s.label, s.name?)))
+        .collect();
+    let self_name = crate::diarization::commands::load_self_name(&app);
+
     let turns: Vec<DesktopTranscriptTurn> = meeting
         .transcripts
         .iter()
         .map(|t| DesktopTranscriptTurn {
-            speaker: GENERIC_SPEAKER_LABEL.to_string(),
+            speaker: speaker_display_name(t.speaker, &speaker_names, self_name.as_deref()),
             start: t.audio_start_time.unwrap_or(0.0),
             end: t.audio_end_time.unwrap_or(0.0),
             text: t.text.clone(),
@@ -1159,6 +1183,17 @@ mod sync_tests {
     #[test]
     fn plan_sync_fetches_when_missing_locally() {
         assert_eq!(plan_sync(true, true, false), SyncAction::FetchAndFill);
+    }
+
+    #[test]
+    fn speaker_display_name_prefers_known_names() {
+        let names = HashMap::from([(SpeakerLabel::Speaker(0), "Alice".to_string())]);
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Speaker(0)), &names, None), "Alice");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Speaker(1)), &names, None), "Speaker 2");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Me), &names, Some("Sam")), "Sam");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Me), &names, None), "Me");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Others), &names, None), "Others");
+        assert_eq!(speaker_display_name(None, &names, None), GENERIC_SPEAKER_LABEL);
     }
 
     #[test]
