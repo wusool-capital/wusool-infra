@@ -26,6 +26,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * The CoreML download bar fills as the download progresses and shows the real size, instead of sitting at 100%.
 * After **Tidy Lines**, transcript lines no longer overlap until you resize the window.
 * The sidebar no longer opens very wide after a click near its edge. It can be at most 420 px wide, and double-clicking its edge resets it.
+* The transcript toolbar fits beside a wide sidebar: its buttons switch to icons when space runs out, and **Summarize** is never cut off.
 
 ## 0.8.1
 

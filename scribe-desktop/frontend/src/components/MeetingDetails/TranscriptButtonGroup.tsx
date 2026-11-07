@@ -12,7 +12,8 @@ import { TranscriptFindReplace } from './TranscriptFindReplace';
 import { Spinner } from '@/components/ui/spinner';
 
 // One rule for every secondary button: icon only below lg, icon and label from lg up.
-const LABEL = 'hidden lg:inline';
+// Hidden by the toolbar's own width (globals.css), not the window's: a wide sidebar narrows it too.
+const LABEL = 'toolbar-label';
 
 
 interface TranscriptButtonGroupProps {
@@ -49,7 +50,7 @@ export function TranscriptButtonGroup({
   }, [onRefetchTranscripts]);
 
   return (
-    <div className="flex w-full items-center justify-between gap-3">
+    <div className="toolbar flex w-full items-center justify-between gap-3">
       {/* Editing tools sit on the left, next to the text they change. */}
       <div className="flex items-center gap-2">
         {editor && (

@@ -57,7 +57,7 @@ export function TranscriptFindReplace({ editor }: { editor: TranscriptEditorApi 
       <PopoverTrigger asChild>
         <Button size="sm" variant="outline" aria-label="Find & Replace" title="Find & Replace (⌘F)">
           <Search />
-          <span className="hidden lg:inline">Find</span>
+          <span className="toolbar-label">Find</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 space-y-2">

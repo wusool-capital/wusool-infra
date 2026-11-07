@@ -248,3 +248,13 @@ textarea,
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Transcript toolbar: labels drop to icons when the toolbar itself is too narrow for them. */
+.toolbar {
+  container-type: inline-size;
+}
+@container (max-width: 780px) {
+  .toolbar-label {
+    display: none;
+  }
+}
