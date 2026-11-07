@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
+import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2, WrapText } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 import { useConfig } from '@/contexts/ConfigContext';
@@ -77,6 +77,19 @@ export function TranscriptButtonGroup({
               </Button>
             </ButtonGroup>
             <TranscriptFindReplace editor={editor} />
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="Tidy Lines"
+              title="Join short fragments into full sentences"
+              onClick={() => {
+                Analytics.trackButtonClick('tidy_transcript', 'meeting_details');
+                void editor.tidyLines();
+              }}
+            >
+              <WrapText />
+              <span className={LABEL}>Tidy Lines</span>
+            </Button>
             <Button
               size="sm"
               variant="outline"

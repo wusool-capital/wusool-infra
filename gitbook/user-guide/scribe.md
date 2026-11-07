@@ -94,6 +94,8 @@ Fix the transcript before you summarize or send it:
 - Hover over a line to show its tick box, or click its time. Shift-click
   selects a range. Then delete, merge, or split the selected lines.
 - Right-click a line to delete everything before it.
+- Press **Tidy Lines** to join short fragments from the same speaker into
+  full sentences. It never changes a word, and Cmd+Z undoes it.
 - Use **Find & Replace** (Cmd+F) to fix a misheard name everywhere.
 - Press **Proofread** to get suggested fixes for misheard words. Accept or
   dismiss each one, or press **Accept All** or **Dismiss All**. Scribe sends the transcript

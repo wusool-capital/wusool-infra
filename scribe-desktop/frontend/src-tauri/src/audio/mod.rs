@@ -20,6 +20,7 @@ pub mod recording_state;
 pub mod pipeline;
 pub mod bleed_gate;
 pub mod mic_level;
+pub mod segment_merger;
 pub mod stream;
 pub mod recording_manager;
 pub mod recording_commands;

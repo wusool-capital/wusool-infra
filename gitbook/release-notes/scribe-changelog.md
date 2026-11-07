@@ -10,6 +10,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Click a speaker's name to say who they are. Scribe renames everything they said in that meeting and recognises their voice in later meetings. Voice fingerprints stay on your Mac.
 * **Faster Speaker Separation (CoreML)** in Settings separates voices about six times faster, using more memory while it runs.
 * **Proofread** suggests fixes for misheard words. Accept or dismiss each one, or all at once.
+* **Tidy Lines** joins short fragments from the same speaker into full sentences, in one step you can undo.
 * Meetings pushed to Attio carry each speaker's name instead of "Participant".
 
 ### Changed
@@ -20,6 +21,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * While recording, one bar at the bottom shows the status, timer, a live microphone level, and Pause and Stop. The level meter now reflects what the microphone actually hears.
 * The home screen shows which microphone and system audio a recording will use, with one **Start Recording** button.
 * **Test Mic** in Settings shows the real level of the selected microphone. It used to show a simulated level.
+* Live transcripts break into full sentences instead of short fragments, which also makes them more accurate. Lines appear a second or two after people stop speaking.
 
 ## 0.7.7
 

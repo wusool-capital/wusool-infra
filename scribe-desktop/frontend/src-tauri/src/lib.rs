@@ -738,6 +738,7 @@ pub fn run() {
             api::delete_transcript_segments,
             api::split_transcript_segment,
             api::merge_transcript_segments,
+            api::tidy_transcript_lines,
             api::find_in_transcripts,
             api::replace_in_transcripts,
             api::apply_transcript_edit,

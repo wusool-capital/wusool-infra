@@ -190,6 +190,21 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     [guarded, order, meetingId, commit],
   );
 
+  const tidyLines = useCallback(
+    () =>
+      guarded('Failed to tidy lines', async () => {
+        const edit = await invoke<TranscriptEdit>('tidy_transcript_lines', { meetingId });
+        if (edit.after.length === 0) {
+          toast.success('Lines are already tidy');
+          return;
+        }
+        setSelection(EMPTY_SELECTION);
+        await commit(edit);
+        toast.success(`Joined ${edit.before.length} lines into ${edit.after.length}. Undo with Cmd+Z.`);
+      }),
+    [guarded, meetingId, commit],
+  );
+
   const mergeSelected = useCallback(
     () => mergeSegments(order.filter((id) => selection.selected.has(id))),
     [mergeSegments, order, selection],
@@ -365,6 +380,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     deleteBefore,
     mergeSelected,
     mergeWithNext,
+    tidyLines,
     splitAt,
     splitSelected,
     findOpen,

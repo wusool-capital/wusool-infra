@@ -40,6 +40,67 @@ const ROW_COLUMNS: &str =
 
 pub struct TranscriptsRepository;
 
+/// Below this a line reads as a fragment ("Yeah.", "And") and joins its neighbour.
+const MIN_LINE_SECS: f64 = 2.5;
+/// A longer silence is a real break between lines.
+const MAX_JOIN_GAP_SECS: f64 = 2.0;
+/// Matches the live pipeline's cap, keeping lines easy to read and edit.
+const MAX_LINE_SECS: f64 = 20.0;
+
+/// One line made from several in time order: texts joined, times spanning all of them, first row's id and speaker.
+fn join_rows(rows: &[TranscriptRow]) -> TranscriptRow {
+    let mut merged = rows[0].clone();
+    merged.transcript = rows
+        .iter()
+        .map(|r| r.transcript.trim())
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    merged.audio_end_time = rows
+        .iter()
+        .filter_map(|r| r.audio_end_time)
+        .fold(None, |acc: Option<f64>, e| Some(acc.map_or(e, |a| a.max(e))))
+        .or(merged.audio_end_time);
+    merged.duration = match (merged.audio_start_time, merged.audio_end_time) {
+        (Some(s), Some(e)) => Some(e - s),
+        _ => merged.duration,
+    };
+    merged
+}
+
+fn ends_sentence(text: &str) -> bool {
+    text.trim_end().ends_with(['.', '?', '!', '…'])
+}
+
+/// Index ranges of time-ordered rows to join: same speaker, close in time, and the line so far is
+/// either unfinished or still a fragment. Groups of one are left alone.
+fn tidy_groups(rows: &[TranscriptRow]) -> Vec<std::ops::Range<usize>> {
+    let mut groups = Vec::new();
+    let mut start = 0;
+    for i in 1..=rows.len() {
+        let joins = i < rows.len() && {
+            let (first, prev, next) = (&rows[start], &rows[i - 1], &rows[i]);
+            match (first.audio_start_time, prev.audio_end_time, next.audio_start_time, next.audio_end_time) {
+                (Some(line_start), Some(prev_end), Some(next_start), Some(next_end)) => {
+                    let line_so_far = prev_end - line_start;
+                    next.speaker == prev.speaker
+                        && next_start - prev_end <= MAX_JOIN_GAP_SECS
+                        && next_end - line_start <= MAX_LINE_SECS
+                        && (!ends_sentence(&prev.transcript) || line_so_far < MIN_LINE_SECS)
+                }
+                _ => false,
+            }
+        };
+        if !joins {
+            if i - start > 1 {
+                groups.push(start..i);
+            }
+            start = i;
+        }
+    }
+    groups
+}
+
 impl TranscriptsRepository {
     pub async fn is_meeting_pushed(
         pool: &SqlitePool,
@@ -269,28 +330,35 @@ impl TranscriptsRepository {
                 .total_cmp(&b.audio_start_time.unwrap_or(0.0))
         });
 
-        let mut merged = before[0].clone();
-        merged.transcript = before
-            .iter()
-            .map(|r| r.transcript.trim())
-            .filter(|t| !t.is_empty())
-            .collect::<Vec<_>>()
-            .join(" ");
-        merged.audio_end_time = before
-            .iter()
-            .filter_map(|r| r.audio_end_time)
-            .fold(None, |acc: Option<f64>, e| Some(acc.map_or(e, |a| a.max(e))))
-            .or(merged.audio_end_time);
-        merged.duration = match (merged.audio_start_time, merged.audio_end_time) {
-            (Some(s), Some(e)) => Some(e - s),
-            _ => merged.duration,
-        };
-
+        let merged = join_rows(&before);
         let removed: Vec<String> = before[1..].iter().map(|r| r.id.clone()).collect();
         Self::write_rows(&mut tx, meeting_id, &removed, std::slice::from_ref(&merged)).await?;
         tx.commit().await?;
 
         Ok(TranscriptEdit { before, after: vec![merged] })
+    }
+
+    /// Joins every run of fragments into sentence-sized lines in one undoable edit.
+    pub async fn tidy_transcripts(pool: &SqlitePool, meeting_id: &str) -> Result<TranscriptEdit, SqlxError> {
+        let mut conn = pool.acquire().await?;
+        let mut tx = conn.begin().await?;
+        let rows = Self::fetch_meeting_rows(&mut tx, meeting_id).await?;
+
+        let mut before = Vec::new();
+        let mut after = Vec::new();
+        let mut removed = Vec::new();
+        for group in tidy_groups(&rows) {
+            let members = &rows[group];
+            let merged = join_rows(members);
+            removed.extend(members[1..].iter().map(|r| r.id.clone()));
+            before.extend_from_slice(members);
+            after.push(merged);
+        }
+        if !after.is_empty() {
+            Self::write_rows(&mut tx, meeting_id, &removed, &after).await?;
+        }
+        tx.commit().await?;
+        Ok(TranscriptEdit { before, after })
     }
 
     fn match_regex(find: &str) -> Result<Regex, SqlxError> {
@@ -594,6 +662,68 @@ mod tests {
         let rows = TranscriptsRepository::list_meeting_rows(&pool, MEETING).await.unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].speaker, Some(SpeakerLabel::Me));
+    }
+
+    fn row(id: &str, text: &str, start: f64, end: f64, speaker: Option<SpeakerLabel>) -> TranscriptRow {
+        TranscriptRow {
+            id: id.to_string(),
+            meeting_id: MEETING.to_string(),
+            transcript: text.to_string(),
+            timestamp: "ts".to_string(),
+            audio_start_time: Some(start),
+            audio_end_time: Some(end),
+            duration: Some(end - start),
+            speaker,
+        }
+    }
+
+    #[test]
+    fn tidy_joins_fragments_but_keeps_finished_sentences_apart() {
+        let me = Some(SpeakerLabel::Me);
+        // The fragmented lines from a real meeting: 0:19 "And" / 0:24 "We ate..." / 0:27 "An" / 0:28 "d".
+        let rows = vec![
+            row("a", "Today was a beautiful day.", 6.0, 8.6, me),
+            row("b", "And", 19.0, 19.4, me),
+            row("c", "we ate a lot of food", 20.0, 22.0, me),
+            row("d", "and then", 22.8, 23.5, me),
+            row("e", "Next topic.", 40.0, 43.0, me),
+        ];
+        assert_eq!(tidy_groups(&rows), vec![1..4]);
+    }
+
+    #[test]
+    fn tidy_never_joins_different_speakers_or_long_gaps() {
+        let rows = vec![
+            row("a", "So", 0.0, 0.5, Some(SpeakerLabel::Me)),
+            row("b", "right", 0.8, 1.2, Some(SpeakerLabel::Speaker(0))),
+            row("c", "and", 5.0, 5.3, Some(SpeakerLabel::Speaker(0))),
+        ];
+        assert!(tidy_groups(&rows).is_empty());
+    }
+
+    #[test]
+    fn tidy_caps_line_length() {
+        let me = Some(SpeakerLabel::Me);
+        let rows: Vec<TranscriptRow> =
+            (0..12).map(|i| row(&format!("r{i}"), "and so on", i as f64 * 3.0, i as f64 * 3.0 + 2.5, me)).collect();
+        for group in tidy_groups(&rows) {
+            let span = rows[group.end - 1].audio_end_time.unwrap() - rows[group.start].audio_start_time.unwrap();
+            assert!(span <= MAX_LINE_SECS);
+        }
+    }
+
+    #[tokio::test]
+    async fn tidy_is_one_undoable_edit() {
+        let pool = seeded_pool().await;
+        // Seeded lines are back to back with no sentence ends, so they join into one.
+        let edit = TranscriptsRepository::tidy_transcripts(&pool, MEETING).await.unwrap();
+        assert_eq!(texts(&pool).await, vec!["Hello there Wasool is great wasool again"]);
+        assert_eq!(edit.before.len(), 3);
+        assert_eq!(edit.after.len(), 1);
+
+        let delete_ids: Vec<String> = Vec::new();
+        TranscriptsRepository::apply_edit(&pool, MEETING, &delete_ids, &edit.before).await.unwrap();
+        assert_eq!(texts(&pool).await.len(), 3);
     }
 
     #[tokio::test]

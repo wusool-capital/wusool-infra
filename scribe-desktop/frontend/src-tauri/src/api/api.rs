@@ -1094,6 +1094,19 @@ pub async fn merge_transcript_segments<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn tidy_transcript_lines<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::tidy_transcripts(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to tidy lines: {}", e))
+}
+
+#[tauri::command]
 pub async fn find_in_transcripts<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
