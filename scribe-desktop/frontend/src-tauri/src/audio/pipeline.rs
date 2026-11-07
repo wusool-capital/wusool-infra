@@ -836,6 +836,16 @@ impl AudioPipeline {
                             // Previous 2x gain was causing excessive limiting/distortion
                             let mixed_with_gain = mixed_clean;
 
+                            if let Some(ref sender) = self.recording_sender_for_mixed {
+                                let _ = sender.send(AudioChunk {
+                                    data: sys_window.clone(),
+                                    sample_rate: self.sample_rate,
+                                    timestamp: chunk.timestamp,
+                                    chunk_id: self.chunk_id_counter,
+                                    device_type: DeviceType::System,
+                                });
+                            }
+
                             // STEP 3: Transcribe each source separately so segments keep their speaker
                             let mic_for_vad = if self.bleed_gate.is_bleed(&mic_window, &sys_window) {
                                 vec![0.0; mic_window.len()]

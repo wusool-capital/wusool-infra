@@ -23,6 +23,7 @@ pub struct IncrementalAudioSaver {
     checkpoints_dir: PathBuf,
     meeting_folder: PathBuf,
     sample_rate: u32,
+    output_file_name: &'static str,
 }
 
 impl IncrementalAudioSaver {
@@ -32,7 +33,22 @@ impl IncrementalAudioSaver {
     /// * `meeting_folder` - Path to the meeting folder (contains .checkpoints/)
     /// * `sample_rate` - Sample rate of audio (typically 48000)
     pub fn new(meeting_folder: PathBuf, sample_rate: u32) -> Result<Self> {
-        let checkpoints_dir = meeting_folder.join(".checkpoints");
+        Self::for_track(meeting_folder, sample_rate, ".checkpoints", "audio.mp4")
+    }
+
+    /// Saver for the meeting audio alone, which diarization needs without the local mic mixed in.
+    pub fn new_system_track(meeting_folder: PathBuf, sample_rate: u32) -> Result<Self> {
+        std::fs::create_dir_all(meeting_folder.join(".checkpoints_system"))?;
+        Self::for_track(meeting_folder, sample_rate, ".checkpoints_system", "system.mp4")
+    }
+
+    fn for_track(
+        meeting_folder: PathBuf,
+        sample_rate: u32,
+        checkpoints_dir_name: &str,
+        output_file_name: &'static str,
+    ) -> Result<Self> {
+        let checkpoints_dir = meeting_folder.join(checkpoints_dir_name);
 
         // Verify checkpoints directory exists
         if !checkpoints_dir.exists() {
@@ -46,6 +62,7 @@ impl IncrementalAudioSaver {
             checkpoints_dir,
             meeting_folder,
             sample_rate,
+            output_file_name,
         })
     }
 
@@ -129,7 +146,7 @@ impl IncrementalAudioSaver {
         }
 
         // Merge all checkpoints using FFmpeg concat
-        let final_audio_path = self.meeting_folder.join("audio.mp4");
+        let final_audio_path = self.meeting_folder.join(self.output_file_name);
         self.merge_checkpoints(&final_audio_path).await?;
 
         // Clean up checkpoints directory
