@@ -75,11 +75,13 @@ Scribe labels each speaker's turn in the transcript:
 Voice fingerprints are stored only on your Mac. To make Scribe forget
 someone, delete them under **Settings → General → Speakers**.
 
+If speakers were not separated, for example because you were offline, press
+**Separate Speakers** above the transcript to try again.
+
 Speakers are only separated for meetings recorded with **Auto-save** on,
-because Scribe needs the meeting audio on its own. Imported and enhanced
-meetings are not separated. Without headphones, your microphone also picks
-up the meeting audio, and Scribe ignores that echo. A few of your lines can
-be missed while others talk over you.
+because Scribe needs the meeting audio on its own. Imported meetings are not
+separated. Enhancing a meeting keeps its speakers. Without headphones, your
+microphone also picks up the meeting audio, and Scribe ignores that echo.
 
 ## Edit a transcript
 
@@ -94,7 +96,9 @@ Fix the transcript before you summarize or send it:
   text to the Toolkit server for this, and nothing is stored there.
 - Undo and redo with Cmd+Z and Cmd+Shift+Z.
 
-Deleted lines are not sent to Summarize.
+Deleted lines are not sent to Summarize. Filler words such as "um" appear
+exactly as recorded, because that is the text Summarize receives. Remove them
+with Proofread or Find & Replace.
 
 ## Summarize a meeting
 

@@ -9,6 +9,7 @@ import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptE
 import { useMemo } from 'react';
 import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -81,6 +82,11 @@ export function TranscriptPanel({
     }));
   }, [transcripts, usePagination, segments]);
 
+  const hasUnseparatedLines = useMemo(
+    () => convertedSegments.some((segment) => segment.speaker === 'others'),
+    [convertedSegments],
+  );
+
   return (
     <div className="flex w-full h-full min-w-0 bg-card flex-col relative">
       {/* Toolbar */}
@@ -96,6 +102,25 @@ export function TranscriptPanel({
             onSummarize={onSummarize}
             editor={editable ? editor : undefined}
           />
+        </div>
+      )}
+
+      {editable && speakers.separate && speakers.voiceCount === 0 && hasUnseparatedLines && (
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
+          <span className="min-w-0 text-sm text-foreground" aria-live="polite">
+            {speakers.separation.status === 'running'
+              ? 'Separating speakers…'
+              : speakers.separation.status === 'failed'
+                ? `Couldn't separate speakers: ${speakers.separation.error}`
+                : "Other speakers haven't been separated yet."}
+          </span>
+          {speakers.separation.status === 'running' ? (
+            <Spinner className="h-4 w-4 shrink-0" />
+          ) : (
+            <Button size="sm" variant="outline" onClick={() => void speakers.separate?.()}>
+              {speakers.separation.status === 'failed' ? 'Try Again' : 'Separate Speakers'}
+            </Button>
+          )}
         </div>
       )}
 

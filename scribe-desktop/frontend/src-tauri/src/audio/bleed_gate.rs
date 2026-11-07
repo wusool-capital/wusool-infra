@@ -1,8 +1,6 @@
 // audio/bleed_gate.rs
 //
-// Detects when the microphone is only picking up the meeting audio from the speakers.
-// Without headphones, remote voices leak into the mic and would be transcribed twice,
-// once from each source, and wrongly attributed to the local user.
+// Detects speaker echo in the mic, which would duplicate remote voices and credit them to the user.
 
 use std::collections::VecDeque;
 
@@ -30,23 +28,31 @@ impl BleedGate {
 
     /// Feeds one aligned window of each source and reports whether the mic window is bleed.
     pub fn is_bleed(&mut self, mic_window: &[f32], sys_window: &[f32]) -> bool {
+        let mut frames = 0;
         for (mic_frame, sys_frame) in mic_window
             .chunks(self.frame_samples)
             .zip(sys_window.chunks(self.frame_samples))
         {
             push_bounded(&mut self.mic_env, rms(mic_frame));
             push_bounded(&mut self.sys_env, rms(sys_frame));
+            frames += 1;
         }
 
-        let sys_mean = self.sys_env.iter().sum::<f32>() / self.sys_env.len().max(1) as f32;
-        if sys_mean < SYSTEM_ACTIVITY_RMS || self.mic_env.len() <= MAX_LAG_FRAMES * 2 {
+        let len = self.mic_env.len();
+        if frames == 0 || len < frames + MAX_LAG_FRAMES {
             return false;
         }
-
         let mic: Vec<f32> = self.mic_env.iter().copied().collect();
         let sys: Vec<f32> = self.sys_env.iter().copied().collect();
+
+        // Judge this window alone: the user talking over remote audio must break the match at once.
+        let current = &mic[len - frames..];
+        let sys_mean = sys[len - frames..].iter().sum::<f32>() / frames as f32;
+        if sys_mean < SYSTEM_ACTIVITY_RMS {
+            return false;
+        }
         (0..=MAX_LAG_FRAMES)
-            .map(|lag| pearson(&mic[lag..], &sys[..sys.len() - lag]))
+            .map(|lag| pearson(current, &sys[len - frames - lag..len - lag]))
             .fold(f32::MIN, f32::max)
             >= CORRELATION_THRESHOLD
     }
@@ -120,6 +126,22 @@ mod tests {
     fn independent_speech_over_system_audio_is_not_bleed() {
         let sys = speech(4.0, 0.0);
         let mic = speech(4.0, 5.0);
+        assert!(!run(&mut BleedGate::new(RATE), &mic, &sys));
+    }
+
+    #[test]
+    fn interrupting_after_a_stretch_of_bleed_is_not_bleed() {
+        let sys = speech(4.8, 0.0);
+        let delay = RATE as usize / 20;
+        let local = speech(4.8, 5.0);
+        let mut mic: Vec<f32> = vec![0.0; delay];
+        mic.extend(sys.iter().map(|x| x * 0.2));
+        mic.truncate(sys.len());
+        // The user starts talking over the remote speaker for the last 1.2 s (two windows).
+        let interrupt_from = sys.len() - 2 * WINDOW;
+        for (i, sample) in mic.iter_mut().enumerate().skip(interrupt_from) {
+            *sample += local[i] * 1.5;
+        }
         assert!(!run(&mut BleedGate::new(RATE), &mic, &sys));
     }
 

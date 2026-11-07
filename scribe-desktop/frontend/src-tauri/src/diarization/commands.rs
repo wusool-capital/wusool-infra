@@ -1,7 +1,6 @@
 // diarization/commands.rs
 //
-// Tauri commands for speaker names: the voice library, per-meeting naming, the local
-// user's own display name, and which backend diarization runs on.
+// Tauri commands for the voice library, speaker naming, the user's own name and the diarization backend.
 
 use serde::Serialize;
 use tauri::{AppHandle, Runtime};

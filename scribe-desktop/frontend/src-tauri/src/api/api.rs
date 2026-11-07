@@ -209,7 +209,7 @@ pub struct TranscriptSegment {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
-    // Missing for imported or retranscribed audio until diarization runs.
+    // Missing for imported audio and for transcripts saved before speaker attribution.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub speaker: Option<SpeakerLabel>,
 }

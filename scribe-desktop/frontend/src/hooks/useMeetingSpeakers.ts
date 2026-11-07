@@ -3,8 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import type { SpeakerLabel } from '@/types';
 import {
+  DiarizationOutcome,
   DiarizationUpdatedEvent,
   MeetingSpeaker,
+  SeparationState,
   SpeakerProfileSummary,
   speakerDisplayName,
 } from '@/lib/speakers';
@@ -17,6 +19,11 @@ export interface SpeakerNames {
   rename?: (label: SpeakerLabel, name: string) => Promise<void>;
   /** People already in the voice library, offered as suggestions when naming. */
   knownNames: string[];
+  /** Voices separated for this meeting; zero means diarization has not produced any yet. */
+  voiceCount: number;
+  separation: SeparationState;
+  /** Runs (or re-runs) speaker separation for a saved meeting. */
+  separate?: () => Promise<void>;
 }
 
 /**
@@ -27,6 +34,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
   const [speakers, setSpeakers] = useState<MeetingSpeaker[]>([]);
   const [profiles, setProfiles] = useState<SpeakerProfileSummary[]>([]);
   const [selfName, setSelfName] = useState<string | null>(null);
+  const [separation, setSeparation] = useState<SeparationState>({ status: 'idle' });
 
   const load = useCallback(async () => {
     try {
@@ -50,9 +58,17 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
   useEffect(() => {
     if (!meetingId) return;
     const unlisten = listen<DiarizationUpdatedEvent>('diarization-updated', (event) => {
-      if (event.payload.meeting_id !== meetingId || event.payload.status !== 'completed') return;
-      load();
-      onLabelsChanged?.();
+      const payload = event.payload;
+      if (payload.meeting_id !== meetingId) return;
+      if (payload.status === 'running') {
+        setSeparation({ status: 'running' });
+        return;
+      }
+      setSeparation(payload.status === 'failed' ? { status: 'failed', error: payload.error } : { status: 'idle' });
+      if (payload.status === 'completed') {
+        load();
+        onLabelsChanged?.();
+      }
     });
     return () => {
       unlisten.then((stop) => stop());
@@ -77,7 +93,27 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     [speakers],
   );
 
+  const separate = useCallback(async () => {
+    setSeparation({ status: 'running' });
+    try {
+      const outcome = await invoke<DiarizationOutcome>('diarize_meeting', { meetingId });
+      // A run already in flight reports through its own event; everything else settles here.
+      if (outcome.status === 'failed') setSeparation({ status: 'failed', error: outcome.error });
+      else if (outcome.status !== 'already_running') setSeparation({ status: 'idle' });
+    } catch (error) {
+      setSeparation({ status: 'failed', error: String(error) });
+    }
+  }, [meetingId]);
+
   const knownNames = useMemo(() => profiles.map((p) => p.name), [profiles]);
 
-  return { resolveName, isNamed, rename: meetingId ? rename : undefined, knownNames };
+  return {
+    resolveName,
+    isNamed,
+    rename: meetingId ? rename : undefined,
+    knownNames,
+    voiceCount: speakers.length,
+    separation,
+    separate: meetingId ? separate : undefined,
+  };
 }

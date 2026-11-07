@@ -13,10 +13,24 @@ export interface SpeakerProfileSummary {
   sample_count: number;
 }
 
-export interface DiarizationUpdatedEvent {
-  meeting_id: string;
-  status: 'completed' | 'skipped' | 'failed';
-}
+// Mirrors the Rust `DiarizationStarted` / `DiarizationEvent` payloads.
+export type DiarizationUpdatedEvent =
+  | { meeting_id: string; status: 'running' }
+  | { meeting_id: string; status: 'completed'; speakers: number; auto_named: number }
+  | { meeting_id: string; status: 'skipped'; reason: string }
+  | { meeting_id: string; status: 'failed'; error: string };
+
+// Mirrors the Rust `DiarizationOutcome` returned by the diarize_meeting command.
+export type DiarizationOutcome =
+  | { status: 'completed'; speakers: number; auto_named: number }
+  | { status: 'skipped'; reason: string }
+  | { status: 'failed'; error: string }
+  | { status: 'already_running' };
+
+export type SeparationState =
+  | { status: 'idle' }
+  | { status: 'running' }
+  | { status: 'failed'; error: string };
 
 /** Index `n` of a `speaker_n` label, or null for "me"/"others". */
 export function diarizedIndex(label: SpeakerLabel): number | null {

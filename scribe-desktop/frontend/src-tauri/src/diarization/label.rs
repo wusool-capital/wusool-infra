@@ -1,7 +1,6 @@
 // diarization/label.rs
 //
-// The speaker key stored on every transcript segment. It is a stable key, not a display
-// name: names are resolved through the meeting's speaker map so a rename touches one row.
+// A stable speaker key, not a display name, so renaming someone touches one row, not every segment.
 
 use std::fmt;
 use std::str::FromStr;

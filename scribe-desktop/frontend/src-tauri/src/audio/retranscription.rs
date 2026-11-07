@@ -8,6 +8,8 @@ use crate::config::{DEFAULT_WHISPER_MODEL, DEFAULT_PARAKEET_MODEL};
 use crate::parakeet_engine::ParakeetEngine;
 use crate::state::AppState;
 use crate::whisper_engine::WhisperEngine;
+use crate::diarization::assign::dominant_label;
+use crate::diarization::SpeakerLabel;
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
@@ -419,7 +421,7 @@ async fn run_retranscription<R: Runtime>(
     emit_progress(&app, &meeting_id, "saving", 80, "Saving transcripts...");
 
     // Create transcript segments with proper timestamps from VAD
-    let segments = create_transcript_segments(&all_transcripts);
+    let mut segments = create_transcript_segments(&all_transcripts);
 
     // Save to database
     let app_state = app
@@ -433,6 +435,20 @@ async fn run_retranscription<R: Runtime>(
         .await
         .map_err(|e| anyhow!("Failed to start transaction: {}", e))?;
 
+    // The audio timeline is unchanged, so speakers carry over from the old lines by time overlap.
+    let previous: Vec<(f64, f64, SpeakerLabel)> = sqlx::query_as(
+        "SELECT audio_start_time, audio_end_time, speaker FROM transcripts
+         WHERE meeting_id = ? AND speaker IS NOT NULL
+           AND audio_start_time IS NOT NULL AND audio_end_time IS NOT NULL",
+    )
+    .bind(&meeting_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| anyhow!("Failed to read existing speakers: {}", e))?;
+    for segment in &mut segments {
+        segment.speaker = carried_speaker(segment.audio_start_time, segment.audio_end_time, &previous);
+    }
+
     sqlx::query("DELETE FROM transcripts WHERE meeting_id = ?")
         .bind(&meeting_id)
         .execute(&mut *tx)
@@ -441,8 +457,8 @@ async fn run_retranscription<R: Runtime>(
 
     for segment in &segments {
         sqlx::query(
-            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&segment.id)
         .bind(&meeting_id)
@@ -451,6 +467,7 @@ async fn run_retranscription<R: Runtime>(
         .bind(segment.audio_start_time)
         .bind(segment.audio_end_time)
         .bind(segment.duration)
+        .bind(segment.speaker)
         .execute(&mut *tx)
         .await
         .map_err(|e| anyhow!("Failed to insert transcript: {}", e))?;
@@ -1012,5 +1029,38 @@ mod tests {
         // Non-audio formats
         assert!(!AUDIO_EXTENSIONS.contains(&"txt"));
         assert!(!AUDIO_EXTENSIONS.contains(&"pdf"));
+    }
+}
+
+/// The old label a new line overlaps most; unmatched lines become "others" so diarization can still attribute them.
+fn carried_speaker(
+    start: Option<f64>,
+    end: Option<f64>,
+    previous: &[(f64, f64, SpeakerLabel)],
+) -> Option<SpeakerLabel> {
+    if previous.is_empty() {
+        return None;
+    }
+    let (Some(start), Some(end)) = (start, end) else {
+        return Some(SpeakerLabel::Others);
+    };
+    Some(dominant_label(start, end, previous.iter().copied()).unwrap_or(SpeakerLabel::Others))
+}
+
+#[cfg(test)]
+mod speaker_carry_over_tests {
+    use super::*;
+
+    #[test]
+    fn new_lines_take_the_speaker_they_overlap_most() {
+        let previous = vec![(0.0, 4.0, SpeakerLabel::Me), (4.0, 10.0, SpeakerLabel::Speaker(1))];
+        assert_eq!(carried_speaker(Some(1.0), Some(3.0), &previous), Some(SpeakerLabel::Me));
+        assert_eq!(carried_speaker(Some(3.0), Some(9.0), &previous), Some(SpeakerLabel::Speaker(1)));
+        assert_eq!(carried_speaker(Some(20.0), Some(21.0), &previous), Some(SpeakerLabel::Others));
+    }
+
+    #[test]
+    fn meetings_without_speakers_stay_unlabelled() {
+        assert_eq!(carried_speaker(Some(1.0), Some(2.0), &[]), None);
     }
 }

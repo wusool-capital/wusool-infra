@@ -29,8 +29,7 @@ const CPU_MODEL_FILES: &[&str] = &[
     "plda_tr.npy",
 ];
 
-/// Compiled CoreML bundles, on top of the CPU files' PLDA data (about 263 MB in total).
-/// Mirrors the CoreML stems speakrs 0.7 loads; recheck them when upgrading speakrs.
+/// The CoreML bundles speakrs 0.7 loads (~263 MB); recheck this list when upgrading speakrs.
 const COREML_MODEL_STEMS: &[&str] = &[
     "segmentation-3.0",
     "segmentation-3.0-b32",
@@ -50,8 +49,7 @@ const COREML_MODEL_STEMS: &[&str] = &[
 ];
 const MLMODELC_FILES: &[&str] = &["model.mil", "coremldata.bin", "weights/weight.bin", "analytics/coremldata.bin"];
 
-/// Where diarization runs. CPU is the default: CoreML is ~5x faster on Apple silicon but
-/// peaks near 2.7 GB of RAM while processing, against ~0.5 GB on CPU.
+/// CPU is the default; CoreML is about 6x faster but peaks near 2.7 GB of RAM, against 0.5 GB.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DiarizationBackend {
@@ -99,8 +97,7 @@ pub fn models_dir(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("models").join("diarization").join(MODEL_REVISION)
 }
 
-/// Downloads any missing model file. Each file lands under a temp name first so an
-/// interrupted download is never mistaken for a complete one.
+/// Downloads missing model files via a temp name, so an interrupted download never looks complete.
 pub async fn ensure_models(dir: &Path, backend: DiarizationBackend) -> Result<()> {
     let client = reqwest::Client::new();
     for file in backend.model_files() {
@@ -208,8 +205,8 @@ mod tests {
         assert_eq!(serde_json::from_str::<DiarizationBackend>("\"cpu\"").unwrap(), DiarizationBackend::Cpu);
     }
 
-    /// Needs network and a real multi-speaker recording, so it only runs on demand:
-    /// DIARIZATION_FIXTURE=meeting.wav DIARIZATION_SPEAKERS=3 [DIARIZATION_BACKEND=coreml] cargo test -- --ignored diarizes_fixture
+    /// Needs network and a real recording, so it runs only with `--ignored` and these env vars:
+    /// DIARIZATION_FIXTURE=meeting.wav DIARIZATION_SPEAKERS=3 [DIARIZATION_BACKEND=coreml]
     #[tokio::test]
     #[ignore]
     async fn diarizes_fixture() {

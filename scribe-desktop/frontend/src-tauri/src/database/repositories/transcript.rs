@@ -98,8 +98,13 @@ impl TranscriptsRepository {
                     "transcript row belongs to a different meeting".to_string(),
                 ));
             }
+            // Speakers belong to diarization, so an existing row keeps its current speaker on undo.
             sqlx::query(&format!(
-                "INSERT OR REPLACE INTO transcripts ({ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                "INSERT INTO transcripts ({ROW_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(id) DO UPDATE SET
+                   meeting_id = excluded.meeting_id, transcript = excluded.transcript,
+                   timestamp = excluded.timestamp, audio_start_time = excluded.audio_start_time,
+                   audio_end_time = excluded.audio_end_time, duration = excluded.duration"
             ))
             .bind(&row.id)
             .bind(&row.meeting_id)
@@ -589,6 +594,24 @@ mod tests {
         let rows = TranscriptsRepository::list_meeting_rows(&pool, MEETING).await.unwrap();
         assert_eq!(rows.len(), 3);
         assert_eq!(rows[0].speaker, Some(SpeakerLabel::Me));
+    }
+
+    #[tokio::test]
+    async fn undoing_a_text_edit_keeps_a_speaker_set_since() {
+        let pool = seeded_pool().await;
+        let edit = TranscriptsRepository::edit_transcript_text(&pool, MEETING, "b", "Wusool is great")
+            .await
+            .unwrap();
+        // Diarization relabels the line after the edit was recorded.
+        sqlx::query("UPDATE transcripts SET speaker = 'speaker_1' WHERE id = 'b'")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        TranscriptsRepository::apply_edit(&pool, MEETING, &[], &edit.before).await.unwrap();
+        let rows = TranscriptsRepository::list_meeting_rows(&pool, MEETING).await.unwrap();
+        assert_eq!(rows[1].transcript, "Wasool is great");
+        assert_eq!(rows[1].speaker, Some(SpeakerLabel::Speaker(1)));
     }
 
     #[tokio::test]

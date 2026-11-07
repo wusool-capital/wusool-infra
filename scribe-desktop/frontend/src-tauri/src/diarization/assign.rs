@@ -1,7 +1,6 @@
 // diarization/assign.rs
 //
-// Pure attribution logic: map transcript segments onto diarized turns, and diarized voices
-// onto the user's voice library. Kept free of I/O so it can be tested directly.
+// Pure attribution logic, free of I/O so it tests directly: segments to voices, voices to people.
 
 /// A span of meeting audio attributed to one diarized voice, in seconds.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -18,27 +17,35 @@ pub struct VoiceProfile {
     pub embedding: Vec<f32>,
 }
 
-// WeSpeaker embeddings of the same person usually score well above this; distinct voices
-// rarely do. Higher means fewer wrong auto-names at the cost of more unnamed speakers.
+// Same-person WeSpeaker scores sit well above this. Raising it trades wrong names for unnamed voices.
 pub const PROFILE_MATCH_THRESHOLD: f32 = 0.7;
 
 /// The voice that overlaps a segment the most, or `None` if no turn overlaps it.
 pub fn dominant_speaker(start: f64, end: f64, turns: &[SpeakerTurn]) -> Option<u32> {
-    let mut overlap_by_speaker: Vec<(u32, f64)> = Vec::new();
-    for turn in turns {
-        let overlap = end.min(turn.end) - start.max(turn.start);
+    dominant_label(start, end, turns.iter().map(|t| (t.start, t.end, t.speaker)))
+}
+
+/// The label whose spans overlap `start..end` the most, summed across spans.
+pub fn dominant_label<L: Copy + PartialEq>(
+    start: f64,
+    end: f64,
+    spans: impl IntoIterator<Item = (f64, f64, L)>,
+) -> Option<L> {
+    let mut overlap_by_label: Vec<(L, f64)> = Vec::new();
+    for (span_start, span_end, label) in spans {
+        let overlap = end.min(span_end) - start.max(span_start);
         if overlap <= 0.0 {
             continue;
         }
-        match overlap_by_speaker.iter_mut().find(|(s, _)| *s == turn.speaker) {
+        match overlap_by_label.iter_mut().find(|(l, _)| *l == label) {
             Some((_, total)) => *total += overlap,
-            None => overlap_by_speaker.push((turn.speaker, overlap)),
+            None => overlap_by_label.push((label, overlap)),
         }
     }
-    overlap_by_speaker
+    overlap_by_label
         .into_iter()
         .max_by(|a, b| a.1.total_cmp(&b.1))
-        .map(|(speaker, _)| speaker)
+        .map(|(label, _)| label)
 }
 
 /// Which label each transcript segment gets, and which diarized cluster each label is.
@@ -50,9 +57,7 @@ pub struct Attribution {
     pub label_clusters: Vec<u32>,
 }
 
-/// Attributes segments (ordered by start time) to voices, numbering voices by first
-/// appearance so labels read "Speaker 1, 2, 3" in transcript order and clusters that
-/// never own a segment get no label.
+/// Attributes time-ordered segments to voices, numbered by first appearance; clusters owning no segment get no label.
 pub fn attribute_segments(segments: &[(f64, f64)], turns: &[SpeakerTurn]) -> Attribution {
     let mut label_clusters: Vec<u32> = Vec::new();
     let segment_labels = segments
@@ -72,10 +77,7 @@ pub fn attribute_segments(segments: &[(f64, f64)], turns: &[SpeakerTurn]) -> Att
     Attribution { segment_labels, label_clusters }
 }
 
-/// For each diarized voice, the id of the matching saved profile.
-///
-/// Matching is one-to-one: two voices in one meeting are never given the same name,
-/// so the strongest pairs are taken first.
+/// The matching saved profile per voice, one-to-one, strongest pairs first, so two voices never share a name.
 pub fn match_profiles(
     centroids: &[Vec<f32>],
     profiles: &[VoiceProfile],
@@ -112,18 +114,17 @@ pub fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     if norm == 0.0 { 0.0 } else { dot / norm }
 }
 
-/// Folds a new sample of a voice into its saved embedding, weighting by how many samples
-/// it already holds so one noisy meeting cannot overwrite a well-established profile.
-pub fn merge_embedding(saved: &[f32], saved_samples: u32, new: &[f32]) -> Vec<f32> {
-    if saved.len() != new.len() {
-        return new.to_vec();
+/// Mean of the usable samples; empty or odd-sized ones are skipped so a bad sample never blanks a profile.
+pub fn mean_embedding(samples: &[Vec<f32>]) -> Option<Vec<f32>> {
+    let dim = samples.iter().map(Vec::len).find(|&len| len > 0)?;
+    let usable: Vec<&Vec<f32>> = samples.iter().filter(|s| s.len() == dim).collect();
+    let mut sum = vec![0.0f32; dim];
+    for sample in &usable {
+        for (total, value) in sum.iter_mut().zip(sample.iter()) {
+            *total += value;
+        }
     }
-    let weight = saved_samples as f32;
-    saved
-        .iter()
-        .zip(new)
-        .map(|(s, n)| (s * weight + n) / (weight + 1.0))
-        .collect()
+    Some(sum.into_iter().map(|x| x / usable.len() as f32).collect())
 }
 
 #[cfg(test)]
@@ -186,7 +187,15 @@ mod tests {
     }
 
     #[test]
-    fn merge_weights_existing_samples() {
-        assert_eq!(merge_embedding(&[1.0, 0.0], 3, &[0.0, 1.0]), vec![0.75, 0.25]);
+    fn mean_ignores_empty_and_mismatched_samples() {
+        let samples = vec![vec![1.0, 0.0], vec![], vec![0.0, 1.0], vec![9.0]];
+        assert_eq!(mean_embedding(&samples), Some(vec![0.5, 0.5]));
+        assert_eq!(mean_embedding(&[vec![]]), None);
+    }
+
+    #[test]
+    fn dominant_label_works_for_any_label_type() {
+        let spans = [(0.0, 2.0, "me"), (2.0, 5.0, "speaker_0")];
+        assert_eq!(dominant_label(1.0, 4.0, spans), Some("speaker_0"));
     }
 }

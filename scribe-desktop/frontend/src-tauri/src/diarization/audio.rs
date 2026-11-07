@@ -1,7 +1,6 @@
 // diarization/audio.rs
 //
-// Decodes a recording straight to 16 kHz mono with the bundled ffmpeg. Streaming its output
-// keeps peak memory at the 16 kHz buffer (~230 MB per hour) instead of a full 48 kHz decode.
+// Streams ffmpeg's 16 kHz mono output, so memory peaks at ~230 MB per hour, not a 48 kHz decode.
 
 use std::io::Read;
 use std::path::Path;

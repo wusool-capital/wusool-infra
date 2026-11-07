@@ -5,10 +5,10 @@
 
 use chrono::Utc;
 use serde::Serialize;
-use sqlx::{Connection, FromRow, SqlitePool};
+use sqlx::{Connection, FromRow, Sqlite, SqlitePool, Transaction};
 use uuid::Uuid;
 
-use crate::diarization::assign::merge_embedding;
+use crate::diarization::assign::mean_embedding;
 use crate::diarization::SpeakerLabel;
 
 /// A named voice, as listed in settings.
@@ -132,6 +132,13 @@ impl SpeakerRepository {
         let mut conn = pool.acquire().await?;
         let mut tx = conn.begin().await?;
 
+        let previous: Vec<(String,)> = sqlx::query_as(
+            "SELECT DISTINCT profile_id FROM meeting_speakers WHERE meeting_id = ? AND profile_id IS NOT NULL",
+        )
+        .bind(meeting_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
         sqlx::query("DELETE FROM meeting_speakers WHERE meeting_id = ?")
             .bind(meeting_id)
             .execute(&mut *tx)
@@ -156,11 +163,18 @@ impl SpeakerRepository {
                 .await?;
         }
 
+        let mut touched: Vec<String> = previous.into_iter().map(|(id,)| id).collect();
+        touched.extend(voices.iter().filter_map(|v| v.profile_id.clone()));
+        touched.sort();
+        touched.dedup();
+        for profile_id in &touched {
+            recompute_profile(&mut tx, profile_id).await?;
+        }
+
         tx.commit().await
     }
 
-    /// Names a meeting's voice. An existing person with that name absorbs this voice sample,
-    /// otherwise a new person is enrolled from it.
+    /// Links a meeting's voice to the named person, recomputing profiles so renaming never double-counts.
     pub async fn name_meeting_speaker(
         pool: &SqlitePool,
         meeting_id: &str,
@@ -170,44 +184,37 @@ impl SpeakerRepository {
         let mut conn = pool.acquire().await?;
         let mut tx = conn.begin().await?;
 
-        let voice: Option<(Vec<u8>,)> =
-            sqlx::query_as("SELECT embedding FROM meeting_speakers WHERE meeting_id = ? AND label = ?")
-                .bind(meeting_id)
-                .bind(label)
-                .fetch_optional(&mut *tx)
-                .await?;
-        let voice = decode_embedding(&voice.ok_or(SpeakerRepositoryError::UnknownLabel(label))?.0);
-
-        let existing: Option<(String, Vec<u8>, i64)> = sqlx::query_as(
-            "SELECT id, embedding, sample_count FROM speaker_profiles WHERE name = ? COLLATE NOCASE",
+        let voice: Option<(Vec<u8>, Option<String>)> = sqlx::query_as(
+            "SELECT embedding, profile_id FROM meeting_speakers WHERE meeting_id = ? AND label = ?",
         )
-        .bind(name)
+        .bind(meeting_id)
+        .bind(label)
         .fetch_optional(&mut *tx)
         .await?;
+        let (voice_blob, previous_profile) = voice.ok_or(SpeakerRepositoryError::UnknownLabel(label))?;
 
-        let now = Utc::now().to_rfc3339();
-        let profile_id = match existing {
-            Some((id, saved, samples)) => {
-                let merged = merge_embedding(&decode_embedding(&saved), samples.max(1) as u32, &voice);
-                sqlx::query(
-                    "UPDATE speaker_profiles SET embedding = ?, sample_count = sample_count + 1, updated_at = ? WHERE id = ?",
-                )
-                .bind(encode_embedding(&merged))
-                .bind(&now)
-                .bind(&id)
-                .execute(&mut *tx)
+        let existing: Option<(String,)> =
+            sqlx::query_as("SELECT id FROM speaker_profiles WHERE name = ? COLLATE NOCASE")
+                .bind(name)
+                .fetch_optional(&mut *tx)
                 .await?;
-                id
+
+        let profile_id = match existing {
+            Some((id,)) if previous_profile.as_deref() == Some(id.as_str()) => {
+                // Already this person: nothing to relink or re-learn.
+                return Ok(tx.commit().await?);
             }
+            Some((id,)) => id,
             None => {
                 let id = format!("speaker-{}", Uuid::new_v4());
+                let now = Utc::now().to_rfc3339();
                 sqlx::query(
                     "INSERT INTO speaker_profiles (id, name, embedding, sample_count, created_at, updated_at)
-                     VALUES (?, ?, ?, 1, ?, ?)",
+                     VALUES (?, ?, ?, 0, ?, ?)",
                 )
                 .bind(&id)
                 .bind(name)
-                .bind(encode_embedding(&voice))
+                .bind(&voice_blob)
                 .bind(&now)
                 .bind(&now)
                 .execute(&mut *tx)
@@ -223,9 +230,46 @@ impl SpeakerRepository {
             .execute(&mut *tx)
             .await?;
 
+        recompute_profile(&mut tx, &profile_id).await?;
+        if let Some(previous) = previous_profile {
+            recompute_profile(&mut tx, &previous).await?;
+        }
+
         tx.commit().await?;
         Ok(())
     }
+}
+
+/// Rebuilds a profile from its linked voices, keeping the stored embedding when none remain.
+async fn recompute_profile(tx: &mut Transaction<'_, Sqlite>, profile_id: &str) -> Result<(), sqlx::Error> {
+    let blobs: Vec<(Vec<u8>,)> = sqlx::query_as("SELECT embedding FROM meeting_speakers WHERE profile_id = ?")
+        .bind(profile_id)
+        .fetch_all(&mut **tx)
+        .await?;
+    let samples: Vec<Vec<f32>> = blobs.iter().map(|(b,)| decode_embedding(b)).collect();
+    let usable = samples.iter().filter(|s| !s.is_empty()).count() as i64;
+    let now = Utc::now().to_rfc3339();
+
+    match mean_embedding(&samples) {
+        Some(mean) => {
+            sqlx::query("UPDATE speaker_profiles SET embedding = ?, sample_count = ?, updated_at = ? WHERE id = ?")
+                .bind(encode_embedding(&mean))
+                .bind(usable)
+                .bind(&now)
+                .bind(profile_id)
+                .execute(&mut **tx)
+                .await?;
+        }
+        None => {
+            sqlx::query("UPDATE speaker_profiles SET sample_count = ?, updated_at = ? WHERE id = ?")
+                .bind(usable)
+                .bind(&now)
+                .bind(profile_id)
+                .execute(&mut **tx)
+                .await?;
+        }
+    }
+    Ok(())
 }
 
 fn encode_embedding(embedding: &[f32]) -> Vec<u8> {
@@ -330,6 +374,45 @@ mod tests {
             .map(|s| s.name)
             .collect();
         assert_eq!(names, vec![Some("Alice".to_string()), Some("Alice".to_string())]);
+    }
+
+    #[tokio::test]
+    async fn naming_the_same_voice_twice_does_not_double_count() {
+        let pool = pool_with_meeting().await;
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0])], &[]).await.unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice").await.unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice").await.unwrap();
+        assert_eq!(SpeakerRepository::list_profiles(&pool).await.unwrap()[0].sample_count, 1);
+    }
+
+    #[tokio::test]
+    async fn correcting_a_name_moves_the_voice_between_profiles() {
+        let pool = pool_with_meeting().await;
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0]), voice(1, vec![0.0, 1.0])], &[])
+            .await
+            .unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Bob").await.unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(1), "Alice").await.unwrap();
+        // speaker_0 was really Alice.
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice").await.unwrap();
+
+        let profiles = SpeakerRepository::list_profiles(&pool).await.unwrap();
+        let count = |name: &str| profiles.iter().find(|p| p.name == name).unwrap().sample_count;
+        assert_eq!(count("Alice"), 2);
+        assert_eq!(count("Bob"), 0);
+    }
+
+    #[tokio::test]
+    async fn an_empty_voice_sample_never_blanks_a_profile() {
+        let pool = pool_with_meeting().await;
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0]), voice(1, vec![])], &[])
+            .await
+            .unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice").await.unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(1), "Alice").await.unwrap();
+
+        let embedding = &SpeakerRepository::profile_embeddings(&pool).await.unwrap()[0].embedding;
+        assert_eq!(embedding, &vec![1.0, 0.0]);
     }
 
     #[tokio::test]

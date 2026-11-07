@@ -1,15 +1,17 @@
 // diarization/service.rs
 //
-// Runs diarization for a saved meeting: decode the meeting-audio track, find the voices,
-// attribute "others" segments to them, and auto-name voices found in the voice library.
+// Diarizes a saved meeting's audio, attributes its "others" lines, and auto-names voices the library knows.
 
+use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::{LazyLock, Mutex};
 
 use anyhow::{Context, Result};
 use log::{info, warn};
 use serde::Serialize;
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
+use tokio::sync::Semaphore;
 
 use super::assign::{attribute_segments, match_profiles, VoiceProfile, PROFILE_MATCH_THRESHOLD};
 use super::engine::{self, DiarizationBackend};
@@ -25,6 +27,8 @@ pub enum DiarizationOutcome {
     Completed { speakers: usize, auto_named: usize },
     Skipped { reason: String },
     Failed { error: String },
+    /// Another run for this meeting is in progress; its own event reports the result.
+    AlreadyRunning,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,9 +38,39 @@ struct DiarizationEvent<'a> {
     outcome: &'a DiarizationOutcome,
 }
 
-/// Runs diarization and reports the outcome to the frontend; never returns an error so
-/// it can be fired and forgotten after a meeting is saved.
+#[derive(Debug, Clone, Serialize)]
+struct DiarizationStarted<'a> {
+    meeting_id: &'a str,
+    status: &'static str,
+}
+
+// One pipeline at a time: a CoreML run alone can peak near 2.7 GB.
+static PIPELINE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
+static IN_FLIGHT: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+
+/// Marks a meeting as being diarized until dropped.
+struct InFlight(String);
+
+impl InFlight {
+    fn claim(meeting_id: &str) -> Option<Self> {
+        let mut running = IN_FLIGHT.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        running.insert(meeting_id.to_string()).then(|| Self(meeting_id.to_string()))
+    }
+}
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        IN_FLIGHT.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&self.0);
+    }
+}
+
+/// Runs diarization and reports the outcome to the frontend. Never errors, so callers can fire and forget.
 pub async fn diarize_and_notify<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meeting_id: &str) -> DiarizationOutcome {
+    let Some(_claim) = InFlight::claim(meeting_id) else {
+        return DiarizationOutcome::AlreadyRunning;
+    };
+    let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running" });
+
     let outcome = match diarize_meeting(app, pool, meeting_id).await {
         Ok(outcome) => outcome,
         Err(e) => {
@@ -80,10 +114,11 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
         engine::ensure_models(&models_dir, backend).await.context("fetching diarization models")?;
     }
 
+    let _pipeline = PIPELINE.acquire().await.context("diarization queue closed")?;
     let diarization = tokio::task::spawn_blocking(move || -> Result<engine::Diarization> {
         let audio = super::audio::decode_16k_mono(&system_track)?;
         match engine::diarize(&models_dir, backend, &audio) {
-            // CPU files are always downloaded alongside CoreML ones, so this retry can't miss models.
+            // CPU files always download with CoreML ones, so this retry has its models.
             Err(e) if backend == DiarizationBackend::CoreMl => {
                 warn!("CoreML diarization failed, retrying on CPU: {:#}", e);
                 engine::diarize(&models_dir, DiarizationBackend::Cpu, &audio)
@@ -93,13 +128,17 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
     })
     .await??;
 
+    // A voice without a usable embedding could never be recognised or enrolled, so its turns are dropped.
+    let has_voiceprint = |cluster: u32| diarization.centroids.get(cluster as usize).is_some_and(|c| !c.is_empty());
+    let turns: Vec<_> = diarization.turns.iter().copied().filter(|t| has_voiceprint(t.speaker)).collect();
+
     let spans: Vec<(f64, f64)> = segments.iter().map(|s| (s.audio_start_time, s.audio_end_time)).collect();
-    let attribution = attribute_segments(&spans, &diarization.turns);
+    let attribution = attribute_segments(&spans, &turns);
 
     let voice_embeddings: Vec<Vec<f32>> = attribution
         .label_clusters
         .iter()
-        .map(|&cluster| diarization.centroids.get(cluster as usize).cloned().unwrap_or_default())
+        .map(|&cluster| diarization.centroids[cluster as usize].clone())
         .collect();
     let profiles: Vec<VoiceProfile> = SpeakerRepository::profile_embeddings(pool)
         .await?
@@ -119,8 +158,7 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
             embedding,
         })
         .collect();
-    // Segments no voice overlaps become "others" rather than being guessed, which also
-    // clears labels left by a previous run whose voices are being replaced.
+    // Unmatched segments become "others", clearing labels from a previous run's replaced voices.
     let segment_labels: Vec<(String, SpeakerLabel)> = segments
         .into_iter()
         .zip(attribution.segment_labels)

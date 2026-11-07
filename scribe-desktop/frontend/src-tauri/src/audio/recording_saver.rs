@@ -258,7 +258,7 @@ impl RecordingSaver {
             self.incremental_saver = Some(Arc::new(AsyncMutex::new(incremental_saver)));
             info!("✅ Incremental audio saver initialized for meeting: {}", meeting_name);
 
-            // Diarization still works on the mixed track if this fails, just less accurately.
+            // Recording continues without it; only speaker separation is skipped for this meeting.
             match IncrementalAudioSaver::new_system_track(meeting_folder.clone(), 48000) {
                 Ok(saver) => self.system_track_saver = Some(Arc::new(AsyncMutex::new(saver))),
                 Err(e) => warn!("System track saver unavailable, diarization will be skipped: {}", e),

@@ -419,8 +419,7 @@ pub struct DesktopMeetingStatusResponse {
 /// Label for segments saved before speaker attribution existed.
 const GENERIC_SPEAKER_LABEL: &str = "Participant";
 
-/// The name the backend sees for a segment: a person's name where one is known, so the
-/// summary can say who said what, otherwise a stable placeholder.
+/// The speaker name sent to the backend, so its summary can say who said what.
 fn speaker_display_name(
     label: Option<SpeakerLabel>,
     names: &HashMap<SpeakerLabel, String>,
