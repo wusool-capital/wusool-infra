@@ -81,7 +81,7 @@ renaming a speaker changes one row.
 - **Voice library:** naming a voice stores its embedding in
   `speaker_profiles`. Later meetings auto-name voices whose cosine
   similarity is at least 0.7, and never give two voices the same person.
-- **Models:** about 32 MB for CPU, plus 263 MB for CoreML. They are
+- **Models:** about 32 MB for CPU, plus 272 MB for CoreML. They are
   downloaded once into the app data folder, from a pinned revision of the
   `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0).
 

@@ -71,7 +71,7 @@ Scribe labels each speaker's turn in the transcript:
   meeting. The first time, Scribe downloads a 32 MB voice model. For about
   40 seconds instead, turn on **Faster Speaker Separation (CoreML)** under
   **Settings → General → Speakers**. It uses up to 2.7 GB of memory while
-  it runs. Turning it on downloads 260 MB with a progress bar; turning it
+  it runs. Turning it on downloads about 300 MB with a progress bar; turning it
   off asks whether to keep that download for next time.
 - **Click a speaker's name** to say who they are. Every line they spoke in
   that meeting is renamed, and Scribe recognises their voice in later

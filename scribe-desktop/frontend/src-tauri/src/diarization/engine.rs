@@ -33,7 +33,7 @@ const CPU_MODEL_FILES: &[&str] = &[
     "plda_tr.npy",
 ];
 
-/// The CoreML bundles speakrs 0.7 loads (~263 MB); recheck this list when upgrading speakrs.
+/// The CoreML bundles speakrs 0.7 loads (~272 MB); recheck this list when upgrading speakrs.
 const COREML_MODEL_STEMS: &[&str] = &[
     "segmentation-3.0",
     "segmentation-3.0-b32",
@@ -129,6 +129,24 @@ pub async fn ensure_models(dir: &Path, backend: DiarizationBackend) -> Result<()
     download_models(dir, backend, &AtomicBool::new(false), |_| {}).await
 }
 
+/// Each file's size from a HEAD request, or 0 when the server does not say.
+async fn remote_sizes(client: &reqwest::Client, files: &[String]) -> Vec<u64> {
+    let requests: Vec<reqwest::RequestBuilder> = files.iter().map(|file| client.head(model_url(file))).collect();
+    futures_util::stream::iter(requests)
+        .map(|request| async move {
+            // `Response::content_length()` reports the empty HEAD body (0), so read the header itself.
+            request
+                .send()
+                .await
+                .ok()
+                .and_then(|r| r.headers().get(reqwest::header::CONTENT_LENGTH)?.to_str().ok()?.parse().ok())
+                .unwrap_or(0)
+        })
+        .buffered(8)
+        .collect()
+        .await
+}
+
 /// Downloads missing model files, reporting progress and stopping early when `cancel` is set.
 /// Each file lands under a temp name first, so an interrupted download never looks complete.
 pub async fn download_models(
@@ -145,13 +163,7 @@ pub async fn download_models(
 
     let client = reqwest::Client::new();
     // Sizes up front, so progress is one honest bar rather than file-by-file jumps.
-    let requests: Vec<reqwest::RequestBuilder> = missing.iter().map(|file| client.head(model_url(file))).collect();
-    let sizes: Vec<u64> = futures_util::stream::iter(requests)
-        .map(|request| async move { request.send().await.ok().and_then(|r| r.content_length()).unwrap_or(0) })
-        .buffered(8)
-        .collect()
-        .await;
-    let total: u64 = sizes.iter().sum();
+    let total: u64 = remote_sizes(&client, &missing).await.iter().sum();
     let mut downloaded = 0u64;
     on_progress(DownloadProgress { downloaded, total });
 
@@ -281,7 +293,15 @@ mod tests {
         assert_eq!(serde_json::from_str::<DiarizationBackend>("\"cpu\"").unwrap(), DiarizationBackend::Cpu);
     }
 
-    /// Downloads the real CoreML models (~263 MB), so it runs only with `--ignored`.
+    /// Reads sizes from the real model host, so it runs only with `--ignored`.
+    #[tokio::test]
+    #[ignore]
+    async fn remote_sizes_reads_the_content_length_header() {
+        let files = vec!["segmentation-3.0.safetensors".to_string()];
+        assert_eq!(remote_sizes(&reqwest::Client::new(), &files).await, vec![5_897_576]);
+    }
+
+    /// Downloads the real CoreML models (~272 MB), so it runs only with `--ignored`.
     #[tokio::test]
     #[ignore]
     async fn downloads_reports_progress_and_deletes_coreml_only() {
@@ -292,6 +312,9 @@ mod tests {
             .unwrap();
 
         assert!(seen.windows(2).all(|w| w[1].downloaded >= w[0].downloaded));
+        // The real total is known before any bytes arrive, so the bar starts empty.
+        assert!(seen[0].total > 200_000_000, "total unknown: {}", seen[0].total);
+        assert!(seen.iter().all(|p| p.total == seen[0].total));
         let last = seen.last().unwrap();
         assert_eq!(last.downloaded, last.total);
         assert!(models_ready(dir.path(), DiarizationBackend::CoreMl));

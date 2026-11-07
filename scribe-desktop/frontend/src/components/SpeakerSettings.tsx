@@ -185,7 +185,7 @@ export function SpeakerSettings() {
           description={
             models?.coreml_ready
               ? "About 6× faster. Uses up to 2.7 GB of memory while it runs. Models downloaded."
-              : "About 6× faster. Uses up to 2.7 GB of memory while it runs, and downloads 260 MB once."
+              : "About 6× faster. Uses up to 2.7 GB of memory while it runs, and downloads about 300 MB once."
           }
           control={
             <Switch
@@ -246,7 +246,7 @@ export function SpeakerSettings() {
             <DialogDescription>
               {download.stage === "failed"
                 ? `The download didn't finish: ${download.error}`
-                : "Scribe needs a one-time 260 MB download of CoreML voice models. Speaker separation keeps working on the standard model until it finishes."}
+                : "Scribe needs a one-time download of about 300 MB of voice models. Speaker separation keeps working on the standard model until it finishes."}
             </DialogDescription>
           </DialogHeader>
           {download.stage === "downloading" && (
@@ -270,7 +270,7 @@ export function SpeakerSettings() {
                   Not Now
                 </Button>
                 <Button onClick={() => void startDownload()}>
-                  {download.stage === "failed" ? "Try Again" : "Download 260 MB"}
+                  {download.stage === "failed" ? "Try Again" : "Download"}
                 </Button>
               </>
             )}
@@ -283,7 +283,7 @@ export function SpeakerSettings() {
           <DialogHeader>
             <DialogTitle>Turn Off Faster Speaker Separation?</DialogTitle>
             <DialogDescription>
-              Also delete the downloaded CoreML models (260 MB)? If you delete them, turning this back on means
+              Also delete the downloaded CoreML models (about 270 MB)? If you delete them, turning this back on means
               downloading them again. Keep them to switch back on instantly.
             </DialogDescription>
           </DialogHeader>
