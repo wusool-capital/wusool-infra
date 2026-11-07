@@ -683,6 +683,7 @@ pub fn run() {
             start_recording_with_devices,
             start_recording_with_devices_and_meeting,
             start_audio_level_monitoring,
+            audio::mic_level::get_mic_level,
             stop_audio_level_monitoring,
             is_audio_level_monitoring,
             // Recording pause/resume commands

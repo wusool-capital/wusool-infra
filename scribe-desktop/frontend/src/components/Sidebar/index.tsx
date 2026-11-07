@@ -536,6 +536,8 @@ const Sidebar: React.FC = () => {
             </TooltipContent>
           </Tooltip>
 
+          {/* Home has its own record control; a second one there would compete with it. */}
+          {pathname !== '/' && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -543,6 +545,7 @@ const Sidebar: React.FC = () => {
                 size="icon"
                 onClick={handleRecordingToggle}
                 disabled={isRecording || isStarting}
+                aria-label={isStarting ? 'Starting…' : isRecording ? 'Recording in progress' : 'Start Recording'}
                 className="rounded-full shadow-sm"
               >
                 {isStarting ? (
@@ -555,9 +558,10 @@ const Sidebar: React.FC = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>{isStarting ? "Starting..." : isRecording ? "Recording in progress..." : "Start Recording"}</p>
+              <p>{isStarting ? "Starting…" : isRecording ? "Recording in progress…" : "Start Recording"}</p>
             </TooltipContent>
           </Tooltip>
+          )}
 
           {betaFeatures.importAndRetranscribe && (
             <Tooltip>
@@ -929,6 +933,7 @@ const Sidebar: React.FC = () => {
         {!isCollapsed && (
 
           <div className="flex-shrink-0 p-2 pt-3 space-y-1.5 border-t border-border/60">
+            {pathname !== '/' && (
             <Button
               variant="destructive"
               onClick={handleRecordingToggle}
@@ -938,12 +943,12 @@ const Sidebar: React.FC = () => {
               {isStarting ? (
                 <>
                   <Spinner className="w-4 h-4 mr-2" />
-                  <span>Starting...</span>
+                  <span>Starting…</span>
                 </>
               ) : isRecording ? (
                 <>
                   <Square className="w-4 h-4 mr-2" />
-                  <span>Recording in progress...</span>
+                  <span>Recording in progress…</span>
                 </>
               ) : (
                 <>
@@ -952,6 +957,7 @@ const Sidebar: React.FC = () => {
                 </>
               )}
             </Button>
+            )}
 
             {betaFeatures.importAndRetranscribe && (
               <Button

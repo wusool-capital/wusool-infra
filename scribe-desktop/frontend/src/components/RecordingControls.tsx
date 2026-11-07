@@ -7,16 +7,17 @@ import { Play, Pause, Square, Mic, AlertCircle, X } from 'lucide-react';
 import { ProcessRequest, SummaryResponse } from '@/types/summary';
 import { listen } from '@tauri-apps/api/event';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { Progress } from '@/components/ui/progress';
 import { Spinner } from '@/components/ui/spinner';
 import { StatusMessage } from '@/components/StatusMessage';
 import Analytics from '@/lib/analytics';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
+import { useMicLevel } from '@/hooks/useMicLevel';
+import { formatElapsed } from '@/lib/formatElapsed';
 
 interface RecordingControlsProps {
   isRecording: boolean;
-  barHeights: string[];
   onRecordingStop: (callApi?: boolean) => void;
   onRecordingStart: () => void;
   onTranscriptReceived: (summary: SummaryResponse) => void;
@@ -33,7 +34,6 @@ interface RecordingControlsProps {
 
 export const RecordingControls: React.FC<RecordingControlsProps> = ({
   isRecording,
-  barHeights,
   onRecordingStop,
   onRecordingStart,
   onTranscriptReceived,
@@ -48,6 +48,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   const recordingState = useRecordingState();
   const isPaused = recordingState.isPaused;
   const isStarting = recordingState.isStarting;
+  const micLevels = useMicLevel(isRecording && !isPaused);
 
   const [showPlayback, setShowPlayback] = useState(false);
   const [recordingPath, setRecordingPath] = useState<string | null>(null);
@@ -56,6 +57,16 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   const [isStopping, setIsStopping] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
   const [isResuming, setIsResuming] = useState(false);
+  // Transitions show in the status text so the change is announced, not just a floating label.
+  const statusLabel = isStopping
+    ? 'Stopping…'
+    : isPausing
+      ? 'Pausing…'
+      : isResuming
+        ? 'Resuming…'
+        : isPaused
+          ? 'Paused'
+          : 'Recording';
   const MIN_RECORDING_DURATION = 2000; // 2 seconds minimum recording time
   const [transcriptionErrors, setTranscriptionErrors] = useState(0);
   const [isValidatingModel, setIsValidatingModel] = useState(false);
@@ -345,9 +356,9 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
   return (
     <TooltipProvider>
       <div className="flex flex-col space-y-2">
-        <div className="flex items-center space-x-2 bg-card rounded-full shadow-lg px-4 py-2">
+        <div className={`flex items-center gap-1 rounded-full ${isRecording ? 'bg-card p-1.5 shadow-lg' : ''}`}>
           {isProcessing && !isParentProcessing ? (
-            <StatusMessage message="Processing recording..." />
+            <StatusMessage message="Processing recording…" />
           ) : (
             <>
               {showPlayback ? (
@@ -381,102 +392,80 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
               ) : (
                 <>
                   {!isRecording ? (
-                    // Start recording button
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          onClick={() => {
-                            Analytics.trackButtonClick('start_recording', 'recording_controls');
-                            handleStartRecording();
-                          }}
-                          disabled={isStarting || isProcessing || isRecordingDisabled || isValidatingModel}
-                          className={`w-12 h-12 flex items-center justify-center ${isStarting || isProcessing || isValidatingModel ? 'bg-muted-foreground/40' : 'bg-destructive hover:bg-destructive/90'
-                            } rounded-full text-destructive-foreground transition-colors relative`}
-                        >
-                          {isValidatingModel || isStarting ? (
-                            <Spinner className="h-5 w-5 text-destructive-foreground" />
-                          ) : (
-                            <Mic size={20} />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Start recording</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    // The home screen's one primary action, labelled so it never reads as a bare icon.
+                    <button
+                      onClick={() => {
+                        Analytics.trackButtonClick('start_recording', 'recording_controls');
+                        handleStartRecording();
+                      }}
+                      disabled={isStarting || isProcessing || isRecordingDisabled || isValidatingModel}
+                      className="flex h-11 items-center gap-2 rounded-full bg-destructive px-5 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:bg-muted-foreground/40"
+                    >
+                      {isValidatingModel || isStarting ? (
+                        <Spinner className="h-4 w-4 text-destructive-foreground" />
+                      ) : (
+                        <Mic size={16} />
+                      )}
+                      {isValidatingModel ? 'Checking Model…' : isStarting ? 'Starting…' : 'Start Recording'}
+                    </button>
                   ) : (
-                    // Recording controls (pause/resume + stop)
                     <>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => {
-                              if (isPaused) {
-                                Analytics.trackButtonClick('resume_recording', 'recording_controls');
-                                handleResumeRecording();
-                              } else {
-                                Analytics.trackButtonClick('pause_recording', 'recording_controls');
-                                handlePauseRecording();
-                              }
-                            }}
-                            disabled={isPausing || isResuming || isStopping}
-                            className={`w-10 h-10 flex items-center justify-center ${isPausing || isResuming || isStopping
-                              ? 'bg-accent border-2 border-border text-muted-foreground'
-                              : 'bg-card border-2 border-border text-muted-foreground hover:border-foreground/30 hover:bg-accent/60'
-                              } rounded-full transition-colors relative`}
-                          >
-                            {isPaused ? <Play size={16} /> : <Pause size={16} />}
-                            {(isPausing || isResuming) && (
-                              <div className="absolute -top-8 text-muted-foreground font-medium text-xs">
-                                {isPausing ? 'Pausing...' : 'Resuming...'}
-                              </div>
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>{isPaused ? 'Resume recording' : 'Pause recording'}</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <div className="flex items-center gap-2 pl-1 pr-2">
+                        <span
+                          aria-hidden
+                          className={`h-2 w-2 rounded-full ${isPaused ? 'bg-warning' : 'bg-destructive motion-safe:animate-pulse'}`}
+                        />
+                        <span className="text-sm text-foreground" aria-live="polite">
+                          {statusLabel}
+                        </span>
+                        <span className="text-sm text-muted-foreground tabular-nums">
+                          {formatElapsed(recordingState.activeDuration ?? 0)}
+                        </span>
+                      </div>
 
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => {
-                              Analytics.trackButtonClick('stop_recording', 'recording_controls');
-                              handleStopRecording();
-                            }}
-                            disabled={isStopping || isPausing || isResuming}
-                            className={`w-10 h-10 flex items-center justify-center ${isStopping || isPausing || isResuming ? 'bg-muted-foreground/40' : 'bg-destructive hover:bg-destructive/90'
-                              } rounded-full text-destructive-foreground transition-colors relative`}
-                          >
-                            <Square size={16} />
-                            {isStopping && (
-                              <div className="absolute -top-8 text-muted-foreground font-medium text-xs">
-                                Stopping...
-                              </div>
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Stop recording</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      {/* Real microphone levels, so a silent mic shows as silent. */}
+                      <div className="flex h-6 items-center gap-1 px-2" aria-hidden>
+                        {micLevels.map((level, index) => (
+                          <div
+                            key={index}
+                            className={`w-1 rounded-full transition-[height] duration-150 ${isPaused ? 'bg-warning/60' : 'bg-destructive'}`}
+                            style={{ height: isPaused ? 4 : 4 + level * 20 }}
+                          />
+                        ))}
+                      </div>
+
+                      <button
+                        onClick={() => {
+                          if (isPaused) {
+                            Analytics.trackButtonClick('resume_recording', 'recording_controls');
+                            handleResumeRecording();
+                          } else {
+                            Analytics.trackButtonClick('pause_recording', 'recording_controls');
+                            handlePauseRecording();
+                          }
+                        }}
+                        disabled={isPausing || isResuming || isStopping}
+                        aria-label={isPaused ? 'Resume Recording' : 'Pause Recording'}
+                        title={isPaused ? 'Resume Recording' : 'Pause Recording'}
+                        className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-border bg-card text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:bg-accent"
+                      >
+                        {isPaused ? <Play size={16} /> : <Pause size={16} />}
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          Analytics.trackButtonClick('stop_recording', 'recording_controls');
+                          handleStopRecording();
+                        }}
+                        disabled={isStopping || isPausing || isResuming}
+                        aria-label="Stop Recording"
+                        title="Stop Recording"
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-destructive text-destructive-foreground transition-colors hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:bg-muted-foreground/40"
+                      >
+                        <Square size={16} />
+                      </button>
                     </>
                   )}
-
-                  <div className="flex items-center space-x-1 mx-4">
-                    {barHeights.map((height, index) => (
-                      <div
-                        key={index}
-                        className={`w-1 rounded-full transition-all duration-200 ${isPaused ? 'bg-warning' : 'bg-destructive'
-                          }`}
-                        style={{
-                          height: isRecording && !isPaused ? height : '4px',
-                          opacity: isPaused ? 0.6 : 1,
-                        }}
-                      />
-                    ))}
-                  </div>
                 </>
               )}
             </>
@@ -486,7 +475,7 @@ export const RecordingControls: React.FC<RecordingControlsProps> = ({
         {/* Show validation status only */}
         {isValidatingModel && (
           <div className="text-xs text-muted-foreground text-center mt-2">
-            Validating speech recognition...
+            Checking the speech recognition model…
           </div>
         )}
 

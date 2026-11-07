@@ -846,6 +846,8 @@ impl AudioPipeline {
                                 });
                             }
 
+                            super::mic_level::record(&mic_window);
+
                             // STEP 3: Transcribe each source separately so segments keep their speaker
                             let mic_for_vad = if self.bleed_gate.is_bleed(&mic_window, &sys_window) {
                                 vec![0.0; mic_window.len()]
@@ -888,6 +890,7 @@ impl AudioPipeline {
 
         // Flush any remaining VAD segments
         self.flush_remaining_audio()?;
+        super::mic_level::reset();
 
         info!("VAD-driven audio pipeline ended");
         Ok(())

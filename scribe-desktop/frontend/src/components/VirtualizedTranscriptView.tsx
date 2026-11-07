@@ -9,8 +9,7 @@ import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { RecordingStatusBar } from "./RecordingStatusBar";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { SpeakerLabel, TranscriptSegmentData } from "@/types";
 import type { SpeakerNames } from "@/hooks/useMeetingSpeakers";
 import { SpeakerChip } from "./SpeakerChip";
@@ -61,6 +60,8 @@ export interface VirtualizedTranscriptViewProps {
     editor?: TranscriptEditorApi;
     /** Resolves and renames speakers; segments show no speaker without it. */
     speakers?: SpeakerNames;
+    /** Shown when there are no lines and nothing is recording. */
+    emptyState?: React.ReactNode;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -317,8 +318,6 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     segments,
     isRecording = false,
     isPaused = false,
-    isProcessing = false,
-    isStopping = false,
     enableStreaming = false,
     showConfidence = true,
     disableAutoScroll = false,
@@ -331,6 +330,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     onEditSegment,
     editor,
     speakers,
+    emptyState,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -457,47 +457,19 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     // Use simple rendering for small lists, virtualization for large lists
     const useVirtualization = segments.length >= VIRTUALIZATION_THRESHOLD;
 
-    // See TranscriptPanel: display:block keeps the sticky status bar pinned.
     return (
         <ScrollArea viewportRef={scrollRef} className="h-full min-h-0 [&>div>div]:!block">
             <div className="flex flex-col px-4 py-2">
-            {/* Recording Status Bar - Sticky at top, always visible when recording */}
-            <AnimatePresence>
-                {isRecording && (
-                    <div className="sticky top-0 z-10 bg-card pb-2">
-                        <RecordingStatusBar isPaused={isPaused} />
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* Content - add padding when recording to prevent overlap */}
-            <div className={isRecording ? 'pt-2' : ''}>
+            <div>
             {segments.length === 0 ? (
-                // Empty state
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center text-muted-foreground mt-8"
-                >
-                    {isRecording ? (
-                        <>
-                            <div className="flex items-center justify-center mb-3">
-                                <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-warning' : 'bg-primary motion-safe:animate-pulse'}`}></div>
-                            </div>
-                            <p className="text-sm text-muted-foreground ">
-                                {isPaused ? 'Recording paused' : 'Listening for speech…'}
-                            </p>
-                            <p className="text-xs mt-1 text-muted-foreground ">
-                                {isPaused ? 'Click resume to continue recording' : 'Speak to see live transcription'}
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <p className="text-lg font-semibold">Welcome to WusoolScribe!</p>
-                            <p className="text-xs mt-1">Start recording to see live transcription</p>
-                        </>
-                    )}
-                </motion.div>
+                // Recording status lives in the controls, so the empty list says one quiet thing.
+                isRecording ? (
+                    <p className="mt-8 text-center text-sm text-muted-foreground" aria-live="polite">
+                        {isPaused ? 'Paused. Resume to keep transcribing.' : 'Listening. Lines appear here as people speak.'}
+                    </p>
+                ) : (
+                    emptyState ?? <p className="mt-8 text-center text-sm text-muted-foreground">No transcript yet.</p>
+                )
             ) : useVirtualization ? (
                 // Virtualized rendering for large lists
                 <>
@@ -546,19 +518,6 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             ) : null}
                         </div>
                     )}
-
-                    {/* Listening indicator when recording */}
-                    {!isStopping && isRecording && !isPaused && !isProcessing && segments.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-muted-foreground "
-                        >
-                            <div className="w-2 h-2 bg-primary rounded-full motion-safe:animate-pulse"></div>
-                            <span className="text-sm">Listening…</span>
-                        </motion.div>
-                    )}
                 </>
             ) : (
                 // Simple rendering for small lists (better animations)
@@ -594,19 +553,6 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                 </span>
                             ) : null}
                         </div>
-                    )}
-
-                    {/* Listening indicator when recording */}
-                    {!isStopping && isRecording && !isPaused && !isProcessing && segments.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-muted-foreground "
-                        >
-                            <div className="w-2 h-2 bg-primary rounded-full motion-safe:animate-pulse"></div>
-                            <span className="text-sm">Listening…</span>
-                        </motion.div>
                     )}
                 </>
             )}

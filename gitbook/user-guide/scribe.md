@@ -40,8 +40,12 @@ again. Allow it, or recordings will be silent.
 
 1. Check the microphone and system-audio devices. Set the defaults under
    **Settings → Recordings → Default Audio Devices**.
-2. Optionally name the meeting, then press **Record**.
-3. Check that transcript lines appear while people speak.
+2. Optionally name the meeting, then press **Start Recording** on the home
+   screen. The home screen shows which microphone and system audio will be
+   used.
+3. Check that the level meter beside the timer moves when you speak, and that
+   transcript lines appear while people speak. A flat meter means the
+   microphone hears nothing.
 4. Pause when needed, then press **Stop**.
 
 **Expected result:** the meeting opens as soon as it is saved, so you can
