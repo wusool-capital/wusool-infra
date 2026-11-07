@@ -1,12 +1,11 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useState } from 'react';
 import type { SpeakerLabel } from '@/types';
 import type { SpeakerNames } from '@/hooks/useMeetingSpeakers';
 import { diarizedIndex } from '@/lib/speakers';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { Input } from './ui/input';
-import { Button } from './ui/button';
+import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from './ui/command';
 
 interface SpeakerChipProps {
   label: SpeakerLabel;
@@ -19,17 +18,16 @@ export function SpeakerChip({ label, speakers }: SpeakerChipProps) {
   const [draft, setDraft] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const suggestionsId = useId();
 
   // Only diarized voices can be named; "me" comes from settings and "others" is not one person.
   const renameable = speakers.rename !== undefined && diarizedIndex(label) !== null;
-  const chipClass = 'text-xs font-medium text-primary';
+  const chipClass = 'text-xs font-medium text-foreground';
 
   if (!name) return null;
   if (!renameable) return <span className={chipClass}>{name}</span>;
 
-  const save = async () => {
-    const trimmed = draft.trim();
+  const save = async (value: string) => {
+    const trimmed = value.trim();
     if (!trimmed || !speakers.rename) return;
     setSaving(true);
     setError(null);
@@ -43,47 +41,65 @@ export function SpeakerChip({ label, speakers }: SpeakerChipProps) {
     }
   };
 
+  const typed = draft.trim();
+  const matches = speakers.knownNames.filter((known) => known.toLowerCase().includes(typed.toLowerCase()));
+  const typedIsKnown = speakers.knownNames.some((known) => known.toLowerCase() === typed.toLowerCase());
+
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (next) setDraft('');
+        if (next) {
+          setDraft('');
+          setError(null);
+        }
       }}
     >
       <PopoverTrigger asChild>
-        <button type="button" className={`${chipClass} hover:underline`} title="Name this speaker">
+        <button
+          type="button"
+          // An unnamed voice keeps a dotted underline so it reads as something to fill in.
+          className={`${chipClass} rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+            speakers.isNamed(label) ? '' : 'underline decoration-dotted decoration-muted-foreground underline-offset-4'
+          }`}
+          aria-label={`Name ${name}`}
+        >
           {name}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 space-y-2" align="start">
-        <p className="text-sm text-muted-foreground">
-          Who is {name}? Everything they said in this meeting is updated, and future meetings recognise their voice.
-        </p>
-        <form
-          className="flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            save();
-          }}
-        >
-          <Input
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command shouldFilter={false}>
+          <CommandInput
             autoFocus
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Name"
-            list={suggestionsId}
+            onValueChange={setDraft}
+            placeholder={`Who is ${name}?`}
+            disabled={saving}
           />
-          <Button type="submit" size="sm" disabled={saving || !draft.trim()}>
-            Save
-          </Button>
-        </form>
-        <datalist id={suggestionsId}>
-          {speakers.knownNames.map((known) => (
-            <option key={known} value={known} />
-          ))}
-        </datalist>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+          <CommandList>
+            {(typed && !typedIsKnown) || matches.length > 0 ? (
+              <CommandGroup>
+                {/* Existing people first, so Enter picks a match instead of creating a near-duplicate. */}
+                {matches.map((known) => (
+                  <CommandItem key={known} value={known} onSelect={() => save(known)}>
+                    {known}
+                  </CommandItem>
+                ))}
+                {typed && !typedIsKnown && (
+                  <CommandItem value={`new:${typed}`} onSelect={() => save(typed)}>
+                    Name them &ldquo;{typed}&rdquo;
+                  </CommandItem>
+                )}
+              </CommandGroup>
+            ) : (
+              <p className="px-3 py-2 text-xs text-muted-foreground">
+                Type a name. Scribe will recognise this voice in later meetings.
+              </p>
+            )}
+          </CommandList>
+        </Command>
+        {error && <p className="border-t border-border px-3 py-2 text-xs text-destructive">{error}</p>}
       </PopoverContent>
     </Popover>
   );

@@ -11,6 +11,8 @@ import {
 
 export interface SpeakerNames {
   resolveName: (label: SpeakerLabel | null | undefined) => string | null;
+  /** True once a diarized voice has a person's name, so unnamed ones can invite naming. */
+  isNamed: (label: SpeakerLabel) => boolean;
   /** Present only for saved meetings, where diarized voices can be named. */
   rename?: (label: SpeakerLabel, name: string) => Promise<void>;
   /** People already in the voice library, offered as suggestions when naming. */
@@ -70,7 +72,12 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     [speakers, selfName],
   );
 
+  const isNamed = useCallback(
+    (label: SpeakerLabel) => speakers.some((s) => s.label === label && s.name !== null),
+    [speakers],
+  );
+
   const knownNames = useMemo(() => profiles.map((p) => p.name), [profiles]);
 
-  return { resolveName, rename: meetingId ? rename : undefined, knownNames };
+  return { resolveName, isNamed, rename: meetingId ? rename : undefined, knownNames };
 }

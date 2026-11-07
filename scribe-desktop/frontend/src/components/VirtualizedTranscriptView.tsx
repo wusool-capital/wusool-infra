@@ -197,7 +197,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <Tooltip>
                     <TooltipTrigger>
                         <span
-                            className={`text-xs text-muted-foreground mt-1 flex-shrink-0 min-w-[50px] ${editable && onSelect ? 'cursor-pointer select-none' : 'cursor-default'}`}
+                            className={`text-xs text-muted-foreground tabular-nums mt-1 flex-shrink-0 min-w-[50px] ${editable && onSelect ? 'cursor-pointer select-none' : 'cursor-default'}`}
                             onClick={(e) => editable && onSelect?.(id, selectMode(e))}
                         >
                             {formatRecordingTime(timestamp)}

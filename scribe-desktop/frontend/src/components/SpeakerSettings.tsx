@@ -7,6 +7,8 @@ import type { SpeakerProfileSummary } from "@/lib/speakers"
 import { Input } from "./ui/input"
 import { Button } from "./ui/button"
 import { Switch } from "./ui/switch"
+import { ConfirmationModal } from "./ConfirmationModel/confirmation-modal"
+import { SettingsRow, SettingsSection } from "./settings/SettingsSection"
 
 type DiarizationBackend = "cpu" | "coreml"
 
@@ -19,9 +21,11 @@ interface DiarizationBackendSettings {
 export function SpeakerSettings() {
   const [selfName, setSelfName] = useState("")
   const [savedSelfName, setSavedSelfName] = useState("")
+  const [justSaved, setJustSaved] = useState(false)
   const [profiles, setProfiles] = useState<SpeakerProfileSummary[]>([])
-  const [error, setError] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<SpeakerProfileSummary | null>(null)
   const [backend, setBackend] = useState<DiarizationBackendSettings | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const loadProfiles = async () => setProfiles(await invoke<SpeakerProfileSummary[]>("list_speaker_profiles"))
 
@@ -40,9 +44,13 @@ export function SpeakerSettings() {
   }, [])
 
   const saveSelfName = async () => {
+    const name = selfName.trim()
+    if (name === savedSelfName) return
     try {
-      await invoke("set_self_speaker_name", { name: selfName.trim() || null })
-      setSavedSelfName(selfName.trim())
+      await invoke("set_self_speaker_name", { name: name || null })
+      setSavedSelfName(name)
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 2000)
       setError(null)
     } catch (e) {
       setError(String(e))
@@ -60,81 +68,95 @@ export function SpeakerSettings() {
     }
   }
 
-  const deleteProfile = async (profile: SpeakerProfileSummary) => {
-    if (!window.confirm(`Forget ${profile.name}'s voice? Past meetings keep their text but lose this name.`)) return
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
     try {
-      await invoke("delete_speaker_profile", { profileId: profile.id })
+      await invoke("delete_speaker_profile", { profileId: pendingDelete.id })
       await loadProfiles()
     } catch (e) {
       setError(String(e))
+    } finally {
+      setPendingDelete(null)
     }
   }
 
   return (
-    <div className="bg-card rounded-lg border border-border p-6 shadow-sm space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold text-foreground mb-2">Speakers</h3>
-        <p className="text-sm text-muted-foreground">
-          Your microphone is labelled with your name. Other voices are separated after each meeting; name one once and
-          Scribe recognises them in later meetings. Voice fingerprints stay on this device.
-        </p>
-      </div>
-
-      <form
-        className="flex items-end gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
-          saveSelfName()
-        }}
+    <SettingsSection
+      title="Speakers"
+      description="Scribe labels your microphone with your name and separates other voices after each meeting. Voice fingerprints stay on this device."
+    >
+      <SettingsRow
+        title="Your Name"
+        htmlFor="self-speaker-name"
+        description={justSaved ? "Saved" : "Shown on everything you say in a transcript."}
       >
-        <label className="flex-1 space-y-1">
-          <span className="text-sm font-medium text-foreground">Your name</span>
-          <Input value={selfName} onChange={(e) => setSelfName(e.target.value)} placeholder="Me" />
-        </label>
-        <Button type="submit" disabled={selfName.trim() === savedSelfName}>
-          Save
-        </Button>
-      </form>
+        <Input
+          id="self-speaker-name"
+          name="self-speaker-name"
+          autoComplete="name"
+          className="max-w-sm"
+          value={selfName}
+          onChange={(e) => setSelfName(e.target.value)}
+          onBlur={saveSelfName}
+          onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+          placeholder="Me"
+        />
+      </SettingsRow>
 
       {backend?.coreml_available && (
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium text-foreground">Faster speaker separation (CoreML)</p>
-            <p className="text-sm text-muted-foreground">
-              Uses Apple silicon acceleration: about 40 seconds per hour of audio instead of about 4 minutes, but up to
-              2.7 GB of memory while it runs (instead of about 0.5 GB) and a one-time 260 MB download.
-            </p>
-          </div>
-          <Switch checked={backend.backend === "coreml"} onCheckedChange={toggleCoreMl} />
-        </div>
+        <SettingsRow
+          title="Faster Speaker Separation (CoreML)"
+          description="About 6× faster. Uses up to 2.7 GB of memory while it runs, and downloads 260 MB once."
+          control={
+            <Switch
+              aria-label="Faster speaker separation"
+              checked={backend.backend === "coreml"}
+              onCheckedChange={toggleCoreMl}
+            />
+          }
+        />
       )}
 
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-foreground">Recognised voices</p>
-        {profiles.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            None yet. Click a speaker&apos;s name in a meeting transcript to name them.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded-md border border-border">
+      <SettingsRow
+        title="Recognised Voices"
+        description={
+          profiles.length === 0
+            ? "None yet. Click a speaker's name in a meeting transcript to name them."
+            : undefined
+        }
+      >
+        {profiles.length > 0 && (
+          <ul className="-mx-2">
             {profiles.map((profile) => (
-              <li key={profile.id} className="flex items-center justify-between px-3 py-2">
-                <span className="text-sm text-foreground">
+              <li key={profile.id} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted">
+                <span className="min-w-0 truncate text-sm text-foreground">
                   {profile.name}
-                  <span className="ml-2 text-xs text-muted-foreground">
+                  <span className="ml-2 text-muted-foreground tabular-nums">
                     {profile.sample_count} {profile.sample_count === 1 ? "meeting" : "meetings"}
                   </span>
                 </span>
-                <Button variant="ghost" size="sm" onClick={() => deleteProfile(profile)} aria-label={`Forget ${profile.name}`}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setPendingDelete(profile)}
+                  aria-label={`Forget ${profile.name}`}
+                >
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </SettingsRow>
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
+      {error && <p className="px-5 py-3 text-sm text-destructive">{error}</p>}
+
+      <ConfirmationModal
+        isOpen={pendingDelete !== null}
+        text={`Forget ${pendingDelete?.name ?? "this person"}'s voice? Past meetings keep their text but lose this name, and Scribe stops recognising them.`}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </SettingsSection>
   )
 }
