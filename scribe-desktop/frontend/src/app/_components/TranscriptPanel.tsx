@@ -11,6 +11,7 @@ import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
 import { useMemo } from 'react';
+import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 /**
@@ -38,6 +39,8 @@ export function TranscriptPanel({
   const { isRecording, isPaused } = useRecordingState();
   const { checkPermissions, isChecking, hasSystemAudio, hasMicrophone } = usePermissionCheck();
   const isLinux = useIsLinux();
+  // Live transcripts only know "me" vs "others"; voices are separated after the meeting is saved.
+  const speakers = useMeetingSpeakers();
 
   // Convert transcripts to segments for virtualized view
   const segments = useMemo(() =>
@@ -47,6 +50,7 @@ export function TranscriptPanel({
       endTime: t.audio_end_time,
       text: t.text,
       confidence: t.confidence,
+      speaker: t.speaker,
     })),
     [transcripts]
   );
@@ -129,6 +133,7 @@ export function TranscriptPanel({
               isStopping={isStopping}
               enableStreaming={isRecording}
               showConfidence={true}
+              speakers={speakers}
             />
           </div>
         </div>

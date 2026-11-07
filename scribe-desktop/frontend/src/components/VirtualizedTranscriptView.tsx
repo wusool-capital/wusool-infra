@@ -10,7 +10,9 @@ import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { RecordingStatusBar } from "./RecordingStatusBar";
 import { motion, AnimatePresence } from "framer-motion";
-import { TranscriptSegmentData } from "@/types";
+import { SpeakerLabel, TranscriptSegmentData } from "@/types";
+import type { SpeakerNames } from "@/hooks/useMeetingSpeakers";
+import { SpeakerChip } from "./SpeakerChip";
 import { ScrollArea } from "./ui/scroll-area";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
@@ -56,6 +58,8 @@ export interface VirtualizedTranscriptViewProps {
     onEditSegment?: (id: string, text: string) => void | Promise<unknown>;
     /** Selection, bulk edit and suggestion actions; only used when `editable`. */
     editor?: TranscriptEditorApi;
+    /** Resolves and renames speakers; segments show no speaker without it. */
+    speakers?: SpeakerNames;
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
@@ -133,6 +137,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onDeleteBefore,
     onMergeWithNext,
     onSplit,
+    speaker,
+    showSpeaker,
+    speakers,
 }: {
     id: string;
     timestamp: number;
@@ -150,6 +157,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onDeleteBefore?: (id: string) => void;
     onMergeWithNext?: (id: string) => void;
     onSplit?: (id: string, cursor: number) => void;
+    speaker?: SpeakerLabel | null;
+    showSpeaker: boolean;
+    speakers?: SpeakerNames;
 }) {
     const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
     const [draft, setDraft] = useState(text);
@@ -200,6 +210,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
                     </TooltipContent>
                 </Tooltip>
                 <div className="flex-1">
+                    {showSpeaker && speaker && speakers && (
+                        <SpeakerChip label={speaker} speakers={speakers} />
+                    )}
                     {editable ? (
                         <Textarea
                             ref={textareaRef}
@@ -264,6 +277,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     editable = false,
     onEditSegment,
     editor,
+    speakers,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -304,9 +318,13 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         enableStreaming
     );
 
-    const renderSegment = (segment: TranscriptSegmentData, isStreaming: boolean) => (
+    const renderSegment = (segment: TranscriptSegmentData, isStreaming: boolean, index: number) => (
         <TranscriptSegment
             id={segment.id}
+            speaker={segment.speaker}
+            // Only label the first line of each speaker's turn, like a chat transcript.
+            showSpeaker={index === 0 || segments[index - 1]?.speaker !== segment.speaker}
+            speakers={speakers}
             timestamp={segment.timestamp}
             text={getDisplayText(segment)}
             confidence={segment.confidence}
@@ -452,7 +470,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         transform: `translateY(${virtualRow.start}px)`,
                                     }}
                                 >
-                                    {renderSegment(segment, isStreaming)}
+                                    {renderSegment(segment, isStreaming, virtualRow.index)}
                                 </div>
                             );
                         })}
@@ -491,7 +509,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                 // Simple rendering for small lists (better animations)
                 <>
                     <div className="space-y-1">
-                        {segments.map((segment) => {
+                        {segments.map((segment, index) => {
                             const isStreaming = streamingSegmentId === segment.id;
 
                             return (
@@ -501,7 +519,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.15 }}
                                 >
-                                    {renderSegment(segment, isStreaming)}
+                                    {renderSegment(segment, isStreaming, index)}
                                 </motion.div>
                             );
                         })}

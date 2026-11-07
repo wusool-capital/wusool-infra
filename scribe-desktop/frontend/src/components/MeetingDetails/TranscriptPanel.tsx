@@ -7,6 +7,7 @@ import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { TranscriptSelectionBar } from './TranscriptSelectionBar';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
 import { useMemo } from 'react';
+import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -61,6 +62,8 @@ export function TranscriptPanel({
   onSummarize,
   showActions = true,
 }: TranscriptPanelProps) {
+  const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
+
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
     if (usePagination && segments) {
@@ -73,6 +76,7 @@ export function TranscriptPanel({
       endTime: t.audio_end_time,
       text: t.text,
       confidence: t.confidence,
+      speaker: t.speaker,
     }));
   }, [transcripts, usePagination, segments]);
 
@@ -113,6 +117,7 @@ export function TranscriptPanel({
           editable={editable}
           onEditSegment={onEditSegment}
           editor={editable ? editor : undefined}
+          speakers={speakers}
         />
       </div>
 
