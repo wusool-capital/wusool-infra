@@ -1142,7 +1142,7 @@ pub async fn apply_transcript_edit<R: Runtime>(
 
 #[tauri::command]
 pub async fn api_save_transcript<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_title: String,
     transcripts: Vec<serde_json::Value>,
@@ -1196,6 +1196,12 @@ pub async fn api_save_transcript<R: Runtime>(
     .await
     {
         Ok(meeting_id) => {
+            // Runs in the background so saving never waits on minutes of diarization.
+            let (diarize_app, diarize_pool, diarize_id) = (app.clone(), pool.clone(), meeting_id.clone());
+            tauri::async_runtime::spawn(async move {
+                crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
+            });
+
             log_info!(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id

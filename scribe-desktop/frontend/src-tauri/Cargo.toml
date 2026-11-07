@@ -5,7 +5,7 @@ description = "Desktop companion app for Wusool Scribe"
 authors = ["Azmora"]
 license = "MIT"
 edition = "2021"
-rust-version = "1.77"
+rust-version = "1.89"  # speakrs (diarization) requires 1.89
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -104,6 +104,9 @@ silero_rs = { git = "https://github.com/emotechlab/silero-rs", rev = "26a6460", 
 # Parakeet (ONNX-based fast transcription) dependencies
 ort = { version = "2.0.0-rc.10" }  # ONNX Runtime for Parakeet models
 thiserror = "2.0.16"                # Error handling for Parakeet
+
+# Speaker diarization; native backends avoid a second ONNX Runtime alongside ort
+speakrs = { version = "0.7", default-features = false, features = ["cpu"] }
 
 # Async
 tokio = { version = "1.32.0", features = ["full", "tracing"] }

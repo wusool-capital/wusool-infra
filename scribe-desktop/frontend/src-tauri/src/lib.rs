@@ -775,6 +775,13 @@ pub fn run() {
             openrouter::get_openrouter_models,
             // Push-to-Scribe-backend commands
             push::get_push_config,
+            diarization::commands::diarize_meeting,
+            diarization::commands::get_meeting_speakers,
+            diarization::commands::name_meeting_speaker,
+            diarization::commands::list_speaker_profiles,
+            diarization::commands::delete_speaker_profile,
+            diarization::commands::get_self_speaker_name,
+            diarization::commands::set_self_speaker_name,
             push::set_push_config,
             push::set_skip_attio,
             push::verify_push_config,
