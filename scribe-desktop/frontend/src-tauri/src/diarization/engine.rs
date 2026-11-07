@@ -137,7 +137,7 @@ mod tests {
         let models = tempfile::tempdir().unwrap();
 
         ensure_models(models.path()).await.unwrap();
-        let audio = crate::audio::decoder::decode_audio_file(&fixture).unwrap().to_whisper_format();
+        let audio = crate::diarization::audio::decode_16k_mono(&fixture).unwrap();
         let result = diarize(models.path(), &audio).unwrap();
 
         assert_eq!(result.centroids.len(), expected);

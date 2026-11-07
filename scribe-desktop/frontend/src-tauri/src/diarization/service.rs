@@ -73,7 +73,7 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
     engine::ensure_models(&models_dir).await.context("fetching diarization models")?;
 
     let diarization = tokio::task::spawn_blocking(move || -> Result<engine::Diarization> {
-        let audio = crate::audio::decoder::decode_audio_file(&system_track)?.to_whisper_format();
+        let audio = super::audio::decode_16k_mono(&system_track)?;
         engine::diarize(&models_dir, &audio)
     })
     .await??;
