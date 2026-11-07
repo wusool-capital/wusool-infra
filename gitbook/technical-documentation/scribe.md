@@ -28,6 +28,13 @@ Windows and Linux, but no builds are published for them.
   This is an accepted trade-off.
 - Update payloads are signed separately with minisign, and the app verifies
   that signature before installing.
+- The webview's Content Security Policy allows inline styles
+  (`'unsafe-inline'` in `style-src`), and `tauri.conf.json` sets
+  `dangerousDisableAssetCspModification: ["style-src"]`. Without it, Tauri
+  adds style hashes to the policy, WebKit then ignores `'unsafe-inline'`, and
+  every `style="…"` attribute in the pre-rendered pages is dropped. The
+  sidebar, for example, opened at the width of its content instead of the
+  saved width. Scripts keep Tauri's hashes.
 
 ## Releases and updates
 
