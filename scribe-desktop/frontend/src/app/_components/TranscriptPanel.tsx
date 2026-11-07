@@ -145,10 +145,10 @@ export function TranscriptPanel({
                   </dl>
                   <p className="text-sm text-muted-foreground">
                     Change these in{' '}
-                    <Link href="/settings" className="text-foreground underline underline-offset-4">
-                      Settings
+                    <Link href="/settings?tab=recording" className="text-foreground underline underline-offset-4">
+                      Recording Settings
                     </Link>
-                    , under Recordings.
+                    .
                   </p>
                 </section>
               }

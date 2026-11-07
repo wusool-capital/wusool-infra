@@ -3,9 +3,13 @@
 // Thin wrapper over speakrs: audio in, speaker turns and one voice embedding per speaker out.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::LazyLock;
 
 use anyhow::{anyhow, Context, Result};
+use futures_util::StreamExt;
 use log::info;
+use tokio::io::AsyncWriteExt;
 use serde::{Deserialize, Serialize};
 use speakrs::{DiarizationResult, ExecutionMode, OwnedDiarizationPipeline};
 
@@ -97,30 +101,102 @@ pub fn models_dir(app_data_dir: &Path) -> PathBuf {
     app_data_dir.join("models").join("diarization").join(MODEL_REVISION)
 }
 
-/// Downloads missing model files via a temp name, so an interrupted download never looks complete.
+/// Bytes fetched so far against the total, for a download progress bar.
+#[derive(Debug, Clone, Copy, Serialize)]
+pub struct DownloadProgress {
+    pub downloaded: u64,
+    pub total: u64,
+}
+
+// One downloader at a time, so a meeting finishing mid-download never writes the same files.
+static MODEL_DOWNLOAD: LazyLock<tokio::sync::Mutex<()>> = LazyLock::new(|| tokio::sync::Mutex::new(()));
+
+fn model_url(file: &str) -> String {
+    format!("{MODEL_BASE_URL}/{MODEL_REVISION}/{file}")
+}
+
+/// Model files this backend needs that are not on disk yet.
+pub fn missing_files(dir: &Path, backend: DiarizationBackend) -> Vec<String> {
+    backend.model_files().into_iter().filter(|file| !dir.join(file).exists()).collect()
+}
+
+pub fn models_ready(dir: &Path, backend: DiarizationBackend) -> bool {
+    missing_files(dir, backend).is_empty()
+}
+
+/// Downloads missing model files, with no progress reporting.
 pub async fn ensure_models(dir: &Path, backend: DiarizationBackend) -> Result<()> {
+    download_models(dir, backend, &AtomicBool::new(false), |_| {}).await
+}
+
+/// Downloads missing model files, reporting progress and stopping early when `cancel` is set.
+/// Each file lands under a temp name first, so an interrupted download never looks complete.
+pub async fn download_models(
+    dir: &Path,
+    backend: DiarizationBackend,
+    cancel: &AtomicBool,
+    mut on_progress: impl FnMut(DownloadProgress),
+) -> Result<()> {
+    let _guard = MODEL_DOWNLOAD.lock().await;
+    let missing = missing_files(dir, backend);
+    if missing.is_empty() {
+        return Ok(());
+    }
+
     let client = reqwest::Client::new();
-    for file in backend.model_files() {
-        let target = dir.join(&file);
-        if target.exists() {
-            continue;
-        }
+    // Sizes up front, so progress is one honest bar rather than file-by-file jumps.
+    let requests: Vec<reqwest::RequestBuilder> = missing.iter().map(|file| client.head(model_url(file))).collect();
+    let sizes: Vec<u64> = futures_util::stream::iter(requests)
+        .map(|request| async move { request.send().await.ok().and_then(|r| r.content_length()).unwrap_or(0) })
+        .buffered(8)
+        .collect()
+        .await;
+    let total: u64 = sizes.iter().sum();
+    let mut downloaded = 0u64;
+    on_progress(DownloadProgress { downloaded, total });
+
+    for file in &missing {
+        let target = dir.join(file);
         if let Some(parent) = target.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
         info!("Downloading diarization model file {}", file);
-        let url = format!("{MODEL_BASE_URL}/{MODEL_REVISION}/{file}");
-        let bytes = client
-            .get(&url)
+        let response = client
+            .get(model_url(file))
             .send()
             .await
             .and_then(reqwest::Response::error_for_status)
-            .with_context(|| format!("downloading {file}"))?
-            .bytes()
-            .await?;
+            .with_context(|| format!("downloading {file}"))?;
+
         let partial = dir.join(format!("{file}.part"));
-        tokio::fs::write(&partial, &bytes).await?;
+        let mut out = tokio::fs::File::create(&partial).await?;
+        let mut body = response.bytes_stream();
+        while let Some(chunk) = body.next().await {
+            if cancel.load(Ordering::SeqCst) {
+                drop(out);
+                let _ = tokio::fs::remove_file(&partial).await;
+                return Err(anyhow!("download cancelled"));
+            }
+            let chunk = chunk.with_context(|| format!("downloading {file}"))?;
+            out.write_all(&chunk).await?;
+            downloaded += chunk.len() as u64;
+            on_progress(DownloadProgress { downloaded, total: total.max(downloaded) });
+        }
+        out.flush().await?;
+        drop(out);
         tokio::fs::rename(&partial, &target).await?;
+    }
+    Ok(())
+}
+
+/// Removes the CoreML bundles only; the CPU model stays because CPU separation still needs it.
+pub async fn delete_coreml_models(dir: &Path) -> Result<()> {
+    let _guard = MODEL_DOWNLOAD.lock().await;
+    for stem in COREML_MODEL_STEMS {
+        let bundle = dir.join(format!("{stem}.mlmodelc"));
+        if bundle.exists() {
+            tokio::fs::remove_dir_all(&bundle).await?;
+        }
     }
     Ok(())
 }
@@ -203,6 +279,37 @@ mod tests {
     fn backend_serializes_for_the_settings_store() {
         assert_eq!(serde_json::to_string(&DiarizationBackend::CoreMl).unwrap(), "\"coreml\"");
         assert_eq!(serde_json::from_str::<DiarizationBackend>("\"cpu\"").unwrap(), DiarizationBackend::Cpu);
+    }
+
+    /// Downloads the real CoreML models (~263 MB), so it runs only with `--ignored`.
+    #[tokio::test]
+    #[ignore]
+    async fn downloads_reports_progress_and_deletes_coreml_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut seen: Vec<DownloadProgress> = Vec::new();
+        download_models(dir.path(), DiarizationBackend::CoreMl, &AtomicBool::new(false), |p| seen.push(p))
+            .await
+            .unwrap();
+
+        assert!(seen.windows(2).all(|w| w[1].downloaded >= w[0].downloaded));
+        let last = seen.last().unwrap();
+        assert_eq!(last.downloaded, last.total);
+        assert!(models_ready(dir.path(), DiarizationBackend::CoreMl));
+
+        delete_coreml_models(dir.path()).await.unwrap();
+        assert!(!models_ready(dir.path(), DiarizationBackend::CoreMl));
+        assert!(models_ready(dir.path(), DiarizationBackend::Cpu));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn a_cancelled_download_leaves_no_partial_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = download_models(dir.path(), DiarizationBackend::Cpu, &AtomicBool::new(true), |_| {}).await;
+        assert!(result.unwrap_err().to_string().contains("cancelled"));
+        let leftovers = std::fs::read_dir(dir.path()).unwrap().filter_map(|e| e.ok())
+            .filter(|e| e.file_name().to_string_lossy().ends_with(".part")).count();
+        assert_eq!(leftovers, 0);
     }
 
     /// Needs network and a real recording, so it runs only with `--ignored` and these env vars:

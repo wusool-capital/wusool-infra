@@ -7,6 +7,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 ### What's new
 
 * **Tidy Lines** joins short fragments from the same speaker into full sentences, in one step you can undo.
+* Turning on **Faster Speaker Separation (CoreML)** downloads its models straight away with a progress bar. Turning it off asks whether to keep the models, so switching back on later needs no download.
 
 ### Changed
 

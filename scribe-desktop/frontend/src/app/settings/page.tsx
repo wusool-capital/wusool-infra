@@ -31,6 +31,12 @@ export default function SettingsPage() {
 
   // Animation state for tabs
   const [activeTab, setActiveTab] = useState('general');
+
+  // Lets other screens link straight to a tab, e.g. /settings?tab=recording.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (requested && TABS.some((tab) => tab.value === requested)) setActiveTab(requested);
+  }, []);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
 

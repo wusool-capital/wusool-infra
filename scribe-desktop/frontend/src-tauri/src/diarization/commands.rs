@@ -2,11 +2,15 @@
 //
 // Tauri commands for the voice library, speaker naming, the user's own name and the diarization backend.
 
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
 use serde::Serialize;
-use tauri::{AppHandle, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
-use super::engine::DiarizationBackend;
+use super::engine::{self, DiarizationBackend, DownloadProgress};
 use super::service::{diarize_and_notify, DiarizationOutcome};
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository};
@@ -44,6 +48,62 @@ pub async fn set_diarization_backend<R: Runtime>(app: AppHandle<R>, backend: Dia
     let store = app.store(SETTINGS_STORE).map_err(|e| e.to_string())?;
     store.set(BACKEND_KEY, serde_json::to_value(backend).map_err(|e| e.to_string())?);
     store.save().map_err(|e| e.to_string())
+}
+
+const MODELS_PROGRESS_EVENT: &str = "diarization-models-progress";
+const PROGRESS_EVERY: Duration = Duration::from_millis(150);
+static CANCEL_DOWNLOAD: AtomicBool = AtomicBool::new(false);
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DiarizationModelsStatus {
+    pub cpu_ready: bool,
+    pub coreml_ready: bool,
+}
+
+fn models_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    Ok(engine::models_dir(&app_data_dir))
+}
+
+#[tauri::command]
+pub async fn get_diarization_models_status<R: Runtime>(app: AppHandle<R>) -> Result<DiarizationModelsStatus, String> {
+    let dir = models_dir(&app)?;
+    Ok(DiarizationModelsStatus {
+        cpu_ready: engine::models_ready(&dir, DiarizationBackend::Cpu),
+        coreml_ready: engine::models_ready(&dir, DiarizationBackend::CoreMl),
+    })
+}
+
+/// Downloads a backend's models now, emitting progress, so the first meeting never waits on them.
+#[tauri::command]
+pub async fn download_diarization_models<R: Runtime>(
+    app: AppHandle<R>,
+    backend: DiarizationBackend,
+) -> Result<(), String> {
+    let dir = models_dir(&app)?;
+    CANCEL_DOWNLOAD.store(false, Ordering::SeqCst);
+    let mut last_emit: Option<Instant> = None;
+    engine::download_models(&dir, backend, &CANCEL_DOWNLOAD, |progress: DownloadProgress| {
+        let done = progress.downloaded >= progress.total;
+        if done || last_emit.is_none_or(|at| at.elapsed() >= PROGRESS_EVERY) {
+            last_emit = Some(Instant::now());
+            let _ = app.emit(MODELS_PROGRESS_EVENT, progress);
+        }
+    })
+    .await
+    .map_err(|e| format!("{e:#}"))
+}
+
+#[tauri::command]
+pub async fn cancel_diarization_model_download() -> Result<(), String> {
+    CANCEL_DOWNLOAD.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_coreml_models<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let dir = models_dir(&app)?;
+    engine::delete_coreml_models(&dir).await.map_err(|e| format!("{e:#}"))
 }
 
 #[tauri::command]
