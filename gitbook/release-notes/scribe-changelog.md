@@ -2,6 +2,21 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.0
+
+### What's new
+
+* Transcripts show who said each line. Your lines carry your name, set under **Settings → General → Speakers**. After a meeting, Scribe separates the other voices on your Mac into Speaker 1, Speaker 2 and so on.
+* Click a speaker's name to say who they are. Scribe renames everything they said in that meeting and recognises their voice in later meetings. Voice fingerprints stay on your Mac.
+* **Faster Speaker Separation (CoreML)** in Settings separates voices about six times faster, using more memory while it runs.
+* **Proofread** suggests fixes for misheard words. Accept or dismiss each one, or all at once.
+* Meetings pushed to Attio carry each speaker's name instead of "Participant".
+
+### Changed
+
+* The meeting page shows the meeting's name and date at the top. Long lines are no longer cut off when the window is narrow, and tick boxes appear only when you hover or start selecting.
+* Settings are grouped into clearer sections, and the auto-stop description no longer runs under its switch.
+
 ## 0.7.7
 
 ### What's new
