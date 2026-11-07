@@ -60,15 +60,22 @@ export default function SettingsPage() {
     loadTranscriptConfig();
   }, [setTranscriptModelConfig]);
 
-  // Update underline position when active tab changes
+  // Update underline position when the active tab changes, and when tabs resize with the window.
   useLayoutEffect(() => {
     const activeIndex = TABS.findIndex(tab => tab.value === activeTab);
     const activeTabElement = tabRefs.current[activeIndex];
+    if (!activeTabElement) return;
 
-    if (activeTabElement) {
+    const measure = () => {
       const { offsetLeft, offsetWidth } = activeTabElement;
       setUnderlineStyle({ left: offsetLeft, width: offsetWidth });
-    }
+    };
+    measure();
+    const list = activeTabElement.parentElement;
+    if (!list) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
   }, [activeTab]);
 
   return (
@@ -87,7 +94,7 @@ export default function SettingsPage() {
         <div className="p-8 pt-3">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-transparent relative w-full justify-start rounded-none border-b border-border p-0 h-auto">
+            <TabsList className="settings-tabs bg-transparent relative w-full justify-start overflow-x-auto [scrollbar-width:none] rounded-none border-b border-border p-0 h-auto">
               {TABS.map((tab, index) => {
                 const Icon = tab.icon;
                 return (
@@ -95,7 +102,7 @@ export default function SettingsPage() {
                     key={tab.value}
                     value={tab.value}
                     ref={el => { tabRefs.current[index] = el }}
-                    className="flex items-center gap-2 px-6 py-4 bg-transparent rounded-none border-0 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none text-muted-foreground hover:text-foreground relative z-10"
+                    className="settings-tab flex shrink-0 items-center gap-2 px-6 py-4 bg-transparent rounded-none border-0 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none text-muted-foreground hover:text-foreground relative z-10"
                   >
                     <Icon className="w-4 h-4" />
                     {tab.label}

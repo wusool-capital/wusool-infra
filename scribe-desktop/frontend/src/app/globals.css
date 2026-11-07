@@ -258,3 +258,17 @@ textarea,
     display: none;
   }
 }
+
+/* Settings tabs: tighter and icon-free when the tab row itself is narrow (e.g. beside a wide sidebar). */
+.settings-tabs {
+  container-type: inline-size;
+}
+@container (max-width: 700px) {
+  .settings-tab {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .settings-tab svg {
+    display: none;
+  }
+}
