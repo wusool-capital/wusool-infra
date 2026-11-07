@@ -12,11 +12,11 @@ export function TranscriptSelectionBar({ editor }: { editor: TranscriptEditorApi
     // w-max: an absolutely positioned box at left-1/2 would otherwise shrink to
     // half the panel and wrap its label onto a second line.
     <div className="absolute bottom-6 left-1/2 z-20 flex w-max -translate-x-1/2 items-center gap-1 whitespace-nowrap rounded-lg border border-border bg-card px-3 py-2 shadow-lg">
-      <span className="mr-2 text-sm">
+      <span className="mr-2 text-sm tabular-nums" aria-live="polite">
         {count} {count === 1 ? 'line' : 'lines'} selected
       </span>
       <Button size="sm" variant="ghost" onClick={editor.allSelected ? editor.clearSelection : editor.selectAll}>
-        {editor.allSelected ? 'Deselect all' : 'Select all'}
+        {editor.allSelected ? 'Deselect All' : 'Select All'}
       </Button>
       {count > 1 && (
         <Button size="sm" variant="ghost" onClick={() => void editor.mergeSelected()}>
@@ -44,7 +44,14 @@ export function TranscriptSelectionBar({ editor }: { editor: TranscriptEditorApi
         <Trash2 size={14} />
         Delete
       </Button>
-      <Button size="icon" variant="ghost" className="h-8 w-8" title="Clear selection (Esc)" onClick={editor.clearSelection}>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8"
+        aria-label="Clear selection"
+        title="Clear selection (Esc)"
+        onClick={editor.clearSelection}
+      >
         <X size={14} />
       </Button>
     </div>

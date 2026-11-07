@@ -277,6 +277,8 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     [],
   );
 
+  const dismissAllSuggestions = useCallback(() => setSuggestions([]), []);
+
   const acceptSuggestion = useCallback(
     async (suggestion: CorrectionSuggestion) => {
       if (await editText(suggestion.segment_id, suggestion.suggested)) {
@@ -374,6 +376,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     requestSuggestions,
     acceptSuggestion,
     dismissSuggestion,
+    dismissAllSuggestions,
     acceptAllSuggestions,
   };
 }

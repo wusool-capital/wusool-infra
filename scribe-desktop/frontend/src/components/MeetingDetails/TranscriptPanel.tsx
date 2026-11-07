@@ -8,6 +8,7 @@ import { TranscriptSelectionBar } from './TranscriptSelectionBar';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
 import { useMemo } from 'react';
 import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
+import { Button } from '@/components/ui/button';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -82,7 +83,7 @@ export function TranscriptPanel({
 
   return (
     <div className="flex w-full h-full min-w-0 bg-card flex-col relative">
-      {/* Title area */}
+      {/* Toolbar */}
       {showActions && (
         <div className="p-4 border-b border-border ">
           <TranscriptButtonGroup
@@ -95,6 +96,22 @@ export function TranscriptPanel({
             onSummarize={onSummarize}
             editor={editable ? editor : undefined}
           />
+        </div>
+      )}
+
+      {editable && editor && editor.suggestions.size > 0 && (
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
+          <span className="text-sm text-foreground tabular-nums" aria-live="polite">
+            {editor.suggestions.size} suggested {editor.suggestions.size === 1 ? 'fix' : 'fixes'}
+          </span>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" onClick={editor.dismissAllSuggestions}>
+              Dismiss All
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
+              Accept All
+            </Button>
+          </div>
         </div>
       )}
 

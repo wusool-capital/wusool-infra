@@ -85,11 +85,12 @@ be missed while others talk over you.
 
 Fix the transcript before you summarize or send it:
 
-- Tick lines (Shift-click for a range), then delete, merge, or split them.
+- Hover over a line to show its tick box, or click its time. Shift-click
+  selects a range. Then delete, merge, or split the selected lines.
 - Right-click a line to delete everything before it.
-- Use **Find & replace** (Cmd+F) to fix a misheard name everywhere.
+- Use **Find & Replace** (Cmd+F) to fix a misheard name everywhere.
 - Press **Proofread** to get suggested fixes for misheard words. Accept or
-  dismiss each one, or press **Accept all**. Scribe sends the transcript
+  dismiss each one, or press **Accept All** or **Dismiss All**. Scribe sends the transcript
   text to the Toolkit server for this, and nothing is stored there.
 - Undo and redo with Cmd+Z and Cmd+Shift+Z.
 

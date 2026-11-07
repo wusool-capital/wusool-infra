@@ -24,6 +24,16 @@ import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperatio
 import { useConfig } from '@/contexts/ConfigContext';
 import { useTranscriptEditor } from '@/hooks/meeting-details/useTranscriptEditor';
 
+/** "6 Nov 2026, 10:00 · 19 lines": when the meeting happened and how much was said. */
+function meetingSummaryLine(createdAt: string, lineCount: number): string {
+  const date = new Date(createdAt);
+  const when = Number.isNaN(date.getTime())
+    ? null
+    : new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(date);
+  const lines = `${new Intl.NumberFormat().format(lineCount)} ${lineCount === 1 ? 'line' : 'lines'}`;
+  return when ? `${when} · ${lines}` : lines;
+}
+
 export default function PageContent({
   meeting,
   summaryData,
@@ -194,15 +204,16 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen bg-muted "
     >
-      {folderName && (
-        <div className="flex items-center px-4 py-2 border-b border-border bg-card">
+      <header className="border-b border-border bg-card px-4 py-3">
+        {folderName && (
+          <div className="flex">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="max-w-xs"
+                  className="-ml-2 mb-1 h-7 max-w-xs text-muted-foreground"
                   onClick={() =>
                     router.push(`/folder?tag=${encodeURIComponent(slugifyTag(folderName))}&name=${encodeURIComponent(folderName)}`)
                   }
@@ -214,8 +225,11 @@ export default function PageContent({
               <TooltipContent>Back to {folderName}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </div>
-      )}
+          </div>
+        )}
+        <h1 className="truncate text-xl font-semibold text-foreground">{meeting.title}</h1>
+        <p className="text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length)}</p>
+      </header>
 
       <div className="flex flex-1 overflow-hidden">
         {isPushed ? (

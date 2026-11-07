@@ -11,6 +11,9 @@ import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptE
 import { TranscriptFindReplace } from './TranscriptFindReplace';
 import { Spinner } from '@/components/ui/spinner';
 
+// One rule for every secondary button: icon only below lg, icon and label from lg up.
+const LABEL = 'hidden lg:inline';
+
 
 interface TranscriptButtonGroupProps {
   transcriptCount: number;
@@ -46,112 +49,114 @@ export function TranscriptButtonGroup({
   }, [onRefetchTranscripts]);
 
   return (
-    <div className="flex items-center justify-between w-full gap-2">
-      <ButtonGroup>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            Analytics.trackButtonClick('copy_transcript', 'meeting_details');
-            onCopyTranscript();
-          }}
-          disabled={transcriptCount === 0}
-          title={transcriptCount === 0 ? 'No transcript available' : 'Copy Transcript'}
-        >
-          <Copy />
-          <span className="hidden lg:inline">Copy</span>
-        </Button>
-
-        <Button
-          size="sm"
-          variant="outline"
-          className="xl:px-4"
-          onClick={() => {
-            Analytics.trackButtonClick('open_recording_folder', 'meeting_details');
-            onOpenMeetingFolder();
-          }}
-          title="Open Recording Folder"
-        >
-          <FolderOpen className="xl:mr-2" size={18} />
-          <span className="hidden lg:inline">Recording</span>
-        </Button>
-
-        {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="xl:px-4"
-            onClick={() => {
-              Analytics.trackButtonClick('enhance_transcript', 'meeting_details');
-              setShowRetranscribeDialog(true);
-            }}
-            title="Retranscribe to enhance your recorded audio"
-          >
-            <RefreshCw className="xl:mr-2" size={18} />
-            <span className="hidden lg:inline">Enhance</span>
-          </Button>
+    <div className="flex w-full items-center justify-between gap-3">
+      {/* Editing tools sit on the left, next to the text they change. */}
+      <div className="flex items-center gap-2">
+        {editor && (
+          <>
+            <ButtonGroup>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!editor.canUndo}
+                onClick={() => void editor.undo()}
+                aria-label="Undo"
+                title="Undo (⌘Z)"
+              >
+                <Undo2 />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!editor.canRedo}
+                onClick={() => void editor.redo()}
+                aria-label="Redo"
+                title="Redo (⌘⇧Z)"
+              >
+                <Redo2 />
+              </Button>
+            </ButtonGroup>
+            <TranscriptFindReplace editor={editor} />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={editor.isSuggesting}
+              aria-label="Proofread"
+              title="Suggest fixes for misheard words"
+              onClick={() => {
+                Analytics.trackButtonClick('proofread_transcript', 'meeting_details');
+                void editor.requestSuggestions();
+              }}
+            >
+              {editor.isSuggesting ? <Spinner /> : <Wand2 />}
+              <span className={LABEL}>{editor.isSuggesting ? 'Proofreading…' : 'Proofread'}</span>
+            </Button>
+          </>
         )}
-      </ButtonGroup>
+      </div>
 
-      {editor && (
-        <div className="flex items-center gap-2">
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!editor.canUndo}
-              onClick={() => void editor.undo()}
-              title="Undo (Cmd+Z)"
-            >
-              <Undo2 size={16} />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!editor.canRedo}
-              onClick={() => void editor.redo()}
-              title="Redo (Cmd+Shift+Z)"
-            >
-              <Redo2 size={16} />
-            </Button>
-          </ButtonGroup>
-          <TranscriptFindReplace editor={editor} />
+      <div className="flex items-center gap-2">
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              Analytics.trackButtonClick('copy_transcript', 'meeting_details');
+              onCopyTranscript();
+            }}
+            disabled={transcriptCount === 0}
+            aria-label="Copy Transcript"
+            title={transcriptCount === 0 ? 'No transcript to copy' : 'Copy Transcript'}
+          >
+            <Copy />
+            <span className={LABEL}>Copy</span>
+          </Button>
           <Button
             size="sm"
             variant="outline"
-            disabled={editor.isSuggesting}
             onClick={() => {
-              Analytics.trackButtonClick('proofread_transcript', 'meeting_details');
-              void editor.requestSuggestions();
+              Analytics.trackButtonClick('open_recording_folder', 'meeting_details');
+              onOpenMeetingFolder();
             }}
-            title="Suggest fixes for misheard words"
-            className="[&_svg]:size-5"
+            aria-label="Open Folder"
+            title="Open the meeting's folder"
           >
-            {editor.isSuggesting ? <Spinner /> : <Wand2 />}
-            {editor.isSuggesting ? 'Proofreading…' : 'Proofread'}
+            <FolderOpen />
+            <span className={LABEL}>Open Folder</span>
           </Button>
-          {editor.suggestions.size > 0 && (
-            <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
-              Accept all ({editor.suggestions.size})
+          {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                Analytics.trackButtonClick('enhance_transcript', 'meeting_details');
+                setShowRetranscribeDialog(true);
+              }}
+              aria-label="Enhance"
+              title="Re-transcribe the recording with another model or language"
+            >
+              <RefreshCw />
+              <span className={LABEL}>Enhance</span>
             </Button>
           )}
-        </div>
-      )}
+        </ButtonGroup>
 
-      {onSummarize && (
-        <Button
-          size="sm"
-          onClick={() => {
-            Analytics.trackButtonClick('open_summarize_dialog', 'meeting_details');
-            onSummarize();
-          }}
-          disabled={transcriptCount === 0}
-          title={transcriptCount === 0 ? 'No transcript available' : 'Summarize meeting'}
-        >
-          <Sparkles size={16} />
-          <span className="hidden lg:inline">Summarize</span>
-        </Button>
-      )}
+        {onSummarize && (
+          // The screen's one primary action keeps its label at every width.
+          <Button
+            size="sm"
+            onClick={() => {
+              Analytics.trackButtonClick('open_summarize_dialog', 'meeting_details');
+              onSummarize();
+            }}
+            disabled={transcriptCount === 0}
+            title={transcriptCount === 0 ? 'No transcript to summarize' : 'Summarize meeting'}
+          >
+            <Sparkles />
+            Summarize
+          </Button>
+        )}
+      </div>
 
       {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
         <RetranscribeDialog

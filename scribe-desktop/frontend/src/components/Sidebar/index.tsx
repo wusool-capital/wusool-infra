@@ -813,6 +813,7 @@ const Sidebar: React.FC = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => setShowFeedback(true)}
+                          aria-label="Send Feedback"
                           className="h-10 w-10 rounded-lg text-muted-foreground"
                         >
                           <Bug className="w-5 h-5" />
@@ -828,6 +829,7 @@ const Sidebar: React.FC = () => {
                           variant="ghost"
                           size="icon"
                           onClick={toggleCollapse}
+                          aria-label="Collapse Sidebar"
                           className="h-10 w-10 rounded-lg text-muted-foreground"
                         >
                           <PanelLeft className="w-5 h-5" />
