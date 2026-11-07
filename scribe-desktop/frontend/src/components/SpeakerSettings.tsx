@@ -6,12 +6,22 @@ import { Trash2 } from "lucide-react"
 import type { SpeakerProfileSummary } from "@/lib/speakers"
 import { Input } from "./ui/input"
 import { Button } from "./ui/button"
+import { Switch } from "./ui/switch"
+
+type DiarizationBackend = "cpu" | "coreml"
+
+// Mirrors the Rust `DiarizationBackendSettings` serialization.
+interface DiarizationBackendSettings {
+  backend: DiarizationBackend
+  coreml_available: boolean
+}
 
 export function SpeakerSettings() {
   const [selfName, setSelfName] = useState("")
   const [savedSelfName, setSavedSelfName] = useState("")
   const [profiles, setProfiles] = useState<SpeakerProfileSummary[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [backend, setBackend] = useState<DiarizationBackendSettings | null>(null)
 
   const loadProfiles = async () => setProfiles(await invoke<SpeakerProfileSummary[]>("list_speaker_profiles"))
 
@@ -22,6 +32,7 @@ export function SpeakerSettings() {
         setSelfName(name)
         setSavedSelfName(name)
         await loadProfiles()
+        setBackend(await invoke<DiarizationBackendSettings>("get_diarization_backend"))
       } catch (e) {
         setError(String(e))
       }
@@ -32,6 +43,17 @@ export function SpeakerSettings() {
     try {
       await invoke("set_self_speaker_name", { name: selfName.trim() || null })
       setSavedSelfName(selfName.trim())
+      setError(null)
+    } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const toggleCoreMl = async (enabled: boolean) => {
+    const next: DiarizationBackend = enabled ? "coreml" : "cpu"
+    try {
+      await invoke("set_diarization_backend", { backend: next })
+      setBackend((current) => (current ? { ...current, backend: next } : current))
       setError(null)
     } catch (e) {
       setError(String(e))
@@ -73,6 +95,19 @@ export function SpeakerSettings() {
           Save
         </Button>
       </form>
+
+      {backend?.coreml_available && (
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Faster speaker separation (CoreML)</p>
+            <p className="text-sm text-muted-foreground">
+              Uses Apple silicon acceleration: about 40 seconds per hour of audio instead of about 4 minutes, but up to
+              2.7 GB of memory while it runs (instead of about 0.5 GB) and a one-time 260 MB download.
+            </p>
+          </div>
+          <Switch checked={backend.backend === "coreml"} onCheckedChange={toggleCoreMl} />
+        </div>
+      )}
 
       <div className="space-y-2">
         <p className="text-sm font-medium text-foreground">Recognised voices</p>

@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, Context, Result};
 use log::info;
+use serde::{Deserialize, Serialize};
 use speakrs::{DiarizationResult, ExecutionMode, OwnedDiarizationPipeline};
 
 use super::assign::SpeakerTurn;
@@ -28,6 +29,66 @@ const CPU_MODEL_FILES: &[&str] = &[
     "plda_tr.npy",
 ];
 
+/// Compiled CoreML bundles, on top of the CPU files' PLDA data (about 263 MB in total).
+/// Mirrors the CoreML stems speakrs 0.7 loads; recheck them when upgrading speakrs.
+const COREML_MODEL_STEMS: &[&str] = &[
+    "segmentation-3.0",
+    "segmentation-3.0-b32",
+    "segmentation-3.0-b64",
+    "wespeaker-fbank",
+    "wespeaker-fbank-b32",
+    "wespeaker-fbank-30s",
+    "wespeaker-multimask-tail-b32",
+    "wespeaker-voxceleb-resnet34-tail",
+    "wespeaker-voxceleb-resnet34-tail-b3",
+    "wespeaker-voxceleb-resnet34-tail-b32",
+    "wespeaker-chunk-emb-p1s-w21",
+    "wespeaker-chunk-emb-p1s-w36",
+    "wespeaker-chunk-emb-p1s-w51",
+    "wespeaker-chunk-emb-p1s-w81",
+    "wespeaker-chunk-emb-p1s-w111",
+];
+const MLMODELC_FILES: &[&str] = &["model.mil", "coremldata.bin", "weights/weight.bin", "analytics/coremldata.bin"];
+
+/// Where diarization runs. CPU is the default: CoreML is ~5x faster on Apple silicon but
+/// peaks near 2.7 GB of RAM while processing, against ~0.5 GB on CPU.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DiarizationBackend {
+    #[default]
+    Cpu,
+    CoreMl,
+}
+
+impl DiarizationBackend {
+    pub const fn coreml_available() -> bool {
+        cfg!(target_os = "macos")
+    }
+
+    /// The backend that will actually run: CoreML falls back to CPU off macOS.
+    pub fn effective(self) -> Self {
+        if self == Self::CoreMl && Self::coreml_available() { Self::CoreMl } else { Self::Cpu }
+    }
+
+    fn execution_mode(self) -> ExecutionMode {
+        match self.effective() {
+            #[cfg(target_os = "macos")]
+            Self::CoreMl => ExecutionMode::CoreMl,
+            _ => ExecutionMode::Cpu,
+        }
+    }
+
+    fn model_files(self) -> Vec<String> {
+        let mut files: Vec<String> = CPU_MODEL_FILES.iter().map(|f| f.to_string()).collect();
+        if self.effective() == Self::CoreMl {
+            for stem in COREML_MODEL_STEMS {
+                files.extend(MLMODELC_FILES.iter().map(|f| format!("{stem}.mlmodelc/{f}")));
+            }
+        }
+        files
+    }
+}
+
 pub struct Diarization {
     pub turns: Vec<SpeakerTurn>,
     /// Indexed by `SpeakerTurn::speaker`.
@@ -40,13 +101,15 @@ pub fn models_dir(app_data_dir: &Path) -> PathBuf {
 
 /// Downloads any missing model file. Each file lands under a temp name first so an
 /// interrupted download is never mistaken for a complete one.
-pub async fn ensure_models(dir: &Path) -> Result<()> {
-    tokio::fs::create_dir_all(dir).await?;
+pub async fn ensure_models(dir: &Path, backend: DiarizationBackend) -> Result<()> {
     let client = reqwest::Client::new();
-    for file in CPU_MODEL_FILES {
-        let target = dir.join(file);
+    for file in backend.model_files() {
+        let target = dir.join(&file);
         if target.exists() {
             continue;
+        }
+        if let Some(parent) = target.parent() {
+            tokio::fs::create_dir_all(parent).await?;
         }
         info!("Downloading diarization model file {}", file);
         let url = format!("{MODEL_BASE_URL}/{MODEL_REVISION}/{file}");
@@ -66,8 +129,8 @@ pub async fn ensure_models(dir: &Path) -> Result<()> {
 }
 
 /// Blocking and CPU-heavy: call from `spawn_blocking`.
-pub fn diarize(models_dir: &Path, audio_16k_mono: &[f32]) -> Result<Diarization> {
-    let mut pipeline = OwnedDiarizationPipeline::from_dir(models_dir, ExecutionMode::Cpu)
+pub fn diarize(models_dir: &Path, backend: DiarizationBackend, audio_16k_mono: &[f32]) -> Result<Diarization> {
+    let mut pipeline = OwnedDiarizationPipeline::from_dir(models_dir, backend.execution_mode())
         .map_err(|e| anyhow!("loading diarization models: {e}"))?;
     let result = pipeline
         .run(audio_16k_mono)
@@ -127,8 +190,26 @@ fn cluster_centroids(result: &DiarizationResult) -> Vec<Vec<f32>> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn coreml_needs_cpu_files_too_and_falls_back_off_macos() {
+        let cpu = DiarizationBackend::Cpu.model_files();
+        let coreml = DiarizationBackend::CoreMl.model_files();
+        assert!(cpu.iter().all(|f| coreml.contains(f)));
+        if DiarizationBackend::coreml_available() {
+            assert_eq!(coreml.len(), cpu.len() + COREML_MODEL_STEMS.len() * MLMODELC_FILES.len());
+        } else {
+            assert_eq!(DiarizationBackend::CoreMl.effective(), DiarizationBackend::Cpu);
+        }
+    }
+
+    #[test]
+    fn backend_serializes_for_the_settings_store() {
+        assert_eq!(serde_json::to_string(&DiarizationBackend::CoreMl).unwrap(), "\"coreml\"");
+        assert_eq!(serde_json::from_str::<DiarizationBackend>("\"cpu\"").unwrap(), DiarizationBackend::Cpu);
+    }
+
     /// Needs network and a real multi-speaker recording, so it only runs on demand:
-    /// DIARIZATION_FIXTURE=meeting.wav DIARIZATION_SPEAKERS=3 cargo test -- --ignored diarizes_fixture
+    /// DIARIZATION_FIXTURE=meeting.wav DIARIZATION_SPEAKERS=3 [DIARIZATION_BACKEND=coreml] cargo test -- --ignored diarizes_fixture
     #[tokio::test]
     #[ignore]
     async fn diarizes_fixture() {
@@ -136,9 +217,14 @@ mod tests {
         let expected: usize = std::env::var("DIARIZATION_SPEAKERS").expect("DIARIZATION_SPEAKERS").parse().unwrap();
         let models = tempfile::tempdir().unwrap();
 
-        ensure_models(models.path()).await.unwrap();
+        let backend = match std::env::var("DIARIZATION_BACKEND").as_deref() {
+            Ok("coreml") => DiarizationBackend::CoreMl,
+            _ => DiarizationBackend::Cpu,
+        };
+
+        ensure_models(models.path(), backend).await.unwrap();
         let audio = crate::diarization::audio::decode_16k_mono(&fixture).unwrap();
-        let result = diarize(models.path(), &audio).unwrap();
+        let result = diarize(models.path(), backend, &audio).unwrap();
 
         assert_eq!(result.centroids.len(), expected);
         assert!(result.turns.iter().all(|t| (t.speaker as usize) < expected));

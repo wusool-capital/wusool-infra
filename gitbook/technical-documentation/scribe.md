@@ -70,15 +70,20 @@ renaming a speaker changes one row.
 - **Live:** the mic and system audio go through separate voice-activity
   detectors. A bleed gate drops mic audio that only echoes the speakers.
 - **After saving:** [speakrs](https://github.com/avencera/speakrs), a Rust
-  port of the pyannote `community-1` pipeline, runs on `system.mp4` on the
-  CPU. Each `others` segment gets the voice that overlaps it most. It runs
-  at roughly 15 times real time on Apple silicon.
+  port of the pyannote `community-1` pipeline, runs on `system.mp4`. Each
+  `others` segment gets the voice that overlaps it most. ffmpeg decodes the
+  track straight to 16 kHz mono, so the audio buffer is about 230 MB per
+  hour.
+- **Backends:** CPU by default, at about 15 times real time on Apple silicon
+  with a peak of about 0.5 GB. CoreML is a setting, at about 90 times real
+  time with a peak of about 2.7 GB. If CoreML fails, that run falls back to
+  CPU.
 - **Voice library:** naming a voice stores its embedding in
   `speaker_profiles`. Later meetings auto-name voices whose cosine
   similarity is at least 0.7, and never give two voices the same person.
-- **Models:** about 32 MB, downloaded once from the pinned revision of the
-  `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0) into the app
-  data folder.
+- **Models:** about 32 MB for CPU, plus 263 MB for CoreML. They are
+  downloaded once into the app data folder, from a pinned revision of the
+  `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0).
 
 Embeddings never leave the Mac. A push sends only the resolved names.
 

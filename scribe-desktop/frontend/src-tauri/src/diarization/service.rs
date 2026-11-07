@@ -12,7 +12,7 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use super::assign::{attribute_segments, match_profiles, VoiceProfile, PROFILE_MATCH_THRESHOLD};
-use super::engine;
+use super::engine::{self, DiarizationBackend};
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{DiarizedVoice, SpeakerRepository};
 
@@ -70,11 +70,26 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
 
     let app_data_dir = app.path().app_data_dir().context("resolving app data dir")?;
     let models_dir = engine::models_dir(&app_data_dir);
-    engine::ensure_models(&models_dir).await.context("fetching diarization models")?;
+    let mut backend = super::commands::load_backend(app).effective();
+    if let Err(e) = engine::ensure_models(&models_dir, backend).await {
+        if backend == DiarizationBackend::Cpu {
+            return Err(e.context("fetching diarization models"));
+        }
+        warn!("CoreML models unavailable, diarizing on CPU: {:#}", e);
+        backend = DiarizationBackend::Cpu;
+        engine::ensure_models(&models_dir, backend).await.context("fetching diarization models")?;
+    }
 
     let diarization = tokio::task::spawn_blocking(move || -> Result<engine::Diarization> {
         let audio = super::audio::decode_16k_mono(&system_track)?;
-        engine::diarize(&models_dir, &audio)
+        match engine::diarize(&models_dir, backend, &audio) {
+            // CPU files are always downloaded alongside CoreML ones, so this retry can't miss models.
+            Err(e) if backend == DiarizationBackend::CoreMl => {
+                warn!("CoreML diarization failed, retrying on CPU: {:#}", e);
+                engine::diarize(&models_dir, DiarizationBackend::Cpu, &audio)
+            }
+            result => result,
+        }
     })
     .await??;
 

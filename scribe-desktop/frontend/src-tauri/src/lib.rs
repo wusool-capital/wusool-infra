@@ -782,6 +782,8 @@ pub fn run() {
             diarization::commands::delete_speaker_profile,
             diarization::commands::get_self_speaker_name,
             diarization::commands::set_self_speaker_name,
+            diarization::commands::get_diarization_backend,
+            diarization::commands::set_diarization_backend,
             push::set_push_config,
             push::set_skip_attio,
             push::verify_push_config,
