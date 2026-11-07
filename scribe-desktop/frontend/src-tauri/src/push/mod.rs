@@ -599,15 +599,11 @@ fn strip_role_bracket_prefix(title: &str) -> String {
     ROLE_BRACKET_PREFIX.replace(title, "").trim().to_string()
 }
 
-/// Matches only the auto-generated recording placeholder (see
-/// recording_commands.rs's "Meeting {timestamp}" default), never a real
-/// title -- so a title fill never clobbers a user's manual rename or an
-/// AI title a previous check/sync already applied.
-static PLACEHOLDER_TITLE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^Meeting \d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$").unwrap());
-
+/// Matches only the auto-generated recording name, never a real title -- so a
+/// title fill never clobbers a user's manual rename or an AI title a previous
+/// check/sync already applied.
 fn is_placeholder_title(title: &str) -> bool {
-    PLACEHOLDER_TITLE.is_match(title)
+    crate::meeting_title::is_default_meeting_title(title)
 }
 
 /// Applies the local, network-free fills a finished summary implies:

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Bug, ChevronDown, ChevronRight, File, Settings, PanelLeft, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Folder } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter, usePathname } from 'next/navigation';
@@ -26,9 +26,9 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { VisuallyHidden } from "@/components/ui/visually-hidden"
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -172,6 +172,8 @@ const Sidebar: React.FC = () => {
     currentTitle: ''
   });
   const [editingTitle, setEditingTitle] = useState<string>('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const canRename = editingTitle.trim() !== '' && editingTitle.trim() !== editModalState.currentTitle;
 
   // Ensure 'meetings' folder is always expanded
   useEffect(() => {
@@ -1021,47 +1023,46 @@ const Sidebar: React.FC = () => {
         )}
       </ConfirmationModal>
 
-      {/* Edit Meeting Title Modal */}
       <Dialog open={editModalState.isOpen} onOpenChange={(open) => {
         if (!open) handleEditCancel();
       }}>
-        <DialogContent className="sm:max-w-[425px]">
-          <VisuallyHidden>
-            <DialogTitle>Edit Meeting Title</DialogTitle>
-          </VisuallyHidden>
-          <div className="py-4">
-            <h3 className="text-lg font-semibold mb-4">Edit Meeting Title</h3>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="meeting-title" className="block text-sm font-medium text-foreground mb-2">
-                  Meeting Title
-                </label>
-                <Input
-                  id="meeting-title"
-                  type="text"
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleEditConfirm();
-                    } else if (e.key === 'Escape') {
-                      handleEditCancel();
-                    }
-                  }}
-                  placeholder="Enter meeting title"
-                  autoFocus
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="secondary" onClick={handleEditCancel}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditConfirm}>
-              Save
-            </Button>
-          </DialogFooter>
+        <DialogContent
+          className="sm:max-w-[440px]"
+          // Select the whole name so typing replaces it, as renaming does in Finder.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            titleInputRef.current?.select();
+          }}
+        >
+          <form
+            className="grid gap-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleEditConfirm();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Rename Meeting</DialogTitle>
+            </DialogHeader>
+            <Input
+              ref={titleInputRef}
+              id="meeting-title"
+              name="meeting-title"
+              aria-label="Meeting title"
+              autoComplete="off"
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              placeholder="Meeting title…"
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleEditCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!canRename}>
+                Rename
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

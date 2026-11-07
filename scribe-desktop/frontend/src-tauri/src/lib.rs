@@ -44,6 +44,7 @@ pub mod console_utils;
 pub mod database;
 pub mod diarization;
 pub mod feedback;
+pub mod meeting_title;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
