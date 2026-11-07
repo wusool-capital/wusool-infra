@@ -2,12 +2,25 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.2
+
+### What's new
+
+* Turning on **Faster Speaker Separation (CoreML)** downloads its models straight away with a progress bar. Turning it off asks whether to keep the models, so switching back on later needs no download.
+
+### Changed
+
+* Dropdowns and menus clearly highlight the option under the pointer, in light and dark mode.
+* **Recording Settings** on the home screen opens the Recording tab of Settings directly.
+* Changing your microphone or system audio in Settings shows straight away on the home screen.
+* Select All (⌘A) only selects text inside text fields. You can still drag to select text in summaries, transcripts, and meeting titles and headings.
+* Long meeting titles in a folder end with "…" instead of pushing the date off the edge of the window.
+
 ## 0.8.1
 
 ### What's new
 
 * **Tidy Lines** joins short fragments from the same speaker into full sentences, in one step you can undo.
-* Turning on **Faster Speaker Separation (CoreML)** downloads its models straight away with a progress bar. Turning it off asks whether to keep the models, so switching back on later needs no download.
 
 ### Changed
 
@@ -16,7 +29,6 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * The home screen shows which microphone and system audio a recording will use, with one **Start Recording** button.
 * **Test Mic** in Settings shows the real level of the selected microphone. It used to show a simulated level.
 * Live transcripts break into full sentences instead of short fragments, which also makes them more accurate. Lines appear a second or two after people stop speaking.
-* Dropdowns and menus clearly highlight the option under the pointer, in light and dark mode.
 
 ## 0.8.0
 
