@@ -46,9 +46,12 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
   // Mirrors state so async handlers and the key listener never read a stale stack.
   const historyRef = useRef(history);
   const queueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // Bumps on every edit, undo and redo, so dependants refresh after edits but not on page loads.
+  const [revision, setRevision] = useState(0);
   const setHistory = useCallback((next: EditHistory) => {
     historyRef.current = next;
     setHistoryState(next);
+    setRevision((r) => r + 1);
   }, []);
 
   const order = useMemo(() => segments.map((s) => s.id), [segments]);
@@ -371,6 +374,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     clearSelection,
     selectAll,
     allSelected,
+    revision,
     canUndo: history.undo.length > 0,
     canRedo: history.redo.length > 0,
     undo,

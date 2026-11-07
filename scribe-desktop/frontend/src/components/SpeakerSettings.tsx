@@ -255,7 +255,9 @@ export function SpeakerSettings() {
               <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
                 {progress.total > 0
                   ? `${megabytes(progress.downloaded)} of ${megabytes(progress.total)} MB`
-                  : "Preparing download…"}
+                  : progress.downloaded > 0
+                    ? `${megabytes(progress.downloaded)} MB downloaded`
+                    : "Preparing download…"}
               </p>
             </div>
           )}

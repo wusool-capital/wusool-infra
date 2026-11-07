@@ -23,7 +23,7 @@ const MAX_OPTIONS = 5;
 export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanelProps) {
   const voices = speakers.overview;
   const unnamed = voices.filter((v) => v.name === null);
-  // Decided once voices first load: open if anyone is unnamed. Naming the last voice keeps it open to show the result.
+  // Set once voices load: open if anyone is unnamed. Naming the last voice keeps it open.
   const [expandedChoice, setExpanded] = useState<boolean | null>(null);
   const expanded = expandedChoice ?? false;
   const hasVoices = voices.length > 0;
@@ -185,7 +185,7 @@ function VoiceRow({
         className="h-8 w-8"
         aria-label={isPlaying ? `Stop ${displayName}'s voice` : `Play ${displayName}'s voice`}
         disabled={!voice.sample || isLoading}
-        onClick={() => void clip.toggle(voice.label)}
+        onClick={() => voice.sample && void clip.toggle(voice.label, voice.sample)}
       >
         {isLoading ? <Spinner className="h-4 w-4" /> : isPlaying ? <Square className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </Button>

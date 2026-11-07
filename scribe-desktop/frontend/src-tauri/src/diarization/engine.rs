@@ -126,11 +126,11 @@ pub fn models_ready(dir: &Path, backend: DiarizationBackend) -> bool {
 
 /// Downloads missing model files, with no progress reporting.
 pub async fn ensure_models(dir: &Path, backend: DiarizationBackend) -> Result<()> {
-    download_models(dir, backend, &AtomicBool::new(false), |_| {}).await
+    download(dir, backend, &AtomicBool::new(false), None::<fn(DownloadProgress)>).await
 }
 
-/// Each file's size from a HEAD request, or 0 when the server does not say.
-async fn remote_sizes(client: &reqwest::Client, files: &[String]) -> Vec<u64> {
+/// Each file's size from a HEAD request, or `None` when the server does not say.
+async fn remote_sizes(client: &reqwest::Client, files: &[String]) -> Vec<Option<u64>> {
     let requests: Vec<reqwest::RequestBuilder> = files.iter().map(|file| client.head(model_url(file))).collect();
     futures_util::stream::iter(requests)
         .map(|request| async move {
@@ -140,7 +140,6 @@ async fn remote_sizes(client: &reqwest::Client, files: &[String]) -> Vec<u64> {
                 .await
                 .ok()
                 .and_then(|r| r.headers().get(reqwest::header::CONTENT_LENGTH)?.to_str().ok()?.parse().ok())
-                .unwrap_or(0)
         })
         .buffered(8)
         .collect()
@@ -153,19 +152,45 @@ pub async fn download_models(
     dir: &Path,
     backend: DiarizationBackend,
     cancel: &AtomicBool,
-    mut on_progress: impl FnMut(DownloadProgress),
+    on_progress: impl FnMut(DownloadProgress),
 ) -> Result<()> {
+    download(dir, backend, cancel, Some(on_progress)).await
+}
+
+async fn download(
+    dir: &Path,
+    backend: DiarizationBackend,
+    cancel: &AtomicBool,
+    mut on_progress: Option<impl FnMut(DownloadProgress)>,
+) -> Result<()> {
+    // Checked before the lock too, so a ready backend never waits behind another backend's download.
+    if missing_files(dir, backend).is_empty() {
+        return Ok(());
+    }
     let _guard = MODEL_DOWNLOAD.lock().await;
+    // A cancel pressed while waiting for the lock must still cancel.
+    if cancel.load(Ordering::SeqCst) {
+        return Err(anyhow!("download cancelled"));
+    }
     let missing = missing_files(dir, backend);
     if missing.is_empty() {
         return Ok(());
     }
 
     let client = reqwest::Client::new();
-    // Sizes up front, so progress is one honest bar rather than file-by-file jumps.
-    let total: u64 = remote_sizes(&client, &missing).await.iter().sum();
+    // Sizes up front for one honest bar; 0 means unknown, so the bar never fills early.
+    let total: u64 = match &on_progress {
+        Some(_) => remote_sizes(&client, &missing).await.into_iter().sum::<Option<u64>>().unwrap_or(0),
+        None => 0,
+    };
     let mut downloaded = 0u64;
-    on_progress(DownloadProgress { downloaded, total });
+    let mut report = |downloaded: u64| {
+        if let Some(on_progress) = on_progress.as_mut() {
+            let total = if total == 0 { 0 } else { total.max(downloaded) };
+            on_progress(DownloadProgress { downloaded, total });
+        }
+    };
+    report(downloaded);
 
     for file in &missing {
         let target = dir.join(file);
@@ -192,7 +217,7 @@ pub async fn download_models(
             let chunk = chunk.with_context(|| format!("downloading {file}"))?;
             out.write_all(&chunk).await?;
             downloaded += chunk.len() as u64;
-            on_progress(DownloadProgress { downloaded, total: total.max(downloaded) });
+            report(downloaded);
         }
         out.flush().await?;
         drop(out);
@@ -298,7 +323,7 @@ mod tests {
     #[ignore]
     async fn remote_sizes_reads_the_content_length_header() {
         let files = vec!["segmentation-3.0.safetensors".to_string()];
-        assert_eq!(remote_sizes(&reqwest::Client::new(), &files).await, vec![5_897_576]);
+        assert_eq!(remote_sizes(&reqwest::Client::new(), &files).await, vec![Some(5_897_576)]);
     }
 
     /// Downloads the real CoreML models (~272 MB), so it runs only with `--ignored`.

@@ -94,11 +94,12 @@ export function TranscriptPanel({
 
   // Edits, tidying and deletes change talk time and sample lines; a short delay batches a burst of edits.
   const { refresh } = speakers;
+  const editRevision = editor?.revision ?? 0;
   useEffect(() => {
-    if (!editable) return;
+    if (!editable || editRevision === 0) return;
     const timer = setTimeout(() => void refresh(), 400);
     return () => clearTimeout(timer);
-  }, [editable, convertedSegments, refresh]);
+  }, [editable, editRevision, refresh]);
 
   const hasUnseparatedLines = useMemo(
     () => convertedSegments.some((segment) => segment.speaker === 'others'),

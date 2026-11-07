@@ -99,6 +99,24 @@ pub enum SpeakerRepositoryError {
     UnknownLabel(SpeakerLabel),
 }
 
+// Longest of each voice's first five lines: recognisable, and usually already loaded in the transcript.
+const VOICE_SAMPLES_SQL: &str = "WITH ordered AS (
+        SELECT id, speaker, transcript, audio_start_time, audio_end_time,
+               ROW_NUMBER() OVER (PARTITION BY speaker ORDER BY audio_start_time) AS position
+        FROM transcripts
+        WHERE meeting_id = ? AND audio_start_time IS NOT NULL AND audio_end_time IS NOT NULL
+          AND speaker LIKE 'speaker\\_%' ESCAPE '\\'
+     ), ranked AS (
+        SELECT *, ROW_NUMBER() OVER (
+            PARTITION BY speaker ORDER BY audio_end_time - audio_start_time DESC
+        ) AS rank
+        FROM ordered WHERE position <= 5
+     ), samples AS (
+        SELECT speaker AS label, id AS segment_id, transcript AS text,
+               audio_start_time AS start, audio_end_time AS end
+        FROM ranked WHERE rank = 1
+     )";
+
 pub struct SpeakerRepository;
 
 impl SpeakerRepository {
@@ -180,44 +198,42 @@ impl SpeakerRepository {
         .bind(meeting_id)
         .fetch_all(pool)
         .await?;
-        // Longest of each voice's first five lines: long enough to recognise, and early
-        // enough that the transcript has usually loaded it.
-        let samples: Vec<VoiceSampleRow> = sqlx::query_as(
-            "WITH ordered AS (
-                SELECT id, speaker, transcript, audio_start_time, audio_end_time,
-                       ROW_NUMBER() OVER (PARTITION BY speaker ORDER BY audio_start_time) AS position
-                FROM transcripts
-                WHERE meeting_id = ? AND audio_start_time IS NOT NULL AND audio_end_time IS NOT NULL
-                  AND speaker LIKE 'speaker\\_%' ESCAPE '\\'
-             ), ranked AS (
-                SELECT *, ROW_NUMBER() OVER (
-                    PARTITION BY speaker ORDER BY audio_end_time - audio_start_time DESC
-                ) AS rank
-                FROM ordered WHERE position <= 5
-             )
-             SELECT speaker AS label, id AS segment_id, transcript AS text,
-                    audio_start_time AS start, audio_end_time AS end
-             FROM ranked WHERE rank = 1",
-        )
-        .bind(meeting_id)
+        let samples: Vec<VoiceSampleRow> = sqlx::query_as(&format!("{VOICE_SAMPLES_SQL} SELECT * FROM samples"))
+            .bind(meeting_id)
         .fetch_all(pool)
         .await?;
 
+        // A voice whose lines were all deleted or reassigned no longer needs a name.
         Ok(voices
             .into_iter()
-            .map(|voice| {
-                let stat = stats.iter().find(|s| s.label == voice.label);
-                VoiceOverviewRow {
+            .filter_map(|voice| {
+                let stat = stats.iter().find(|s| s.label == voice.label)?;
+                Some(VoiceOverviewRow {
                     label: voice.label,
                     profile_id: voice.profile_id,
                     name: voice.name,
                     embedding: decode_embedding(&voice.embedding),
-                    line_count: stat.map_or(0, |s| s.line_count),
-                    talk_seconds: stat.map_or(0.0, |s| s.talk_seconds),
+                    line_count: stat.line_count,
+                    talk_seconds: stat.talk_seconds,
                     sample: samples.iter().find(|s| s.label == voice.label).map(|s| s.sample.clone()),
-                }
+                })
             })
             .collect())
+    }
+
+    /// One voice's sample line, for cutting its playback clip.
+    pub async fn voice_sample(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        label: SpeakerLabel,
+    ) -> Result<Option<VoiceSample>, sqlx::Error> {
+        let row: Option<VoiceSampleRow> =
+            sqlx::query_as(&format!("{VOICE_SAMPLES_SQL} SELECT * FROM samples WHERE label = ?"))
+                .bind(meeting_id)
+                .bind(label)
+                .fetch_optional(pool)
+                .await?;
+        Ok(row.map(|r| r.sample))
     }
 
     /// Meeting-audio segments: never diarized ("others"), or diarized before and being re-run.
@@ -494,6 +510,15 @@ mod tests {
         assert_eq!(first.embedding, vec![1.0, 0.0]);
         let second = overview.iter().find(|v| v.label == SpeakerLabel::Speaker(1)).unwrap();
         assert_eq!(second.line_count, 1);
+
+        let clip = SpeakerRepository::voice_sample(&pool, MEETING, SpeakerLabel::Speaker(0)).await.unwrap();
+        assert_eq!(clip.unwrap().segment_id, "t-3");
+
+        // Once a voice has no lines left it drops out, so nobody is asked to name it.
+        sqlx::query("DELETE FROM transcripts WHERE id = 't-2'").execute(&pool).await.unwrap();
+        let overview = SpeakerRepository::voice_overview(&pool, MEETING).await.unwrap();
+        assert!(overview.iter().all(|v| v.label != SpeakerLabel::Speaker(1)));
+        assert!(SpeakerRepository::voice_sample(&pool, MEETING, SpeakerLabel::Speaker(1)).await.unwrap().is_none());
     }
 
     #[tokio::test]

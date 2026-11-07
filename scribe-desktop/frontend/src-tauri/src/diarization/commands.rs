@@ -85,8 +85,7 @@ pub async fn download_diarization_models<R: Runtime>(
     CANCEL_DOWNLOAD.store(false, Ordering::SeqCst);
     let mut last_emit: Option<Instant> = None;
     engine::download_models(&dir, backend, &CANCEL_DOWNLOAD, |progress: DownloadProgress| {
-        let done = progress.downloaded >= progress.total;
-        if done || last_emit.is_none_or(|at| at.elapsed() >= PROGRESS_EVERY) {
+        if last_emit.is_none_or(|at| at.elapsed() >= PROGRESS_EVERY) {
             last_emit = Some(Instant::now());
             let _ = app.emit(MODELS_PROGRESS_EVENT, progress);
         }
@@ -148,18 +147,19 @@ pub async fn speaker_voice_clip(
     label: SpeakerLabel,
 ) -> Result<tauri::ipc::Response, String> {
     let pool = state.db_manager.pool();
-    let voices = SpeakerRepository::voice_overview(pool, &meeting_id).await.map_err(|e| e.to_string())?;
-    let sample = voices
-        .into_iter()
-        .find(|v| v.label == label)
-        .and_then(|v| v.sample)
+    let sample = SpeakerRepository::voice_sample(pool, &meeting_id, label)
+        .await
+        .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("{label} has no lines in this meeting"))?;
     let track = system_track_path(pool, &meeting_id)
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "The meeting audio for this recording is missing".to_string())?;
 
-    let duration = (sample.end - sample.start).clamp(0.5, VOICE_CLIP_MAX_SECS);
+    let duration = (sample.end - sample.start).min(VOICE_CLIP_MAX_SECS);
+    if duration <= 0.0 {
+        return Err(format!("{label}'s sample line has no audio length"));
+    }
     let wav = tokio::task::spawn_blocking(move || {
         super::audio::decode_16k_mono_clip(&track, sample.start, duration).map(|samples| super::audio::wav_16k_mono(&samples))
     })
