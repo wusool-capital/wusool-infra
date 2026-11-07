@@ -13,6 +13,7 @@ WusoolScribe is built on the principle that your meeting data should remain priv
 - **Audio recordings**: Never transmitted to external servers
 - **Meeting content**: Remains on your infrastructure
 - **AI summaries**: Generated locally or through your chosen LLM provider
+- **Speaker identification**: Voices are separated on your device. When you name a speaker, a numeric voice fingerprint is stored in the local database so they can be recognised in later meetings. Fingerprints are never uploaded; delete them any time in Settings → General → Speakers
 
 ### Your Data Ownership
 - You own all meeting data, transcripts, and recordings

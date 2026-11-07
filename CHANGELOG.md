@@ -8,6 +8,15 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-07
+
+### Added
+
+- Scribe shows who said each line. Your lines carry your name. Other
+  voices are separated on the Mac after the meeting. A person you name once
+  is recognised in later meetings. Voice fingerprints stay on the Mac, and
+  pushed meetings now send speaker names instead of "Participant".
+
 ## 2026-11-05
 
 ### Added

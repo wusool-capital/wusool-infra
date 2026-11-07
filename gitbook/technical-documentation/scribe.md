@@ -46,9 +46,10 @@ currently reaches nobody.
 
 ```text
 microphone and system audio, or an imported file
-  → local recording
-  → local Whisper transcription
-  → user edits the transcript
+  → local recording (mixed track, plus a meeting-audio-only track)
+  → local Whisper transcription, tagged "me" (mic) or "others" (system)
+  → local speaker diarization of the meeting audio after saving
+  → user edits the transcript and names speakers
   → summary provider chosen in Settings
   → local SQLite meeting
   → optional push to the Toolkit server
@@ -59,6 +60,27 @@ Audio and transcription stay on the Mac. Two summary providers run locally:
 Ollama and a built-in model. The online ones are OpenAI, Claude, Groq,
 OpenRouter, and a custom OpenAI-compatible endpoint. Remote providers receive the
 transcript text when chosen.
+
+## Speaker diarization
+
+Each transcript segment stores a speaker key: `me`, `others`, or
+`speaker_N`. Display names are resolved from the meeting's speaker map, so
+renaming a speaker changes one row.
+
+- **Live:** the mic and system audio go through separate voice-activity
+  detectors. A bleed gate drops mic audio that only echoes the speakers.
+- **After saving:** [speakrs](https://github.com/avencera/speakrs), a Rust
+  port of the pyannote `community-1` pipeline, runs on `system.mp4` on the
+  CPU. Each `others` segment gets the voice that overlaps it most. It runs
+  at roughly 15 times real time on Apple silicon.
+- **Voice library:** naming a voice stores its embedding in
+  `speaker_profiles`. Later meetings auto-name voices whose cosine
+  similarity is at least 0.7, and never give two voices the same person.
+- **Models:** about 32 MB, downloaded once from the pinned revision of the
+  `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0) into the app
+  data folder.
+
+Embeddings never leave the Mac. A push sends only the resolved names.
 
 ## After a push
 
@@ -118,6 +140,8 @@ best-effort and is only sent when a sender and recipient are configured.
   a meeting.
 - Transcription failures stay local and can be retried.
 - A failed remote summary doesn't affect the local transcript.
+- If diarization fails or the meeting has no meeting-audio track, segments
+  keep the `others` label. The meeting is saved either way.
 - On the server, authentication, summarization, and Attio filing are
   separate stages; the app polls for the result.
 

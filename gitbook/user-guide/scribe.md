@@ -6,7 +6,7 @@ meeting to Attio as a note.
 
 Audio and transcription stay on your Mac. A cloud summary provider receives
 transcript text only when you choose one. Sending a meeting to Attio sends
-the transcript and summary, never the audio.
+the transcript, its speaker names, and the summary, never the audio.
 
 ## Install and set up
 
@@ -54,6 +54,29 @@ Auto-stop When Meeting Ends**.
 
 If only your voice is captured, or no speech appears, see
 [Troubleshooting](troubleshooting.md).
+
+## See who said what
+
+Scribe labels each speaker's turn in the transcript:
+
+- **Your lines** come from your microphone and show your name. Set it under
+  **Settings → General → Speakers → Your name**.
+- **Other people** show as **Others** while you record. When you stop,
+  Scribe separates their voices on your Mac and relabels them **Speaker 1**,
+  **Speaker 2**, and so on. This takes about four minutes for a one-hour
+  meeting. The first time, Scribe downloads a 32 MB voice model.
+- **Click a speaker's name** to say who they are. Every line they spoke in
+  that meeting is renamed, and Scribe recognises their voice in later
+  meetings.
+
+Voice fingerprints are stored only on your Mac. To make Scribe forget
+someone, delete them under **Settings → General → Speakers**.
+
+Speakers are only separated for meetings recorded with **Auto-save** on,
+because Scribe needs the meeting audio on its own. Imported and enhanced
+meetings are not separated. Without headphones, your microphone also picks
+up the meeting audio, and Scribe ignores that echo. A few of your lines can
+be missed while others talk over you.
 
 ## Edit a transcript
 

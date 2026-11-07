@@ -96,6 +96,7 @@ Whether you're a defense consultant, enterprise executive, legal professional, o
 
 - **Local First:** All processing is done on your machine. No data ever leaves your computer.
 - **Real-time Transcription:** Get a live transcript of your meeting as it happens.
+- **Who Said What:** Your lines are labelled with your name; other voices are separated on-device after the meeting, and people you name are recognised in later meetings.
 - **AI-Powered Summaries:** Generate summaries of your meetings using powerful language models.
 - **Multi-Platform:** Works on macOS, Windows, and Linux.
 - **Open Source:** WusoolScribe is open source and free to use.
@@ -186,6 +187,10 @@ Capture microphone and system audio simultaneously with intelligent ducking and 
 <p align="center">
     <img src="docs/audio.png" width="650" style="border-radius: 10px;" alt="Device selection" />
 </p>
+
+### 🗣️ Speaker Diarization
+
+Microphone and meeting audio are transcribed separately, so your lines are always attributed to you. After the meeting, [speakrs](https://github.com/avencera/speakrs) (a Rust port of pyannote) separates the other voices on the CPU, and a local voice library names people you have identified before. Diarization models by pyannote/WeSpeaker via [avencera/speakrs-models](https://huggingface.co/avencera/speakrs-models), CC-BY-4.0.
 
 ### ⚡ GPU Acceleration
 
