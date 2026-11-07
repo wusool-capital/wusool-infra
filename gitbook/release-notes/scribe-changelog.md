@@ -19,6 +19,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Transcripts show filler words such as "um" as recorded, matching the text that Summarize and Attio receive.
 * While recording, one bar at the bottom shows the status, timer, a live microphone level, and Pause and Stop. The level meter now reflects what the microphone actually hears.
 * The home screen shows which microphone and system audio a recording will use, with one **Start Recording** button.
+* **Test Mic** in Settings shows the real level of the selected microphone. It used to show a simulated level.
 
 ## 0.7.7
 

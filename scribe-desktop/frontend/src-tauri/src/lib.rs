@@ -262,7 +262,8 @@ async fn start_audio_level_monitoring<R: Runtime>(
         device_names
     );
 
-    audio::simple_level_monitor::start_monitoring(app, device_names)
+    // Only the first device is opened: opening every mic would push Bluetooth headsets into call mode.
+    audio::mic_test::start(app, device_names.into_iter().next())
         .await
         .map_err(|e| format!("Failed to start audio level monitoring: {}", e))
 }
@@ -271,14 +272,13 @@ async fn start_audio_level_monitoring<R: Runtime>(
 async fn stop_audio_level_monitoring() -> Result<(), String> {
     log_info!("Stopping audio level monitoring");
 
-    audio::simple_level_monitor::stop_monitoring()
-        .await
-        .map_err(|e| format!("Failed to stop audio level monitoring: {}", e))
+    audio::mic_test::stop();
+    Ok(())
 }
 
 #[tauri::command]
 async fn is_audio_level_monitoring() -> bool {
-    audio::simple_level_monitor::is_monitoring()
+    audio::mic_test::is_running()
 }
 
 // Analytics commands are now handled by analytics::commands module

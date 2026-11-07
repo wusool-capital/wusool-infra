@@ -26,12 +26,18 @@ pub fn get_mic_level() -> f32 {
     f32::from_bits(LATEST_DB.load(Ordering::Relaxed))
 }
 
-fn rms_db(samples: &[f32]) -> f32 {
+/// RMS loudness of `samples` in dBFS, clamped to `SILENCE_DB..=0`.
+pub fn rms_db(samples: &[f32]) -> f32 {
     if samples.is_empty() {
         return SILENCE_DB;
     }
     let rms = (samples.iter().map(|x| x * x).sum::<f32>() / samples.len() as f32).sqrt();
     (20.0 * rms.max(f32::MIN_POSITIVE).log10()).clamp(SILENCE_DB, 0.0)
+}
+
+/// A dBFS level on a 0 to 1 meter scale: silence at 0, loud speech (-10 dBFS) and above at 1.
+pub fn db_fraction(db: f32) -> f32 {
+    ((db - SILENCE_DB) / (-10.0 - SILENCE_DB)).clamp(0.0, 1.0)
 }
 
 #[cfg(test)]

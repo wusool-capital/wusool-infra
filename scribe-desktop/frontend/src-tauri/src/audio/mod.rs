@@ -30,7 +30,7 @@ pub mod meeting_end_tracker;
 pub mod recording_saver;
 pub mod incremental_saver;  // NEW: Incremental audio saving with checkpoints
 pub mod level_monitor;
-pub mod simple_level_monitor;
+pub mod mic_test;
 pub mod buffer_pool;
 pub mod post_processor;
 pub mod hardware_detector;
