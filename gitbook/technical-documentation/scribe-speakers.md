@@ -12,8 +12,8 @@ renaming a speaker changes one row.
 
 - **Live:** the mic and system audio go through separate voice-activity
   detectors. A bleed gate drops mic audio that only echoes the speakers.
-- **After saving:** [speakrs](https://github.com/avencera/speakrs), a Rust
-  port of the pyannote `community-1` pipeline, runs on `system.mp4`. Each
+- **After saving:** [speakrs](https://github.com/avencera/speakrs) 0.7, a
+  Rust port of the pyannote `community-1` pipeline, runs on `system.mp4`. Each
   `others` segment gets the voice that overlaps it most. ffmpeg decodes the
   track straight to 16 kHz mono, so the audio buffer is about 230 MB per
   hour.
@@ -37,8 +37,14 @@ renaming a speaker changes one row.
   meeting get a one-click suggestion. `speaker_voice_clip` cuts up to six
   seconds of the sample line from `system.mp4` with ffmpeg and returns it
   as WAV bytes, played from a `blob:` URL (allowed by `media-src`).
-- **Models:** about 32 MB for CPU, plus 272 MB for CoreML. They are
-  downloaded once into the app data folder, from a pinned revision of the
-  `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0).
+- **Models:** three parts, as in pyannote `community-1`:
+  - `segmentation-3.0` (pyannote) finds who speaks when.
+  - `wespeaker-voxceleb-resnet34` (WeSpeaker ResNet34, trained on
+    VoxCeleb) turns each voice into the embedding the voice library compares.
+  - PLDA (the `plda_*` files) clusters the segments into speakers.
+- **Model files:** about 32 MB for CPU, plus 272 MB of CoreML bundles of the
+  same models. They download once into the app data folder from the
+  `avencera/speakrs-models` Hugging Face repository (CC-BY-4.0). Revision
+  `67f963b6a1d94fcd4678948237b3cc8bd69bf1d8` is pinned in `engine.rs`.
 
 Embeddings never leave the Mac. A push sends only the resolved names.
