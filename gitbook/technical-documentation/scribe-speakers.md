@@ -36,7 +36,8 @@ renaming a speaker changes one row.
   Unnamed voices scoring 0.5 or more against a profile not already in the
   meeting get a one-click suggestion. `speaker_voice_clip` cuts up to six
   seconds of the sample line from `system.mp4` with ffmpeg and returns it
-  as WAV bytes, played from a `blob:` URL (allowed by `media-src`).
+  as WAV bytes. The app decodes and plays them with the Web Audio API; the
+  macOS webview can't play `blob:` URLs in an `<audio>` element.
 - **Models:** pyannote segmentation finds who speaks when, and WeSpeaker
   ResNet34 turns each voice into the embedding the voice library compares.
   They download once from the `avencera/speakrs-models` Hugging Face

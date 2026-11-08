@@ -10,30 +10,49 @@ export interface VoiceClip {
   toggle: (label: SpeakerLabel, sample: VoiceSample) => Promise<void>;
 }
 
-/** Plays a few seconds of each separated voice, one at a time. */
+/** The WAV bytes from `speaker_voice_clip`, whichever shape the IPC delivers them in. */
+function toArrayBuffer(bytes: ArrayBuffer | number[]): ArrayBuffer {
+  return bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes).buffer;
+}
+
+/**
+ * Plays a few seconds of each separated voice, one at a time.
+ *
+ * Decoded and played with Web Audio rather than an `<audio>` element: the
+ * macOS webview serves the app from `tauri://`, and its media player can't
+ * load `blob:` URLs there (NotSupportedError), so in-memory decoding is the
+ * one path that works everywhere.
+ */
 export function useVoiceClip(meetingId?: string): VoiceClip {
   const [playing, setPlaying] = useState<SpeakerLabel | null>(null);
   const [loading, setLoading] = useState<SpeakerLabel | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const contextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<AudioBufferSourceNode | null>(null);
   // Keyed by the sample line too: re-separating renumbers voices, so a label alone can point at someone else.
-  const urlsRef = useRef(new Map<string, string>());
+  const buffersRef = useRef(new Map<string, AudioBuffer>());
   // Only the latest click may start playback; a slower earlier fetch is discarded.
   const requestRef = useRef(0);
 
   const stop = useCallback(() => {
     requestRef.current += 1;
-    audioRef.current?.pause();
-    audioRef.current = null;
+    const source = sourceRef.current;
+    sourceRef.current = null;
+    if (source) {
+      source.onended = null;
+      source.stop();
+    }
     setPlaying(null);
   }, []);
 
   useEffect(() => {
-    const urls = urlsRef.current;
+    const buffers = buffersRef.current;
     return () => {
-      audioRef.current?.pause();
-      urls.forEach((url) => URL.revokeObjectURL(url));
-      urls.clear();
+      sourceRef.current?.stop();
+      sourceRef.current = null;
+      buffers.clear();
+      void contextRef.current?.close();
+      contextRef.current = null;
     };
   }, [meetingId]);
 
@@ -48,22 +67,30 @@ export function useVoiceClip(meetingId?: string): VoiceClip {
       const request = requestRef.current;
       setError(null);
       try {
+        const context = contextRef.current ?? new AudioContext();
+        contextRef.current = context;
+        // A context created outside a click starts suspended in WebKit.
+        if (context.state === 'suspended') await context.resume();
+
         const key = `${label}:${sample.segment_id}:${sample.start}:${sample.end}`;
-        let url = urlsRef.current.get(key);
-        if (!url) {
+        let buffer = buffersRef.current.get(key);
+        if (!buffer) {
           setLoading(label);
-          const bytes = await invoke<ArrayBuffer>('speaker_voice_clip', { meetingId, label });
-          url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-          urlsRef.current.set(key, url);
+          const bytes = await invoke<ArrayBuffer | number[]>('speaker_voice_clip', { meetingId, label });
+          buffer = await context.decodeAudioData(toArrayBuffer(bytes));
+          buffersRef.current.set(key, buffer);
         }
         if (request !== requestRef.current) return;
-        const audio = new Audio(url);
-        audio.onended = () => {
-          if (audioRef.current === audio) stop();
+
+        const source = context.createBufferSource();
+        source.buffer = buffer;
+        source.connect(context.destination);
+        source.onended = () => {
+          if (sourceRef.current === source) stop();
         };
-        audioRef.current = audio;
+        sourceRef.current = source;
         setPlaying(label);
-        await audio.play();
+        source.start();
       } catch (e) {
         if (request !== requestRef.current) return;
         stop();
