@@ -13,7 +13,7 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::Semaphore;
 
-use super::assign::{attribute_segments, match_profiles, VoiceProfile, PROFILE_MATCH_THRESHOLD};
+use super::assign::{attribute_segments, match_profiles, VoiceProfile, PROFILE_MATCH_MARGIN, PROFILE_MATCH_THRESHOLD};
 use super::engine::{self, DiarizationBackend};
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{DiarizedVoice, SpeakerRepository};
@@ -154,7 +154,7 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
         .into_iter()
         .map(|p| VoiceProfile { id: p.id, embedding: p.embedding })
         .collect();
-    let matches = match_profiles(&voice_embeddings, &profiles, PROFILE_MATCH_THRESHOLD);
+    let matches = match_profiles(&voice_embeddings, &profiles, PROFILE_MATCH_THRESHOLD, PROFILE_MATCH_MARGIN);
 
     let auto_named = matches.iter().filter(|m| m.is_some()).count();
     let voices: Vec<DiarizedVoice> = voice_embeddings

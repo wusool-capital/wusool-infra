@@ -2,6 +2,14 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.4
+
+### Fixed
+
+* **Proofread** no longer renames people to words from your vocabulary or to the meeting's speakers. Every fix must sound like what was said, and a bad change no longer takes a good fix on the same line with it.
+* **Accept All** lists any fixes that change a name before applying them.
+* Scribe auto-names a voice only when it clearly matches one person. Voices it recognised on its own say **recognised by voice**, with **Confirm** and **Change**.
+
 ## 0.8.3
 
 ### What's new

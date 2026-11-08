@@ -28,6 +28,8 @@ export interface SpeakerOverview {
   talk_seconds: number;
   sample: VoiceSample | null;
   suggestion: { profile_id: string; name: string } | null;
+  /** Named by the voice library, not yet confirmed by the user. */
+  auto_named: boolean;
 }
 
 /** "45 s", "14 min" or "1 h 5 min": how long a voice spoke, at a glance. */

@@ -14,6 +14,7 @@ import asyncio
 import logging
 from collections import Counter
 from collections.abc import Sequence
+from dataclasses import replace
 
 from app.modules.meetings.application.ports.corrector_llm import CorrectorLLM
 from app.modules.meetings.domain.corrections import (
@@ -24,12 +25,15 @@ from app.modules.meetings.domain.corrections import (
     TranscriptSegment,
     batch_segments,
     is_minor_edit,
+    keep_sound_alike_changes,
+    relevant_terms,
 )
 from app.modules.meetings.domain.prompts import (
     CORRECTION_SYSTEM_PROMPT,
     build_correction_prompt,
     sanitize_segment_text,
 )
+from app.modules.meetings.domain.vocabulary import COMMON_NAMES
 
 __all__ = ["CorrectionService"]
 
@@ -68,10 +72,13 @@ class CorrectionService:
         async def run(index: int) -> list[CorrectionSuggestion]:
             batch = batches[index]
             previous = batches[index - 1][-_CONTEXT_LINES:] if index else []
+            prompt = build_correction_prompt(
+                batch, previous=previous, context=_for_batch(context, [*previous, *batch])
+            )
             async with self._gate:
                 edits = await self._llm.suggest_corrections(
                     model_id=self._model_id,
-                    prompt=build_correction_prompt(batch, previous=previous, context=context),
+                    prompt=prompt,
                     system_prompt=CORRECTION_SYSTEM_PROMPT,
                     max_tokens=self._max_tokens,
                     temperature=_TEMPERATURE,
@@ -116,6 +123,21 @@ class CorrectionService:
         )
 
 
+def _for_batch(
+    context: CorrectionContext | None, segments: Sequence[TranscriptSegment]
+) -> CorrectionContext:
+    """Only the names and words that something in this batch sounds like:
+    the model renamed strangers to whichever name it was shown."""
+    texts = [segment.text for segment in segments]
+    context = context or CorrectionContext()
+    return replace(
+        context,
+        names=relevant_terms(context.names, texts),
+        vocabulary=relevant_terms(context.vocabulary, texts),
+        common_names=relevant_terms(COMMON_NAMES, texts),
+    )
+
+
 def _keep_valid(
     edits: Sequence[CorrectionEdit],
     batch: Sequence[TranscriptSegment],
@@ -144,6 +166,15 @@ def _keep_valid(
         if not is_minor_edit(segment.text, suggested):
             dropped["rewrite"] += 1
             continue
+        # Changes that don't sound like what was heard are put back, not just dropped,
+        # so a bad name swap doesn't sink a good fix on the same line.
+        kept_text = keep_sound_alike_changes(segment.text, suggested)
+        if kept_text.strip() == segment.text.strip():
+            dropped["not_sound_alike"] += 1
+            continue
+        if kept_text != suggested:
+            dropped["partly_reverted"] += 1
+        suggested = kept_text
         seen.add(edit.line)
         kept.append(
             CorrectionSuggestion(

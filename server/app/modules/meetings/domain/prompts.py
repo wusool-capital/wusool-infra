@@ -994,13 +994,18 @@ CORRECTION_SYSTEM_PROMPT = (
     "- Never add words that were not spoken.\n"
     "- Leave numbers as spoken unless the surrounding words prove they were "
     "misheard.\n"
-    "- Spell a person or company the same way every time it appears.\n"
+    "- When the same misheard word appears more than once, fix it the same "
+    "way each time. Different names are different people: never change one "
+    'name into another to make them match. Someone being addressed ("Hi, '
+    'Anerey") is usually not one of the named speakers.\n'
     "- Never translate Arabic words or names, and never switch their script.\n"
-    "- Use the vocabulary and the meeting's names below only where a line "
-    "has a misheard version of them. They are spellings to match, not words "
-    "to insert. Never swap a correctly heard word or phrase for a vocabulary "
-    "form ('basis points' stays 'basis points', 'long list' stays 'long "
-    "list').\n"
+    "- The vocabulary and the user's words are spelling lists, not a list of "
+    "who or what is in this meeting; most of them will not appear. Change a "
+    "word to one of them only when the heard word sounds like it: the same "
+    "opening sound and most of the same sounds ('Locum' can be Lokam; "
+    "'Anerey' is never Raoof). Never swap a correctly heard word or phrase for "
+    "a vocabulary form ('basis points' stays 'basis points', 'long list' "
+    "stays 'long list').\n"
     "- Letters spoken one at a time are an acronym: join them ('N D A' is "
     "NDA, 'C I C D' is CI/CD). A term broken into sound-alike pieces is one "
     "term ('ebit da' is EBITDA, 'earn out' is earn-out).\n"
@@ -1053,10 +1058,19 @@ def _correction_context_block(context: CorrectionContext) -> str:
         parts.append(f"Meeting title: {title}")
     names = [n for n in (_sanitize_label(n) for n in context.names) if n]
     if names:
-        parts.append("People and companies in this meeting: " + ", ".join(names))
+        parts.append("Named speakers in this meeting: " + ", ".join(names))
     words = [w for w in (_sanitize_label(w) for w in context.vocabulary) if w]
     if words:
-        parts.append("The user's own vocabulary: " + ", ".join(words))
+        # Not attendees: told otherwise, the model renamed strangers to these words.
+        parts.append(
+            "The user's spelling list (words they often need; most are not in this "
+            "meeting): " + ", ".join(words)
+        )
+    common = [n for n in (_sanitize_label(n) for n in context.common_names) if n]
+    if common:
+        parts.append(
+            "Common names, for spelling only (not people in this meeting): " + ", ".join(common)
+        )
     if not parts:
         return ""
     start, end = _COMPANY_DELIMITER

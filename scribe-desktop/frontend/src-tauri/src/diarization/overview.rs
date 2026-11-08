@@ -32,6 +32,8 @@ pub struct SpeakerOverview {
     pub talk_seconds: f64,
     pub sample: Option<VoiceSample>,
     pub suggestion: Option<SpeakerSuggestion>,
+    /// Named by the voice library, not by the user: shown so they can confirm it.
+    pub auto_named: bool,
 }
 
 /// Voices ordered by talk time, each unnamed one with the closest person not already in this meeting.
@@ -47,7 +49,7 @@ pub fn build_overview(voices: Vec<VoiceOverviewRow>, profiles: &[NamedProfile]) 
         .filter(|&i| voices[i].profile_id.is_none() && !voices[i].embedding.is_empty())
         .collect();
     let centroids: Vec<Vec<f32>> = unnamed.iter().map(|&i| voices[i].embedding.clone()).collect();
-    let matches = match_profiles(&centroids, &candidates, SUGGESTION_THRESHOLD);
+    let matches = match_profiles(&centroids, &candidates, SUGGESTION_THRESHOLD, 0.0);
 
     let mut suggestions: Vec<Option<SpeakerSuggestion>> = vec![None; voices.len()];
     for (&voice, matched) in unnamed.iter().zip(matches) {
@@ -69,6 +71,7 @@ pub fn build_overview(voices: Vec<VoiceOverviewRow>, profiles: &[NamedProfile]) 
             talk_seconds: voice.talk_seconds,
             sample: voice.sample,
             suggestion,
+            auto_named: voice.auto_named,
         })
         .collect();
     overview.sort_by(|a, b| b.talk_seconds.total_cmp(&a.talk_seconds));
@@ -85,6 +88,7 @@ mod tests {
             profile_id: profile_id.map(str::to_string),
             name: profile_id.map(|_| "Named".to_string()),
             embedding,
+            auto_named: false,
             line_count: 1,
             talk_seconds,
             sample: None,

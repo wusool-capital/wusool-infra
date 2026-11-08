@@ -11,7 +11,17 @@ import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { SpeakersPanel } from '@/components/SpeakersPanel';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { nextSuggestionId, proofreadCoverageWarning } from '@/lib/transcriptEditor';
+import { nameChanges, nextSuggestionId, proofreadCoverageWarning, type NameChange } from '@/lib/transcriptEditor';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useCoreMlModels } from '@/hooks/useCoreMlModels';
 import { CoreMlDownloadDialog } from '@/components/CoreMlDownloadDialog';
@@ -128,6 +138,15 @@ export function TranscriptPanel({
     await speakers.separate?.();
   };
 
+  // Fixes that change a name are the ones most likely to be wrong, so Accept All shows them first.
+  const [pendingNameChanges, setPendingNameChanges] = useState<NameChange[] | null>(null);
+  const requestAcceptAll = () => {
+    if (!editor) return;
+    const changes = nameChanges(editor.suggestions.values());
+    if (changes.length > 0) setPendingNameChanges(changes);
+    else void editor.acceptAllSuggestions();
+  };
+
   // Steps through the suggested fixes in transcript order from the last one shown.
   const lastFixRef = useRef<string | null>(null);
   const segmentOrder = useMemo(() => convertedSegments.map((segment) => segment.id), [convertedSegments]);
@@ -222,13 +241,45 @@ export function TranscriptPanel({
               Dismiss All
             </Button>
             {editor.suggestions.size > 0 && (
-              <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
+              <Button size="sm" variant="outline" onClick={requestAcceptAll}>
                 Accept All
               </Button>
             )}
           </div>
         </div>
       )}
+
+      <AlertDialog open={pendingNameChanges !== null} onOpenChange={(open) => !open && setPendingNameChanges(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply Name Changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingNameChanges?.length === 1 ? 'One fix changes a name.' : `${pendingNameChanges?.length} fixes change names.`}{' '}
+              Check they are the same person before applying them all.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+            {pendingNameChanges?.map((change, i) => (
+              <li key={i}>
+                {change.from ? <del className="text-destructive">{change.from}</del> : <span className="text-muted-foreground">(added)</span>}
+                <span className="text-muted-foreground"> → </span>
+                <ins className="font-semibold text-success no-underline">{change.to}</ins>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Review One by One</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingNameChanges(null);
+                void editor?.acceptAllSuggestions();
+              }}
+            >
+              Apply All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Transcript content - use virtualized view for better performance */}
       <div className="flex-1 overflow-hidden pb-4">

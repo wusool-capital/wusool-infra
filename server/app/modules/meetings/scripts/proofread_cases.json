@@ -3,97 +3,475 @@
   "cases": [
     {
       "name": "floor price call",
-      "context": {"title": "Al Waha Foods floor price", "names": ["Al Waha Foods", "Khalid"], "vocabulary": []},
+      "context": {
+        "title": "Al Waha Foods floor price",
+        "names": [
+          "Al Waha Foods",
+          "Khalid"
+        ],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Sinan", "text": "so the a bit dah you mentioned last time was around six million", "fix": ["EBITDA"]},
-        {"id": "2", "speaker": "Khalid", "text": "yeah six million adjusted, um, before the add backs", "fix": ["add-backs"]},
-        {"id": "3", "speaker": "Sinan", "text": "and all water foods wants the floor at forty two", "fix": ["Al Waha Foods"]},
-        {"id": "4", "speaker": "Khalid", "text": "yes yes forty two is fine inshallah", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Sinan",
+          "text": "so the a bit dah you mentioned last time was around six million",
+          "fix": [
+            "EBITDA"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Khalid",
+          "text": "yeah six million adjusted, um, before the add backs",
+          "fix": [
+            "add-backs"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Sinan",
+          "text": "and all water foods wants the floor at forty two",
+          "fix": [
+            "Al Waha Foods"
+          ]
+        },
+        {
+          "id": "4",
+          "speaker": "Khalid",
+          "text": "yes yes forty two is fine inshallah",
+          "keep": true
+        }
       ]
     },
     {
       "name": "teaser and CIM",
-      "context": {"title": "Nomad Retail teaser", "names": ["Nomad Retail"], "vocabulary": []},
+      "context": {
+        "title": "Nomad Retail teaser",
+        "names": [
+          "Nomad Retail"
+        ],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Oliver", "text": "I'll draft the sea I am once the teaser is signed off", "fix": ["CIM"]},
-        {"id": "2", "speaker": "Rania", "text": "we need an N D A before they see the data room", "fix": ["NDA"]},
-        {"id": "3", "speaker": "Oliver", "text": "right, and the buyers go into the V D R after that", "fix": ["VDR"]},
-        {"id": "4", "speaker": "Rania", "text": "okay, so, like, next week then", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Oliver",
+          "text": "I'll draft the sea I am once the teaser is signed off",
+          "fix": [
+            "CIM"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Rania",
+          "text": "we need an N D A before they see the data room",
+          "fix": [
+            "NDA"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Oliver",
+          "text": "right, and the buyers go into the V D R after that",
+          "fix": [
+            "VDR"
+          ]
+        },
+        {
+          "id": "4",
+          "speaker": "Rania",
+          "text": "okay, so, like, next week then",
+          "keep": true
+        }
       ]
     },
     {
       "name": "free zones",
-      "context": {"title": "Logistics buyer intro", "names": [], "vocabulary": []},
+      "context": {
+        "title": "Logistics buyer intro",
+        "names": [],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Speaker 1", "text": "their warehouse is in jebel ally near jaffs a", "fix": ["Jebel Ali", "JAFZA"]},
-        {"id": "2", "speaker": "Speaker 2", "text": "and the head office is in the D I F C", "fix": ["DIFC"]},
-        {"id": "3", "speaker": "Speaker 1", "text": "they also looked at kiss add in abu dhabi", "fix": ["KIZAD", "Abu Dhabi"]},
-        {"id": "4", "speaker": "Speaker 2", "text": "the rent there is about twelve percent of revenue", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "their warehouse is in jebel ally near jaffs a",
+          "fix": [
+            "Jebel Ali",
+            "JAFZA"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "and the head office is in the D I F C",
+          "fix": [
+            "DIFC"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 1",
+          "text": "they also looked at kiss add in abu dhabi",
+          "fix": [
+            "KIZAD",
+            "Abu Dhabi"
+          ]
+        },
+        {
+          "id": "4",
+          "speaker": "Speaker 2",
+          "text": "the rent there is about twelve percent of revenue",
+          "keep": true
+        }
       ]
     },
     {
       "name": "valuation terms",
-      "context": {"title": "Valuation review", "names": [], "vocabulary": []},
+      "context": {
+        "title": "Valuation review",
+        "names": [],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Speaker 1", "text": "the e v to ebit da multiple is around seven x", "fix": ["EV", "EBITDA"]},
-        {"id": "2", "speaker": "Speaker 2", "text": "and they want an earn out tied to the renewal", "fix": ["earn-out"]},
-        {"id": "3", "speaker": "Speaker 1", "text": "the queue of e report comes back next friday", "fix": ["QoE"]},
-        {"id": "4", "speaker": "Speaker 2", "text": "five to eight times is the normal range here", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "the e v to ebit da multiple is around seven x",
+          "fix": [
+            "EV",
+            "EBITDA"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "and they want an earn out tied to the renewal",
+          "fix": [
+            "earn-out"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 1",
+          "text": "the queue of e report comes back next friday",
+          "fix": [
+            "QoE"
+          ]
+        },
+        {
+          "id": "4",
+          "speaker": "Speaker 2",
+          "text": "five to eight times is the normal range here",
+          "keep": true
+        }
       ]
     },
     {
       "name": "user vocabulary",
-      "context": {"title": "Project Falcon update", "names": ["Gulf Horizon"], "vocabulary": ["Project Falcon", "Tamkeen"]},
+      "context": {
+        "title": "Project Falcon update",
+        "names": [
+          "Gulf Horizon"
+        ],
+        "vocabulary": [
+          "Project Falcon",
+          "Tamkeen"
+        ]
+      },
       "lines": [
-        {"id": "1", "speaker": "Faisal", "text": "project falkon is moving to the next stage", "fix": ["Project Falcon"]},
-        {"id": "2", "speaker": "Faisal", "text": "gulf horizon asked about the tam keen grant", "fix": ["Gulf Horizon", "Tamkeen"]},
-        {"id": "3", "speaker": "Sinan", "text": "good, let's send them the model tomorrow", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Faisal",
+          "text": "project falkon is moving to the next stage",
+          "fix": [
+            "Project Falcon"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Faisal",
+          "text": "gulf horizon asked about the tam keen grant",
+          "fix": [
+            "Gulf Horizon",
+            "Tamkeen"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Sinan",
+          "text": "good, let's send them the model tomorrow",
+          "keep": true
+        }
       ]
     },
     {
       "name": "arabic and filler traps",
-      "context": {"title": "Owner interview", "names": ["Rashid"], "vocabulary": []},
+      "context": {
+        "title": "Owner interview",
+        "names": [
+          "Rashid"
+        ],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Rashid", "text": "yalla, we start, um, um, with the history", "keep": true},
-        {"id": "2", "speaker": "Rashid", "text": "my father started the company in nineteen ninety eight, mashallah", "keep": true},
-        {"id": "3", "speaker": "Rashid", "text": "الحمد لله the business is good", "keep": true},
-        {"id": "4", "speaker": "Sinan", "text": "and the majlis meetings are every thursday", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Rashid",
+          "text": "yalla, we start, um, um, with the history",
+          "keep": true
+        },
+        {
+          "id": "2",
+          "speaker": "Rashid",
+          "text": "my father started the company in nineteen ninety eight, mashallah",
+          "keep": true
+        },
+        {
+          "id": "3",
+          "speaker": "Rashid",
+          "text": "الحمد لله the business is good",
+          "keep": true
+        },
+        {
+          "id": "4",
+          "speaker": "Sinan",
+          "text": "and the majlis meetings are every thursday",
+          "keep": true
+        }
       ]
     },
     {
       "name": "numbers left alone",
-      "context": {"title": "Pipeline review", "names": [], "vocabulary": []},
+      "context": {
+        "title": "Pipeline review",
+        "names": [],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Speaker 1", "text": "we have fifteen buyers on the long list", "keep": true},
-        {"id": "2", "speaker": "Speaker 2", "text": "and the ticket is between five and fifteen million", "keep": true},
-        {"id": "3", "speaker": "Speaker 1", "text": "revenue grew from thirty eight to forty one million", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "we have fifteen buyers on the long list",
+          "keep": true
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "and the ticket is between five and fifteen million",
+          "keep": true
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 1",
+          "text": "revenue grew from thirty eight to forty one million",
+          "keep": true
+        }
       ]
     },
     {
       "name": "tech stack call",
-      "context": {"title": "Secura weekly", "names": ["Secura"], "vocabulary": []},
+      "context": {
+        "title": "Secura weekly",
+        "names": [
+          "Secura"
+        ],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Speaker 1", "text": "the calls run on vappy with eleven labs voices", "fix": ["Vapi", "ElevenLabs"]},
-        {"id": "2", "speaker": "Speaker 2", "text": "we push the alerts into slack and the leads into hub spot", "fix": ["HubSpot"]},
-        {"id": "3", "speaker": "Speaker 1", "text": "the C I C D pipeline is nearly done", "fix": ["CI/CD"]}
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "the calls run on vappy with eleven labs voices",
+          "fix": [
+            "Vapi",
+            "ElevenLabs"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "we push the alerts into slack and the leads into hub spot",
+          "fix": [
+            "HubSpot"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 1",
+          "text": "the C I C D pipeline is nearly done",
+          "fix": [
+            "CI/CD"
+          ]
+        }
       ]
     },
     {
       "name": "people and banks",
-      "context": {"title": "Debt financing", "names": ["Abdulrahman Al Mansouri"], "vocabulary": []},
+      "context": {
+        "title": "Debt financing",
+        "names": [
+          "Abdulrahman Al Mansouri"
+        ],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Speaker 1", "text": "abdul rahman al mansoori will lead it from their side", "fix": ["Abdulrahman", "Al Mansouri"]},
-        {"id": "2", "speaker": "Speaker 2", "text": "emirates n b d and mashrek both sent term sheets", "fix": ["Emirates NBD", "Mashreq"]},
-        {"id": "3", "speaker": "Speaker 1", "text": "the pricing is about two hundred basis points over the base rate", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "abdul rahman al mansoori will lead it from their side",
+          "fix": [
+            "Abdulrahman",
+            "Al Mansouri"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "emirates n b d and mashrek both sent term sheets",
+          "fix": [
+            "Emirates NBD",
+            "Mashreq"
+          ]
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 1",
+          "text": "the pricing is about two hundred basis points over the base rate",
+          "keep": true
+        }
       ]
     },
     {
       "name": "already correct",
-      "context": {"title": "Status update", "names": ["Gautham", "Oliver"], "vocabulary": []},
+      "context": {
+        "title": "Status update",
+        "names": [
+          "Gautham",
+          "Oliver"
+        ],
+        "vocabulary": []
+      },
       "lines": [
-        {"id": "1", "speaker": "Gautham", "text": "RCS setup is done and it's now in the MLV portfolio.", "keep": true},
-        {"id": "2", "speaker": "Oliver", "text": "The postcard analyser is live in production.", "keep": true},
-        {"id": "3", "speaker": "Gautham", "text": "I'll integrate Wing Solution once they enable RCS.", "keep": true}
+        {
+          "id": "1",
+          "speaker": "Gautham",
+          "text": "RCS setup is done and it's now in the MLV portfolio.",
+          "keep": true
+        },
+        {
+          "id": "2",
+          "speaker": "Oliver",
+          "text": "The postcard analyser is live in production.",
+          "keep": true
+        },
+        {
+          "id": "3",
+          "speaker": "Gautham",
+          "text": "I'll integrate Wing Solution once they enable RCS.",
+          "keep": true
+        }
+      ]
+    },
+    {
+      "name": "user words not in the meeting",
+      "context": {
+        "title": "Customer follow-up call",
+        "names": [],
+        "vocabulary": [
+          "Raoof",
+          "Lokam"
+        ]
+      },
+      "lines": [
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "Hi, Anerey. This is Janney from the service team. Do you have a minute to chat?",
+          "keep": true
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "Sure. The salesman, Marco, was great but the price was high.",
+          "keep": true
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 1",
+          "text": "Yannery, you said something important. Anything else for the owners?",
+          "keep": true
+        },
+        {
+          "id": "4",
+          "speaker": "Speaker 2",
+          "text": "Tell Priya at the front desk thanks.",
+          "keep": true
+        },
+        {
+          "id": "5",
+          "speaker": "Speaker 1",
+          "text": "I'll log it in the lo kam dashboard after the call.",
+          "fix": [
+            "Lokam"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "unfamiliar names stay",
+      "context": {
+        "title": "Team check-in",
+        "names": [
+          "Sinan"
+        ],
+        "vocabulary": []
+      },
+      "lines": [
+        {
+          "id": "1",
+          "speaker": "Sinan",
+          "text": "Anika, can you send the deck to Joaquin today?",
+          "keep": true
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "Yes, and Thandiwe will review the numbers first.",
+          "keep": true
+        },
+        {
+          "id": "3",
+          "speaker": "Speaker 2",
+          "text": "Siobhan asked about the timeline too.",
+          "keep": true
+        }
+      ]
+    },
+    {
+      "name": "misheard Gulf name",
+      "context": {
+        "title": "Seller intro",
+        "names": [],
+        "vocabulary": []
+      },
+      "lines": [
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "fay sal will join us from the seller side next week.",
+          "fix": [
+            "Faisal"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "Good, and Ingrid from the bank will send the term sheet.",
+          "keep": true
+        }
       ]
     }
   ]

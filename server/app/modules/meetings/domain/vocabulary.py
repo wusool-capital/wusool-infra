@@ -12,7 +12,7 @@ sounds like it.
 
 from __future__ import annotations
 
-__all__ = ["DEFAULT_PROOFREAD_VOCABULARY"]
+__all__ = ["COMMON_NAMES", "DEFAULT_PROOFREAD_VOCABULARY"]
 
 _FIRM = (
     "Wusool",
@@ -439,6 +439,14 @@ _COMMON_GULF_NAMES = (
     "Suhoor",
 )
 
+# The people who use Scribe most, so their names are spelt right when misheard.
+_TEAM = (
+    "Raoof",
+    "Jules",
+    "Ramzy",
+    "Hugo",
+)
+
 _SECTORS = (
     "F&B",
     "QSR",
@@ -616,8 +624,11 @@ DEFAULT_PROOFREAD_VOCABULARY: tuple[str, ...] = (
     *_FINANCE_TERMS,
     *_GCC_PLACES,
     *_GCC_INSTITUTIONS,
-    *_COMMON_GULF_NAMES,
     *_SECTORS,
     *_TECH_AND_TOOLS,
     *_BUSINESS_TERMS,
 )
+
+# Kept out of the always-sent prompt: shown a name, the model renamed strangers
+# to it. A batch gets only the names something in it sounds like.
+COMMON_NAMES: tuple[str, ...] = (*_TEAM, *_COMMON_GULF_NAMES)

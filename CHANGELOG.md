@@ -10,6 +10,15 @@ for current production evidence and open handover items.
 
 ## 2026-11-08
 
+### Fixed
+
+- Proofread no longer renames people to words from the user's vocabulary or
+  to speaker names. Every change must sound like the words it replaces, and
+  a batch's prompt only carries the names and words something in it sounds
+  like.
+- Scribe 0.8.4 auto-names a voice only on a clear match and marks it for the
+  user to confirm. Accept All lists name changes before applying them.
+
 ### Changed
 
 - Meeting summaries lead with a 2–3 sentence gist. Next steps, decisions
