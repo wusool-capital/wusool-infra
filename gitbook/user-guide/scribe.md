@@ -67,14 +67,15 @@ Scribe labels each speaker's turn in the transcript:
   **Settings → General → Speakers → Your name**.
 - **Other people** show as **Others** while you record. When you stop,
   Scribe separates their voices on your Mac and relabels them **Speaker 1**,
-  **Speaker 2**, and so on. On the standard model this takes about four
-  minutes for a one-hour meeting, after a one-time 32 MB download.
-  **Faster Speaker Separation (CoreML)** is on by default and takes about 40
-  seconds, using up to 2.7 GB of memory while it runs. Its models (about
-  300 MB) download only when you ask. The first time you press **Separate
-  Speakers**, Scribe offers the download. **Use Slower Model** turns it off
-  and separates straight away. You can also download them, or turn the setting off, under
-  **Settings → General → Speakers**.
+  **Speaker 2**, and so on.
+- **Faster separation.** **Faster Speaker Separation (CoreML)** is on by
+  default: about 40 seconds for a one-hour meeting, using up to 2.7 GB of
+  memory. Its models (about 300 MB) download only when you ask. The first
+  time you press **Separate Speakers**, Scribe offers the download.
+- **Slower separation.** **Use Slower Model** in that prompt turns CoreML
+  off and separates straight away. It takes about four minutes for a
+  one-hour meeting, after a one-time 32 MB download. You can change this
+  any time under **Settings → General → Speakers**.
 - **Name everyone in one place.** Above the transcript, **Who Spoke?**
   lists every separated voice, most talk time first, with one of their
   lines. Press ▶ to hear a few seconds of their voice, type a name and
