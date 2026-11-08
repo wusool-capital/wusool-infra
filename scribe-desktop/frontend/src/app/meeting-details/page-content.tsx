@@ -286,6 +286,7 @@ export default function PageContent({
           onOpenChange={setShowSummaryDialog}
           meetingId={meeting.id}
           initialTag={meeting.push_tag}
+          onSummarized={onMeetingUpdated}
         />
       )}
     </motion.div>

@@ -26,6 +26,8 @@ interface UsePaginatedTranscriptsReturn {
     reset: () => void;
     refetch: () => Promise<void>;
     reloadLoaded: () => Promise<void>;
+    /** Re-reads title, tag and pushed state without touching the loaded transcript. */
+    reloadMetadata: () => Promise<MeetingMetadata | null>;
 }
 
 /**
@@ -222,5 +224,6 @@ export function usePaginatedTranscripts({
         reset,
         refetch,
         reloadLoaded,
+        reloadMetadata: loadMetadata,
     };
 }

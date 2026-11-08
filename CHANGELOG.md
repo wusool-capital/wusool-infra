@@ -10,7 +10,18 @@ for current production evidence and open handover items.
 
 ## 2026-11-08
 
+### Added
+
+- Scribe 0.8.5 separates speakers in imported audio, using the imported file
+  as the meeting audio.
+- Scribe 0.8.5 adds **Change Speaker** to move transcript lines to another
+  voice, to the user, or to a new speaker the separation missed.
+
 ### Fixed
+
+- Scribe 0.8.5 plays voice samples through the Web Audio API, since the
+  macOS webview can't play `blob:` audio. The sample is each voice's
+  longest line.
 
 - Proofread no longer renames people to words from the user's vocabulary or
   to speaker names. Every change must sound like the words it replaces, and

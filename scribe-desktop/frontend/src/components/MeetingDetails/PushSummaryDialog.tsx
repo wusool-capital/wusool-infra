@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -38,6 +38,8 @@ interface PushSummaryDialogProps {
   onOpenChange: (open: boolean) => void;
   meetingId: string;
   initialTag?: string | null;
+  /** Called once Scribe returns the summary, so the page can switch to its summarized view. */
+  onSummarized?: () => Promise<void>;
 }
 
 /**
@@ -46,7 +48,7 @@ interface PushSummaryDialogProps {
  * the transcript to Scribe for server-side summarization, and show the
  * summary once Scribe returns it.
  */
-export function PushSummaryDialog({ open, onOpenChange, meetingId, initialTag }: PushSummaryDialogProps) {
+export function PushSummaryDialog({ open, onOpenChange, meetingId, initialTag, onSummarized }: PushSummaryDialogProps) {
   const [company, setCompany] = useState<CompanySelection>(EMPTY_SELECTION);
   const [role, setRole] = useState<CompanyRole>('general');
   const [orgNames, setOrgNames] = useState<Record<string, string>>({});
@@ -57,14 +59,19 @@ export function PushSummaryDialog({ open, onOpenChange, meetingId, initialTag }:
   const companyRequired = ROLES_REQUIRING_COMPANY.includes(role);
   const companyMissing = companyRequired && !company.query.trim();
 
-  // Picks up the AI-generated title usePush's checkStatus may have just
-  // saved (over a still-placeholder title), whether the summary arrived
-  // from the background poll or a manual "Check" click.
+  // Reloading the meeting picks up its AI-generated title and pushed_at, which swaps
+  // the page to the summary view; if that fails, the summary still shows here.
+  const announcedRef = useRef(false);
   useEffect(() => {
-    if (remoteSummary) {
+    // Once per summary: the page's callback is recreated on each render.
+    if (!remoteSummary || announcedRef.current) return;
+    announcedRef.current = true;
+    if (onSummarized) {
+      onSummarized().catch((err) => console.error('Failed to open the summary view:', err));
+    } else {
       refetchMeetings();
     }
-  }, [remoteSummary, refetchMeetings]);
+  }, [remoteSummary, onSummarized, refetchMeetings]);
 
   const handlePush = async () => {
     if (companyMissing) return;

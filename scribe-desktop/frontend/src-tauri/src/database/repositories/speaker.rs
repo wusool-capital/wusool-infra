@@ -4,7 +4,7 @@
 // (meeting_speakers). Embeddings are stored as little-endian f32 BLOBs.
 
 use chrono::Utc;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::{Connection, FromRow, Sqlite, SqlitePool, Transaction};
 use uuid::Uuid;
 
@@ -93,6 +93,14 @@ struct StoredVoiceRow {
     auto_named: bool,
 }
 
+/// Where the user moves transcript lines: a voice already in the meeting (or "me"), or a new one.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SpeakerTarget {
+    Existing { label: SpeakerLabel },
+    New,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum SpeakerRepositoryError {
     #[error(transparent)]
@@ -101,18 +109,15 @@ pub enum SpeakerRepositoryError {
     UnknownLabel(SpeakerLabel),
 }
 
-// Longest of each voice's first five lines: recognisable, and usually already loaded in the transcript.
-const VOICE_SAMPLES_SQL: &str = "WITH ordered AS (
+// Each voice's longest line: the most speech from one person, so the clip that best represents the voice.
+const VOICE_SAMPLES_SQL: &str = "WITH ranked AS (
         SELECT id, speaker, transcript, audio_start_time, audio_end_time,
-               ROW_NUMBER() OVER (PARTITION BY speaker ORDER BY audio_start_time) AS position
+               ROW_NUMBER() OVER (
+                   PARTITION BY speaker ORDER BY audio_end_time - audio_start_time DESC, audio_start_time
+               ) AS rank
         FROM transcripts
         WHERE meeting_id = ? AND audio_start_time IS NOT NULL AND audio_end_time IS NOT NULL
           AND speaker LIKE 'speaker\\_%' ESCAPE '\\'
-     ), ranked AS (
-        SELECT *, ROW_NUMBER() OVER (
-            PARTITION BY speaker ORDER BY audio_end_time - audio_start_time DESC
-        ) AS rank
-        FROM ordered WHERE position <= 5
      ), samples AS (
         SELECT speaker AS label, id AS segment_id, transcript AS text,
                audio_start_time AS start, audio_end_time AS end
@@ -253,6 +258,71 @@ impl SpeakerRepository {
         .bind(meeting_id)
         .fetch_all(pool)
         .await
+    }
+
+    /// Moves lines to another speaker. A new speaker has no voice print, since diarization never heard it apart.
+    pub async fn reassign_segments(
+        pool: &SqlitePool,
+        meeting_id: &str,
+        segment_ids: &[String],
+        target: SpeakerTarget,
+    ) -> Result<SpeakerLabel, SpeakerRepositoryError> {
+        let mut conn = pool.acquire().await?;
+        let mut tx = conn.begin().await?;
+
+        let label = match target {
+            SpeakerTarget::Existing { label: label @ SpeakerLabel::Speaker(_) } => {
+                let known: Option<(i64,)> =
+                    sqlx::query_as("SELECT 1 FROM meeting_speakers WHERE meeting_id = ? AND label = ?")
+                        .bind(meeting_id)
+                        .bind(label)
+                        .fetch_optional(&mut *tx)
+                        .await?;
+                known.ok_or(SpeakerRepositoryError::UnknownLabel(label))?;
+                label
+            }
+            SpeakerTarget::Existing { label } => label,
+            SpeakerTarget::New => {
+                let used: Vec<(SpeakerLabel,)> = sqlx::query_as(
+                    "SELECT label FROM meeting_speakers WHERE meeting_id = ?
+                     UNION SELECT speaker FROM transcripts
+                     WHERE meeting_id = ? AND speaker LIKE 'speaker\\_%' ESCAPE '\\'",
+                )
+                .bind(meeting_id)
+                .bind(meeting_id)
+                .fetch_all(&mut *tx)
+                .await?;
+                let next = used
+                    .iter()
+                    .filter_map(|(l,)| match l {
+                        SpeakerLabel::Speaker(n) => Some(n + 1),
+                        _ => None,
+                    })
+                    .max()
+                    .unwrap_or(0);
+                let label = SpeakerLabel::Speaker(next);
+                sqlx::query(
+                    "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named)
+                     VALUES (?, ?, NULL, x'', 0)",
+                )
+                .bind(meeting_id)
+                .bind(label)
+                .execute(&mut *tx)
+                .await?;
+                label
+            }
+        };
+
+        for segment_id in segment_ids {
+            sqlx::query("UPDATE transcripts SET speaker = ? WHERE id = ? AND meeting_id = ?")
+                .bind(label)
+                .bind(segment_id)
+                .bind(meeting_id)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        Ok(label)
     }
 
     /// Replaces a meeting's diarization result atomically, so a failed run never leaves
@@ -519,7 +589,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn voice_overview_counts_talk_time_and_picks_the_longest_early_line() {
+    async fn voice_overview_counts_talk_time_and_picks_the_longest_line() {
         let pool = pool_with_meeting().await;
         sqlx::query(
             "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
@@ -640,5 +710,92 @@ mod tests {
         let speakers = SpeakerRepository::meeting_speakers(&pool, MEETING).await.unwrap();
         assert_eq!(speakers[0].profile_id, None);
         assert_eq!(speakers[0].name, None);
+    }
+
+    #[tokio::test]
+    async fn the_sample_is_the_longest_line_even_late_in_the_meeting() {
+        let pool = pool_with_meeting().await;
+        for (id, start, end) in [("e-1", 10.0, 11.0), ("e-2", 12.0, 13.0), ("e-3", 14.0, 15.0), ("e-4", 16.0, 17.0), ("late", 90.0, 98.0)] {
+            sqlx::query(
+                "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
+                 VALUES (?, ?, 'text', 'ts', ?, ?, 1.0, 'others')",
+            )
+            .bind(id)
+            .bind(MEETING)
+            .bind(start)
+            .bind(end)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        let labels: Vec<(String, SpeakerLabel)> = ["t-1", "t-2", "e-1", "e-2", "e-3", "e-4", "late"]
+            .iter()
+            .map(|id| (id.to_string(), SpeakerLabel::Speaker(0)))
+            .collect();
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0])], &labels).await.unwrap();
+
+        let clip = SpeakerRepository::voice_sample(&pool, MEETING, SpeakerLabel::Speaker(0)).await.unwrap();
+        assert_eq!(clip.unwrap().segment_id, "late");
+    }
+
+    #[tokio::test]
+    async fn reassigning_lines_moves_them_to_an_existing_voice_or_me() {
+        let pool = pool_with_meeting().await;
+        let labels = vec![
+            ("t-1".to_string(), SpeakerLabel::Speaker(0)),
+            ("t-2".to_string(), SpeakerLabel::Speaker(1)),
+        ];
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0]), voice(1, vec![0.0, 1.0])], &labels)
+            .await
+            .unwrap();
+        let speaker_of = |id: &'static str| {
+            let pool = pool.clone();
+            async move {
+                sqlx::query_as::<_, (SpeakerLabel,)>("SELECT speaker FROM transcripts WHERE id = ?")
+                    .bind(id)
+                    .fetch_one(&pool)
+                    .await
+                    .unwrap()
+                    .0
+            }
+        };
+
+        let target = SpeakerTarget::Existing { label: SpeakerLabel::Speaker(0) };
+        SpeakerRepository::reassign_segments(&pool, MEETING, &["t-2".to_string()], target).await.unwrap();
+        assert_eq!(speaker_of("t-2").await, SpeakerLabel::Speaker(0));
+
+        let target = SpeakerTarget::Existing { label: SpeakerLabel::Me };
+        SpeakerRepository::reassign_segments(&pool, MEETING, &["t-1".to_string()], target).await.unwrap();
+        assert_eq!(speaker_of("t-1").await, SpeakerLabel::Me);
+
+        let target = SpeakerTarget::Existing { label: SpeakerLabel::Speaker(7) };
+        let result = SpeakerRepository::reassign_segments(&pool, MEETING, &["t-1".to_string()], target).await;
+        assert!(matches!(result, Err(SpeakerRepositoryError::UnknownLabel(_))));
+    }
+
+    #[tokio::test]
+    async fn a_new_speaker_gets_the_next_label_and_can_be_named_without_a_voice_print() {
+        let pool = pool_with_meeting().await;
+        let labels = vec![
+            ("t-1".to_string(), SpeakerLabel::Speaker(0)),
+            ("t-2".to_string(), SpeakerLabel::Speaker(0)),
+        ];
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0])], &labels).await.unwrap();
+
+        let label = SpeakerRepository::reassign_segments(&pool, MEETING, &["t-2".to_string()], SpeakerTarget::New)
+            .await
+            .unwrap();
+        assert_eq!(label, SpeakerLabel::Speaker(1));
+
+        let overview = SpeakerRepository::voice_overview(&pool, MEETING).await.unwrap();
+        let added = overview.iter().find(|v| v.label == label).unwrap();
+        assert_eq!(added.line_count, 1);
+        assert!(added.embedding.is_empty());
+
+        // Naming it joins an existing person without changing their voice print.
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice").await.unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, label, "Alice").await.unwrap();
+        let embedding = &SpeakerRepository::profile_embeddings(&pool).await.unwrap()[0].embedding;
+        assert_eq!(embedding, &vec![1.0, 0.0]);
     }
 }

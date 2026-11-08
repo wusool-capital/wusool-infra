@@ -4,6 +4,7 @@ use crate::api::TranscriptSegment;
 use crate::audio::decoder::{decode_audio_file, decode_audio_file_with_progress};
 use crate::audio::vad::get_speech_chunks_with_progress;
 use crate::config::{DEFAULT_WHISPER_MODEL, DEFAULT_PARAKEET_MODEL};
+use crate::diarization::SpeakerLabel;
 use crate::parakeet_engine::ParakeetEngine;
 use crate::state::AppState;
 use crate::whisper_engine::WhisperEngine;
@@ -665,6 +666,12 @@ async fn run_import<R: Runtime>(
 
     emit_progress(&app, "complete", 100, "Import complete");
 
+    // After metadata.json, which is how separation finds the imported audio.
+    let (diarize_app, diarize_pool, diarize_id) = (app.clone(), app_state.db_manager.pool().clone(), meeting_id.clone());
+    tauri::async_runtime::spawn(async move {
+        crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
+    });
+
     Ok(ImportResult {
         meeting_id,
         title,
@@ -719,8 +726,8 @@ async fn create_meeting_with_transcripts(
     // Insert transcripts
     for segment in segments {
         sqlx::query(
-            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&segment.id)
         .bind(&meeting_id)
@@ -729,6 +736,8 @@ async fn create_meeting_with_transcripts(
         .bind(segment.audio_start_time)
         .bind(segment.audio_end_time)
         .bind(segment.duration)
+        // An imported file is all meeting audio, so every line waits for speaker separation.
+        .bind(SpeakerLabel::Others)
         .execute(&mut *tx)
         .await
         .map_err(|e| anyhow!("Failed to insert transcript: {}", e))?;

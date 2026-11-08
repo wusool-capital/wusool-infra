@@ -253,7 +253,7 @@ textarea,
 .toolbar {
   container-type: inline-size;
 }
-@container (max-width: 780px) {
+@container (max-width: 900px) {
   .toolbar-label {
     display: none;
   }

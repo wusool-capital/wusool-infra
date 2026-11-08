@@ -9,6 +9,8 @@ import {
   SeparationState,
   SpeakerOverview,
   SpeakerProfileSummary,
+  SpeakerTarget,
+  diarizedIndex,
   speakerDisplayName,
 } from '@/lib/speakers';
 
@@ -22,6 +24,10 @@ export interface SpeakerNames {
   knownNames: string[];
   /** Voices separated for this meeting; zero means diarization has not produced any yet. */
   voiceCount: number;
+  /** This meeting's voices in number order, as places a line can be moved to. */
+  voices: SpeakerLabel[];
+  /** Moves lines to another speaker; present only for saved meetings. */
+  reassign?: (segmentIds: string[], target: SpeakerTarget) => Promise<void>;
   separation: SeparationState;
   /** Runs (or re-runs) speaker separation for a saved meeting. */
   separate?: () => Promise<void>;
@@ -91,6 +97,23 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     [meetingId, load],
   );
 
+  const reassign = useCallback(
+    async (segmentIds: string[], target: SpeakerTarget) => {
+      await invoke('reassign_transcript_speaker', { meetingId, segmentIds, target });
+      await load();
+      onLabelsChanged?.();
+    },
+    [meetingId, load, onLabelsChanged],
+  );
+
+  const voices = useMemo(
+    () =>
+      speakers
+        .map((s) => s.label)
+        .sort((a, b) => (diarizedIndex(a) ?? 0) - (diarizedIndex(b) ?? 0)),
+    [speakers],
+  );
+
   const resolveName = useCallback(
     (label: SpeakerLabel | null | undefined) => speakerDisplayName(label, speakers, selfName),
     [speakers, selfName],
@@ -121,6 +144,8 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     rename: meetingId ? rename : undefined,
     knownNames,
     voiceCount: speakers.length,
+    voices,
+    reassign: meetingId ? reassign : undefined,
     separation,
     separate: meetingId ? separate : undefined,
     overview,

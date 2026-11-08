@@ -21,11 +21,16 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from "./ui/context-menu";
 import { Check, X } from "lucide-react";
 import { CORRECTION_CATEGORY_LABEL, CorrectionSuggestion, SelectMode, diffWords } from "@/lib/transcriptEditor";
 import type { TranscriptEditorApi } from "@/hooks/meeting-details/useTranscriptEditor";
+import type { SpeakerTarget } from "@/lib/speakers";
+import { toast } from "sonner";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -177,6 +182,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onDeleteBefore,
     onMergeWithNext,
     onSplit,
+    onChangeSpeaker,
+    changeSpeakerCount,
     speaker,
     showSpeaker,
     isFirst,
@@ -200,6 +207,9 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onDeleteBefore?: (id: string) => void;
     onMergeWithNext?: (id: string) => void;
     onSplit?: (id: string, cursor: number) => void;
+    onChangeSpeaker?: (id: string, target: SpeakerTarget) => void;
+    /** Lines a speaker change applies to: the whole selection when this line is in it. */
+    changeSpeakerCount?: number;
     speaker?: SpeakerLabel | null;
     showSpeaker: boolean;
     isFirst: boolean;
@@ -335,6 +345,33 @@ const TranscriptSegment = memo(function TranscriptSegment({
                 <ContextMenuSeparator />
                 <ContextMenuItem onSelect={() => onMergeWithNext?.(id)}>Merge With Next Line</ContextMenuItem>
                 <ContextMenuItem onSelect={handleSplit}>Split at Cursor</ContextMenuItem>
+                {onChangeSpeaker && speakers && (
+                    <>
+                        <ContextMenuSeparator />
+                        <ContextMenuSub>
+                            <ContextMenuSubTrigger>
+                                {changeSpeakerCount && changeSpeakerCount > 1
+                                    ? `Change Speaker for ${changeSpeakerCount} Lines`
+                                    : 'Change Speaker'}
+                            </ContextMenuSubTrigger>
+                            <ContextMenuSubContent>
+                                {(['me', ...speakers.voices] as SpeakerLabel[]).map((label) => (
+                                    <ContextMenuItem
+                                        key={label}
+                                        disabled={changeSpeakerCount === 1 && label === speaker}
+                                        onSelect={() => onChangeSpeaker(id, { kind: 'existing', label })}
+                                    >
+                                        {speakers.resolveName(label)}
+                                    </ContextMenuItem>
+                                ))}
+                                <ContextMenuSeparator />
+                                <ContextMenuItem onSelect={() => onChangeSpeaker(id, { kind: 'new' })}>
+                                    New Speaker
+                                </ContextMenuItem>
+                            </ContextMenuSubContent>
+                        </ContextMenuSub>
+                    </>
+                )}
             </ContextMenuContent>
         </ContextMenu>
     );
@@ -400,6 +437,16 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         enableStreaming
     );
 
+    const changeSpeaker = useCallback(
+        (id: string, target: SpeakerTarget) => {
+            const ids = editor?.selectedIds.has(id) ? [...editor.selectedIds] : [id];
+            speakers?.reassign?.(ids, target).catch((error) => {
+                toast.error(`Couldn't change the speaker: ${error instanceof Error ? error.message : String(error)}`);
+            });
+        },
+        [editor, speakers],
+    );
+
     const renderSegment = (segment: TranscriptSegmentData, isStreaming: boolean, index: number) => (
         <TranscriptSegment
             id={segment.id}
@@ -424,6 +471,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             onDeleteBefore={editor?.deleteBefore}
             onMergeWithNext={editor?.mergeWithNext}
             onSplit={editor?.splitAt}
+            onChangeSpeaker={editor && speakers?.reassign ? changeSpeaker : undefined}
+            changeSpeakerCount={editor?.selectedIds.has(segment.id) ? editor.selectedIds.size : 1}
         />
     );
 

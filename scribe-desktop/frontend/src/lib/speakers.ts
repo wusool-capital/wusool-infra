@@ -62,6 +62,9 @@ export type SeparationState =
   | { status: 'running' }
   | { status: 'failed'; error: string };
 
+// Mirrors the Rust `SpeakerTarget` taken by reassign_transcript_speaker.
+export type SpeakerTarget = { kind: 'existing'; label: SpeakerLabel } | { kind: 'new' };
+
 /** Index `n` of a `speaker_n` label, or null for "me"/"others". */
 export function diarizedIndex(label: SpeakerLabel): number | null {
   const match = /^speaker_(\d+)$/.exec(label);

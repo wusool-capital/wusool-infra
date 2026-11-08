@@ -83,6 +83,8 @@ before sharing or sending it.
 **Expected result:** the meeting shows a processing status, then a completed
 status once the note reaches Attio. With an organization selected, the note
 links to its buyer or seller record; otherwise it becomes a general note.
+When the summary is ready, Scribe closes the popup and opens the meeting's
+**Summary** tab.
 
 The summary that comes back is built to scan. It shows, in this order:
 

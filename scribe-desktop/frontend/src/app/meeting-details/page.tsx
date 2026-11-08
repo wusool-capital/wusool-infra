@@ -48,6 +48,7 @@ function MeetingDetailsContent() {
     loadMore,
     refetch,
     reloadLoaded,
+    reloadMetadata,
     error: transcriptError,
   } = usePaginatedTranscripts({ meetingId: meetingId || '' });
 
@@ -113,10 +114,9 @@ function MeetingDetailsContent() {
       return;
     }
 
-    // The usePaginatedTranscripts hook automatically refetches when meetingId changes
-    // This function is kept for compatibility with onMeetingUpdated callback
-    console.log('fetchMeetingDetails called - pagination hook will handle refetch');
-  }, [meetingId]);
+    // Title, tag and pushed_at change after a push; the transcript itself doesn't.
+    await reloadMetadata();
+  }, [meetingId, reloadMetadata]);
 
   // Reset states when meetingId changes (prevent race conditions)
   useEffect(() => {

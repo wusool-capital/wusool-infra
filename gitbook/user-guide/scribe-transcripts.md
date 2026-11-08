@@ -33,6 +33,10 @@ Scribe labels each speaker's turn in the transcript:
   named before, Scribe asks "Sounds like Faisal?". Press **Yes** to name
   them, or **No** to type a different name.
 - You can still click a speaker's name on any line to rename them.
+- **Fix a wrong speaker.** Right-click a line, or a selection of lines, and
+  choose **Change Speaker**. Pick another voice, yourself, or **New
+  Speaker** for someone Scribe didn't separate, then name them. Pressing
+  **Separate Speakers** again replaces these changes.
 
 Voice fingerprints are stored only on your Mac. To make Scribe forget
 someone, delete them under **Settings → General → Speakers**.
@@ -40,9 +44,9 @@ someone, delete them under **Settings → General → Speakers**.
 If speakers were not separated, for example because you were offline, press
 **Separate Speakers** above the transcript to try again.
 
-Speakers are only separated for meetings recorded with **Auto-save** on,
-because Scribe needs the meeting audio on its own. Imported meetings are not
-separated. Enhancing a meeting keeps its speakers. Without headphones, your
+Speakers are separated for meetings recorded with **Auto-save** on, because
+Scribe needs the meeting audio on its own. Imported audio is separated too,
+and every voice in it becomes a speaker to name, including yours. Enhancing a meeting keeps its speakers. Without headphones, your
 microphone also picks up the meeting audio, and Scribe ignores that echo.
 
 ## Edit a transcript
