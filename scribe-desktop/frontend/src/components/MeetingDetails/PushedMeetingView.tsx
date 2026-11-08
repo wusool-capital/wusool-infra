@@ -9,7 +9,8 @@ import { FolderOpen, FileText, ListChecks, Mic, Copy, RefreshCw } from 'lucide-r
 import { toast } from 'sonner';
 import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptPanel } from './TranscriptPanel';
-import { SummaryView, summaryToPlainText } from './SummaryView';
+import { SummaryView } from './SummaryView';
+import { summaryToPlainText } from '@/lib/pushedSummary';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface PushedMeetingViewProps {

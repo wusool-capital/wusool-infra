@@ -20,6 +20,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Long meeting titles in a folder end with "…" instead of pushing the date off the edge of the window.
 * New meetings are named like "Meeting · 7 Nov, 18:22" instead of a file-style timestamp. Your own titles are never replaced by the summary's title.
 * Dialogs look sharp instead of slightly blurry, with a lighter background behind them. **Rename Meeting** selects the current name so you can type over it.
+* Summaries are shorter and easier to scan. A 2–3 sentence gist comes first, then next steps with the owner's name, decisions, and notes by topic. Buyer, seller and investor meetings also show a deal signal: momentum, claims to verify and risks. Notes grow with the meeting, from 1–2 topics for a short call to up to 8 for a 90-minute meeting. Older summaries keep their longer opening.
 * **Send feedback** fills in the name you gave under **Speakers** in Settings, so you don't have to type it again.
 
 ### Fixed
@@ -27,7 +28,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * The CoreML download bar fills as the download progresses and shows the real size, instead of sitting at 100%.
 * After **Tidy Lines**, transcript lines no longer overlap until you resize the window.
 * The sidebar keeps the width you set instead of stretching to fit long meeting titles. It can be at most 420 px wide, and double-clicking its edge resets it.
-* Meeting titles in the sidebar have more room: the edit and delete buttons appear in place of the date only while you point at a meeting.
+* Meeting titles in the sidebar have more room. The edit and delete buttons replace the date only while you point at a meeting.
 * The transcript toolbar fits beside a wide sidebar: its buttons switch to icons when space runs out, and **Summarize** is never cut off.
 * Settings fit beside a wide sidebar: text wraps, switches stay visible, and the tabs tighten up instead of running off the edge.
 

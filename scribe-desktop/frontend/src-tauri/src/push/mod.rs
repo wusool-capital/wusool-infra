@@ -763,36 +763,88 @@ fn write_summary_files(folder: &std::path::Path, summary: &serde_json::Value) ->
     Ok(())
 }
 
-const SUMMARY_LIST_SECTIONS: &[(&str, &str)] = &[
+// Summaries are never regenerated, so older ones still carry these fields.
+const LEGACY_SUMMARY_SECTIONS: &[(&str, &str)] = &[
     ("discussion_topics", "Discussion Topics"),
-    ("action_items", "Action Items"),
-    ("decisions", "Decisions"),
     ("open_questions", "Open Questions"),
-    ("risks", "Risks"),
-    ("keywords", "Keywords"),
 ];
 
-/// Mirrors app.delivery.service._format_slack_text on the backend, so
-/// the on-disk summary reads the same way the Slack message does.
-fn format_summary_markdown(summary: &serde_json::Value) -> String {
-    let mut lines = vec!["# Meeting Summary".to_string()];
-    if let Some(exec) = summary.get("executive_summary").and_then(|v| v.as_str()) {
-        lines.push(String::new());
-        lines.push(exec.to_string());
+fn summary_strings<'a>(value: Option<&'a serde_json::Value>) -> Vec<&'a str> {
+    value
+        .and_then(|v| v.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| item.as_str())
+                .filter(|text| !text.trim().is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn push_bullets(lines: &mut Vec<String>, heading: &str, items: &[&str]) {
+    if items.is_empty() {
+        return;
     }
-    for (key, heading) in SUMMARY_LIST_SECTIONS {
-        if let Some(items) = summary.get(*key).and_then(|v| v.as_array()) {
-            if items.is_empty() {
-                continue;
-            }
+    lines.push(String::new());
+    lines.push(heading.to_string());
+    lines.extend(items.iter().map(|item| format!("- {}", item)));
+}
+
+/// Same order as the summary tab (SummaryView.tsx): gist, next steps,
+/// decisions, deal signal or risks, then notes by topic.
+fn format_summary_markdown(summary: &serde_json::Value) -> String {
+    let text = |key: &str| summary.get(key).and_then(|v| v.as_str()).map(str::trim).unwrap_or("");
+    let list = |key: &str| summary_strings(summary.get(key));
+
+    let mut lines = vec!["# Meeting Summary".to_string()];
+    let gist = text("executive_summary");
+    if !gist.is_empty() {
+        lines.push(String::new());
+        lines.push(gist.to_string());
+    }
+    push_bullets(&mut lines, "## Next steps", &list("action_items"));
+    push_bullets(&mut lines, "## Decisions", &list("decisions"));
+
+    let momentum = text("deal_momentum");
+    let to_verify = list("claims_to_verify");
+    if momentum.is_empty() && to_verify.is_empty() {
+        push_bullets(&mut lines, "## Risks", &list("risks"));
+    } else {
+        lines.push(String::new());
+        lines.push("## Deal signal".to_string());
+        if !momentum.is_empty() {
             lines.push(String::new());
-            lines.push(format!("## {}", heading));
-            for item in items {
-                if let Some(text) = item.as_str() {
-                    lines.push(format!("- {}", text));
-                }
-            }
+            lines.push(format!("**Momentum:** {}", momentum));
         }
+        push_bullets(&mut lines, "### To verify", &to_verify);
+        push_bullets(&mut lines, "### Risks", &list("risks"));
+    }
+
+    let notes: Vec<(&str, Vec<&str>)> = summary
+        .get("notes")
+        .and_then(|v| v.as_array())
+        .map(|notes| {
+            notes
+                .iter()
+                .map(|note| {
+                    let topic = note.get("topic").and_then(|v| v.as_str()).unwrap_or("").trim();
+                    (topic, summary_strings(note.get("points")))
+                })
+                .filter(|(_, points)| !points.is_empty())
+                .collect()
+        })
+        .unwrap_or_default();
+    if !notes.is_empty() {
+        lines.push(String::new());
+        lines.push("## Notes".to_string());
+        for (topic, points) in &notes {
+            push_bullets(&mut lines, &format!("### {}", topic), points);
+        }
+    }
+
+    for (key, heading) in LEGACY_SUMMARY_SECTIONS {
+        push_bullets(&mut lines, &format!("## {}", heading), &list(key));
     }
     lines.join("\n")
 }
@@ -1246,5 +1298,36 @@ mod sync_tests {
         write_summary_files(dir.path(), &summary).unwrap();
         assert!(dir.path().join("summary.md").exists());
         assert!(dir.path().join("summary.json").exists());
+    }
+
+    #[test]
+    fn summary_markdown_follows_the_summary_tab_order() {
+        let summary = serde_json::json!({
+            "executive_summary": "Floor agreed at AED 42m.",
+            "action_items": ["Sinan: send the request, by 12 Nov 2026."],
+            "decisions": ["Floor of AED 42m."],
+            "deal_momentum": "Advanced — floor agreed.",
+            "claims_to_verify": ["AED 1.1m add-back: no payroll record."],
+            "risks": ["Carrefour is 35% of revenue."],
+            "notes": [{"topic": "Valuation", "points": ["7x adjusted EBITDA."]}, {"topic": "Empty", "points": []}],
+            "keywords": ["floor price"]
+        });
+        assert_eq!(
+            format_summary_markdown(&summary),
+            "# Meeting Summary\n\nFloor agreed at AED 42m.\n\n## Next steps\n- Sinan: send the request, by 12 Nov 2026.\n\n## Decisions\n- Floor of AED 42m.\n\n## Deal signal\n\n**Momentum:** Advanced — floor agreed.\n\n### To verify\n- AED 1.1m add-back: no payroll record.\n\n### Risks\n- Carrefour is 35% of revenue.\n\n## Notes\n\n### Valuation\n- 7x adjusted EBITDA."
+        );
+    }
+
+    #[test]
+    fn summary_markdown_shows_plain_risks_and_legacy_sections() {
+        let summary = serde_json::json!({
+            "executive_summary": "Old opening.",
+            "risks": ["Blocked on Wing."],
+            "discussion_topics": ["Pricing"]
+        });
+        assert_eq!(
+            format_summary_markdown(&summary),
+            "# Meeting Summary\n\nOld opening.\n\n## Risks\n- Blocked on Wing.\n\n## Discussion Topics\n- Pricing"
+        );
     }
 }

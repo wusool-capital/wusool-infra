@@ -113,6 +113,33 @@ Embeddings never leave the Mac. A push sends only the resolved names.
    organizations.
 4. An Attio failure is logged; the meeting still completes on the server.
 
+### Summary format
+
+The summary's `executive_summary` field holds a gist of 2–3 sentences and
+60 words at most. The field keeps its old name, so installed apps still show
+it; a later release can rename it. Detail goes in `notes`, sized by
+`summary_budget` in `server/app/modules/meetings/domain/prompts.py` from the
+transcript's word count:
+
+| Transcript | Spoken time | Topics | Gist and notes |
+| --- | --- | --- | --- |
+| Up to 2,000 words | up to ~13 minutes | 1–2 | ~120 words at most |
+| Up to 8,000 words | ~13–53 minutes | 3–4 | ~350 words at most |
+| More | over ~53 minutes | 6–8 | ~700 words at most |
+
+The budget is a ceiling: a long meeting with little substance still gets a
+short summary. Decisions, action items and claims to verify are never cut to
+fit it. The prompt also sets the writing style: British spelling, sentences
+of 25 words or fewer, outcome first. It trusts speaker names a user
+assigned, but not placeholders such as "Speaker 2", "Others" or "Me".
+
+`render_summary_text` writes the plain text stored in `meetings.summary`,
+filed as the Attio note and read by the matching engine. Its order is gist,
+next steps, decisions, deal momentum, claims to verify, risks, keywords,
+then notes. Notes go last because the matching engine keeps the start and
+end of a summary over 3,000 characters, so it cuts middle notes first.
+Summaries are not regenerated, so older ones keep their long opening.
+
 A push for the same install and recording always returns 409, so pushing
 again doesn't recover a failed meeting. Instead, a meeting stalled for 10
 minutes is reset the next time its status is read, which re-runs the

@@ -141,6 +141,19 @@ original audio until you have checked the result.
 status once the note reaches Attio. With an organization selected, the note
 links to its buyer or seller record; otherwise it becomes a general note.
 
+The summary that comes back is built to scan. It shows, in this order:
+
+- a gist of 2–3 sentences: where the meeting landed and what it waits on;
+- **Next steps**, each starting with the owner's name;
+- **Decisions**, when something was agreed;
+- **Deal signal** for buyer, seller and investor meetings: momentum, claims to
+  verify before relying on them, and risks. Other meetings show **Risks**;
+- **Notes**, grouped by topic. A short call gets 1–2 topics; a 90-minute
+  meeting gets up to 8.
+
+The Attio note and `summary.md` in the meeting folder follow the same order.
+Meetings summarised before version 0.8.2 keep their longer opening.
+
 You can close the app while processing continues. Don't push again just
 because it takes a while. If it fails, see
 [Troubleshooting](troubleshooting.md).
