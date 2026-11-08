@@ -16,7 +16,7 @@ The boto3 client keeps its 300s `read_timeout` (see `boto_client.py`).
 
 from __future__ import annotations
 
-from pydantic_ai import Agent, ModelRetry, RunContext, ToolOutput
+from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.models.bedrock import BedrockModelSettings
 
 from app.modules.meetings.domain.corrections import CorrectionSuggestion
@@ -26,7 +26,11 @@ from app.modules.meetings.providers.bedrock.schemas import (
     MeetingSummarySchema,
     TranscriptCorrectionsSchema,
 )
-from app.modules.utilities.providers.bedrock.agent import bedrock_model, run_bedrock_agent
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
+)
 
 _OPERATION = "summarization"
 _CORRECTION_OPERATION = "transcript_correction"
@@ -34,8 +38,8 @@ _CORRECTION_OPERATION = "transcript_correction"
 _OUTPUT_RETRIES = 1
 
 
-def _check_limits(ctx: RunContext[bool], output: MeetingSummarySchema) -> MeetingSummarySchema:
-    if not ctx.deps or ctx.retry >= ctx.max_retries:
+def _check_limits(ctx: RunContext[None], output: MeetingSummarySchema) -> MeetingSummarySchema:
+    if ctx.retry >= ctx.max_retries:
         return output
     issues = summary_limit_issues(output.to_domain())
     if issues:
@@ -46,19 +50,18 @@ def _check_limits(ctx: RunContext[bool], output: MeetingSummarySchema) -> Meetin
 class BedrockConverseClient:
     def __init__(self) -> None:
         self._client = get_bedrock_runtime_client()
-        # deps is check_limits: map-step excerpts are dense on purpose, so only final
-        # summaries are held to the length rules.
-        self.summary_agent: Agent[bool, MeetingSummarySchema] = Agent(
-            name="meeting_summary",
-            deps_type=bool,
-            output_type=ToolOutput(MeetingSummarySchema, name="meeting_summary"),
-            retries={"output": _OUTPUT_RETRIES},
+        self.summary_agent: Agent[None, MeetingSummarySchema] = structured_agent(
+            MeetingSummarySchema, name="meeting_summary", output_retries=_OUTPUT_RETRIES
         )
         self.summary_agent.output_validator(_check_limits)
-        self.corrections_agent: Agent[None, TranscriptCorrectionsSchema] = Agent(
+        # Map-step excerpts are dense on purpose, so they skip the length rules.
+        self.excerpt_agent: Agent[None, MeetingSummarySchema] = structured_agent(
+            MeetingSummarySchema, name="meeting_summary", output_retries=_OUTPUT_RETRIES
+        )
+        self.corrections_agent: Agent[None, TranscriptCorrectionsSchema] = structured_agent(
+            TranscriptCorrectionsSchema,
             name="transcript_corrections",
-            output_type=ToolOutput(TranscriptCorrectionsSchema, name="transcript_corrections"),
-            retries={"output": _OUTPUT_RETRIES},
+            output_retries=_OUTPUT_RETRIES,
         )
 
     async def summarize(
@@ -73,13 +76,10 @@ class BedrockConverseClient:
     ) -> MeetingSummary:
         model = bedrock_model(model_id, self._client)
         settings = BedrockModelSettings(max_tokens=max_tokens, temperature=temperature)
+        agent = self.summary_agent if check_limits else self.excerpt_agent
         output = await run_bedrock_agent(
-            lambda: self.summary_agent.run(
-                prompt,
-                model=model,
-                instructions=system_prompt,
-                model_settings=settings,
-                deps=check_limits,
+            lambda: agent.run(
+                prompt, model=model, instructions=system_prompt, model_settings=settings
             ),
             model_id=model_id,
             operation=_OPERATION,

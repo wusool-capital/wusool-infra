@@ -107,6 +107,8 @@ class DesktopMeetingStatusResponse(BaseModel):
     meeting_id: uuid.UUID
     status: str
     summary: DesktopSummarySchema | None = None
+    # The rendered text filed as the Attio note, so the desktop app's summary.md matches it.
+    summary_text: str | None = None
 
 
 class DesktopMeetingSyncItem(BaseModel):
@@ -196,7 +198,10 @@ def to_status_response(meeting: MeetingRecord) -> DesktopMeetingStatusResponse:
         else None
     )
     return DesktopMeetingStatusResponse(
-        meeting_id=meeting.id, status=meeting.status, summary=summary
+        meeting_id=meeting.id,
+        status=meeting.status,
+        summary=summary,
+        summary_text=meeting.summary,
     )
 
 

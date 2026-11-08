@@ -4,19 +4,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
 
 import pytest
 from botocore.exceptions import EndpointConnectionError
 from pydantic import BaseModel
-from pydantic_ai import Agent, ModelMessage, ModelResponse, ToolCallPart, ToolOutput
-from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 from app.modules.utilities.providers.bedrock import agent as agent_module
-from app.modules.utilities.providers.bedrock.agent import run_bedrock_agent
+from app.modules.utilities.providers.bedrock.agent import run_bedrock_agent, structured_agent
+from app.modules.utilities.tests.bedrock_fakes import (
+    Responder,
+    ScriptedModel,
+    bedrock_error,
+)
 
 _SECRET = "Khalid's floor is AED 42m"
 
@@ -30,19 +31,15 @@ def _no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(agent_module, "_BASE_DELAY_SECONDS", 0.0)
 
 
-def _run(respond: Callable[[int], JsonObject]) -> tuple[_Answer, int]:
-    calls = 0
-
-    def model(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-        nonlocal calls
-        calls += 1
-        return ModelResponse(parts=[ToolCallPart(info.output_tools[0].name, respond(calls))])
-
-    agent: Agent[None, _Answer] = Agent(
-        FunctionModel(model), output_type=ToolOutput(_Answer), retries={"output": 0}
+def _run(respond: Responder) -> tuple[_Answer, int]:
+    model = ScriptedModel(respond)
+    agent = structured_agent(_Answer, name="answer", output_retries=0)
+    output = asyncio.run(
+        run_bedrock_agent(
+            lambda: agent.run("p", model=model.function_model), model_id="m", operation="test"
+        )
     )
-    output = asyncio.run(run_bedrock_agent(lambda: agent.run("p"), model_id="m", operation="test"))
-    return output, calls
+    return output, model.calls
 
 
 def test_returns_validated_output() -> None:
@@ -54,7 +51,7 @@ def test_returns_validated_output() -> None:
 def test_transient_error_is_retried_and_logged(caplog: pytest.LogCaptureFixture) -> None:
     def respond(call: int) -> JsonObject:
         if call == 1:
-            raise ModelHTTPError(429, "m", provider_error_code="ThrottlingException")
+            raise bedrock_error("ThrottlingException")
         return {"value": 1}
 
     with caplog.at_level(logging.WARNING):
@@ -75,7 +72,7 @@ def test_connection_error_is_retried() -> None:
 
 def test_gives_up_after_three_attempts() -> None:
     def respond(_: int) -> JsonObject:
-        raise ModelHTTPError(503, "m", provider_error_code="ServiceUnavailableException")
+        raise bedrock_error("ServiceUnavailableException", status=503)
 
     with pytest.raises(BedrockInvocationError, match="ServiceUnavailableException"):
         _run(respond)
@@ -83,9 +80,7 @@ def test_gives_up_after_three_attempts() -> None:
 
 def test_non_transient_error_fails_without_content() -> None:
     def respond(_: int) -> JsonObject:
-        raise ModelHTTPError(
-            400, "m", provider_error_code="ValidationException", body={"message": _SECRET}
-        )
+        raise bedrock_error("ValidationException", status=400, body=_SECRET)
 
     with pytest.raises(BedrockInvocationError) as raised:
         _run(respond)

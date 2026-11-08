@@ -414,6 +414,9 @@ pub struct DesktopMeetingStatusResponse {
     pub meeting_id: String,
     pub status: String,
     pub summary: Option<serde_json::Value>,
+    /// The server's rendered summary, the same text filed as the Attio note.
+    #[serde(default)]
+    pub summary_text: Option<String>,
 }
 
 /// Label for segments saved before speaker attribution existed.
@@ -640,14 +643,19 @@ async fn apply_local_summary_fills(
 /// transcripts.json, and applies the local fills above. Every failure
 /// is warn-logged and non-fatal -- a summary that can't be filed this
 /// time is retried on the next check/sync, not lost.
-async fn store_summary_for_meeting(pool: &SqlitePool, meeting_id: &str, summary: &serde_json::Value) {
+async fn store_summary_for_meeting(
+    pool: &SqlitePool,
+    meeting_id: &str,
+    summary: &serde_json::Value,
+    summary_text: Option<&str>,
+) {
     match MeetingsRepository::get_meeting_metadata(pool, meeting_id).await {
         Ok(Some(meeting)) => {
             match &meeting.folder_path {
                 Some(folder_path) => {
                     let folder = std::path::PathBuf::from(folder_path);
                     if folder.exists() {
-                        if let Err(e) = write_summary_files(&folder, summary) {
+                        if let Err(e) = write_summary_files(&folder, summary, summary_text) {
                             warn!("Failed to write summary files to {}: {}", folder.display(), e);
                         } else {
                             info!("Saved summary to {}", folder.display());
@@ -734,7 +742,13 @@ pub async fn get_push_status<R: Runtime>(
     // live together -- the same folder the sidebar's tag grouping and
     // "Open Recording Folder" button both point at.
     if let Some(summary) = &parsed.summary {
-        store_summary_for_meeting(state.db_manager.pool(), &meeting_id, summary).await;
+        store_summary_for_meeting(
+            state.db_manager.pool(),
+            &meeting_id,
+            summary,
+            parsed.summary_text.as_deref(),
+        )
+        .await;
     }
 
     Ok(parsed)
@@ -749,10 +763,14 @@ pub async fn get_push_status<R: Runtime>(
 /// summary already exists -- if the process died between the two
 /// writes with json written first, the sentinel would be satisfied
 /// while summary.md never landed, and nothing would ever retry it.
-fn write_summary_files(folder: &std::path::Path, summary: &serde_json::Value) -> std::io::Result<()> {
+fn write_summary_files(
+    folder: &std::path::Path,
+    summary: &serde_json::Value,
+    summary_text: Option<&str>,
+) -> std::io::Result<()> {
     let md_path = folder.join("summary.md");
     let md_temp = folder.join(".summary.md.tmp");
-    std::fs::write(&md_temp, format_summary_markdown(summary))?;
+    std::fs::write(&md_temp, format_summary_markdown(summary, summary_text))?;
     std::fs::rename(&md_temp, &md_path)?;
 
     let json_path = folder.join("summary.json");
@@ -763,90 +781,20 @@ fn write_summary_files(folder: &std::path::Path, summary: &serde_json::Value) ->
     Ok(())
 }
 
-// Summaries are never regenerated, so older ones still carry these fields.
-const LEGACY_SUMMARY_SECTIONS: &[(&str, &str)] = &[
-    ("discussion_topics", "Discussion Topics"),
-    ("open_questions", "Open Questions"),
-];
-
-fn summary_strings<'a>(value: Option<&'a serde_json::Value>) -> Vec<&'a str> {
-    value
-        .and_then(|v| v.as_array())
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|item| item.as_str())
-                .filter(|text| !text.trim().is_empty())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn push_bullets(lines: &mut Vec<String>, heading: &str, items: &[&str]) {
-    if items.is_empty() {
-        return;
-    }
-    lines.push(String::new());
-    lines.push(heading.to_string());
-    lines.extend(items.iter().map(|item| format!("- {}", item)));
-}
-
-/// Same order as the summary tab (SummaryView.tsx): gist, next steps,
-/// decisions, deal signal or risks, then notes by topic.
-fn format_summary_markdown(summary: &serde_json::Value) -> String {
-    let text = |key: &str| summary.get(key).and_then(|v| v.as_str()).map(str::trim).unwrap_or("");
-    let list = |key: &str| summary_strings(summary.get(key));
-
-    let mut lines = vec!["# Meeting Summary".to_string()];
-    let gist = text("executive_summary");
-    if !gist.is_empty() {
-        lines.push(String::new());
-        lines.push(gist.to_string());
-    }
-    push_bullets(&mut lines, "## Next steps", &list("action_items"));
-    push_bullets(&mut lines, "## Decisions", &list("decisions"));
-
-    let momentum = text("deal_momentum");
-    let to_verify = list("claims_to_verify");
-    if momentum.is_empty() && to_verify.is_empty() {
-        push_bullets(&mut lines, "## Risks", &list("risks"));
+/// The server renders the summary once, for the Attio note and for this
+/// file, so the section order lives in one place
+/// (server/app/modules/meetings/domain/rendering.py). A server that predates
+/// `summary_text` gets the gist alone.
+fn format_summary_markdown(summary: &serde_json::Value, summary_text: Option<&str>) -> String {
+    let body = summary_text
+        .or_else(|| summary.get("executive_summary").and_then(|v| v.as_str()))
+        .map(str::trim)
+        .unwrap_or("");
+    if body.is_empty() {
+        "# Meeting Summary".to_string()
     } else {
-        lines.push(String::new());
-        lines.push("## Deal signal".to_string());
-        if !momentum.is_empty() {
-            lines.push(String::new());
-            lines.push(format!("**Momentum:** {}", momentum));
-        }
-        push_bullets(&mut lines, "### To verify", &to_verify);
-        push_bullets(&mut lines, "### Risks", &list("risks"));
+        format!("# Meeting Summary\n\n{}", body)
     }
-
-    let notes: Vec<(&str, Vec<&str>)> = summary
-        .get("notes")
-        .and_then(|v| v.as_array())
-        .map(|notes| {
-            notes
-                .iter()
-                .map(|note| {
-                    let topic = note.get("topic").and_then(|v| v.as_str()).unwrap_or("").trim();
-                    (topic, summary_strings(note.get("points")))
-                })
-                .filter(|(_, points)| !points.is_empty())
-                .collect()
-        })
-        .unwrap_or_default();
-    if !notes.is_empty() {
-        lines.push(String::new());
-        lines.push("## Notes".to_string());
-        for (topic, points) in &notes {
-            push_bullets(&mut lines, &format!("### {}", topic), points);
-        }
-    }
-
-    for (key, heading) in LEGACY_SUMMARY_SECTIONS {
-        push_bullets(&mut lines, &format!("## {}", heading), &list(key));
-    }
-    lines.join("\n")
 }
 
 /// Reads back the summary.json written by get_push_status for a meeting
@@ -1190,7 +1138,13 @@ pub async fn sync_pushed_meetings<R: Runtime>(app: AppHandle<R>) -> Result<SyncR
                 match fetch_meeting_status(&client, &config, &item.meeting_id).await {
                     Ok(fetched) => {
                         if let Some(summary) = &fetched.summary {
-                            store_summary_for_meeting(pool, &meeting.id, summary).await;
+                            store_summary_for_meeting(
+                                pool,
+                                &meeting.id,
+                                summary,
+                                fetched.summary_text.as_deref(),
+                            )
+                            .await;
                             synced += 1;
                         }
                     }
@@ -1295,39 +1249,24 @@ mod sync_tests {
     fn write_summary_files_writes_markdown_before_json() {
         let dir = tempfile::tempdir().unwrap();
         let summary = serde_json::json!({"executive_summary": "done"});
-        write_summary_files(dir.path(), &summary).unwrap();
+        write_summary_files(dir.path(), &summary, Some("done")).unwrap();
         assert!(dir.path().join("summary.md").exists());
         assert!(dir.path().join("summary.json").exists());
     }
 
     #[test]
-    fn summary_markdown_follows_the_summary_tab_order() {
-        let summary = serde_json::json!({
-            "executive_summary": "Floor agreed at AED 42m.",
-            "action_items": ["Sinan: send the request, by 12 Nov 2026."],
-            "decisions": ["Floor of AED 42m."],
-            "deal_momentum": "Advanced — floor agreed.",
-            "claims_to_verify": ["AED 1.1m add-back: no payroll record."],
-            "risks": ["Carrefour is 35% of revenue."],
-            "notes": [{"topic": "Valuation", "points": ["7x adjusted EBITDA."]}, {"topic": "Empty", "points": []}],
-            "keywords": ["floor price"]
-        });
+    fn summary_markdown_uses_the_server_text() {
+        let summary = serde_json::json!({"executive_summary": "Gist."});
         assert_eq!(
-            format_summary_markdown(&summary),
-            "# Meeting Summary\n\nFloor agreed at AED 42m.\n\n## Next steps\n- Sinan: send the request, by 12 Nov 2026.\n\n## Decisions\n- Floor of AED 42m.\n\n## Deal signal\n\n**Momentum:** Advanced — floor agreed.\n\n### To verify\n- AED 1.1m add-back: no payroll record.\n\n### Risks\n- Carrefour is 35% of revenue.\n\n## Notes\n\n### Valuation\n- 7x adjusted EBITDA."
+            format_summary_markdown(&summary, Some("Gist.\n\nNext steps:\n- Sinan: do it\n")),
+            "# Meeting Summary\n\nGist.\n\nNext steps:\n- Sinan: do it"
         );
     }
 
     #[test]
-    fn summary_markdown_shows_plain_risks_and_legacy_sections() {
-        let summary = serde_json::json!({
-            "executive_summary": "Old opening.",
-            "risks": ["Blocked on Wing."],
-            "discussion_topics": ["Pricing"]
-        });
-        assert_eq!(
-            format_summary_markdown(&summary),
-            "# Meeting Summary\n\nOld opening.\n\n## Risks\n- Blocked on Wing.\n\n## Discussion Topics\n- Pricing"
-        );
+    fn summary_markdown_falls_back_to_the_gist() {
+        let summary = serde_json::json!({"executive_summary": "Gist.", "action_items": ["x"]});
+        assert_eq!(format_summary_markdown(&summary, None), "# Meeting Summary\n\nGist.");
+        assert_eq!(format_summary_markdown(&serde_json::json!({}), None), "# Meeting Summary");
     }
 }

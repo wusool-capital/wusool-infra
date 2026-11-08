@@ -20,7 +20,7 @@ errors come from the shared `utilities.providers.bedrock.agent`.
 from __future__ import annotations
 
 from pydantic import BaseModel
-from pydantic_ai import Agent, ToolOutput
+from pydantic_ai import Agent
 from pydantic_ai.models.bedrock import BedrockModelSettings
 
 from app.modules.lead_magnets.config import get_settings
@@ -33,7 +33,11 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     SearchQueries,
 )
 from app.modules.lead_magnets.providers.bedrock.boto_client import get_bedrock_runtime_client
-from app.modules.utilities.providers.bedrock.agent import bedrock_model, run_bedrock_agent
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
+)
 
 # Low and deterministic-leaning: these outputs feed a valuation and a
 # readiness score, not prose. `top_p` is never sent alongside it.
@@ -93,11 +97,7 @@ class LeadBedrockClient:
         max_tokens: int,
     ) -> T:
         # Built per call: construction is negligible next to a Bedrock round trip.
-        agent: Agent[None, T] = Agent(
-            name=operation,
-            output_type=ToolOutput(schema, name=operation),
-            retries={"output": 0},
-        )
+        agent: Agent[None, T] = structured_agent(schema, name=operation, output_retries=0)
         model = bedrock_model(model_id, self._client)
         settings = BedrockModelSettings(max_tokens=max_tokens, temperature=_TEMPERATURE)
         return await run_bedrock_agent(

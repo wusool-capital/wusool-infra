@@ -162,7 +162,7 @@ compared in constant time.
 | --- | --- |
 | `GET /desktop/verify` | Checks the server address and key before Settings saves them. |
 | `POST /desktop/meetings` | Accepts a transcript. Over 1.5 million characters returns 422; a repeated install and recording returns 409. |
-| `GET /desktop/meetings/{meeting_id}` | One meeting's processing state and summary. |
+| `GET /desktop/meetings/{meeting_id}` | One meeting's processing state and summary. `summary_text` is the same rendered text filed as the Attio note; the app writes it to `summary.md`. |
 | `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
 | `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
 | `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |

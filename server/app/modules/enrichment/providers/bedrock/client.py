@@ -13,13 +13,17 @@ come from the shared `utilities.providers.bedrock.agent.run_bedrock_agent`.
 
 from __future__ import annotations
 
-from pydantic_ai import Agent, ToolOutput
+from pydantic_ai import Agent
 from pydantic_ai.models.bedrock import BedrockModelSettings
 
 from app.modules.enrichment.domain.proposals import ExtractedField
 from app.modules.enrichment.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.enrichment.providers.bedrock.schemas import ExtractedFields
-from app.modules.utilities.providers.bedrock.agent import bedrock_model, run_bedrock_agent
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
+)
 
 _OPERATION = "enrichment_extraction"
 # One repair round, matching the old validate-repair-retry policy.
@@ -29,10 +33,8 @@ _OUTPUT_RETRIES = 1
 class BedrockConverseClient:
     def __init__(self) -> None:
         self._client = get_bedrock_runtime_client()
-        self.agent: Agent[None, ExtractedFields] = Agent(
-            name="enrichment_extraction",
-            output_type=ToolOutput(ExtractedFields, name="extracted_fields"),
-            retries={"output": _OUTPUT_RETRIES},
+        self.agent: Agent[None, ExtractedFields] = structured_agent(
+            ExtractedFields, name="extracted_fields", output_retries=_OUTPUT_RETRIES
         )
 
     async def extract_fields(

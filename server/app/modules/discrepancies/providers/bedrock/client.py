@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import re
 
-from pydantic_ai import Agent, ToolOutput
+from pydantic_ai import Agent
 from pydantic_ai.models.bedrock import BedrockModelSettings
 
 from app.modules.discrepancies.domain.criteria import ParsedContext
@@ -27,7 +27,11 @@ from app.modules.discrepancies.domain.vocabulary import (
 )
 from app.modules.discrepancies.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.discrepancies.providers.bedrock.schemas import ExtractedContext
-from app.modules.utilities.providers.bedrock.agent import bedrock_model, run_bedrock_agent
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
+)
 
 _OPERATION = "discrepancy_context_extraction"
 # One repair round, matching the old validate-repair-retry policy.
@@ -116,11 +120,11 @@ class BedrockContextExtractor:
         self._model_id = model_id
         self._model = bedrock_model(model_id, get_bedrock_runtime_client())
         self._settings = BedrockModelSettings(max_tokens=max_tokens, temperature=temperature)
-        self.agent: Agent[None, ExtractedContext] = Agent(
-            name="discrepancy_context",
-            output_type=ToolOutput(ExtractedContext, name="extracted_context"),
+        self.agent: Agent[None, ExtractedContext] = structured_agent(
+            ExtractedContext,
+            name="extracted_context",
             instructions=_SYSTEM_PROMPT,
-            retries={"output": _OUTPUT_RETRIES},
+            output_retries=_OUTPUT_RETRIES,
         )
 
     async def extract(self, text: str) -> ParsedContext:

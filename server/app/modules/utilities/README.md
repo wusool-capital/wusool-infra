@@ -34,8 +34,10 @@ utilities/
     schema_check.py                    # find_schema_drift()
     idempotency.py                       # InMemoryIdempotencyStore + get_shared_idempotency_store()
     task_runner.py                         # InProcessTaskRunner + get_shared_task_runner()
-  providers/bedrock/agent.py    # run_bedrock_agent + bedrock_model — Pydantic AI runner every
-                                   # Bedrock client uses; reached directly, not via __all__
+  providers/bedrock/agent.py    # structured_agent + run_bedrock_agent + bedrock_model — the Pydantic AI
+                                   # pieces every Bedrock client uses; reached directly, not via __all__
+  tests/bedrock_fakes.py        # ScriptedModel, offline_bedrock, bedrock_error — shared by every
+                                   # module's Bedrock client tests
   api/handlers.py               # register_exception_handlers — the one fastapi-dependent piece
   secrets_manager.py            # SecretsManagerSettings: base for every module Settings;
                                    # reads /wusool/<env>/toolkit once per process (root, not domain/)
@@ -64,14 +66,15 @@ collision risk. Prefer these over constructing `InMemoryIdempotencyStore()`/
 `InProcessTaskRunner()` directly — the raw classes stay exported for tests
 that want an isolated instance.
 
-`run_bedrock_agent` and `bedrock_model` (`providers/bedrock/agent.py`) are
+`structured_agent`, `run_bedrock_agent` and `bedrock_model`
+(`providers/bedrock/agent.py`) are
 deliberately **not** in `__all__` — same reasoning as
 `register_exception_handlers`: they need `pydantic_ai` and `botocore`, which
 `domain/` consumers must not import, so a module's Bedrock client reaches
 them via `app.modules.utilities.providers.bedrock.agent` directly. Every
 Bedrock call in the server goes through `run_bedrock_agent`: each client
-builds a Pydantic AI `Agent` whose `output_type` is its schema as a
-`ToolOutput`, so Bedrock is forced to answer through the tool and the agent
+builds its agents with `structured_agent`, whose only output is the schema
+as a tool, so Bedrock is forced to answer through the tool and the agent
 validates the result. The runner retries transient AWS errors
 (`TRANSIENT_ERROR_CODES`, connection failures) three times with backoff,
 logs metadata only, and re-raises Pydantic AI errors as content-free

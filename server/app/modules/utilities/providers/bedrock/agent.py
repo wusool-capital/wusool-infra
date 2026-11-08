@@ -1,10 +1,10 @@
 """Shared runner for Pydantic AI agents on Bedrock, used by every module's
 Bedrock client.
 
-Each client builds its own `Agent` (its schema as a `ToolOutput`, so Bedrock
-is forced to answer through the output tool and the agent validates the
-result) and hands one run to `run_bedrock_agent`. This module owns what is
-identical across them:
+Each client builds its agents with `structured_agent` (its schema as the only
+output, so Bedrock is forced to answer through the output tool and the agent
+validates the result) and hands one run to `run_bedrock_agent`. This module
+owns what is identical across them:
 
 - transient AWS errors (`TRANSIENT_ERROR_CODES`, connection failures) are
   retried around the whole run with exponential backoff and a warning per
@@ -25,6 +25,8 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from botocore.exceptions import EndpointConnectionError
+from pydantic import BaseModel
+from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
 from pydantic_ai.models.bedrock import BedrockConverseModel
@@ -37,7 +39,7 @@ from app.modules.utilities.domain.retry import retry_with_backoff
 if TYPE_CHECKING:
     from mypy_boto3_bedrock_runtime import BedrockRuntimeClient
 
-__all__ = ["bedrock_model", "run_bedrock_agent"]
+__all__ = ["bedrock_model", "run_bedrock_agent", "structured_agent"]
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +50,23 @@ _BASE_DELAY_SECONDS = 1.0
 def bedrock_model(model_id: str, client: BedrockRuntimeClient) -> BedrockConverseModel:
     """A Converse model on the caller's own boto3 client, so its timeouts apply."""
     return BedrockConverseModel(model_id, provider=BedrockProvider(bedrock_client=client))
+
+
+def structured_agent[T: BaseModel](
+    schema: type[T], *, name: str, output_retries: int, instructions: str | None = None
+) -> Agent[None, T]:
+    """An agent whose only output is `schema`, called as tool `name`.
+
+    No text output is allowed, so Bedrock is forced to call the tool
+    (`toolChoice: any`). `output_retries` is how many times a schema or
+    validator failure is sent back to the model before the run fails.
+    """
+    return Agent(
+        name=name,
+        output_type=ToolOutput(schema, name=name),
+        instructions=instructions,
+        retries={"output": output_retries},
+    )
 
 
 def _is_transient(exc: Exception) -> bool:

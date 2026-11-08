@@ -15,7 +15,7 @@ The boto3 client keeps its own timeouts (see `boto_client.py`).
 
 from __future__ import annotations
 
-from pydantic_ai import Agent, ModelRetry, ToolOutput
+from pydantic_ai import Agent, ModelRetry
 from pydantic_ai.models.bedrock import BedrockModelSettings
 
 from app.modules.matching_engine.application.ports.llm_types import (
@@ -28,7 +28,11 @@ from app.modules.matching_engine.providers.bedrock.schemas import (
     ExtractedRequirementProfile,
     ReasoningResult,
 )
-from app.modules.utilities.providers.bedrock.agent import bedrock_model, run_bedrock_agent
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
+)
 
 _EXTRACTION_OPERATION = "extraction"
 _REASONING_OPERATION = "reasoning"
@@ -52,16 +56,14 @@ class BedrockConverseClient:
     def __init__(self) -> None:
         self._client = get_bedrock_runtime_client()
         # No `instructions`: this module's prompts are entirely user-turn.
-        self.extraction_agent: Agent[None, ExtractedRequirementProfile] = Agent(
-            name="requirement_extraction",
-            output_type=ToolOutput(ExtractedRequirementProfile, name="requirement_profile"),
-            retries={"output": _OUTPUT_RETRIES},
+        self.extraction_agent: Agent[None, ExtractedRequirementProfile] = structured_agent(
+            ExtractedRequirementProfile,
+            name="requirement_profile",
+            output_retries=_OUTPUT_RETRIES,
         )
         self.extraction_agent.output_validator(_check_monetary)
-        self.reasoning_agent: Agent[None, ReasoningResult] = Agent(
-            name="match_reasoning",
-            output_type=ToolOutput(ReasoningResult, name="match_reasoning"),
-            retries={"output": _OUTPUT_RETRIES},
+        self.reasoning_agent: Agent[None, ReasoningResult] = structured_agent(
+            ReasoningResult, name="match_reasoning", output_retries=_OUTPUT_RETRIES
         )
 
     async def extract_requirements(
