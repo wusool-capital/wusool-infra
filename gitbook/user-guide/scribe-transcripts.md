@@ -23,12 +23,13 @@ Scribe labels each speaker's turn in the transcript:
   any time under **Settings → General → Speakers**.
 - **Name everyone in one place.** Above the transcript, **Who Spoke?**
   lists every separated voice, most talk time first, with one of their
-  lines. Press ▶ to hear a few seconds of their voice, type a name and
-  press Enter to move on to the next person. Every line they spoke in that
-  meeting is renamed, and Scribe recognises their voice in later meetings.
-  A voice it recognised on its own says **recognised by voice**: press
-  **Confirm** if that's right, or **Change**. Click a quoted line to jump to
-  it in the transcript.
+  lines. Press ▶ to hear a few seconds of their voice and type a name. It
+  saves when you press Enter, which moves on to the next person, or when
+  you click away. Every line they spoke in that meeting is renamed, and
+  Scribe recognises their voice in later meetings. Click a quoted line to
+  jump to it in the transcript.
+- **Check automatic names.** A voice Scribe recognised on its own says
+  **recognised by voice**: press **Confirm** if that's right, or **Change**.
 - **Confirm a likely match.** When a voice sounds close to someone you've
   named before, Scribe asks "Sounds like Faisal?". Press **Yes** to name
   them, or **No** to type a different name.
