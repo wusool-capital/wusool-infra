@@ -53,12 +53,13 @@ const COREML_MODEL_STEMS: &[&str] = &[
 ];
 const MLMODELC_FILES: &[&str] = &["model.mil", "coremldata.bin", "weights/weight.bin", "analytics/coremldata.bin"];
 
-/// CPU is the default; CoreML is about 6x faster but peaks near 2.7 GB of RAM, against 0.5 GB.
+/// CoreML is the default: about 6x faster, though it peaks near 2.7 GB of RAM against
+/// 0.5 GB. Off macOS, and until its models are downloaded, separation runs on CPU.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum DiarizationBackend {
-    #[default]
     Cpu,
+    #[default]
     CoreMl,
 }
 
@@ -316,6 +317,7 @@ mod tests {
     fn backend_serializes_for_the_settings_store() {
         assert_eq!(serde_json::to_string(&DiarizationBackend::CoreMl).unwrap(), "\"coreml\"");
         assert_eq!(serde_json::from_str::<DiarizationBackend>("\"cpu\"").unwrap(), DiarizationBackend::Cpu);
+        assert_eq!(DiarizationBackend::default(), DiarizationBackend::CoreMl);
     }
 
     /// Reads sizes from the real model host, so it runs only with `--ignored`.

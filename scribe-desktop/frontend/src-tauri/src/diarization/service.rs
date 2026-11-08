@@ -109,6 +109,11 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
     let app_data_dir = app.path().app_data_dir().context("resolving app data dir")?;
     let models_dir = engine::models_dir(&app_data_dir);
     let mut backend = super::commands::load_backend(app).effective();
+    // The ~300 MB CoreML download only starts when the user asks for it (Settings, or
+    // the download prompt on Separate Speakers); until then separation runs on CPU.
+    if backend == DiarizationBackend::CoreMl && !engine::models_ready(&models_dir, backend) {
+        backend = DiarizationBackend::Cpu;
+    }
     if let Err(e) = engine::ensure_models(&models_dir, backend).await {
         if backend == DiarizationBackend::Cpu {
             return Err(e.context("fetching diarization models"));

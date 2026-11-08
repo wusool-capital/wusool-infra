@@ -2,6 +2,18 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.3
+
+### What's new
+
+* **Faster Speaker Separation (CoreML)** is now on by default. Its models (about 300 MB) download only when you ask. The first time you press **Separate Speakers**, Scribe offers the download with a progress bar, or **Use Standard Speed** to separate straight away. Separation that runs on its own after a recording uses the standard model until then.
+
+### Changed
+
+* Summaries are shorter and easier to scan. A 2–3 sentence gist comes first, then next steps with the owner's name, decisions, and notes by topic. Buyer, seller and investor meetings also show a deal signal: momentum, claims to verify and risks. Notes grow with the meeting, from 1–2 topics for a short call to up to 8 for a 90-minute meeting. Older summaries keep their longer opening.
+* **Proofread** catches more misheard names and terms. It knows common deal, finance and GCC terms, plus the meeting's speakers and title. Add your own words in **Settings → General → Proofread**. Each fix marks only the words it changes and shows its type. **Next Fix** steps through them, and **Accept All** confirms how many it applied. When part of a long meeting couldn't be checked, Scribe keeps saying so and offers **Try Again**.
+* **Send feedback** fills in the name you gave under **Speakers** in Settings, so you don't have to type it again.
+
 ## 0.8.2
 
 ### What's new
@@ -20,9 +32,6 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Long meeting titles in a folder end with "…" instead of pushing the date off the edge of the window.
 * New meetings are named like "Meeting · 7 Nov, 18:22" instead of a file-style timestamp. Your own titles are never replaced by the summary's title.
 * Dialogs look sharp instead of slightly blurry, with a lighter background behind them. **Rename Meeting** selects the current name so you can type over it.
-* Summaries are shorter and easier to scan. A 2–3 sentence gist comes first, then next steps with the owner's name, decisions, and notes by topic. Buyer, seller and investor meetings also show a deal signal: momentum, claims to verify and risks. Notes grow with the meeting, from 1–2 topics for a short call to up to 8 for a 90-minute meeting. Older summaries keep their longer opening.
-* **Proofread** catches more misheard names and terms. It knows common deal, finance and GCC terms, plus the meeting's speakers and title. Add your own words in **Settings → General → Proofread**. Each fix marks only the words it changes and shows its type. **Next Fix** steps through them, and **Accept All** confirms how many it applied. When part of a long meeting couldn't be checked, Scribe keeps saying so and offers **Try Again**.
-* **Send feedback** fills in the name you gave under **Speakers** in Settings, so you don't have to type it again.
 
 ### Fixed
 

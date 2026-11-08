@@ -81,10 +81,12 @@ renaming a speaker changes one row.
   `others` segment gets the voice that overlaps it most. ffmpeg decodes the
   track straight to 16 kHz mono, so the audio buffer is about 230 MB per
   hour.
-- **Backends:** CPU by default, at about 15 times real time on Apple silicon
-  with a peak of about 0.5 GB. CoreML is a setting, at about 90 times real
-  time with a peak of about 2.7 GB. If CoreML fails, that run falls back to
-  CPU.
+- **Backends:** CoreML by default on macOS, at about 90 times real time with
+  a peak of about 2.7 GB. CPU runs at about 15 times real time on Apple
+  silicon with a peak of about 0.5 GB. If CoreML fails, that run falls back
+  to CPU. The CoreML models download only on request, from Settings or the
+  prompt on **Separate Speakers**. Until then, automatic separation after a
+  recording runs on CPU, so it never downloads 272 MB in the background.
 - **Voice library:** naming a voice stores its embedding in
   `speaker_profiles`. Later meetings auto-name voices whose cosine
   similarity is at least 0.7, and never give two voices the same person.

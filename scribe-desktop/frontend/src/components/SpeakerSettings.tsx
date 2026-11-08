@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { listen } from "@tauri-apps/api/event"
 import { Trash2 } from "lucide-react"
 import type { SpeakerProfileSummary } from "@/lib/speakers"
 import { Input } from "./ui/input"
@@ -10,7 +9,8 @@ import { Button } from "./ui/button"
 import { Switch } from "./ui/switch"
 import { ConfirmationModal } from "./ConfirmationModel/confirmation-modal"
 import { SettingsRow, SettingsSection } from "./settings/SettingsSection"
-import { Progress } from "./ui/progress"
+import { useCoreMlModels } from "@/hooks/useCoreMlModels"
+import { CoreMlDownloadDialog } from "./CoreMlDownloadDialog"
 import {
   Dialog,
   DialogContent,
@@ -20,42 +20,15 @@ import {
   DialogTitle,
 } from "./ui/dialog"
 
-type DiarizationBackend = "cpu" | "coreml"
-
-// Mirrors the Rust `DiarizationBackendSettings` serialization.
-interface DiarizationBackendSettings {
-  backend: DiarizationBackend
-  coreml_available: boolean
-}
-
-// Mirror the Rust `DiarizationModelsStatus` and `DownloadProgress` payloads.
-interface DiarizationModelsStatus {
-  cpu_ready: boolean
-  coreml_ready: boolean
-}
-interface DownloadProgress {
-  downloaded: number
-  total: number
-}
-
-type DownloadState =
-  | { stage: "closed" }
-  | { stage: "confirm" }
-  | { stage: "downloading" }
-  | { stage: "failed"; error: string }
-
-const megabytes = (bytes: number) => Math.round(bytes / 1_000_000)
-
 export function SpeakerSettings() {
   const [selfName, setSelfName] = useState("")
   const [savedSelfName, setSavedSelfName] = useState("")
   const [justSaved, setJustSaved] = useState(false)
   const [profiles, setProfiles] = useState<SpeakerProfileSummary[]>([])
   const [pendingDelete, setPendingDelete] = useState<SpeakerProfileSummary | null>(null)
-  const [backend, setBackend] = useState<DiarizationBackendSettings | null>(null)
-  const [models, setModels] = useState<DiarizationModelsStatus | null>(null)
-  const [download, setDownload] = useState<DownloadState>({ stage: "closed" })
-  const [progress, setProgress] = useState<DownloadProgress>({ downloaded: 0, total: 0 })
+  const coreMl = useCoreMlModels()
+  const backend = coreMl.settings
+  const models = coreMl.models
   const [confirmingOff, setConfirmingOff] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -68,8 +41,6 @@ export function SpeakerSettings() {
         setSelfName(name)
         setSavedSelfName(name)
         await loadProfiles()
-        setBackend(await invoke<DiarizationBackendSettings>("get_diarization_backend"))
-        setModels(await invoke<DiarizationModelsStatus>("get_diarization_models_status"))
       } catch (e) {
         setError(String(e))
       }
@@ -90,55 +61,28 @@ export function SpeakerSettings() {
     }
   }
 
-  useEffect(() => {
-    const unlisten = listen<DownloadProgress>("diarization-models-progress", (event) => setProgress(event.payload))
-    return () => {
-      unlisten.then((stop) => stop())
-    }
-  }, [])
-
-  const saveBackend = async (next: DiarizationBackend) => {
-    await invoke("set_diarization_backend", { backend: next })
-    setBackend((current) => (current ? { ...current, backend: next } : current))
-  }
-
-  const refreshModels = async () => setModels(await invoke<DiarizationModelsStatus>("get_diarization_models_status"))
-
   const toggleCoreMl = async (enabled: boolean) => {
     setError(null)
     if (!enabled) {
-      setConfirmingOff(true)
+      // Nothing downloaded means nothing to keep or delete, so no question to ask.
+      if (models?.coreml_ready) setConfirmingOff(true)
+      else await coreMl.setBackend("cpu").catch((e) => setError(String(e)))
       return
     }
     // Already downloaded (kept after turning off last time): switch straight on, no dialog.
     if (models?.coreml_ready) {
-      await saveBackend("coreml").catch((e) => setError(String(e)))
+      await coreMl.setBackend("coreml").catch((e) => setError(String(e)))
       return
     }
-    setDownload({ stage: "confirm" })
-  }
-
-  const startDownload = async () => {
-    setProgress({ downloaded: 0, total: 0 })
-    setDownload({ stage: "downloading" })
-    try {
-      await invoke("download_diarization_models", { backend: "coreml" })
-      await saveBackend("coreml")
-      await refreshModels()
-      setDownload({ stage: "closed" })
-    } catch (e) {
-      const message = String(e)
-      setDownload(message.includes("cancelled") ? { stage: "closed" } : { stage: "failed", error: message })
-      await refreshModels().catch(() => undefined)
-    }
+    coreMl.ask()
   }
 
   const turnOff = async (deleteModels: boolean) => {
     setConfirmingOff(false)
     try {
-      await saveBackend("cpu")
+      await coreMl.setBackend("cpu")
       if (deleteModels) await invoke("delete_coreml_models")
-      await refreshModels()
+      await coreMl.refresh()
     } catch (e) {
       setError(String(e))
     }
@@ -183,9 +127,23 @@ export function SpeakerSettings() {
         <SettingsRow
           title="Faster Speaker Separation (CoreML)"
           description={
-            models?.coreml_ready
-              ? "About 6× faster. Uses up to 2.7 GB of memory while it runs. Models downloaded."
-              : "About 6× faster. Uses up to 2.7 GB of memory while it runs, and downloads about 300 MB once."
+            models?.coreml_ready ? (
+              "About 6× faster. Uses up to 2.7 GB of memory while it runs. Models downloaded."
+            ) : coreMl.needsDownload ? (
+              <>
+                About 6× faster. Uses up to 2.7 GB of memory while it runs. Its models (about 300 MB) download the
+                first time you separate speakers.{" "}
+                <button
+                  type="button"
+                  onClick={coreMl.ask}
+                  className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+                >
+                  Download now
+                </button>
+              </>
+            ) : (
+              "About 6× faster. Uses up to 2.7 GB of memory while it runs, and downloads about 300 MB once."
+            )
           }
           control={
             <Switch
@@ -231,54 +189,12 @@ export function SpeakerSettings() {
 
       {error && <p className="px-5 py-3 text-sm text-destructive">{error}</p>}
 
-      <Dialog
-        open={download.stage !== "closed"}
-        onOpenChange={(open) => {
-          // Closing mid-download would hide progress, so it cancels the download instead.
-          if (open) return
-          if (download.stage === "downloading") void invoke("cancel_diarization_model_download")
-          else setDownload({ stage: "closed" })
-        }}
-      >
-        <DialogContent className="sm:max-w-[440px]">
-          <DialogHeader>
-            <DialogTitle>Download Faster Speaker Separation</DialogTitle>
-            <DialogDescription>
-              {download.stage === "failed"
-                ? `The download didn't finish: ${download.error}`
-                : "Scribe needs a one-time download of about 300 MB of voice models. Speaker separation keeps working on the standard model until it finishes."}
-            </DialogDescription>
-          </DialogHeader>
-          {download.stage === "downloading" && (
-            <div className="space-y-2">
-              <Progress value={progress.total > 0 ? (progress.downloaded / progress.total) * 100 : 0} />
-              <p className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
-                {progress.total > 0
-                  ? `${megabytes(progress.downloaded)} of ${megabytes(progress.total)} MB`
-                  : progress.downloaded > 0
-                    ? `${megabytes(progress.downloaded)} MB downloaded`
-                    : "Preparing download…"}
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            {download.stage === "downloading" ? (
-              <Button variant="outline" onClick={() => void invoke("cancel_diarization_model_download")}>
-                Cancel
-              </Button>
-            ) : (
-              <>
-                <Button variant="outline" onClick={() => setDownload({ stage: "closed" })}>
-                  Not Now
-                </Button>
-                <Button onClick={() => void startDownload()}>
-                  {download.stage === "failed" ? "Try Again" : "Download"}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CoreMlDownloadDialog
+        coreMl={coreMl}
+        description="Scribe needs a one-time download of about 300 MB of voice models. Speaker separation keeps working on the standard model until it finishes."
+        skipLabel="Not Now"
+        onDownloaded={() => void coreMl.setBackend("coreml").catch((e) => setError(String(e)))}
+      />
 
       <Dialog open={confirmingOff} onOpenChange={setConfirmingOff}>
         <DialogContent className="sm:max-w-[440px]">

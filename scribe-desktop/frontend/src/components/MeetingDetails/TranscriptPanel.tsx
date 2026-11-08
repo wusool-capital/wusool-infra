@@ -12,6 +12,8 @@ import { SpeakersPanel } from '@/components/SpeakersPanel';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { proofreadCoverageWarning } from '@/lib/transcriptEditor';
+import { useCoreMlModels } from '@/hooks/useCoreMlModels';
+import { CoreMlDownloadDialog } from '@/components/CoreMlDownloadDialog';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -70,6 +72,12 @@ export function TranscriptPanel({
   onUnnamedSpeakersChange,
 }: TranscriptPanelProps) {
   const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
+  const coreMl = useCoreMlModels();
+  // CoreML is the default, but its models download only when asked: offer that here first.
+  const separateSpeakers = () => {
+    if (coreMl.needsDownload) coreMl.ask();
+    else void speakers.separate?.();
+  };
   const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
   // Steps through the suggested fixes in transcript order, wrapping at the end.
   const nextFixRef = useRef(0);
@@ -146,12 +154,20 @@ export function TranscriptPanel({
           {speakers.separation.status === 'running' ? (
             <Spinner className="h-4 w-4 shrink-0" />
           ) : (
-            <Button size="sm" variant="outline" onClick={() => void speakers.separate?.()}>
+            <Button size="sm" variant="outline" onClick={separateSpeakers}>
               {speakers.separation.status === 'failed' ? 'Try Again' : 'Separate Speakers'}
             </Button>
           )}
         </div>
       )}
+
+      <CoreMlDownloadDialog
+        coreMl={coreMl}
+        description="Separate speakers about 6× faster with a one-time download of about 300 MB. Or separate them now at standard speed."
+        skipLabel="Use Standard Speed"
+        onSkip={() => void speakers.separate?.()}
+        onDownloaded={() => void speakers.separate?.()}
+      />
 
       {editable && meetingId && (
         <SpeakersPanel
