@@ -95,7 +95,8 @@ export function TranscriptButtonGroup({
               size="sm"
               variant="outline"
               disabled={editor.isSuggesting}
-              aria-label="Proofread"
+              aria-busy={editor.isSuggesting}
+              aria-label={editor.isSuggesting ? 'Proofreading…' : 'Proofread'}
               title="Suggest fixes for misheard words"
               onClick={() => {
                 Analytics.trackButtonClick('proofread_transcript', 'meeting_details');

@@ -24,7 +24,7 @@ import {
     ContextMenuTrigger,
 } from "./ui/context-menu";
 import { Check, X } from "lucide-react";
-import { CORRECTION_CATEGORY_LABEL, CorrectionSuggestion, SelectMode, diffSpan } from "@/lib/transcriptEditor";
+import { CORRECTION_CATEGORY_LABEL, CorrectionSuggestion, SelectMode, diffWords } from "@/lib/transcriptEditor";
 import type { TranscriptEditorApi } from "@/hooks/meeting-details/useTranscriptEditor";
 
 export interface VirtualizedTranscriptViewProps {
@@ -113,21 +113,38 @@ function SuggestionDiff({
     onAccept: () => void;
     onDismiss: () => void;
 }) {
-    const { removed, added } = diffSpan(suggestion.original, suggestion.suggested);
+    const parts = diffWords(suggestion.original, suggestion.suggested);
+    const category = suggestion.category ? CORRECTION_CATEGORY_LABEL[suggestion.category] : null;
     return (
-        <div className="mx-2 mt-1 flex items-center gap-3 rounded-md bg-muted px-3 py-1.5 text-sm">
-            <div className="min-w-0 flex-1 leading-relaxed">
-                {removed && <del className="text-destructive">{removed}</del>}
-                {removed && added && <span className="text-muted-foreground"> → </span>}
-                {added && <ins className="font-medium text-success no-underline">{added}</ins>}
-                <span className="ml-2 text-muted-foreground">
-                    {suggestion.category && (
-                        <span className="mr-1.5 rounded bg-background px-1.5 py-0.5 text-xs font-medium text-foreground">
-                            {CORRECTION_CATEGORY_LABEL[suggestion.category]}
-                        </span>
+        <div className="mx-2 mt-1 flex items-start gap-3 rounded-md bg-muted px-3 py-2 text-sm">
+            <div className="min-w-0 flex-1">
+                {/* The corrected line, with each change marked where it sits. */}
+                <p className="break-words leading-relaxed text-foreground">
+                    <span className="sr-only">Suggested fix: </span>
+                    {parts.map((part, i) =>
+                        part.kind === 'same' ? (
+                            <span key={i}>{part.text}</span>
+                        ) : part.kind === 'removed' ? (
+                            <span key={i}>
+                                <del className="text-destructive">
+                                    <span className="sr-only">removed </span>
+                                    {part.text}
+                                </del>
+                                {parts[i + 1]?.kind === 'added' && ' '}
+                            </span>
+                        ) : (
+                            <ins key={i} className="font-semibold text-success no-underline">
+                                <span className="sr-only">added </span>
+                                {part.text}
+                            </ins>
+                        ),
                     )}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    {category && <span className="font-medium text-foreground">{category}</span>}
+                    {category && suggestion.reason && ' · '}
                     {suggestion.reason}
-                </span>
+                </p>
             </div>
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onAccept}>
                 <Check />

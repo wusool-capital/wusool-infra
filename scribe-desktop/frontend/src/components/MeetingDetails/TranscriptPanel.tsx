@@ -6,11 +6,12 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { TranscriptSelectionBar } from './TranscriptSelectionBar';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { SpeakersPanel } from '@/components/SpeakersPanel';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { proofreadCoverageWarning } from '@/lib/transcriptEditor';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -70,6 +71,15 @@ export function TranscriptPanel({
 }: TranscriptPanelProps) {
   const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
   const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
+  // Steps through the suggested fixes in transcript order, wrapping at the end.
+  const nextFixRef = useRef(0);
+  const showNextFix = () => {
+    const ids = editor ? [...editor.suggestions.keys()] : [];
+    if (ids.length === 0) return;
+    const segmentId = ids[nextFixRef.current % ids.length];
+    nextFixRef.current += 1;
+    setFocusRequest({ segmentId, nonce: Date.now() });
+  };
 
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
@@ -151,18 +161,40 @@ export function TranscriptPanel({
         />
       )}
 
-      {editable && editor && editor.suggestions.size > 0 && (
-        <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
-          <span className="text-sm text-foreground tabular-nums" aria-live="polite">
-            {editor.suggestions.size} suggested {editor.suggestions.size === 1 ? 'fix' : 'fixes'}
-          </span>
+      {editable && editor && (editor.suggestions.size > 0 || editor.uncheckedLines > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-muted px-4 py-2">
+          <p className="text-sm text-foreground tabular-nums" aria-live="polite">
+            {editor.suggestions.size > 0
+              ? `${editor.suggestions.size} suggested ${editor.suggestions.size === 1 ? 'fix' : 'fixes'}`
+              : 'No suggested fixes'}
+            {editor.uncheckedLines > 0 && (
+              <span className="text-muted-foreground"> · {proofreadCoverageWarning(editor.uncheckedLines)}</span>
+            )}
+          </p>
           <div className="flex items-center gap-2">
+            {editor.uncheckedLines > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={editor.isSuggesting}
+                onClick={() => void editor.requestSuggestions()}
+              >
+                {editor.isSuggesting ? 'Proofreading…' : 'Try Again'}
+              </Button>
+            )}
+            {editor.suggestions.size > 1 && (
+              <Button size="sm" variant="ghost" onClick={showNextFix}>
+                Next Fix
+              </Button>
+            )}
             <Button size="sm" variant="ghost" onClick={editor.dismissAllSuggestions}>
               Dismiss All
             </Button>
-            <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
-              Accept All
-            </Button>
+            {editor.suggestions.size > 0 && (
+              <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
+                Accept All
+              </Button>
+            )}
           </div>
         </div>
       )}

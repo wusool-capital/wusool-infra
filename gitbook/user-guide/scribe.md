@@ -107,10 +107,12 @@ Fix the transcript before you summarize or send it:
 - Use **Find & Replace** (Cmd+F) to fix a misheard name everywhere.
 - Press **Proofread** to get suggested fixes for misheard words, names and
   terms. Each fix shows its type (name, term, number, word or punctuation).
-  Accept or dismiss each one, or press **Accept All** or **Dismiss All**.
+  Accept or dismiss each one, press **Next Fix** to jump to the next, or
+  press **Accept All** or **Dismiss All**. Cmd+Z undoes Accept All in one step.
   Scribe sends the transcript text, speaker names and meeting title to the
   Toolkit server for this, and nothing is stored there. If part of a long
-  meeting can't be checked, Scribe says how many lines were missed.
+  meeting can't be checked, Scribe says how many lines were missed and offers
+  **Try Again**.
 - Proofread already knows common deal, finance and GCC terms. Add your own
   client names and project code names in **Settings → General → Proofread**.
 - Undo and redo with Cmd+Z and Cmd+Shift+Z.

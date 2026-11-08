@@ -33,15 +33,11 @@ test('removeVocabularyWord drops only that word', () => {
 
 describe('proofreadCoverageWarning', () => {
   test('is null when every line was checked', () => {
-    expect(proofreadCoverageWarning({ suggestions: [], failed_segment_ids: [] })).toBeNull();
+    expect(proofreadCoverageWarning(0)).toBeNull();
   });
 
   test('counts the lines that were not checked', () => {
-    expect(proofreadCoverageWarning({ suggestions: [], failed_segment_ids: ['a'] })).toBe(
-      "1 line couldn't be checked. Try Proofread again.",
-    );
-    expect(proofreadCoverageWarning({ suggestions: [], failed_segment_ids: ['a', 'b'] })).toBe(
-      "2 lines couldn't be checked. Try Proofread again.",
-    );
+    expect(proofreadCoverageWarning(1)).toBe("1 line couldn't be checked");
+    expect(proofreadCoverageWarning(2)).toBe("2 lines couldn't be checked");
   });
 });

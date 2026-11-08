@@ -16,7 +16,6 @@ import {
   idsBefore,
   popRedo,
   popUndo,
-  proofreadCoverageWarning,
   recordEdit,
   redoOps,
   undoOps,
@@ -43,6 +42,8 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
   const [history, setHistoryState] = useState<EditHistory>(EMPTY_HISTORY);
   const [suggestions, setSuggestions] = useState<CorrectionSuggestion[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  // Lines the last proofread couldn't check; shown until the next run or Dismiss All.
+  const [uncheckedLines, setUncheckedLines] = useState(0);
   const [findOpen, setFindOpen] = useState(false);
 
   // Mirrors state so async handlers and the key listener never read a stale stack.
@@ -283,9 +284,10 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     try {
       const result = await invoke<ProofreadResult>('suggest_transcript_corrections', { meetingId });
       setSuggestions(result.suggestions);
-      const warning = proofreadCoverageWarning(result);
-      if (warning) toast.warning(warning);
-      else if (result.suggestions.length === 0) toast.success('No corrections suggested');
+      setUncheckedLines(result.failed_segment_ids.length);
+      if (result.suggestions.length === 0 && result.failed_segment_ids.length === 0) {
+        toast.success('No corrections suggested');
+      }
     } catch (error) {
       console.error('Failed to get suggestions:', error);
       toast.error(`Could not get suggestions: ${errorMessage(error)}`);
@@ -299,7 +301,10 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     [],
   );
 
-  const dismissAllSuggestions = useCallback(() => setSuggestions([]), []);
+  const dismissAllSuggestions = useCallback(() => {
+    setSuggestions([]);
+    setUncheckedLines(0);
+  }, []);
 
   const acceptSuggestion = useCallback(
     async (suggestion: CorrectionSuggestion) => {
@@ -322,6 +327,12 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
             batch.after.push(...edit.after);
           }
           setSuggestions([]);
+          const applied = batch.after.length;
+          if (applied > 0) {
+            toast.success(`${applied} ${applied === 1 ? 'fix' : 'fixes'} applied`, {
+              description: 'Press ⌘Z to undo them all.',
+            });
+          }
         } finally {
           // If a write fails midway, the earlier ones are already saved, so
           // they must still be undoable and visible.
@@ -397,6 +408,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     replaceAll,
     suggestions: visibleSuggestions,
     isSuggesting,
+    uncheckedLines,
     requestSuggestions,
     acceptSuggestion,
     dismissSuggestion,

@@ -46,11 +46,10 @@ export const CORRECTION_CATEGORY_LABEL: Record<CorrectionCategory, string> = {
   punctuation: 'Punctuation',
 };
 
-/** The warning shown when part of a meeting couldn't be proofread, or null. */
-export function proofreadCoverageWarning(result: ProofreadResult): string | null {
-  const failed = result.failed_segment_ids.length;
-  if (failed === 0) return null;
-  return `${failed} ${failed === 1 ? 'line' : 'lines'} couldn't be checked. Try Proofread again.`;
+/** The note shown while part of a meeting couldn't be proofread, or null. */
+export function proofreadCoverageWarning(uncheckedLines: number): string | null {
+  if (uncheckedLines === 0) return null;
+  return `${uncheckedLines} ${uncheckedLines === 1 ? 'line' : 'lines'} couldn't be checked`;
 }
 
 export type SelectMode = 'single' | 'range' | 'toggle';
@@ -144,29 +143,74 @@ export function activeSuggestions(
   return suggestions.filter((s) => textById.get(s.segment_id) === s.original);
 }
 
-export interface DiffSpan {
-  prefix: string;
-  removed: string;
-  added: string;
-  suffix: string;
+export interface DiffPart {
+  kind: 'same' | 'removed' | 'added';
+  text: string;
 }
 
-/** Isolates the changed region between two lines, snapped to whole words. */
-export function diffSpan(original: string, suggested: string): DiffSpan {
-  const max = Math.min(original.length, suggested.length);
-
-  let p = 0;
-  while (p < max && original[p] === suggested[p]) p++;
-  while (p > 0 && original[p - 1] !== ' ') p--;
-
-  let s = 0;
-  while (s < max - p && original[original.length - 1 - s] === suggested[suggested.length - 1 - s]) s++;
-  while (s > 0 && original[original.length - s] !== ' ') s--;
-
-  return {
-    prefix: original.slice(0, p),
-    removed: original.slice(p, original.length - s),
-    added: suggested.slice(p, suggested.length - s),
-    suffix: original.slice(original.length - s),
+/**
+ * Word-level changes between a line and its fix, in reading order, so two
+ * small fixes in one line show as two small marks, not one struck sentence.
+ */
+export function diffWords(original: string, suggested: string): DiffPart[] {
+  // Whitespace stays a token of its own, so the parts rejoin to the exact lines.
+  const a = original.split(/(\s+)/).filter(Boolean);
+  const b = suggested.split(/(\s+)/).filter(Boolean);
+  const lcs: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
+    }
+  }
+  const parts: DiffPart[] = [];
+  const push = (kind: DiffPart['kind'], text: string) => {
+    const last = parts[parts.length - 1];
+    if (last?.kind === kind) last.text += text;
+    else parts.push({ kind, text });
   };
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      push('same', a[i]);
+      i++;
+      j++;
+    } else if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+      push('removed', a[i++]);
+    } else {
+      push('added', b[j++]);
+    }
+  }
+  while (i < a.length) push('removed', a[i++]);
+  while (j < b.length) push('added', b[j++]);
+  return groupChanges(parts);
+}
+
+/** One struck phrase and one new phrase per run of changed words ("all water foods" -> "Al Waha Foods"). */
+function groupChanges(parts: DiffPart[]): DiffPart[] {
+  const grouped: DiffPart[] = [];
+  let k = 0;
+  while (k < parts.length) {
+    if (parts[k].kind === 'same') {
+      grouped.push(parts[k++]);
+      continue;
+    }
+    let removed = '';
+    let added = '';
+    let end = k;
+    // A run continues across spaces that sit between two changes.
+    while (
+      end < parts.length &&
+      (parts[end].kind !== 'same' || (/^\s+$/.test(parts[end].text) && parts[end + 1] && parts[end + 1].kind !== 'same'))
+    ) {
+      const part = parts[end];
+      if (part.kind !== 'added') removed += part.text;
+      if (part.kind !== 'removed') added += part.text;
+      end++;
+    }
+    if (removed) grouped.push({ kind: 'removed', text: removed });
+    if (added) grouped.push({ kind: 'added', text: added });
+    k = end;
+  }
+  return grouped;
 }
