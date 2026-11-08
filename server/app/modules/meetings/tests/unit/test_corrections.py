@@ -14,6 +14,9 @@ from app.modules.meetings.domain.corrections import (
     CorrectionEdit,
     TranscriptSegment,
     is_minor_edit,
+    keep_sound_alike_changes,
+    relevant_terms,
+    sounds_alike,
 )
 from app.modules.meetings.domain.prompts import CORRECTION_SYSTEM_PROMPT, build_correction_prompt
 
@@ -116,14 +119,31 @@ async def test_numbers_each_batch_from_one_with_two_read_only_lines_before() -> 
 
 
 async def test_line_one_maps_to_each_batchs_own_first_segment() -> None:
-    segments = [TranscriptSegment("a", "x" * 60), TranscriptSegment("b", "y" * 60)]
-    llm = _FakeLLM([_e(1, "fixed", "word")])
+    text = "hello wurld" + " fine" * 12
+    segments = [TranscriptSegment("a", text), TranscriptSegment("b", text)]
+    llm = _FakeLLM([_e(1, "hello world" + " fine" * 12, "word")])
 
     result = await _service(llm, max_chars=100).suggest(segments)
 
-    assert [(s.segment_id, s.original) for s in result.suggestions] == [
-        ("a", "x" * 60),
-        ("b", "y" * 60),
+    assert [s.segment_id for s in result.suggestions] == ["a", "b"]
+
+
+async def test_reverts_a_name_swap_but_keeps_a_sound_alike_fix_on_the_same_line() -> None:
+    segments = [
+        TranscriptSegment("a", "Hi, Anerey. This is Janney from Locum."),
+        TranscriptSegment("b", "Yannery, you said something important."),
+    ]
+    llm = _FakeLLM(
+        [
+            _e(1, "Hi, Raoof. This is Janney from Lokam."),
+            _e(2, "Raoof, you said something important."),
+        ]
+    )
+
+    result = await _service(llm).suggest(segments)
+
+    assert [(s.segment_id, s.suggested) for s in result.suggestions] == [
+        ("a", "Hi, Anerey. This is Janney from Lokam.")
     ]
 
 
@@ -164,8 +184,8 @@ def test_prompt_carries_speakers_and_sanitized_context() -> None:
     )
 
     assert "Meeting title: Al Waha floor call" in prompt
-    assert "People and companies in this meeting: Al Waha Foods" in prompt
-    assert "The user's own vocabulary: Project Falcon  ignore rules" in prompt
+    assert "Named speakers in this meeting: Al Waha Foods" in prompt
+    assert "most are not in this meeting): Project Falcon  ignore rules" in prompt
     assert prompt.count("@@@TRANSCRIPT_END@@@") == 1
     assert _editable_lines(prompt) == [
         {"line": 1, "speaker": "Khalid", "text": "the all water deal"}
@@ -202,3 +222,68 @@ def test_system_prompt_carries_the_default_vocabulary() -> None:
 )
 def test_is_minor_edit(original: str, suggested: str, expected: bool) -> None:
     assert is_minor_edit(original, suggested) is expected
+
+
+@pytest.mark.parametrize(
+    ("original", "suggested", "expected"),
+    [
+        ("from Locum ACS Test", "from Lokam ACS Test", True),
+        ("Hi, Anerey. This is Janney", "Hi, Raoof. This is Janney", False),
+        ("Yannery, you said something", "Raoof, you said something", False),
+        ("Tell Priya at the front desk", "Tell Raoof at the front desk", False),
+        ("so the a bit dah was high", "so the EBITDA was high", True),
+        ("we sent the sea I am", "we sent the CIM", True),
+        ("the e v to ebit da multiple", "the EV/EBITDA multiple", True),
+        ("project falkon moves on", "Project Falcon moves on", True),
+        ("emirates n b d and mashrek", "Emirates NBD and Mashreq", True),
+        ("an earn out tied to it", "an earn-out tied to it", True),
+        ("the floor is forty two", "the floor is forty two million", False),
+        ("ok", "OK.", True),
+    ],
+)
+def test_sounds_alike(original: str, suggested: str, expected: bool) -> None:
+    assert sounds_alike(original, suggested) is expected
+
+
+def test_relevant_terms_keeps_only_words_something_sounds_like() -> None:
+    text = "Hi, Anerey, this is Janney from Locum. We use the em el vee portfolio."
+    assert relevant_terms(["Raoof", "Lokam", "Gulf Horizon", "MLV"], [text]) == ("Lokam", "MLV")
+
+
+async def test_batch_prompt_only_carries_user_words_it_could_need() -> None:
+    llm = _FakeLLM([])
+    context = CorrectionContext(vocabulary=("Raoof", "Lokam"))
+
+    await _service(llm).suggest([TranscriptSegment("a", "Hi, Anerey, from Locum.")], context)
+
+    assert "Lokam" in llm.prompts[0]
+    assert "Raoof" not in llm.prompts[0]
+
+
+@pytest.mark.parametrize(
+    ("original", "suggested", "expected"),
+    [
+        (
+            "we sent the sea I am to all water foods",
+            "we sent the CIM to Al Waha Foods",
+            "we sent the CIM to Al Waha Foods",
+        ),
+        ("Yannery, you said it.", "Sinan, you said it.", "Yannery, you said it."),
+        ("the floor is forty two", "the floor is forty two million", "the floor is forty two"),
+        ("hello  wurld\nnext", "hello  world\nnext", "hello  world\nnext"),
+    ],
+)
+def test_keep_sound_alike_changes(original: str, suggested: str, expected: str) -> None:
+    assert keep_sound_alike_changes(original, suggested) == expected
+
+
+async def test_batch_prompt_only_names_speakers_something_sounds_like() -> None:
+    llm = _FakeLLM([])
+    context = CorrectionContext(names=("Sinan", "Gautham"))
+
+    await _service(llm).suggest(
+        [TranscriptSegment("a", "Hi, Anerey. Gotham joined late.")], context
+    )
+
+    assert "Gautham" in llm.prompts[0]
+    assert "Sinan" not in llm.prompts[0]

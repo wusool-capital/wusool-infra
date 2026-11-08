@@ -175,10 +175,18 @@ switch between Arabic and Latin script. Letters spoken one at a time count as on
 word. It reports the stored text as `original`, which the app checks before
 applying a fix.
 
+Each change must also sound like the words it replaces (`sounds_alike`), so a
+fix can't swap one name for an unrelated one. A change that fails is put back,
+and the rest of that line's fix is kept. Each batch's prompt carries only the
+speaker names and user words that something in the batch sounds like. Shown a
+name, the model tended to rename strangers to it.
+
 `CORRECTION_MODEL_ID` and `CORRECTION_MAX_TOKENS` set the model and output
 budget. `scripts/eval_proofread.py` scores models against labelled excerpts.
-On 19 errors, Sonnet 4.6 caught 18 with no false fixes. Haiku 4.5 caught 17
-with none, in about two thirds of the time.
+On 20 errors, Sonnet 4.6 caught 19 with no false fixes. Haiku 4.5 caught 18
+with none, in about two thirds of the time. The set includes traps: user
+words and speaker names that never occur in the meeting, beside unfamiliar
+names that must stay.
 
 ## Interfaces
 
