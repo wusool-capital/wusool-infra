@@ -13,6 +13,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 
 * When a summary is ready, Scribe opens the meeting's **Summary** tab instead of leaving the transcript and its buttons behind the popup.
 * **Summarize** no longer runs off the edge of the toolbar in a narrow window.
+* A name typed in **Who Spoke?** saves when you click away, not only when you press Enter.
 * ▶ in **Who Spoke?** plays the voice again. It plays each voice's longest line, so you hear more of the person.
 
 ## 0.8.4

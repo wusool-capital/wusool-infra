@@ -249,6 +249,8 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [saving, setSaving] = useState(false);
+  // Enter or a picked suggestion moves focus on, so its blur must not save a second time; Escape must not save at all.
+  const settledRef = useRef(false);
   const listId = useId();
 
   const typed = value.trim().toLowerCase();
@@ -258,14 +260,24 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
   const showList = open && matches.length > 0;
 
   const commit = async (name: string) => {
-    if (!name.trim()) return;
+    if (!name.trim() || settledRef.current) return;
+    settledRef.current = true;
     setSaving(true);
     setOpen(false);
     try {
       await onSave(name);
     } finally {
+      settledRef.current = false;
       setSaving(false);
     }
+  };
+
+  // Leaving the box saves what was typed, since there is no Save button; an unchanged name just closes editing.
+  const handleBlur = () => {
+    setOpen(false);
+    if (settledRef.current) return;
+    if (value.trim() && value.trim() !== initial.trim()) void commit(value);
+    else if (initial) onCancel?.();
   };
 
   return (
@@ -290,8 +302,11 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
           setOpen(true);
           setActive(-1);
         }}
-        onFocus={() => setOpen(true)}
-        onBlur={() => setOpen(false)}
+        onFocus={() => {
+          settledRef.current = false;
+          setOpen(true);
+        }}
+        onBlur={handleBlur}
         onKeyDown={(e) => {
           if (e.key === 'ArrowDown' && matches.length > 0) {
             e.preventDefault();
@@ -304,8 +319,13 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
             e.preventDefault();
             void commit(showList && active >= 0 ? matches[active] : value);
           } else if (e.key === 'Escape') {
-            if (showList) setOpen(false);
-            else onCancel?.();
+            if (showList) {
+              setOpen(false);
+            } else {
+              settledRef.current = true;
+              setValue(initial);
+              onCancel?.();
+            }
           }
         }}
       />
