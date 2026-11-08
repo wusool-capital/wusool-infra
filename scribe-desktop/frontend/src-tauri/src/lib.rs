@@ -801,6 +801,8 @@ pub fn run() {
             push::update_meeting_tag,
             push::search_companies,
             push::suggest_transcript_corrections,
+            push::get_proofread_vocabulary,
+            push::set_proofread_vocabulary,
             push::get_saved_summary,
             push::sync_pushed_meetings,
             push::delete_remote_meeting,

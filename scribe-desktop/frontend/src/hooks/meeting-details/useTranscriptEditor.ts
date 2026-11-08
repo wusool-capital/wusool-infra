@@ -7,6 +7,7 @@ import {
   EMPTY_HISTORY,
   EMPTY_SELECTION,
   EditHistory,
+  ProofreadResult,
   SelectMode,
   SelectionState,
   TranscriptEdit,
@@ -15,6 +16,7 @@ import {
   idsBefore,
   popRedo,
   popUndo,
+  proofreadCoverageWarning,
   recordEdit,
   redoOps,
   undoOps,
@@ -279,9 +281,11 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
   const requestSuggestions = useCallback(async () => {
     setIsSuggesting(true);
     try {
-      const result = await invoke<CorrectionSuggestion[]>('suggest_transcript_corrections', { meetingId });
-      setSuggestions(result);
-      if (result.length === 0) toast.success('No corrections suggested');
+      const result = await invoke<ProofreadResult>('suggest_transcript_corrections', { meetingId });
+      setSuggestions(result.suggestions);
+      const warning = proofreadCoverageWarning(result);
+      if (warning) toast.warning(warning);
+      else if (result.suggestions.length === 0) toast.success('No corrections suggested');
     } catch (error) {
       console.error('Failed to get suggestions:', error);
       toast.error(`Could not get suggestions: ${errorMessage(error)}`);

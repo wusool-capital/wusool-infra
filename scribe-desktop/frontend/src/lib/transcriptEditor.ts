@@ -21,11 +21,36 @@ export interface TranscriptMatches {
   match_count: number;
 }
 
+export type CorrectionCategory = 'name' | 'term' | 'number' | 'word' | 'punctuation';
+
 export interface CorrectionSuggestion {
   segment_id: string;
   original: string;
   suggested: string;
+  /** Older servers send none. */
+  category?: CorrectionCategory | null;
   reason: string;
+}
+
+/** What `suggest_transcript_corrections` returns: suggestions plus lines the server couldn't check. */
+export interface ProofreadResult {
+  suggestions: CorrectionSuggestion[];
+  failed_segment_ids: string[];
+}
+
+export const CORRECTION_CATEGORY_LABEL: Record<CorrectionCategory, string> = {
+  name: 'Name',
+  term: 'Term',
+  number: 'Number',
+  word: 'Word',
+  punctuation: 'Punctuation',
+};
+
+/** The warning shown when part of a meeting couldn't be proofread, or null. */
+export function proofreadCoverageWarning(result: ProofreadResult): string | null {
+  const failed = result.failed_segment_ids.length;
+  if (failed === 0) return null;
+  return `${failed} ${failed === 1 ? 'line' : 'lines'} couldn't be checked. Try Proofread again.`;
 }
 
 export type SelectMode = 'single' | 'range' | 'toggle';

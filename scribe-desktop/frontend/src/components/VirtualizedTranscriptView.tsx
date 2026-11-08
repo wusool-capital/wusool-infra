@@ -24,7 +24,7 @@ import {
     ContextMenuTrigger,
 } from "./ui/context-menu";
 import { Check, X } from "lucide-react";
-import { CorrectionSuggestion, SelectMode, diffSpan } from "@/lib/transcriptEditor";
+import { CORRECTION_CATEGORY_LABEL, CorrectionSuggestion, SelectMode, diffSpan } from "@/lib/transcriptEditor";
 import type { TranscriptEditorApi } from "@/hooks/meeting-details/useTranscriptEditor";
 
 export interface VirtualizedTranscriptViewProps {
@@ -120,7 +120,14 @@ function SuggestionDiff({
                 {removed && <del className="text-destructive">{removed}</del>}
                 {removed && added && <span className="text-muted-foreground"> → </span>}
                 {added && <ins className="font-medium text-success no-underline">{added}</ins>}
-                <span className="ml-2 text-muted-foreground">{suggestion.reason}</span>
+                <span className="ml-2 text-muted-foreground">
+                    {suggestion.category && (
+                        <span className="mr-1.5 rounded bg-background px-1.5 py-0.5 text-xs font-medium text-foreground">
+                            {CORRECTION_CATEGORY_LABEL[suggestion.category]}
+                        </span>
+                    )}
+                    {suggestion.reason}
+                </span>
             </div>
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onAccept}>
                 <Check />

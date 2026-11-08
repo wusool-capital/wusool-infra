@@ -328,11 +328,21 @@ pub async fn search_companies<R: Runtime>(
 struct CorrectionSegment {
     segment_id: String,
     text: String,
+    speaker: String,
+}
+
+/// What the meeting is about, so the server's proofread knows which names to expect.
+#[derive(Debug, Serialize)]
+struct CorrectionContext {
+    title: Option<String>,
+    names: Vec<String>,
+    vocabulary: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct CorrectionRequest {
     segments: Vec<CorrectionSegment>,
+    context: CorrectionContext,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -340,12 +350,71 @@ pub struct CorrectionSuggestion {
     pub segment_id: String,
     pub original: String,
     pub suggested: String,
+    /// name, term, number, word or punctuation; older servers send none.
+    #[serde(default)]
+    pub category: Option<String>,
     pub reason: String,
+}
+
+/// Suggestions plus which lines the server could not check.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ProofreadResult {
+    pub suggestions: Vec<CorrectionSuggestion>,
+    #[serde(default)]
+    pub failed_segment_ids: Vec<String>,
+}
+
+const PROOFREAD_STORE: &str = "proofread.json";
+const PROOFREAD_VOCABULARY_KEY: &str = "vocabulary";
+/// Matches the server's caps, so a long list is trimmed here, not rejected there.
+const MAX_VOCABULARY_WORDS: usize = 200;
+const MAX_CONTEXT_ITEM_CHARS: usize = 80;
+const MAX_CONTEXT_NAMES: usize = 100;
+
+/// Trimmed, de-duplicated (ignoring case), each within the server's length cap.
+fn normalize_vocabulary(words: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    words
+        .into_iter()
+        .map(|w| w.split_whitespace().collect::<Vec<_>>().join(" "))
+        .map(|w| w.chars().take(MAX_CONTEXT_ITEM_CHARS).collect::<String>())
+        .filter(|w| !w.is_empty() && seen.insert(w.to_lowercase()))
+        .take(MAX_VOCABULARY_WORDS)
+        .collect()
+}
+
+fn load_proofread_vocabulary<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+    app.store(PROOFREAD_STORE)
+        .ok()
+        .and_then(|store| store.get(PROOFREAD_VOCABULARY_KEY))
+        .and_then(|value| serde_json::from_value::<Vec<String>>(value).ok())
+        .map(normalize_vocabulary)
+        .unwrap_or_default()
+}
+
+/// The user's own words for proofread, on top of the server's default list.
+#[tauri::command]
+pub async fn get_proofread_vocabulary<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, String> {
+    Ok(load_proofread_vocabulary(&app))
+}
+
+#[tauri::command]
+pub async fn set_proofread_vocabulary<R: Runtime>(
+    app: AppHandle<R>,
+    words: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let words = normalize_vocabulary(words);
+    let store = app.store(PROOFREAD_STORE).map_err(|e| e.to_string())?;
+    store.set(PROOFREAD_VOCABULARY_KEY, serde_json::json!(words));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(words)
 }
 
 #[derive(Debug, Deserialize)]
 struct CorrectionResponse {
     suggestions: Vec<CorrectionSuggestion>,
+    #[serde(default)]
+    failed_segment_ids: Vec<String>,
 }
 
 /// Runs in Rust, not JS, so the push API key never reaches the webview.
@@ -354,25 +423,54 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_id: String,
-) -> Result<Vec<CorrectionSuggestion>, String> {
+) -> Result<ProofreadResult, String> {
     let config = load_push_config(&app);
     if config.server_url.trim().is_empty() {
         return Err("Push destination is not configured. Set it in Settings.".to_string());
     }
 
-    let rows = TranscriptsRepository::list_meeting_rows(state.db_manager.pool(), &meeting_id)
+    let pool = state.db_manager.pool();
+    let rows = TranscriptsRepository::list_meeting_rows(pool, &meeting_id)
         .await
         .map_err(|e| format!("Failed to load transcript: {}", e))?;
-    let body = CorrectionRequest {
-        segments: rows
-            .into_iter()
-            .filter(|r| !r.transcript.trim().is_empty())
-            .map(|r| CorrectionSegment { segment_id: r.id, text: r.transcript })
-            .collect(),
-    };
-    if body.segments.is_empty() {
-        return Ok(Vec::new());
+    let speaker_names: HashMap<SpeakerLabel, String> = SpeakerRepository::meeting_speakers(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load speakers for {}: {}", meeting_id, e))?
+        .into_iter()
+        .filter_map(|s| Some((s.label, s.name?)))
+        .collect();
+    let self_name = crate::diarization::commands::load_self_name(&app);
+    let title = MeetingsRepository::get_meeting_metadata(pool, &meeting_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|m| m.title)
+        .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
+
+    let segments: Vec<CorrectionSegment> = rows
+        .into_iter()
+        .filter(|r| !r.transcript.trim().is_empty())
+        .map(|r| CorrectionSegment {
+            speaker: speaker_display_name(r.speaker, &speaker_names, self_name.as_deref()),
+            segment_id: r.id,
+            text: r.transcript,
+        })
+        .collect();
+    if segments.is_empty() {
+        return Ok(ProofreadResult { suggestions: Vec::new(), failed_segment_ids: Vec::new() });
     }
+    let mut names: Vec<String> = self_name.into_iter().chain(speaker_names.into_values()).collect();
+    names.sort();
+    names.dedup();
+    let names = normalize_vocabulary(names).into_iter().take(MAX_CONTEXT_NAMES).collect();
+    let body = CorrectionRequest {
+        segments,
+        context: CorrectionContext {
+            title: title.map(|t| t.chars().take(200).collect()),
+            names,
+            vocabulary: load_proofread_vocabulary(&app),
+        },
+    };
 
     let url = format!("{}/desktop/transcripts/corrections", config.server_url.trim_end_matches('/'));
     // Long meetings are chunked server-side across several LLM calls, and the
@@ -398,7 +496,7 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
     }
 
     serde_json::from_str::<CorrectionResponse>(&response_text)
-        .map(|r| r.suggestions)
+        .map(|r| ProofreadResult { suggestions: r.suggestions, failed_segment_ids: r.failed_segment_ids })
         .map_err(|e| format!("Server returned an unexpected response: {}", e))
 }
 
@@ -1268,5 +1366,31 @@ mod sync_tests {
         let summary = serde_json::json!({"executive_summary": "Gist.", "action_items": ["x"]});
         assert_eq!(format_summary_markdown(&summary, None), "# Meeting Summary\n\nGist.");
         assert_eq!(format_summary_markdown(&serde_json::json!({}), None), "# Meeting Summary");
+    }
+
+    #[test]
+    fn proofread_vocabulary_is_trimmed_deduplicated_and_capped() {
+        let words = vec![
+            "  Project   Falcon ".to_string(),
+            "project falcon".to_string(),
+            "".to_string(),
+            "x".repeat(120),
+        ];
+        let normalized = normalize_vocabulary(words);
+        assert_eq!(normalized[0], "Project Falcon");
+        assert_eq!(normalized.len(), 2);
+        assert_eq!(normalized[1].chars().count(), MAX_CONTEXT_ITEM_CHARS);
+        let many: Vec<String> = (0..300).map(|i| format!("w{i}")).collect();
+        assert_eq!(normalize_vocabulary(many).len(), MAX_VOCABULARY_WORDS);
+    }
+
+    #[test]
+    fn older_server_response_still_parses() {
+        let parsed: CorrectionResponse = serde_json::from_str(
+            r#"{"suggestions":[{"segment_id":"a","original":"x","suggested":"y","reason":"r"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.suggestions[0].category, None);
+        assert!(parsed.failed_segment_ids.is_empty());
     }
 }

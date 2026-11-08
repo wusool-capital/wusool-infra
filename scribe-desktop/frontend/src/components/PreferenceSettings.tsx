@@ -8,6 +8,7 @@ import Analytics from "@/lib/analytics"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
 import { useTheme } from "@/contexts/ThemeContext"
 import { SpeakerSettings } from "./SpeakerSettings"
+import { ProofreadVocabularySettings } from "./ProofreadVocabularySettings"
 import { SettingsRow, SettingsSection } from "./settings/SettingsSection"
 import { Button } from "./ui/button"
 
@@ -178,6 +179,8 @@ export function PreferenceSettings() {
       </SettingsSection>
 
       <SpeakerSettings />
+
+      <ProofreadVocabularySettings />
 
       <SettingsSection title="Storage">
         {/* Database and models locations were hidden before this layout; kept for reference.

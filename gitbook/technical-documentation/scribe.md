@@ -153,6 +153,30 @@ again doesn't recover a failed meeting. Instead, a meeting stalled for 10
 minutes is reset the next time its status is read, which re-runs the
 summary.
 
+### Proofread
+
+`CorrectionService` (`server/app/modules/meetings/application/corrections.py`)
+splits a transcript into batches of about 12,000 characters, four at a time.
+Each batch numbers its lines from 1, so the model returns short line numbers
+instead of segment ids and never repeats the original text. The two lines
+before a batch go along as read-only context.
+
+The system prompt holds the rules and a default vocabulary of deal, finance
+and GCC terms (`domain/vocabulary.py`). It is the same for every batch, so
+Bedrock caches it. The user's own words, the speaker names and the meeting
+title arrive per request, trimmed and capped.
+
+The server drops a suggestion for an unknown line, a repeat or no change. It
+also drops a rewrite: more than three changed words or 40% of the line, or a
+switch between Arabic and Latin script. Letters spoken one at a time count as one
+word. It reports the stored text as `original`, which the app checks before
+applying a fix.
+
+`CORRECTION_MODEL_ID` and `CORRECTION_MAX_TOKENS` set the model and output
+budget. `evals/eval_proofread.py` scores models against labelled excerpts.
+On 19 errors, Sonnet 4.6 caught 18 with no false fixes. Haiku 4.5 caught 17
+with none, in about two thirds of the time.
+
 ## Interfaces
 
 Every `/desktop/*` call needs the shared desktop API key as a bearer token,
@@ -166,7 +190,7 @@ compared in constant time.
 | `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
 | `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
 | `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |
-| `POST /desktop/transcripts/corrections` | Sends transcript lines to Bedrock for spelling suggestions. Nothing is stored. |
+| `POST /desktop/transcripts/corrections` | Sends transcript lines, with speaker names and optional `context` (title, names, the user's vocabulary), to Bedrock for spelling suggestions. Returns each fix with a category, plus `failed_segment_ids` for lines in batches that errored. Nothing is stored. |
 | `POST /desktop/feedback` | Records in-app feedback and emails the team. |
 
 Internal Tauri commands aren't a public integration API.

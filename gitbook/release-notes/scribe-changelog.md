@@ -21,6 +21,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * New meetings are named like "Meeting · 7 Nov, 18:22" instead of a file-style timestamp. Your own titles are never replaced by the summary's title.
 * Dialogs look sharp instead of slightly blurry, with a lighter background behind them. **Rename Meeting** selects the current name so you can type over it.
 * Summaries are shorter and easier to scan. A 2–3 sentence gist comes first, then next steps with the owner's name, decisions, and notes by topic. Buyer, seller and investor meetings also show a deal signal: momentum, claims to verify and risks. Notes grow with the meeting, from 1–2 topics for a short call to up to 8 for a 90-minute meeting. Older summaries keep their longer opening.
+* **Proofread** catches more misheard names and terms. It knows common deal, finance and GCC terms, plus the meeting's speakers and title. Add your own words in **Settings → General → Proofread**. Each fix shows its type, and Scribe says when part of a long meeting couldn't be checked.
 * **Send feedback** fills in the name you gave under **Speakers** in Settings, so you don't have to type it again.
 
 ### Fixed

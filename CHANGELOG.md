@@ -16,6 +16,10 @@ for current production evidence and open handover items.
   and notes by topic follow, plus a deal signal for buyer, seller and
   investor meetings. Notes grow with the meeting instead of a fixed 1,500-word cap.
   The Attio note, Scribe and the matching engine all get the new order.
+- Proofread sends the meeting's speakers, title and the user's own
+  vocabulary, on top of a default list of deal, finance and GCC terms. The
+  server rejects rewrites and reports lines it couldn't check. A labelled
+  test set scores models: Sonnet 4.6 caught 18 of 19 errors, no false fixes.
 - Matching reads each meeting summary whole instead of cutting it at 3,000
   characters. Each prompt holds up to 24,000 characters of meeting notes and
   always includes the newest and oldest meetings.
