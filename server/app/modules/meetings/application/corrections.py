@@ -33,6 +33,7 @@ from app.modules.meetings.domain.prompts import (
     build_correction_prompt,
     sanitize_segment_text,
 )
+from app.modules.meetings.domain.vocabulary import COMMON_NAMES
 
 __all__ = ["CorrectionService"]
 
@@ -124,16 +125,16 @@ class CorrectionService:
 
 def _for_batch(
     context: CorrectionContext | None, segments: Sequence[TranscriptSegment]
-) -> CorrectionContext | None:
-    """Only the names and user words that something in this batch sounds like:
+) -> CorrectionContext:
+    """Only the names and words that something in this batch sounds like:
     the model renamed strangers to whichever name it was shown."""
-    if context is None:
-        return context
     texts = [segment.text for segment in segments]
+    context = context or CorrectionContext()
     return replace(
         context,
         names=relevant_terms(context.names, texts),
         vocabulary=relevant_terms(context.vocabulary, texts),
+        common_names=relevant_terms(COMMON_NAMES, texts),
     )
 
 

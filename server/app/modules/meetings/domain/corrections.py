@@ -31,8 +31,18 @@ _ARABIC = re.compile("[\u0600-\u06ff]")
 # Below this, the heard words and the fix don't sound alike: a different word, not a mishearing.
 _MIN_SOUND_SIMILARITY = 0.5
 # A spelling-list word joins a batch's prompt only if something said there sounds this close.
-_MIN_TERM_SIMILARITY = 0.6
+_MIN_TERM_SIMILARITY = 0.7
 _MAX_WINDOW_WORDS = 3
+# Everyday words that sound like short names ("said" ~ Saeed): never a name match on their own.
+_COMMON_WORDS = frozenset(
+    """a about after all also am an and any are as at be because been but by can
+    come could day did do does done for from get go going good got had has have
+    he her here hi him his how i if in into is it its just know like look make
+    me more my no not now of off ok okay on one only or other our out over said
+    say see she so some take than that the their them then there these they
+    think this time to too two up us very want was way we well were what when
+    which who why will with would yeah yes you your""".split()
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +59,7 @@ class CorrectionContext:
     title: str | None = None
     names: tuple[str, ...] = ()
     vocabulary: tuple[str, ...] = ()
+    common_names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -140,7 +151,10 @@ def _sound_key(text: str) -> str:
 
 
 def _is_acronym(word: str) -> bool:
-    return 2 <= len(word) <= 6 and sum(ch.isupper() for ch in word) >= 2
+    """CIM, CI/CD, QoE: short and almost all capitals. "AlSaid" is a name."""
+    letters = [ch for ch in word if ch.isalpha()]
+    upper = sum(ch.isupper() for ch in letters)
+    return 2 <= len(letters) <= 6 and upper >= 2 and upper >= len(letters) - 1
 
 
 def sounds_alike(original: str, suggested: str) -> bool:
@@ -171,26 +185,32 @@ def relevant_terms(terms: Sequence[str], texts: Sequence[str]) -> tuple[str, ...
 
     A word the model sees, it tries to use: given "Raoof" it renamed
     unrelated people to Raoof. So a batch only gets the words that could be
-    misheard in it. Acronyms always go, since spoken letters don't spell like
-    them. Starting with the same sound is required, which keeps this cheap.
+    misheard in it, compared against phrases of about the word's own length
+    ("ra oof" for Raoof). Acronyms always go, since spoken letters don't spell
+    like them. Starting with the same sound is required, which keeps this cheap.
     """
-    windows: dict[str, set[str]] = {}
+    # Windows by word count, then by their opening sound.
+    windows: dict[tuple[int, str], set[str]] = {}
     for text in texts:
         words = _words(text)
         for size in range(1, _MAX_WINDOW_WORDS + 1):
             for start in range(len(words) - size + 1):
+                if size == 1 and words[start] in _COMMON_WORDS:
+                    continue
                 key = _sound_key("".join(words[start : start + size]))
-                windows.setdefault(key[:1], set()).add(key)
+                windows.setdefault((size, key[:1]), set()).add(key)
     kept: list[str] = []
     for term in terms:
         if _is_acronym(re.sub(r"[^\w]", "", term)):
             kept.append(term)
             continue
-        target = _sound_key("".join(_words(term)))
-        candidates = windows.get(target[:1], ())
+        term_words = _words(term)
+        target = _sound_key("".join(term_words))
+        sizes = range(len(term_words), min(len(term_words) + 1, _MAX_WINDOW_WORDS) + 1)
         if any(
             SequenceMatcher(None, target, candidate).ratio() >= _MIN_TERM_SIMILARITY
-            for candidate in candidates
+            for size in sizes
+            for candidate in windows.get((size, target[:1]), ())
             if abs(len(candidate) - len(target)) <= max(2, len(target) // 2)
         ):
             kept.append(term)

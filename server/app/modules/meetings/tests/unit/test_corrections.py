@@ -239,6 +239,9 @@ def test_is_minor_edit(original: str, suggested: str, expected: bool) -> None:
         ("an earn out tied to it", "an earn-out tied to it", True),
         ("the floor is forty two", "the floor is forty two million", False),
         ("ok", "OK.", True),
+        ("the queue of e report", "the QoE report", True),
+        # A family name is not an acronym, so it must still sound alike.
+        ("Hi, Anerey", "Hi, Al Said", False),
     ],
 )
 def test_sounds_alike(original: str, suggested: str, expected: bool) -> None:
@@ -287,3 +290,14 @@ async def test_batch_prompt_only_names_speakers_something_sounds_like() -> None:
 
     assert "Gautham" in llm.prompts[0]
     assert "Sinan" not in llm.prompts[0]
+
+
+async def test_common_names_reach_a_batch_only_when_something_sounds_like_them() -> None:
+    llm = _FakeLLM([])
+
+    await _service(llm).suggest([TranscriptSegment("a", "fay sal will join, and Anerey too.")])
+
+    assert "Common names, for spelling only" in llm.prompts[0]
+    assert "Faisal" in llm.prompts[0]
+    assert "Mohammed" not in llm.prompts[0]
+    assert "Mohammed" not in CORRECTION_SYSTEM_PROMPT

@@ -449,6 +449,30 @@
           "keep": true
         }
       ]
+    },
+    {
+      "name": "misheard Gulf name",
+      "context": {
+        "title": "Seller intro",
+        "names": [],
+        "vocabulary": []
+      },
+      "lines": [
+        {
+          "id": "1",
+          "speaker": "Speaker 1",
+          "text": "fay sal will join us from the seller side next week.",
+          "fix": [
+            "Faisal"
+          ]
+        },
+        {
+          "id": "2",
+          "speaker": "Speaker 2",
+          "text": "Good, and Ingrid from the bank will send the term sheet.",
+          "keep": true
+        }
+      ]
     }
   ]
 }

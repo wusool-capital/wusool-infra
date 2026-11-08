@@ -1066,6 +1066,11 @@ def _correction_context_block(context: CorrectionContext) -> str:
             "The user's spelling list (words they often need; most are not in this "
             "meeting): " + ", ".join(words)
         )
+    common = [n for n in (_sanitize_label(n) for n in context.common_names) if n]
+    if common:
+        parts.append(
+            "Common names, for spelling only (not people in this meeting): " + ", ".join(common)
+        )
     if not parts:
         return ""
     start, end = _COMPANY_DELIMITER
