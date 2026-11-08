@@ -16,9 +16,10 @@ for current production evidence and open handover items.
   and notes by topic follow, plus a deal signal for buyer, seller and
   investor meetings. Notes grow with the meeting instead of a fixed 1,500-word cap.
   The Attio note, Scribe and the matching engine all get the new order.
-- The meetings server module calls Bedrock through Pydantic AI agents. They
-  validate the summary schema and retry once when a gist or note breaks the
-  length rules.
+- Every Bedrock call in the server now runs through Pydantic AI agents:
+  meetings, matching, enrichment, discrepancies and the website lead tools.
+  Each validates its schema and returns typed results. Meeting summaries
+  also retry once when a gist or note breaks the length rules.
 
 ## 2026-11-07
 

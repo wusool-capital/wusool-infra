@@ -16,6 +16,7 @@ from app.modules.meetings.providers.bedrock import client as client_module
 from app.modules.meetings.providers.bedrock.client import BedrockConverseClient
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
+from app.modules.utilities.providers.bedrock import agent as agent_module
 
 _SECRET = "Khalid's floor is AED 42m"
 
@@ -46,7 +47,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> BedrockConverseClient:
         "get_bedrock_runtime_client",
         lambda: boto3.client("bedrock-runtime", region_name="eu-central-1"),
     )
-    monkeypatch.setattr(client_module, "_BASE_DELAY_SECONDS", 0.0)
+    monkeypatch.setattr(agent_module, "_BASE_DELAY_SECONDS", 0.0)
     return BedrockConverseClient()
 
 

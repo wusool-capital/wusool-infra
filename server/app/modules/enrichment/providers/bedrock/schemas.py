@@ -3,16 +3,13 @@ DTO. Never trust raw LLM text past this boundary.
 
 `confidence` stays the raw `high`/`medium`/`low` label here — this schema
 only validates Bedrock's shape. The single confidence->score mapping lives
-in `application/enrich.py`, since a `.model_dump()`'d schema (what actually
-crosses the `ExtractionClient` Port) discards computed properties, so a
-property here would be unreachable dead code.
+in `application/enrich.py`; only the domain `ExtractedField`s from
+`to_domain()` cross the `ExtractionClient` Port.
 """
-
-from typing import Literal
 
 from pydantic import BaseModel, Field
 
-ConfidenceLevel = Literal["high", "medium", "low"]
+from app.modules.enrichment.domain.proposals import ConfidenceLevel, ExtractedField
 
 
 class ExtractedFieldValue(BaseModel):
@@ -30,3 +27,15 @@ class ExtractedFields(BaseModel):
     """
 
     fields: list[ExtractedFieldValue] = Field(default_factory=list)
+
+    def to_domain(self) -> tuple[ExtractedField, ...]:
+        return tuple(
+            ExtractedField(
+                field_name=f.field_name,
+                value=f.value,
+                source_url=f.source_url,
+                confidence=f.confidence,
+                rationale=f.rationale,
+            )
+            for f in self.fields
+        )

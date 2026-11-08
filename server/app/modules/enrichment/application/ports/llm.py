@@ -1,16 +1,13 @@
 """The provider-agnostic seam `EnrichMixin` depends on for turning source
 material into field proposals. Each implementation owns its own
-validate-repair-retry-then-fail-closed policy internally and returns a
-plain, already-validated `dict` — never the Pydantic schema itself, which
-must not cross this Port. Mirrors `matching_engine.application.ports.llm`.
+validate-retry-then-fail-closed policy internally and returns
+already-validated domain `ExtractedField`s — never the Pydantic schema
+itself, which must not cross this Port.
 """
 
-from collections.abc import Callable
 from typing import Protocol
 
-from app.modules.utilities.domain.json_types import JsonObject
-
-RepairPromptBuilder = Callable[[JsonObject, str], str]
+from app.modules.enrichment.domain.proposals import ExtractedField
 
 
 class ExtractionClient(Protocol):
@@ -19,7 +16,6 @@ class ExtractionClient(Protocol):
         *,
         model_id: str,
         prompt: str,
-        repair_prompt_builder: RepairPromptBuilder,
         temperature: float,
         max_tokens: int,
-    ) -> JsonObject: ...
+    ) -> tuple[ExtractedField, ...]: ...

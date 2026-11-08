@@ -29,7 +29,7 @@ def target() -> EnrichmentTarget:
 def _service(review_port: FakeReviewPort) -> EnrichmentService:
     return EnrichmentService(
         research_client=FakeResearchClient(),
-        extraction_client=FakeExtractionClient({"fields": []}),
+        extraction_client=FakeExtractionClient(),
         role_reader=FakeRoleReader({}),
         review_port=review_port,
         model_id="test-model",
