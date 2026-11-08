@@ -29,6 +29,7 @@ dependencies = [
     "playwright>=1.49",
     "nh3>=0.3.7",
     "posthog[async]>=7.45.0",
+    "pydantic-ai-slim[bedrock]>=2.66,<3",
 ]
 
 [dependency-groups]

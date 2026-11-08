@@ -188,9 +188,13 @@ constructed?", the answer is always `bootstrap.py`.
 ### Talking to someone else's API (`providers/`)
 
 - **`bedrock/`** — calls AWS Bedrock to actually run the LLM.
-  `client.py` is the interesting one (retry logic, timeout handling,
-  forcing the model to return well-shaped JSON); `boto_client.py` and
-  `schemas.py` are supporting plumbing.
+  `client.py` is the interesting one: two Pydantic AI agents whose output
+  type is a schema, so Bedrock is forced to return well-shaped JSON and the
+  agent validates it. A summary that breaks the length rules
+  (`summary_limit_issues` in `domain/summary.py`) gets one retry, and
+  transient AWS errors are retried around the whole run. `boto_client.py`
+  (the 300s timeout) and `schemas.py` (the output types) are supporting
+  plumbing.
 - **`app.modules.attio`'s `notes.py`** — files a note in Attio's CRM. Failure here
   is never allowed to fail the meeting itself — see its docstring.
 

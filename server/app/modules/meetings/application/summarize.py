@@ -3,12 +3,9 @@
 `MatchReasoningService` sits outside its own mixin facade (see
 `application/base.py`'s docstring there).
 
-Ported from Scribe's `app.ai.summarizer.HierarchicalSummarizer`, converting
-its output into this module's own `MeetingSummary`/`SummaryNote` domain
-dataclasses instead of Scribe's `app.ai.domain.MeetingSummary`.
-`providers/bedrock/schemas.py` deliberately stops at a validated dict — the
-dict -> domain-dataclass conversion is this module's job instead, so it
-happens once, in the one place that already needs the domain type.
+Ported from Scribe's `app.ai.summarizer.HierarchicalSummarizer`. The
+`SummarizerLLM` port returns validated `MeetingSummary` objects, so this
+module only orchestrates the single-pass or map-reduce calls.
 """
 
 from __future__ import annotations
@@ -16,8 +13,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping
-from dataclasses import replace
-from typing import Any
+from dataclasses import asdict, replace
 
 from app.modules.meetings.application.ports.summarizer_llm import SummarizerLLM
 from app.modules.meetings.domain.chunking import chunk_text
@@ -29,8 +25,7 @@ from app.modules.meetings.domain.prompts import (
     summary_budget,
 )
 from app.modules.meetings.domain.roles import MeetingRole, momentum_applies
-from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.meetings.domain.summary import MeetingSummary
 
 __all__ = ["SummarizationService"]
 
@@ -50,40 +45,6 @@ _NO_CONTENT_SUMMARY = MeetingSummary(
         "transcript was empty or too short."
     ),
 )
-
-_STRING_LIST_KEYS = ("decisions", "action_items", "claims_to_verify", "risks", "keywords")
-
-
-def _to_notes(value: Any) -> list[SummaryNote]:
-    if not isinstance(value, list):
-        return []
-    notes: list[SummaryNote] = []
-    for item in value:
-        if not isinstance(item, dict):
-            continue
-        topic = str(item.get("topic", ""))
-        points = item.get("points", [])
-        note_points = list(points) if isinstance(points, list) else []
-        notes.append(SummaryNote(topic=topic, points=note_points))
-    return notes
-
-
-def _to_meeting_summary(data: JsonObject) -> MeetingSummary:
-    """Convert the validated dict `SummarizerLLM.summarize` returns into
-    this module's `MeetingSummary`. `BedrockConverseClient.summarize`
-    already validates the shape against `MeetingSummarySchema` before
-    returning, so this doesn't need to redo Scribe's degrade-don't-raise
-    dict-coercion dance — but it still reads with `.get(key, default)`
-    rather than bare indexing, defensively, in case a future provider swap
-    is less strict than Bedrock's forced-tool-call schema.
-    """
-    return MeetingSummary(
-        title=str(data.get("title", "")),
-        executive_summary=str(data.get("executive_summary", "")),
-        notes=_to_notes(data.get("notes")),
-        deal_momentum=str(data.get("deal_momentum", "")),
-        **{key: list(data.get(key, [])) for key in _STRING_LIST_KEYS},
-    )
 
 
 def _without_stray_momentum(
@@ -142,12 +103,13 @@ class SummarizationService:
 
         if len(chunks) <= 1:
             single = chunks[0] if chunks else ""
-            raw = await self._call_llm(
+            summary = await self._call_llm(
                 build_single_pass_summary_prompt(
                     single, budget=budget, companies=companies, meeting_date=meeting_date
-                )
+                ),
+                check_limits=True,
             )
-            return _without_stray_momentum(_to_meeting_summary(raw), companies)
+            return _without_stray_momentum(summary, companies)
 
         # MAP: one summarize() call per chunk. Run concurrently — unlike
         # Scribe, which does this serially — since nothing here forbids
@@ -158,7 +120,8 @@ class SummarizationService:
                 self._call_llm(
                     build_chunk_summary_prompt(
                         chunk, companies=companies, meeting_date=meeting_date
-                    )
+                    ),
+                    check_limits=False,
                 )
                 for chunk in chunks
             )
@@ -168,17 +131,18 @@ class SummarizationService:
         # _call_llm) — the map step's prompt asks it to favor completeness
         # over brevity and preserve every figure verbatim, which a smaller
         # budget would quietly work against.
-        merge_raw = await self._call_llm(
+        merged = await self._call_llm(
             build_merge_prompt(
-                [json.dumps(summary) for summary in chunk_summaries],
+                [json.dumps(asdict(summary)) for summary in chunk_summaries],
                 budget=budget,
                 companies=companies,
                 meeting_date=meeting_date,
-            )
+            ),
+            check_limits=True,
         )
-        return _without_stray_momentum(_to_meeting_summary(merge_raw), companies)
+        return _without_stray_momentum(merged, companies)
 
-    async def _call_llm(self, prompt: str) -> JsonObject:
+    async def _call_llm(self, prompt: str, *, check_limits: bool) -> MeetingSummary:
         # temperature=0.0 always: summarization wants the same deterministic-
         # leaning output every time, not creative variation, and every call
         # (single-pass/map/reduce alike) shares the same max_tokens ceiling
@@ -189,4 +153,5 @@ class SummarizationService:
             system_prompt=SYSTEM_PROMPT,
             max_tokens=self._summary_max_tokens,
             temperature=0.0,
+            check_limits=check_limits,
         )

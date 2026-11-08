@@ -1,6 +1,6 @@
 """Shared bounded-retry-with-logging wrapper around one Bedrock `converse`
-call. `enrichment`'s, `lead_magnets`' and `meetings`' own clients each
-carried a byte-identical `_is_retryable`/`_delay_seconds`/`_invoke`
+call. `enrichment`'s and `lead_magnets`' own clients (and `meetings`',
+before it moved to Pydantic AI) each carried a byte-identical `_is_retryable`/`_delay_seconds`/`_invoke`
 scaffolding around `retry_with_backoff` despite differing in the
 validation policy layered on top (single-attempt-raise vs.
 validate-repair-retry) — this factors out exactly the identical part, the

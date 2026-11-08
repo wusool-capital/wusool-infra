@@ -51,7 +51,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-__all__ = ["MeetingSummary", "SummaryNote"]
+__all__ = ["MeetingSummary", "SummaryNote", "summary_limit_issues"]
+
+# The prompt asks for 60 and 25 words; the slack means a retry is only paid for a clear overshoot.
+_GIST_WORD_LIMIT = 75
+_POINT_WORD_LIMIT = 35
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,3 +83,27 @@ class MeetingSummary:
         one bullet per keyword.
         """
         return ", ".join(self.keywords)
+
+
+def summary_limit_issues(summary: MeetingSummary) -> list[str]:
+    """Length rules the model broke clearly enough to be worth a retry.
+
+    The messages go back to the model, so they name fields and counts only,
+    never the summary's own words.
+    """
+    issues: list[str] = []
+    gist_words = len(summary.executive_summary.split())
+    if gist_words > _GIST_WORD_LIMIT:
+        issues.append(f"executive_summary has {gist_words} words; rewrite it in 60 words or fewer.")
+    long_points = sum(
+        1
+        for note in summary.notes
+        for point in note.points
+        if len(point.split()) > _POINT_WORD_LIMIT
+    )
+    if long_points:
+        issues.append(
+            f"{long_points} notes points run over 25 words; shorten each to 25 words or "
+            "fewer, keeping every figure."
+        )
+    return issues

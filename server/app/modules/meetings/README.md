@@ -74,9 +74,10 @@ meetings/
                        #   organization lookup (wraps `organizations`),
                        #   role lookup (queries buyer_roles/seller_roles
                        #   directly -- no owning module to wrap)
-  providers/          # bedrock/ (forced-tool-call Converse client, its own
-                       #   300s-timeout boto client — deliberately not
-                       #   shared with matching_engine's), attio/ (note push)
+  providers/          # bedrock/ (Pydantic AI agents with forced tool output
+                       #   over Converse, on its own 300s-timeout boto
+                       #   client — deliberately not shared with
+                       #   matching_engine's), attio/ (note push)
   api/                # router.py facade + one file per desktop endpoint,
                        #   Bearer DESKTOP_API_KEY auth
   tests/

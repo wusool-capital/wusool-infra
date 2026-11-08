@@ -17,7 +17,6 @@ from app.modules.meetings.domain.prompts import (
 from app.modules.meetings.domain.rendering import render_summary_text
 from app.modules.meetings.domain.roles import MeetingRole
 from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
-from app.modules.utilities.domain.json_types import JsonObject
 
 _SHORT = SummaryBudget(min_topics=1, max_topics=2, max_words=120)
 _MEDIUM = SummaryBudget(min_topics=3, max_topics=4, max_words=350)
@@ -114,10 +113,17 @@ class _RecordingLLM:
         self.deal_momentum = deal_momentum
 
     async def summarize(
-        self, *, model_id: str, prompt: str, system_prompt: str, max_tokens: int, temperature: float
-    ) -> JsonObject:
+        self,
+        *,
+        model_id: str,
+        prompt: str,
+        system_prompt: str,
+        max_tokens: int,
+        temperature: float,
+        check_limits: bool,
+    ) -> MeetingSummary:
         self.prompts.append(prompt)
-        return {"title": "t", "executive_summary": "g", "deal_momentum": self.deal_momentum}
+        return MeetingSummary(title="t", executive_summary="g", deal_momentum=self.deal_momentum)
 
 
 def test_service_sizes_budget_from_whole_transcript() -> None:

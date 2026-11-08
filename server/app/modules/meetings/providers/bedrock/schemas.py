@@ -1,13 +1,14 @@
-"""Pydantic schema validating Bedrock's own raw JSON tool-call output — never
-an HTTP DTO. `MeetingSummarySchema` is the strict validation target for the
-forced-tool-call `return_structured_output` response and the source of the
-`inputSchema` passed to Bedrock via `model_json_schema()`. Never trust raw
-LLM text past this boundary; never expose this Pydantic model outside
-`providers/bedrock/` — `client.py` returns `model_dump()`, not the model
-itself, matching the `SummarizerLLM` port's `JsonObject` contract.
+"""Pydantic schemas for Bedrock's forced tool-call output — never HTTP DTOs.
+They are the Pydantic AI agents' `output_type` in `client.py`, so they define
+the tool schema Bedrock is forced to fill and validate what comes back.
+Never expose them outside `providers/bedrock/`: `client.py` returns the
+domain types (`to_domain`/`CorrectionSuggestion`) the ports promise.
 """
 
 from pydantic import BaseModel
+
+from app.modules.meetings.domain.corrections import CorrectionSuggestion
+from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
 
 
 class SummaryNoteSchema(BaseModel):
@@ -26,6 +27,19 @@ class MeetingSummarySchema(BaseModel):
     deal_momentum: str
     keywords: list[str]
 
+    def to_domain(self) -> MeetingSummary:
+        return MeetingSummary(
+            title=self.title,
+            executive_summary=self.executive_summary,
+            notes=[SummaryNote(topic=note.topic, points=note.points) for note in self.notes],
+            decisions=self.decisions,
+            action_items=self.action_items,
+            claims_to_verify=self.claims_to_verify,
+            risks=self.risks,
+            deal_momentum=self.deal_momentum,
+            keywords=self.keywords,
+        )
+
 
 class CorrectionItemSchema(BaseModel):
     segment_id: str
@@ -36,3 +50,14 @@ class CorrectionItemSchema(BaseModel):
 
 class TranscriptCorrectionsSchema(BaseModel):
     suggestions: list[CorrectionItemSchema]
+
+    def to_domain(self) -> list[CorrectionSuggestion]:
+        return [
+            CorrectionSuggestion(
+                segment_id=item.segment_id,
+                original=item.original,
+                suggested=item.suggested,
+                reason=item.reason,
+            )
+            for item in self.suggestions
+        ]

@@ -140,6 +140,14 @@ then notes. Notes go last because the matching engine keeps the start and
 end of a summary over 3,000 characters, so it cuts middle notes first.
 Summaries are not regenerated, so older ones keep their long opening.
 
+The Bedrock calls run through Pydantic AI agents
+(`server/app/modules/meetings/providers/bedrock/client.py`). Each agent's
+output type is a schema, so Bedrock must answer through that tool and the
+agent validates the result. A final summary whose gist runs over 75 words,
+or with a note point over 35, gets one retry; after that it is accepted.
+Transient AWS errors are retried up to three times. Logs and stored failure
+reasons hold error codes only, never model output.
+
 A push for the same install and recording always returns 409, so pushing
 again doesn't recover a failed meeting. Instead, a meeting stalled for 10
 minutes is reset the next time its status is read, which re-runs the
