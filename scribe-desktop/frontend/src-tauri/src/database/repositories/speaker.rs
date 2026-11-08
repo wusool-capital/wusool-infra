@@ -56,6 +56,7 @@ pub struct VoiceOverviewRow {
     pub profile_id: Option<String>,
     pub name: Option<String>,
     pub embedding: Vec<f32>,
+    pub auto_named: bool,
     pub line_count: i64,
     pub talk_seconds: f64,
     pub sample: Option<VoiceSample>,
@@ -89,6 +90,7 @@ struct StoredVoiceRow {
     profile_id: Option<String>,
     name: Option<String>,
     embedding: Vec<u8>,
+    auto_named: bool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -179,7 +181,7 @@ impl SpeakerRepository {
     /// Every diarized voice in a meeting with its talk time and a sample line.
     pub async fn voice_overview(pool: &SqlitePool, meeting_id: &str) -> Result<Vec<VoiceOverviewRow>, sqlx::Error> {
         let voices: Vec<StoredVoiceRow> = sqlx::query_as(
-            "SELECT ms.label, ms.profile_id, sp.name, ms.embedding
+            "SELECT ms.label, ms.profile_id, sp.name, ms.embedding, ms.auto_named
              FROM meeting_speakers ms
              LEFT JOIN speaker_profiles sp ON sp.id = ms.profile_id
              WHERE ms.meeting_id = ?",
@@ -213,6 +215,7 @@ impl SpeakerRepository {
                     profile_id: voice.profile_id,
                     name: voice.name,
                     embedding: decode_embedding(&voice.embedding),
+                    auto_named: voice.auto_named,
                     line_count: stat.line_count,
                     talk_seconds: stat.talk_seconds,
                     sample: samples.iter().find(|s| s.label == voice.label).map(|s| s.sample.clone()),
@@ -276,12 +279,14 @@ impl SpeakerRepository {
             .await?;
         for voice in voices {
             sqlx::query(
-                "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding) VALUES (?, ?, ?, ?)",
+                "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named)
+                 VALUES (?, ?, ?, ?, ?)",
             )
             .bind(meeting_id)
             .bind(voice.label)
             .bind(&voice.profile_id)
             .bind(encode_embedding(&voice.embedding))
+            .bind(voice.profile_id.is_some())
             .execute(&mut *tx)
             .await?;
         }
@@ -332,7 +337,12 @@ impl SpeakerRepository {
 
         let profile_id = match existing {
             Some((id,)) if previous_profile.as_deref() == Some(id.as_str()) => {
-                // Already this person: nothing to relink or re-learn.
+                // Already this person: the user has now confirmed it, nothing to re-learn.
+                sqlx::query("UPDATE meeting_speakers SET auto_named = 0 WHERE meeting_id = ? AND label = ?")
+                    .bind(meeting_id)
+                    .bind(label)
+                    .execute(&mut *tx)
+                    .await?;
                 return Ok(tx.commit().await?);
             }
             Some((id,)) => id,
@@ -354,7 +364,7 @@ impl SpeakerRepository {
             }
         };
 
-        sqlx::query("UPDATE meeting_speakers SET profile_id = ? WHERE meeting_id = ? AND label = ?")
+        sqlx::query("UPDATE meeting_speakers SET profile_id = ?, auto_named = 0 WHERE meeting_id = ? AND label = ?")
             .bind(&profile_id)
             .bind(meeting_id)
             .bind(label)
@@ -480,6 +490,32 @@ mod tests {
         assert_eq!(speakers.len(), 2);
         // Diarized rows must still be picked up by a re-run.
         assert_eq!(SpeakerRepository::attributable_segments(&pool, MEETING).await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn auto_named_voices_are_marked_until_the_user_confirms_them() {
+        let pool = pool_with_meeting().await;
+        let labels = vec![("t-1".to_string(), SpeakerLabel::Speaker(0))];
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0])], &labels)
+            .await
+            .unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice")
+            .await
+            .unwrap();
+        let alice = SpeakerRepository::list_profiles(&pool).await.unwrap().remove(0).id;
+
+        // A re-run where the voice library recognises Alice on its own.
+        let recognised = DiarizedVoice { profile_id: Some(alice), ..voice(0, vec![1.0, 0.0]) };
+        SpeakerRepository::save_diarization(&pool, MEETING, &[recognised], &labels).await.unwrap();
+        let auto = |pool: SqlitePool| async move {
+            SpeakerRepository::voice_overview(&pool, MEETING).await.unwrap()[0].auto_named
+        };
+        assert!(auto(pool.clone()).await);
+
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Alice")
+            .await
+            .unwrap();
+        assert!(!auto(pool.clone()).await);
     }
 
     #[tokio::test]

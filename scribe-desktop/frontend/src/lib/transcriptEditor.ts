@@ -69,6 +69,37 @@ export function nextSuggestionId(suggestionIds: string[], order: string[], after
   return sorted.find((id) => (position.get(id) ?? Infinity) > after) ?? sorted[0];
 }
 
+export interface NameChange {
+  from: string;
+  to: string;
+}
+
+// A capitalised word that isn't all capitals: a name, as opposed to an acronym like EBITDA.
+const NAME_WORD = /\b[A-Z][a-z]/;
+
+/**
+ * The names a set of fixes would change, so Accept All can show them before
+ * applying. The model's category isn't trusted alone: any change that brings
+ * in a capitalised name counts.
+ */
+export function nameChanges(suggestions: Iterable<CorrectionSuggestion>): NameChange[] {
+  const clean = (text: string) => text.trim().replace(/[.,!?;:]+$/, '');
+  const changes: NameChange[] = [];
+  for (const suggestion of suggestions) {
+    const parts = diffWords(suggestion.original, suggestion.suggested);
+    parts.forEach((part, i) => {
+      if (part.kind !== 'added') return;
+      const removed = parts[i - 1]?.kind === 'removed' ? parts[i - 1].text : '';
+      const changesCase = clean(removed).toLowerCase() === clean(part.text).toLowerCase();
+      if (changesCase) return;
+      if (suggestion.category === 'name' || NAME_WORD.test(part.text)) {
+        changes.push({ from: clean(removed), to: clean(part.text) });
+      }
+    });
+  }
+  return changes;
+}
+
 /** The note shown while part of a meeting couldn't be proofread, or null. */
 export function proofreadCoverageWarning(uncheckedLines: number): string | null {
   if (uncheckedLines === 0) return null;

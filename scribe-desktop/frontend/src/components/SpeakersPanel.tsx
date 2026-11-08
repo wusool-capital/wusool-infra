@@ -56,10 +56,10 @@ export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanel
   };
 
   const takenNames = new Set(voices.map((v) => v.name?.toLowerCase()).filter(Boolean));
+  const toConfirm = voices.filter((v) => v.auto_named && v.name !== null).length;
   const status =
-    unnamed.length === 0
-      ? `All ${voices.length} named`
-      : `${unnamed.length} of ${voices.length} to name`;
+    (unnamed.length === 0 ? `All ${voices.length} named` : `${unnamed.length} of ${voices.length} to name`) +
+    (toConfirm > 0 ? ` · ${toConfirm} to confirm` : '');
 
   return (
     <section aria-labelledby="who-spoke-heading" className="border-b border-border bg-card px-4 py-3">
@@ -163,6 +163,7 @@ function VoiceRow({
         </p>
         <p className="text-xs text-muted-foreground tabular-nums">
           {formatTalkTime(voice.talk_seconds)} · {lines}
+          {voice.auto_named && !isEditing && ' · recognised by voice'}
         </p>
       </div>
 
@@ -193,6 +194,12 @@ function VoiceRow({
       <div className="min-w-0">
         {!isEditing ? (
           <div className="flex items-center justify-end gap-1">
+            {/* Recognised automatically: a wrong match would mislabel every line, so ask once. */}
+            {voice.auto_named && voice.name && (
+              <Button variant="outline" size="sm" onClick={() => voice.name && void onSave(voice.name)}>
+                Confirm
+              </Button>
+            )}
             <Button variant="ghost" size="sm" onClick={onEdit}>
               Change
             </Button>

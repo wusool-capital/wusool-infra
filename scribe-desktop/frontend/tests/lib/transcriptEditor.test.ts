@@ -7,6 +7,7 @@ import {
   activeSuggestions,
   diffWords,
   mergeSuggestions,
+  nameChanges,
   nextSuggestionId,
   idsBefore,
   popRedo,
@@ -200,5 +201,27 @@ describe('nextSuggestionId', () => {
 
   test('is null with no fixes', () => {
     expect(nextSuggestionId([], order, null)).toBeNull();
+  });
+});
+
+describe('nameChanges', () => {
+  test('lists only the names that name fixes change', () => {
+    const fixes = [
+      { segment_id: 'a', original: 'Hi, Anerey. From Locum.', suggested: 'Hi, Raoof. From Locum.', category: 'name' as const, reason: 'r' },
+      { segment_id: 'b', original: 'the a bit dah', suggested: 'the EBITDA', category: 'term' as const, reason: 'r' },
+    ];
+    expect(nameChanges(fixes)).toEqual([{ from: 'Anerey', to: 'Raoof' }]);
+  });
+
+  test('catches a name brought in under another category, but not acronyms or case fixes', () => {
+    const fixes = [
+      { segment_id: 'a', original: 'Anyway,', suggested: 'Anyway, Raoof,', category: 'word' as const, reason: 'r' },
+      { segment_id: 'b', original: 'met wusool capital', suggested: 'met Wusool Capital', category: 'name' as const, reason: 'r' },
+      { segment_id: 'c', original: 'all water foods', suggested: 'Al Waha Foods', category: 'name' as const, reason: 'r' },
+    ];
+    expect(nameChanges(fixes)).toEqual([
+      { from: '', to: 'Raoof' },
+      { from: 'all water foods', to: 'Al Waha Foods' },
+    ]);
   });
 });

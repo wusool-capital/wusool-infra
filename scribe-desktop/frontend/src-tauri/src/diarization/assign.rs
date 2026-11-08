@@ -19,6 +19,9 @@ pub struct VoiceProfile {
 
 // Same-person WeSpeaker scores sit well above this. Raising it trades wrong names for unnamed voices.
 pub const PROFILE_MATCH_THRESHOLD: f32 = 0.7;
+// Auto-naming also needs a clear winner: a voice almost as close to a second
+// person is left unnamed, and the overview offers the closest one to confirm.
+pub const PROFILE_MATCH_MARGIN: f32 = 0.1;
 
 /// The voice that overlaps a segment the most, or `None` if no turn overlaps it.
 pub fn dominant_speaker(start: f64, end: f64, turns: &[SpeakerTurn]) -> Option<u32> {
@@ -78,15 +81,29 @@ pub fn attribute_segments(segments: &[(f64, f64)], turns: &[SpeakerTurn]) -> Att
 }
 
 /// The matching saved profile per voice, one-to-one, strongest pairs first, so two voices never share a name.
+/// A voice whose best score beats its second-best person by less than `margin` gets none.
 pub fn match_profiles(
     centroids: &[Vec<f32>],
     profiles: &[VoiceProfile],
     threshold: f32,
+    margin: f32,
 ) -> Vec<Option<String>> {
     let mut candidates: Vec<(usize, usize, f32)> = Vec::new();
     for (voice, centroid) in centroids.iter().enumerate() {
-        for (profile, saved) in profiles.iter().enumerate() {
-            let score = cosine_similarity(centroid, &saved.embedding);
+        let scores: Vec<f32> = profiles.iter().map(|saved| cosine_similarity(centroid, &saved.embedding)).collect();
+        let Some((best, &best_score)) = scores.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1)) else {
+            continue;
+        };
+        let runner_up = scores
+            .iter()
+            .enumerate()
+            .filter(|&(profile, _)| profile != best)
+            .map(|(_, &score)| score)
+            .fold(f32::NEG_INFINITY, f32::max);
+        if best_score - runner_up < margin {
+            continue;
+        }
+        for (profile, &score) in scores.iter().enumerate() {
             if score >= threshold {
                 candidates.push((voice, profile, score));
             }
@@ -174,7 +191,7 @@ mod tests {
         ];
         let centroids = vec![vec![0.9, 0.1], vec![0.7, 0.7], vec![0.1, 0.95]];
         assert_eq!(
-            match_profiles(&centroids, &profiles, 0.9),
+            match_profiles(&centroids, &profiles, 0.9, 0.0),
             vec![Some("alice".into()), None, Some("bob".into())]
         );
     }
@@ -183,7 +200,7 @@ mod tests {
     fn never_gives_two_voices_the_same_profile() {
         let profiles = vec![VoiceProfile { id: "alice".into(), embedding: vec![1.0, 0.0] }];
         let centroids = vec![vec![0.95, 0.05], vec![1.0, 0.0]];
-        assert_eq!(match_profiles(&centroids, &profiles, 0.5), vec![None, Some("alice".into())]);
+        assert_eq!(match_profiles(&centroids, &profiles, 0.5, 0.0), vec![None, Some("alice".into())]);
     }
 
     #[test]
@@ -198,4 +215,18 @@ mod tests {
         let spans = [(0.0, 2.0, "me"), (2.0, 5.0, "speaker_0")];
         assert_eq!(dominant_label(1.0, 4.0, spans), Some("speaker_0"));
     }
+
+    #[test]
+    fn match_profiles_leaves_a_voice_unnamed_when_two_people_are_close() {
+        let profiles = vec![
+            VoiceProfile { id: "alice".into(), embedding: vec![1.0, 0.0] },
+            VoiceProfile { id: "bea".into(), embedding: vec![0.96, 0.28] },
+        ];
+        // Both people score above the threshold, within the margin of each other.
+        let centroids = vec![vec![0.99, 0.12]];
+        assert_eq!(match_profiles(&centroids, &profiles, 0.7, PROFILE_MATCH_MARGIN), vec![None]);
+        let clear = vec![vec![1.0, -0.3]];
+        assert_eq!(match_profiles(&clear, &profiles, 0.7, PROFILE_MATCH_MARGIN), vec![Some("alice".into())]);
+    }
+
 }
