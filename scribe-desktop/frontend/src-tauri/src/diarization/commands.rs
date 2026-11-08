@@ -14,7 +14,7 @@ use super::engine::{self, DiarizationBackend, DownloadProgress};
 use super::overview::{build_overview, SpeakerOverview};
 use super::service::{diarize_and_notify, system_track_path, DiarizationOutcome};
 use super::SpeakerLabel;
-use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository};
+use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository, SpeakerTarget};
 use crate::state::AppState;
 
 const SETTINGS_STORE: &str = "diarization.json";
@@ -181,6 +181,18 @@ pub async fn name_meeting_speaker(
         return Err("Speaker name cannot be empty".to_string());
     }
     SpeakerRepository::name_meeting_speaker(state.db_manager.pool(), &meeting_id, label, name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn reassign_transcript_speaker(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    segment_ids: Vec<String>,
+    target: SpeakerTarget,
+) -> Result<SpeakerLabel, String> {
+    SpeakerRepository::reassign_segments(state.db_manager.pool(), &meeting_id, &segment_ids, target)
         .await
         .map_err(|e| e.to_string())
 }

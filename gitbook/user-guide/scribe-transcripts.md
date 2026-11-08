@@ -33,6 +33,10 @@ Scribe labels each speaker's turn in the transcript:
   named before, Scribe asks "Sounds like Faisal?". Press **Yes** to name
   them, or **No** to type a different name.
 - You can still click a speaker's name on any line to rename them.
+- **Fix a wrong speaker.** Right-click a line, or a selection of lines, and
+  choose **Change Speaker**. Pick another voice, yourself, or **New
+  Speaker** for someone Scribe didn't separate, then name them. Pressing
+  **Separate Speakers** again replaces these changes.
 
 Voice fingerprints are stored only on your Mac. To make Scribe forget
 someone, delete them under **Settings → General → Speakers**.

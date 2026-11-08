@@ -32,12 +32,16 @@ renaming a speaker changes one row.
   and gets a one-click suggestion. `meeting_speakers.auto_named` marks
   auto-named voices until the user confirms or changes them.
 - **Naming panel:** `get_speaker_overview` returns each voice's line
-  count, talk time and a sample line (the longest of its first five).
+  count, talk time and a sample line (its longest line).
   Unnamed voices scoring 0.5 or more against a profile not already in the
   meeting get a one-click suggestion. `speaker_voice_clip` cuts up to six
   seconds of the sample line from `system.mp4` with ffmpeg and returns it
   as WAV bytes. The app decodes and plays them with the Web Audio API; the
   macOS webview can't play `blob:` URLs in an `<audio>` element.
+- **Manual fixes:** `reassign_transcript_speaker` moves lines to a voice
+  in the meeting, to `me`, or to a new `speaker_N`. A new voice has an
+  empty embedding, so naming it never changes a profile's voice print. A
+  re-run of separation replaces these changes.
 - **Models:** pyannote segmentation finds who speaks when, and WeSpeaker
   ResNet34 turns each voice into the embedding the voice library compares.
   They download once from the `avencera/speakrs-models` Hugging Face
