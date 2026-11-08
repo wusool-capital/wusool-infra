@@ -1,6 +1,6 @@
 """Scores proofread against labelled excerpts, on real Bedrock.
 
-    AWS_PROFILE=wusool-sso uv run python -m app.modules.meetings.evals.eval_proofread \
+    AWS_PROFILE=wusool-sso uv run python -m app.modules.meetings.scripts.eval_proofread \
         eu.anthropic.claude-sonnet-4-6 eu.anthropic.claude-haiku-4-5-20251001-v1:0
 
 A fix line counts as caught when a suggestion contains every expected term

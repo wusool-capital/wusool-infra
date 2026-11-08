@@ -23,6 +23,8 @@ for current production evidence and open handover items.
 - Matching reads each meeting summary whole instead of cutting it at 3,000
   characters. Each prompt holds up to 24,000 characters of meeting notes and
   always includes the newest and oldest meetings.
+- Scribe 0.8.3 turns on faster speaker separation (CoreML) by default and
+  downloads its models on first use, with a slower no-download option.
 - Every Bedrock call in the server now runs through Pydantic AI agents:
   meetings, matching, enrichment, discrepancies and the website lead tools.
   Each validates its schema and returns typed results. Meeting summaries

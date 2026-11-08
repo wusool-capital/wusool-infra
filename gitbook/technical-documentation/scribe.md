@@ -176,7 +176,7 @@ word. It reports the stored text as `original`, which the app checks before
 applying a fix.
 
 `CORRECTION_MODEL_ID` and `CORRECTION_MAX_TOKENS` set the model and output
-budget. `evals/eval_proofread.py` scores models against labelled excerpts.
+budget. `scripts/eval_proofread.py` scores models against labelled excerpts.
 On 19 errors, Sonnet 4.6 caught 18 with no false fixes. Haiku 4.5 caught 17
 with none, in about two thirds of the time.
 

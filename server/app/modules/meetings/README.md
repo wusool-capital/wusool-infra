@@ -66,7 +66,8 @@ meetings/
   bootstrap.py       # composition root — build_* factories, no create_app()
   config.py           # Settings (pydantic-settings)
   domain/             # roles, MeetingSummary/SummaryNote, chunking, prompts,
-                       #   rendering — framework-free, ported from Scribe
+                       #   rendering, proofread corrections + vocabulary —
+                       #   framework-free, ported from Scribe
   application/        # ServiceBase + IngestMixin/StatusMixin/PublishMixin
                        #   (MeetingsService facade), SummarizationService,
                        #   application/ports/ Protocols
@@ -80,6 +81,8 @@ meetings/
                        #   matching_engine's), attio/ (note push)
   api/                # router.py facade + one file per desktop endpoint,
                        #   Bearer DESKTOP_API_KEY auth
+  scripts/            # eval_proofread.py + labelled excerpts: scores
+                       #   proofread models on real Bedrock
   tests/
 ```
 
