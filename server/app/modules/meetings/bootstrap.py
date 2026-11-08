@@ -101,8 +101,8 @@ def build_correction_service() -> CorrectionService:
     settings = get_settings()
     return CorrectionService(
         build_bedrock_client(),
-        model_id=settings.aws_bedrock_model_id,
-        max_tokens=settings.summary_max_tokens,
+        model_id=settings.correction_model_id,
+        max_tokens=settings.correction_max_tokens,
         max_chars_per_batch=_CORRECTION_MAX_CHARS_PER_BATCH,
         gate=_correction_semaphore(),
     )

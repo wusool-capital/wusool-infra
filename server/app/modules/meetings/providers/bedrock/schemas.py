@@ -5,9 +5,9 @@ Never expose them outside `providers/bedrock/`: `client.py` returns the
 domain types (`to_domain`/`CorrectionSuggestion`) the ports promise.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from app.modules.meetings.domain.corrections import CorrectionSuggestion
+from app.modules.meetings.domain.corrections import CorrectionCategory, CorrectionEdit
 from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
 
 
@@ -42,21 +42,22 @@ class MeetingSummarySchema(BaseModel):
 
 
 class CorrectionItemSchema(BaseModel):
-    segment_id: str
-    original: str
+    # The batch-local line number; the server maps it back to a segment id.
+    line: int = Field(ge=1)
     suggested: str
+    category: CorrectionCategory
     reason: str
 
 
 class TranscriptCorrectionsSchema(BaseModel):
     suggestions: list[CorrectionItemSchema]
 
-    def to_domain(self) -> list[CorrectionSuggestion]:
+    def to_domain(self) -> list[CorrectionEdit]:
         return [
-            CorrectionSuggestion(
-                segment_id=item.segment_id,
-                original=item.original,
+            CorrectionEdit(
+                line=item.line,
                 suggested=item.suggested,
+                category=item.category,
                 reason=item.reason,
             )
             for item in self.suggestions

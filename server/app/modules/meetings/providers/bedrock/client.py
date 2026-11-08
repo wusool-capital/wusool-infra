@@ -19,7 +19,7 @@ from __future__ import annotations
 from pydantic_ai import Agent, ModelRetry, RunContext
 from pydantic_ai.models.bedrock import BedrockModelSettings
 
-from app.modules.meetings.domain.corrections import CorrectionSuggestion
+from app.modules.meetings.domain.corrections import CorrectionEdit
 from app.modules.meetings.domain.summary import MeetingSummary, summary_limit_issues
 from app.modules.meetings.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.meetings.providers.bedrock.schemas import (
@@ -94,9 +94,13 @@ class BedrockConverseClient:
         system_prompt: str,
         max_tokens: int,
         temperature: float,
-    ) -> list[CorrectionSuggestion]:
+    ) -> list[CorrectionEdit]:
         model = bedrock_model(model_id, self._client)
-        settings = BedrockModelSettings(max_tokens=max_tokens, temperature=temperature)
+        # The system prompt (rules + default vocabulary) is identical for every
+        # batch, so Bedrock can cache it.
+        settings = BedrockModelSettings(
+            max_tokens=max_tokens, temperature=temperature, bedrock_cache_instructions=True
+        )
         output = await run_bedrock_agent(
             lambda: self.corrections_agent.run(
                 prompt, model=model, instructions=system_prompt, model_settings=settings

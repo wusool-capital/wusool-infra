@@ -16,9 +16,11 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.modules.meetings.domain.corrections import CorrectionCategory
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
 from app.modules.meetings.domain.organization_ref import OrganizationRef
 from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
@@ -221,6 +223,19 @@ def to_company_candidate(org: OrganizationRef) -> DesktopCompanyCandidate:
 class TranscriptSegmentSchema(BaseModel):
     segment_id: str = Field(..., min_length=1)
     text: str
+    speaker: str | None = Field(default=None, max_length=80)
+
+
+# Context is repeated in every batch's prompt, so it is kept small.
+_ContextItem = Annotated[str, Field(min_length=1, max_length=80)]
+
+
+class CorrectionContextSchema(BaseModel):
+    """What the meeting is about: optional, and older desktop apps omit it."""
+
+    title: str | None = Field(default=None, max_length=200)
+    names: list[_ContextItem] = Field(default_factory=list, max_length=100)
+    vocabulary: list[_ContextItem] = Field(default_factory=list, max_length=200)
 
 
 # Roughly 3.5 hours of speech; each 12k chars costs one Bedrock call.
@@ -230,6 +245,7 @@ _MAX_CORRECTION_TOTAL_CHARS = 200_000
 
 class TranscriptCorrectionsRequest(BaseModel):
     segments: list[TranscriptSegmentSchema] = Field(..., max_length=_MAX_CORRECTION_SEGMENTS)
+    context: CorrectionContextSchema | None = None
 
     @field_validator("segments")
     @classmethod
@@ -245,10 +261,15 @@ class TranscriptCorrectionsRequest(BaseModel):
 
 class CorrectionSuggestionSchema(BaseModel):
     segment_id: str
+    # The stored text, so the client can check the line is unchanged before applying.
     original: str
     suggested: str
+    category: CorrectionCategory
     reason: str
 
 
 class TranscriptCorrectionsResponse(BaseModel):
     suggestions: list[CorrectionSuggestionSchema]
+    checked_segments: int
+    # Lines in batches that errored; the client says they weren't checked.
+    failed_segment_ids: list[str] = Field(default_factory=list)

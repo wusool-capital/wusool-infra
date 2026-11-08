@@ -113,13 +113,13 @@ def test_non_transient_error_is_not_retried(client: BedrockConverseClient) -> No
     assert model.calls == 1
 
 
-def test_corrections_return_domain_suggestions(client: BedrockConverseClient) -> None:
-    suggestion = {"segment_id": "s1", "original": "a", "suggested": "b", "reason": "typo"}
-    model = ScriptedModel(lambda _: {"suggestions": [suggestion]})
+def test_corrections_return_line_edits(client: BedrockConverseClient) -> None:
+    fix = {"line": 2, "suggested": "b", "category": "word", "reason": "typo"}
+    model = ScriptedModel(lambda _: {"suggestions": [fix]})
     with client.corrections_agent.override(model=model.function_model):
         result = asyncio.run(
             client.suggest_corrections(
                 model_id="m", prompt="p", system_prompt="s", max_tokens=100, temperature=0.0
             )
         )
-    assert [(s.segment_id, s.suggested) for s in result] == [("s1", "b")]
+    assert [(e.line, e.suggested, e.category) for e in result] == [(2, "b", "word")]
