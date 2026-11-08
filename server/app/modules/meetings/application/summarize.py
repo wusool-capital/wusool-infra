@@ -25,6 +25,7 @@ from app.modules.meetings.domain.prompts import (
     build_chunk_summary_prompt,
     build_merge_prompt,
     build_single_pass_summary_prompt,
+    summary_budget,
 )
 from app.modules.meetings.domain.roles import MeetingRole
 from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
@@ -42,10 +43,10 @@ __all__ = ["SummarizationService"]
 _MIN_TRANSCRIPT_WORDS = 20
 
 _NO_CONTENT_SUMMARY = MeetingSummary(
-    title="No meeting content to summarize",
+    title="No meeting content to summarise",
     executive_summary=(
-        "This meeting's recording didn't capture enough spoken content to "
-        "produce a summary — the transcript was empty or too short."
+        "The recording didn't capture enough speech to summarise: the "
+        "transcript was empty or too short."
     ),
 )
 
@@ -116,8 +117,11 @@ class SummarizationService:
         judge deal_momentum. Neither is ever treated as part of the
         transcript.
         """
-        if len(transcript_text.split()) < _MIN_TRANSCRIPT_WORDS:
+        transcript_words = len(transcript_text.split())
+        if transcript_words < _MIN_TRANSCRIPT_WORDS:
             return _NO_CONTENT_SUMMARY
+        # Sized from the whole transcript, so a long meeting's merge step gets the long budget.
+        budget = summary_budget(transcript_words)
 
         chunks = chunk_text(
             transcript_text, max_tokens_per_chunk=self._summary_max_tokens_per_chunk
@@ -127,7 +131,7 @@ class SummarizationService:
             single = chunks[0] if chunks else ""
             raw = await self._call_llm(
                 build_single_pass_summary_prompt(
-                    single, companies=companies, meeting_date=meeting_date
+                    single, budget=budget, companies=companies, meeting_date=meeting_date
                 )
             )
             return _to_meeting_summary(raw)
@@ -154,6 +158,7 @@ class SummarizationService:
         merge_raw = await self._call_llm(
             build_merge_prompt(
                 [json.dumps(summary) for summary in chunk_summaries],
+                budget=budget,
                 companies=companies,
                 meeting_date=meeting_date,
             )

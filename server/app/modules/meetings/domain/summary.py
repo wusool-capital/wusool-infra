@@ -8,10 +8,10 @@ The field set is tuned to a sell-side M&A advisor's reading order rather
 than to a generic meeting recap — see app.modules.meetings.domain.prompts
 for the full rationale and the exact instructions behind each field.
 
-`executive_summary` is the anchor field: besides being read by a human,
-it's the field future pipelines (search, CRM sync, deal scoring, ...)
-will consume, so it's produced in structured detail rather than a
-one-line gist.
+`executive_summary` holds the gist: 2-3 sentences, read first, that never
+grow with the meeting. It keeps its old name so installed Scribe apps
+still show it. The detail lives in `notes`, sized to the meeting's length
+(see app.modules.meetings.domain.prompts.summary_budget).
 
 `notes` is the one nested field — a list of {"topic": str, "points":
 list[str]} — because a flat list of topic labels (what `discussion_topics`

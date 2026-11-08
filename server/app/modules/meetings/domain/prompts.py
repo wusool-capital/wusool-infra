@@ -29,18 +29,18 @@ document-request list for the data room.
 Summaries are internal working notes only — nothing here is
 external-party-facing copy — so they can be blunt and direct.
 
-Speaker labels are the one input the model must NOT trust:
-app.transcription.diarization is a silence-gap heuristic, not
-diarization, and it only alternates between two placeholder labels — so
-one real person routinely appears as both SPEAKER_00 and SPEAKER_01, and
-two people routinely collapse into one label. _SPEAKER_LABEL_RULE says
-so outright, because a summary that confidently attributes a price
-concession to the wrong side of the table is worse than one that
-attributes it to nobody.
+Speaker labels are trusted only when a person assigned them: Scribe
+desktop sends the names a user gave each separated voice. Every other
+label is a placeholder — SPEAKER_00/01 from app.transcription.diarization
+(a silence-gap heuristic that splits one person across labels and merges
+two into one), or Scribe's "Speaker 2", "Participant", "Others" and "Me".
+_SPEAKER_LABEL_RULE says so outright, because a summary that confidently
+attributes a price concession to the wrong side of the table is worse
+than one that attributes it to nobody.
 
 _build_master_prompt() is the single source of truth for the
-"final" output shape (title + full-detail executive_summary +
-deal_momentum when applicable) — it assembles deal context, the
+"final" output shape (title + gist + budgeted notes + deal_momentum
+when applicable) — it assembles deal context, the
 speaker-label rule, chain-of-thought scaffolding, the worked few-shot
 examples, the schema, the field boundaries, and the guardrails, all in
 one place, varying the deal-context/chain-of-thought/schema/guardrails
@@ -58,15 +58,17 @@ worse summaries than short ones. The map step also receives the
 company context, because role attribution has to happen where the
 actual words are — at merge time only the chunk summaries remain.
 
-`executive_summary` is the anchor field of the whole pipeline: besides
-being read directly, it is consumed by downstream systems that never see
-the raw transcript, so it is asked for in full detail rather than as a
-one-line gist — but ONLY when the transcript actually supports that
-detail. A thin, garbled, or off-topic transcript should produce a short,
-plain statement of that fact instead; padding a summary to a fixed shape
-when there's nothing to say is the specific failure this module guards
-against throughout (see the "match verbosity to actual content"
-guardrail, and the `_FEW_SHOT_EXAMPLE_THIN` worked example).
+`executive_summary` holds the gist: 2-3 sentences that never grow with the
+meeting, read first by advisors. The field keeps its old name so installed
+Scribe apps still show it; the detail lives in `notes`, whose size is set
+by a SummaryBudget derived from transcript length (see summary_budget).
+The budget is a ceiling, never a target: a thin, garbled, or off-topic
+transcript should produce a short, plain statement of that fact instead;
+padding a summary to a fixed shape when there's nothing to say is the
+specific failure this module guards against throughout (see the "match
+verbosity to actual content" guardrail, and the `_FEW_SHOT_EXAMPLE_THIN`
+worked example). Decisions, action items and claims to verify are never
+shortened to fit the budget.
 
 Prompt-injection guard (docs/security.md "Prompt injection protection"):
 the transcript is untrusted input. Any instruction-like text inside it
@@ -92,6 +94,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 
 from app.modules.meetings.domain.corrections import TranscriptSegment
 from app.modules.meetings.domain.roles import MeetingRole
@@ -102,10 +105,39 @@ __all__ = [
     "build_correction_prompt",
     "sanitize_segment_text",
     "SYSTEM_PROMPT",
+    "SummaryBudget",
     "build_chunk_summary_prompt",
     "build_merge_prompt",
     "build_single_pass_summary_prompt",
+    "summary_budget",
 ]
+
+
+@dataclass(frozen=True, slots=True)
+class SummaryBudget:
+    """Ceiling for the topic notes; the gist and the lists are outside it."""
+
+    min_topics: int
+    max_topics: int
+    max_words: int
+
+
+# Transcript words at ~150 spoken words a minute: about 13 and 53 minutes.
+_SHORT_MEETING_WORDS = 2000
+_MEDIUM_MEETING_WORDS = 8000
+_SHORT_BUDGET = SummaryBudget(min_topics=1, max_topics=2, max_words=120)
+_MEDIUM_BUDGET = SummaryBudget(min_topics=3, max_topics=4, max_words=350)
+_LONG_BUDGET = SummaryBudget(min_topics=6, max_topics=8, max_words=700)
+
+
+def summary_budget(transcript_words: int) -> SummaryBudget:
+    """Pick the notes budget from how much was said, not from a fixed cap."""
+    if transcript_words <= _SHORT_MEETING_WORDS:
+        return _SHORT_BUDGET
+    if transcript_words <= _MEDIUM_MEETING_WORDS:
+        return _MEDIUM_BUDGET
+    return _LONG_BUDGET
+
 
 _TRANSCRIPT_DELIMITER = "@@@TRANSCRIPT_START@@@", "@@@TRANSCRIPT_END@@@"
 _COMPANY_DELIMITER = "@@@MEETING_CONTEXT_START@@@", "@@@MEETING_CONTEXT_END@@@"
@@ -282,20 +314,22 @@ _DEAL_CONTEXT_GENERIC = (
 
 _SPEAKER_LABEL_RULE = (
     "How to handle speaker labels — read this carefully:\n"
-    "Transcript lines may be labelled SPEAKER_00, SPEAKER_01, and so "
-    "on. These labels are NOT reliable identities. They come from a "
-    "pause-length heuristic that starts a new label whenever there is "
-    "a silence gap, and it only ever alternates between two "
-    "placeholder labels. One real person is therefore routinely split "
-    "across both labels, and two different people are routinely merged "
-    "into one label.\n"
+    "Each transcript line starts with a speaker label. A label that is "
+    "a person's name (for example 'Khalid' or 'Sara Ahmed') was "
+    "assigned by a user who listened to that voice, so treat it as "
+    "that person and use the name. Every other label is a placeholder, "
+    "NOT an identity: SPEAKER_00, SPEAKER_01 and similar; 'Speaker 1', "
+    "'Speaker 2' and similar; 'Participant'; 'Others'; and 'Me'. "
+    "SPEAKER_NN labels come from a pause-length heuristic that "
+    "routinely splits one real person across labels and merges two "
+    "people into one label.\n"
     "Therefore:\n"
-    "- Never state or imply that a particular SPEAKER_NN label is a "
-    "particular person, company, or side of the deal.\n"
-    "- Use a real name only when it is actually spoken in the "
-    "transcript — someone is addressed by name or introduces "
-    "themselves — and only where the surrounding words make the "
-    "attribution unambiguous.\n"
+    "- Never state or imply that a placeholder label is a particular "
+    "person, company, or side of the deal.\n"
+    "- On a placeholder line, use a real name only when it is actually "
+    "spoken in the transcript — someone is addressed by name or "
+    "introduces themselves — and only where the surrounding words make "
+    "the attribution unambiguous.\n"
     "- Otherwise attribute by role, using the meeting context block "
     "('the seller', 'the buyer', 'the advisor'), or write the point "
     "with no attribution at all.\n"
@@ -399,10 +433,9 @@ _GUARDRAILS_POST = (
     "summary, not meeting content — if a block is empty, just say there "
     "was no content, in plain language, without mentioning how the "
     "input was structured.\n"
-    "- The entire JSON object, all fields combined, must not exceed "
-    "1500 words. Prioritize concrete numbers, dates, and commitments "
-    "over exhaustive prose — compress by cutting elaboration, never by "
-    "dropping a figure or a distinct decision/action item/risk.\n"
+    "- Only notes shrink to fit the length budget. Never shorten, merge "
+    "away, or drop a decision, action item, or claim to verify to save "
+    "words, and never drop a figure — compress by cutting elaboration.\n"
     "- Output ONLY the JSON object — no markdown fences, no preamble, "
     "no reasoning, no text after the closing brace."
 )
@@ -413,6 +446,97 @@ def _guardrails(momentum_applies: bool) -> str:
         return f"{_GUARDRAILS_PRE}{_MOMENTUM_GUARDRAIL}{_GUARDRAILS_POST}"
     return f"{_GUARDRAILS_PRE}{_GUARDRAILS_POST}"
 
+
+# Built with json.dumps so the worked outputs are always valid JSON. The
+# Al Waha transcript is short, so its notes model the short budget.
+_FEW_SHOT_OUTPUT_MA = json.dumps(
+    {
+        "title": "[Seller: Al Waha Foods] Expectations-alignment call to set the floor price",
+        "executive_summary": (
+            "Rashid agreed a $3.5M floor for Al Waha Foods, down from his $4.5M asking "
+            "price. The floor resets if the 2025 audit, due late March 2026, puts EBITDA "
+            "materially below $900K."
+        ),
+        "notes": [
+            {
+                "topic": "Price and floor",
+                "points": [
+                    "Rashid opened at $4.5M: about $6M 2025 revenue and about $900K EBITDA at 5x.",
+                    "The advisor put comparable F&B businesses at 2–3x EBITDA, about $2.7M at 3x.",
+                    "Floor agreed at $3.5M, to be revisited when audited EBITDA lands.",
+                ],
+            },
+            {
+                "topic": "Documents",
+                "points": [
+                    "The $900K EBITDA is Rashid's own working; the 2025 audit is due "
+                    "in about 3 weeks.",
+                    "2 of 4 outlets have leases expiring in 2027, which buyers discount for.",
+                ],
+            },
+        ],
+        "decisions": [
+            "Floor price set at $3.5M, down from Rashid's $4.5M asking price.",
+            "The floor is revisited once audited 2025 EBITDA is available, and reset if it "
+            "lands materially below $900K.",
+        ],
+        "action_items": [
+            "Rashid: send the lease documents for the 2 outlets with 2027 expiries to the "
+            "data room, by 11 Mar 2026; Ahmed handles the leases.",
+            "Advisor: send the engagement letter and mutual NDA through DocuSign, by 4 Mar 2026.",
+            "Revisit the $3.5M floor once the 2025 audit is final, expected late March 2026.",
+        ],
+        "claims_to_verify": [
+            "2025 revenue of about $6M: stated by Rashid, no document provided.",
+            "2025 EBITDA of about $900K: Rashid's own working, not audited; the audit is "
+            "still in progress.",
+            "2 of 4 outlets have leases expiring in 2027: lease documents not yet supplied.",
+        ],
+        "risks": [
+            "Audited EBITDA materially below $900K would force the floor down again and "
+            "could end the mandate.",
+            "Rashid's original $4.5M sits $1M above the 2–3x comparable range, so he may "
+            "refuse a market-rate offer.",
+            "Leases on 2 of 4 outlets expire in 2027, giving buyers grounds to discount.",
+        ],
+        "deal_momentum": (
+            "Advanced — Rashid moved from a $4.5M asking price to an agreed $3.5M floor that "
+            "resets on audited EBITDA, which unblocks the mandate."
+        ),
+        "keywords": [
+            "Al Waha Foods",
+            "floor price",
+            "EBITDA",
+            "F&B",
+            "2-3x multiple",
+            "audited financials",
+            "lease expiry",
+            "data room",
+        ],
+    },
+    indent=2,
+    ensure_ascii=False,
+)
+
+_FEW_SHOT_OUTPUT_THIN = json.dumps(
+    {
+        "title": "[Seller: Nomad Retail Co.] Recording did not capture a usable meeting",
+        "executive_summary": (
+            "This recording did not capture a usable meeting: the transcript is fragmented "
+            "and unintelligible. Check the right file was uploaded, and re-transcribe from "
+            "the original audio if it is available."
+        ),
+        "notes": [],
+        "decisions": [],
+        "action_items": [],
+        "claims_to_verify": [],
+        "risks": [],
+        "deal_momentum": "",
+        "keywords": ["Nomad Retail Co."],
+    },
+    indent=2,
+    ensure_ascii=False,
+)
 
 # One worked example per case, each in its own delimiter so it can never
 # be confused with the real transcript or merged with attacker-controlled
@@ -468,109 +592,7 @@ _FEW_SHOT_EXAMPLE_MA = (
     "pending audit.\n"
     "@@@EXAMPLE_INPUT_END@@@\n\n"
     "@@@EXAMPLE_OUTPUT_START@@@\n"
-    "{\n"
-    '  "title": "[Seller: Al Waha Foods] Expectations-alignment call to '
-    'set the negotiation floor price",\n'
-    '  "executive_summary": "Expectations-alignment call with Al Waha '
-    "Foods, held to agree a negotiation floor price before going to "
-    "market. The owner, Rashid, opened at an asking price of $4.5M, "
-    "derived from roughly $6M of 2025 revenue and an EBITDA he put at "
-    "approximately $900K, applying a 5x multiple.\\n\\nThe advisor "
-    "challenged both inputs. The $900K EBITDA is the owner's own "
-    "working rather than the audited statements — the 2025 audit is "
-    "still with the accountants and is expected in about three weeks, "
-    "so around late March 2026. On comparables, the advisor placed F&B "
-    "businesses in this size band at 2–3x EBITDA rather than 5x, "
-    "putting the implied value nearer $2.7M at 3x on $900K. The owner "
-    "acknowledged the gap and proposed $3.5M as a floor instead.\\n\\n"
-    "The call closed on a conditional agreement: the floor is set at "
-    "$3.5M, to be revisited once audited EBITDA is available and reset "
-    "if the audit lands materially below $900K. The advisor also "
-    "flagged that two of the four outlets hold leases expiring in "
-    "2027 and asked for the lease documents in the data room, since "
-    "buyers discount for lease risk; the owner committed to sending "
-    "them within the week and named Ahmed as the person who handles "
-    "leases. The engagement letter and mutual NDA go out via DocuSign "
-    'the same day.",\n'
-    '  "notes": [\n'
-    "    {\n"
-    '      "topic": "Seller price expectation",\n'
-    '      "points": [\n'
-    '        "Owner opened at $4.5M, built from ~$6M 2025 revenue and '
-    '~$900K EBITDA at a 5x multiple.",\n'
-    '        "Advisor placed comparable F&B businesses in this size '
-    'band at 2–3x EBITDA, implying ~$2.7M at 3x."\n'
-    "      ]\n"
-    "    },\n"
-    "    {\n"
-    '      "topic": "Floor price agreement",\n'
-    '      "points": [\n'
-    '        "Owner proposed $3.5M as the floor after acknowledging the '
-    'gap to comparables.",\n'
-    '        "Advisor accepted $3.5M conditional on revisiting once '
-    'audited EBITDA lands.",\n'
-    '        "Both agreed to reset the floor if the audit comes in '
-    'materially below $900K."\n'
-    "      ]\n"
-    "    },\n"
-    "    {\n"
-    '      "topic": "Financial documentation",\n'
-    '      "points": [\n'
-    "        \"The ~$900K EBITDA figure is the owner's own working, not "
-    'audited.",\n'
-    '        "2025 audit is with the accountants, expected in roughly '
-    'three weeks (late March 2026)."\n'
-    "      ]\n"
-    "    },\n"
-    "    {\n"
-    '      "topic": "Lease exposure",\n'
-    '      "points": [\n'
-    '        "Two of the four outlets have leases expiring in 2027.",\n'
-    '        "Advisor requested the lease documents for the data room, '
-    'noting buyers discount for lease risk."\n'
-    "      ]\n"
-    "    }\n"
-    "  ],\n"
-    '  "decisions": [\n'
-    "    \"Negotiation floor price set at $3.5M, down from the owner's "
-    'opening $4.5M asking price",\n'
-    '    "Floor is conditional — it will be revisited once audited 2025 '
-    'EBITDA is available, and reset if it lands materially below $900K"\n'
-    "  ],\n"
-    '  "action_items": [\n'
-    '    "Seller to send lease documents for the two outlets with 2027 '
-    "expiries into the data room by 2026-03-11; the owner named Ahmed "
-    'as the person who handles leases",\n'
-    '    "Advisor to issue the engagement letter and mutual NDA via '
-    'DocuSign on 2026-03-04",\n'
-    '    "Revisit the $3.5M floor once the 2025 audit is finalised, '
-    'expected around late March 2026"\n'
-    "  ],\n"
-    '  "claims_to_verify": [\n'
-    '    "2025 revenue of approximately $6M — stated by the owner, no '
-    'document provided",\n'
-    "    \"2025 EBITDA of approximately $900K — explicitly the owner's "
-    "own working rather than audited statements; the 2025 audit is "
-    'still in progress",\n'
-    '    "Two of four outlets have leases expiring in 2027 — lease '
-    'documents not yet supplied"\n'
-    "  ],\n"
-    '  "risks": [\n'
-    '    "Audited EBITDA landing materially below the $900K working '
-    "figure would force the floor down again and could end the "
-    'mandate",\n'
-    "    \"A $1M gap remains between the owner's original $4.5M "
-    "expectation and the 2–3x comparable range, so a market-rate offer "
-    'may still be refused",\n'
-    '    "Leases on two of four outlets expire in 2027, giving buyers '
-    'grounds to discount, and the documents are not yet in the data room"\n'
-    "  ],\n"
-    '  "deal_momentum": "Advanced — the owner moved from a $4.5M asking '
-    "price to an agreed $3.5M floor and accepted that the figure resets "
-    'on audited EBITDA, which unblocks the mandate.",\n'
-    '  "keywords": ["Al Waha Foods", "floor price", "EBITDA", "F&B", '
-    '"2-3x multiple", "audited financials", "lease expiry", "data room"]\n'
-    "}\n"
+    f"{_FEW_SHOT_OUTPUT_MA}\n"
     "@@@EXAMPLE_OUTPUT_END@@@"
 )
 
@@ -596,21 +618,7 @@ _FEW_SHOT_EXAMPLE_THIN = (
     "SPEAKER_00: [crosstalk, inaudible]\n"
     "@@@EXAMPLE_INPUT_END@@@\n\n"
     "@@@EXAMPLE_OUTPUT_START@@@\n"
-    "{\n"
-    '  "title": "[Seller: Nomad Retail Co.] Recording did not capture '
-    'a usable meeting",\n'
-    '  "executive_summary": "This recording did not capture a usable '
-    "meeting — the transcript is fragmented and largely unintelligible, "
-    "with no recoverable content. Confirm the correct file was uploaded "
-    'and re-transcribe from the original audio if it is available.",\n'
-    '  "notes": [],\n'
-    '  "decisions": [],\n'
-    '  "action_items": [],\n'
-    '  "claims_to_verify": [],\n'
-    '  "risks": [],\n'
-    '  "deal_momentum": "",\n'
-    '  "keywords": ["Nomad Retail Co."]\n'
-    "}\n"
+    f"{_FEW_SHOT_OUTPUT_THIN}\n"
     "@@@EXAMPLE_OUTPUT_END@@@"
 )
 
@@ -642,42 +650,36 @@ _TITLE_FIELD = (
 )
 
 _EXECUTIVE_SUMMARY_FIELD = (
-    '"executive_summary": a string whose length matches how much '
-    "substantive, on-topic content the transcript actually contains — "
-    "this is not a fixed-length field. For a normal meeting with real "
-    "content, write a detailed, multi-paragraph, fully self-contained "
-    "account: besides being read directly, it is consumed by "
-    "downstream systems that have no access to the raw transcript, so "
-    "it must carry the entire overview on its own. Structure it as, in "
-    "order: (1) which parties met, at what stage of the deal (if any), "
-    "and why this meeting happened; (2) what was actually covered, "
-    "quoting every number, price, multiple, date, and term that was "
-    "stated — never vague generalities like 'various topics were "
-    "discussed'; (3) where it landed, separating what was actually "
-    "agreed from what remains unagreed or conditional, with the "
-    "reasoning behind each; (4) what happens next and who owns it. "
-    "Write in full sentences, with a blank line between paragraphs. "
-    "If the transcript is thin, garbled, off-topic, or otherwise has "
-    "little or no recoverable substance, write 1-2 plain sentences "
-    "stating that directly (e.g. what little could be made out, or "
-    "that the recording did not contain usable content) and stop there "
-    "— do not pad a short transcript out to the structure above, and "
-    "do not use deal or business jargon to describe a transcript that "
-    "was not actually a business conversation. Saying less is correct "
-    "when there is less to say.\n"
+    '"executive_summary": the gist, read before anything else. 2-3 '
+    "sentences and 60 words at most, however long the meeting was. The "
+    "first sentence states where the meeting landed: the outcome, the "
+    "agreement, or the figure that matters most. The rest says what it "
+    "now waits on and who holds it. No background, no list of topics, "
+    "and no opener such as 'This meeting covered'. The detail belongs "
+    "in notes. If the transcript is thin, garbled, off-topic, or "
+    "otherwise has little or no recoverable substance, write 1-2 plain "
+    "sentences saying so (what little could be made out, or that the "
+    "recording did not contain usable content) and stop there — do not "
+    "use deal or business jargon to describe a transcript that was not "
+    "actually a business conversation.\n"
 )
 
-_NOTES_FIELD = (
-    '"notes": a JSON array of 0-6 objects, each of the form {"topic": '
-    '"<short topic label>", "points": ["<specific point>", ...]} — the '
-    "meeting's substance grouped by what was being discussed, in the "
-    "order the topics came up, with 2-5 points under each. Every point "
-    "is one specific fact, position, or exchange, carrying its "
-    "numbers. Only include a topic if the transcript actually supports "
-    "it with specific points; return an empty array if the transcript "
-    "had no real substance to group. A topic label on its own is not "
-    "useful; the points under it are the content.\n"
-)
+
+def _notes_field(budget: SummaryBudget) -> str:
+    return (
+        f'"notes": a JSON array of {budget.min_topics}-{budget.max_topics} '
+        'objects, each of the form {"topic": "<short topic label>", '
+        '"points": ["<specific point>", ...]} — the meeting\'s substance '
+        "grouped by what was being discussed, in the order the topics "
+        "came up. Every point is one specific fact, position, or "
+        "exchange, 25 words or fewer, carrying its numbers. Together, "
+        f"executive_summary and notes run to about {budget.max_words} "
+        "words at most. That is a ceiling for a meeting with that much "
+        "substance, not a target: use fewer topics and points when less "
+        "was said, and return an empty array if the transcript had no "
+        "real substance to group. Never drop a figure to save words.\n"
+    )
+
 
 _DECISIONS_FIELD = (
     '"decisions": a JSON array of strings describing what was actually '
@@ -689,11 +691,13 @@ _DECISIONS_FIELD = (
 
 _ACTION_ITEMS_FIELD = (
     '"action_items": a JSON array of strings describing what someone must '
-    "now DO, one per item, with the "
-    "owner named only where the transcript actually identifies them "
-    "(see the speaker-label rule above), and with deadlines as "
-    "absolute dates wherever the meeting date lets you resolve a "
-    "relative one such as 'next Wednesday' or 'in three weeks'.\n"
+    'now DO, one per item, each written as "<Owner>: <action>, by '
+    '<date>". Name the owner only where the transcript actually '
+    "identifies them (see the speaker-label rule above); with no "
+    "identifiable owner, start with the action instead. Give deadlines "
+    "as absolute dates (e.g. 12 Nov 2026) wherever the meeting date lets "
+    "you resolve a relative one such as 'next Wednesday' or 'in three "
+    "weeks', and leave out ', by <date>' when no deadline was set.\n"
 )
 
 _CLAIMS_TO_VERIFY_FIELD = (
@@ -744,11 +748,11 @@ _KEYWORDS_FIELD = (
 )
 
 
-def _schema_fields(momentum_applies: bool) -> str:
+def _schema_fields(momentum_applies: bool, budget: SummaryBudget) -> str:
     parts = [
         _TITLE_FIELD,
         _EXECUTIVE_SUMMARY_FIELD,
-        _NOTES_FIELD,
+        _notes_field(budget),
         _DECISIONS_FIELD,
         _ACTION_ITEMS_FIELD,
         _CLAIMS_TO_VERIFY_FIELD,
@@ -777,7 +781,24 @@ _FIELD_BOUNDARIES = (
 )
 
 
-def _build_master_prompt(*, companies: Mapping[MeetingRole, str] | None = None) -> str:
+_STYLE_RULES = (
+    "Writing style — the firm's house style for internal notes:\n"
+    "- British spelling (analyse, organisation, programme).\n"
+    "- Sentences of 25 words or fewer.\n"
+    "- Lead with the outcome or conclusion, then the detail behind it.\n"
+    "- Figures as numerals with their units (AED 42m, $3.5M, 7x, 35%, "
+    "12 Nov 2026).\n"
+    "- State conclusions directly, without hedging.\n"
+    "- Name people where the speaker-label rule allows; never write "
+    "'the participants' or 'the team' when a name or role is known.\n"
+    "- No filler: never open with 'The team discussed', 'The meeting "
+    "covered', 'It was noted that' or similar."
+)
+
+
+def _build_master_prompt(
+    *, budget: SummaryBudget, companies: Mapping[MeetingRole, str] | None = None
+) -> str:
     """Assemble the full instruction set for the title-bearing, final
     output shape: deal context, the speaker-label rule, chain-of-thought
     scaffolding, worked example(s), the JSON schema, the field
@@ -788,7 +809,7 @@ def _build_master_prompt(*, companies: Mapping[MeetingRole, str] | None = None) 
     momentum_applies = _momentum_applies(companies)
     deal_context = _DEAL_CONTEXT_MA if momentum_applies else _DEAL_CONTEXT_GENERIC
     cot = _chain_of_thought_instruction(momentum_applies)
-    schema_fields = _schema_fields(momentum_applies)
+    schema_fields = _schema_fields(momentum_applies, budget)
     guardrails = _guardrails(momentum_applies)
     examples_section = f"{_FEW_SHOT_EXAMPLES_MA}\n\n" if momentum_applies else ""
     return (
@@ -800,6 +821,7 @@ def _build_master_prompt(*, companies: Mapping[MeetingRole, str] | None = None) 
         "commentary) for the real meeting above, with exactly these keys:\n"
         f"{schema_fields}\n\n"
         f"{_FIELD_BOUNDARIES}\n\n"
+        f"{_STYLE_RULES}\n\n"
         f"{guardrails}"
     )
 
@@ -893,6 +915,7 @@ def build_chunk_summary_prompt(
 def build_single_pass_summary_prompt(
     transcript_text: str,
     *,
+    budget: SummaryBudget,
     companies: Mapping[MeetingRole, str] | None = None,
     meeting_date: str | None = None,
 ) -> str:
@@ -907,13 +930,14 @@ def build_single_pass_summary_prompt(
     start, end = _TRANSCRIPT_DELIMITER
     safe_transcript = _strip_delimiter_tokens(transcript_text)
     context_block = _build_company_context_block(companies=companies, meeting_date=meeting_date)
-    master_prompt = _build_master_prompt(companies=companies)
+    master_prompt = _build_master_prompt(budget=budget, companies=companies)
     return f"{context_block}{start}\n{safe_transcript}\n{end}\n\n{master_prompt}"
 
 
 def build_merge_prompt(
     chunk_summaries: list[str],
     *,
+    budget: SummaryBudget,
     companies: Mapping[MeetingRole, str] | None = None,
     meeting_date: str | None = None,
 ) -> str:
@@ -926,14 +950,15 @@ def build_merge_prompt(
     start, end = _TRANSCRIPT_DELIMITER
     joined = "\n\n---\n\n".join(_strip_delimiter_tokens(summary) for summary in chunk_summaries)
     context_block = _build_company_context_block(companies=companies, meeting_date=meeting_date)
-    master_prompt = _build_master_prompt(companies=companies)
+    master_prompt = _build_master_prompt(budget=budget, companies=companies)
     return (
         "The following are summaries of consecutive excerpts of one "
         "meeting, in chronological order. Merge them into a single, "
         "de-duplicated, coherent overall meeting summary. Where two "
         "excerpts cover the same topic, combine them into one entry "
         "rather than repeating it, and keep every distinct number and "
-        "commitment.\n\n"
+        "commitment. Write executive_summary fresh from the whole "
+        "meeting; never join the excerpts' own executive_summary texts.\n\n"
         f"{context_block}"
         f"{start}\n{joined}\n{end}\n\n"
         f"{master_prompt}"

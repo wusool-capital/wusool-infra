@@ -42,10 +42,14 @@ def render_summary_text(summary: MeetingSummary) -> str:
     """Flatten the structured summary into the plain-text `summary` column.
 
     Wusool's schema stores one text summary, but the AI produces several
-    sections; dropping everything but the executive summary would lose the
-    action items and decisions, which are the parts a deal pipeline
-    actually acts on. Sections that came back empty are omitted entirely
-    rather than rendered as empty headings.
+    sections; dropping everything but the gist would lose the next steps
+    and decisions, which are the parts a deal pipeline actually acts on.
+    Sections that came back empty are omitted entirely rather than
+    rendered as empty headings.
+
+    Notes come last on purpose: matching_engine keeps the start and end of
+    an over-long summary, so a long meeting loses middle notes rather than
+    the gist, next steps or risks.
     """
     parts: list[str] = []
 
@@ -53,22 +57,36 @@ def render_summary_text(summary: MeetingSummary) -> str:
         parts.append(summary.executive_summary)
 
     for values, heading in (
+        (summary.action_items, "Next steps"),
         (summary.decisions, "Decisions"),
-        (summary.action_items, "Action Items"),
-        (summary.risks, "Risks"),
-        (summary.claims_to_verify, "Claims to Verify"),
     ):
         if values:
-            bullets = "\n".join(f"- {value}" for value in values)
-            parts.append(f"{heading}:\n{bullets}")
+            parts.append(_bullet_section(heading, values))
 
     if summary.deal_momentum:
-        parts.append(f"Deal Momentum: {summary.deal_momentum}")
+        parts.append(f"Deal momentum: {summary.deal_momentum}")
+
+    for values, heading in (
+        (summary.claims_to_verify, "To verify"),
+        (summary.risks, "Risks"),
+    ):
+        if values:
+            parts.append(_bullet_section(heading, values))
 
     if summary.keywords:
         parts.append(f"Keywords: {summary.keywords_line}")
 
+    notes = [note for note in summary.notes if note.points]
+    if notes:
+        parts.append("Notes")
+        parts.extend(_bullet_section(note.topic, note.points) for note in notes)
+
     return "\n\n".join(parts)
+
+
+def _bullet_section(heading: str, values: list[str]) -> str:
+    bullets = "\n".join(f"- {value}" for value in values)
+    return f"{heading}:\n{bullets}"
 
 
 def render_transcript_text(turns: list[TranscriptTurn]) -> str:

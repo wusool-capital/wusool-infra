@@ -145,6 +145,9 @@ constructed?", the answer is always `bootstrap.py`.
 - **`summary.py`** — the 9-field shape of a finished summary (`title`,
   `executive_summary`, `decisions`, `action_items`, etc.) as plain Python
   dataclasses. This is the type everything downstream works with.
+  `executive_summary` holds a short gist (2–3 sentences); the detail is in
+  `notes`, whose size grows with the meeting's length (`summary_budget` in
+  `prompts.py`).
 - **`prompts.py`** — the actual text sent to the LLM. This is the biggest
   file in the module (~900 lines) and it looks intimidating, but it's
   almost entirely prose: the system prompt, worked examples, and a very
@@ -155,8 +158,11 @@ constructed?", the answer is always `bootstrap.py`.
 - **`chunking.py`** — splits a long transcript into LLM-sized pieces.
   Small and self-contained.
 - **`rendering.py`** — turns the structured 9-field summary back into
-  plain text (for the `meetings.summary` column) and turns a transcript's
-  turns back into "Speaker: text" lines.
+  plain text (for the `meetings.summary` column, the Attio note and the
+  matching engine) and turns a transcript's turns back into "Speaker: text"
+  lines. The order is gist, next steps, decisions, deal signal, then notes
+  last, so the matching engine's cut of a long summary loses middle notes
+  first.
 
 ### Talking to our own database (`persistence/`)
 
@@ -227,11 +233,12 @@ for the full explanation.
 Two things about the input make the prompt unusually defensive, and it's
 worth knowing both before you touch that file:
 
-1. **Speaker labels are not reliable identities.** The desktop app has no
-   real speaker diarization — every turn just says `"Participant"`. The
-   prompt explicitly tells the model never to guess who said what based
-   on a label, and to attribute by role ("the seller", "the buyer") or not
-   at all when it can't tell.
+1. **Only some speaker labels are reliable identities.** The desktop app
+   sends the names a user gave each voice, and the prompt trusts those.
+   Placeholder labels (`SPEAKER_00`, "Speaker 2", "Participant", "Others",
+   "Me") are not identities: the prompt tells the model never to guess who
+   said what from them, and to attribute by role ("the seller", "the
+   buyer") or not at all when it can't tell.
 2. **The transcript is untrusted input, not an instruction.** A meeting
    transcript could contain text that looks like a command ("ignore your
    previous instructions..."). The prompt wraps the transcript in
