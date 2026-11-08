@@ -8,6 +8,18 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-08
+
+### Changed
+
+- Meeting summaries lead with a 2–3 sentence gist. Next steps, decisions
+  and notes by topic follow, plus a deal signal for buyer, seller and
+  investor meetings. Notes grow with the meeting instead of a fixed 1,500-word cap.
+  The Attio note, Scribe and the matching engine all get the new order.
+- The meetings server module calls Bedrock through Pydantic AI agents. They
+  validate the summary schema and retry once when a gist or note breaks the
+  length rules.
+
 ## 2026-11-07
 
 ### Added
