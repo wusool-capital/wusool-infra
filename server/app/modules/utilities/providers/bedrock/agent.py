@@ -24,11 +24,16 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
-from botocore.exceptions import EndpointConnectionError
 from pydantic import BaseModel
 from pydantic_ai import Agent, ToolOutput
 from pydantic_ai.agent import AgentRunResult
-from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelConnectionError,
+    ModelHTTPError,
+    ModelTimeoutError,
+    UnexpectedModelBehavior,
+)
 from pydantic_ai.models.bedrock import BedrockConverseModel
 from pydantic_ai.providers.bedrock import BedrockProvider
 
@@ -70,8 +75,11 @@ def structured_agent[T: BaseModel](
 
 
 def _is_transient(exc: Exception) -> bool:
-    if isinstance(exc, EndpointConnectionError):
-        return True
+    # Pydantic AI wraps botocore transport failures as ModelConnectionError. A read
+    # timeout already waited the client's full timeout (300s for meetings), so
+    # retrying it would hold a summary slot for many minutes.
+    if isinstance(exc, ModelConnectionError):
+        return not isinstance(exc, ModelTimeoutError)
     return isinstance(exc, ModelHTTPError) and exc.provider_error_code in TRANSIENT_ERROR_CODES
 
 
@@ -119,7 +127,7 @@ async def run_bedrock_agent[T](
     except UnexpectedModelBehavior:
         # `from None`: the original carries the model's own output.
         raise BedrockInvocationError(f"{operation} output failed validation") from None
-    except (ModelAPIError, EndpointConnectionError) as exc:
+    except ModelAPIError as exc:
         raise BedrockInvocationError(f"{operation} failed: {_error_code(exc)}") from None
 
     latency_ms = int((time.monotonic() - started) * 1000)

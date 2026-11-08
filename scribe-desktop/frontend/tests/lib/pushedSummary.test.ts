@@ -84,6 +84,16 @@ describe('splitLead', () => {
     });
   });
 
+  test('does not end the lead at an abbreviation', () => {
+    expect(splitLead('U.S. buyer Acme agreed the floor. Diligence starts Monday.')).toEqual({
+      lead: 'U.S. buyer Acme agreed the floor.',
+      rest: 'Diligence starts Monday.',
+    });
+    expect(splitLead('Dr. Smith of Nomad Retail Co. confirmed the range. Next call 26 Nov.').lead).toBe(
+      'Dr. Smith of Nomad Retail Co. confirmed the range.',
+    );
+  });
+
   test('keeps a single sentence whole', () => {
     expect(splitLead('Only one sentence.')).toEqual({ lead: 'Only one sentence.', rest: '' });
   });

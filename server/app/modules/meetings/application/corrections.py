@@ -25,7 +25,11 @@ from app.modules.meetings.domain.corrections import (
     batch_segments,
     is_minor_edit,
 )
-from app.modules.meetings.domain.prompts import CORRECTION_SYSTEM_PROMPT, build_correction_prompt
+from app.modules.meetings.domain.prompts import (
+    CORRECTION_SYSTEM_PROMPT,
+    build_correction_prompt,
+    sanitize_segment_text,
+)
 
 __all__ = ["CorrectionService"]
 
@@ -129,6 +133,10 @@ def _keep_valid(
             dropped["duplicate"] += 1
             continue
         segment = batch[edit.line - 1]
+        # The model saw this line with our prompt markers stripped; its fix would delete them.
+        if sanitize_segment_text(segment.text) != segment.text:
+            dropped["prompt_marker"] += 1
+            continue
         suggested = edit.suggested.strip()
         if not suggested or suggested == segment.text.strip():
             dropped["no_change"] += 1

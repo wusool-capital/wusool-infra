@@ -13,6 +13,7 @@ import {
   TranscriptEdit,
   TranscriptMatches,
   activeSuggestions,
+  mergeSuggestions,
   idsBefore,
   popRedo,
   popUndo,
@@ -42,8 +43,8 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
   const [history, setHistoryState] = useState<EditHistory>(EMPTY_HISTORY);
   const [suggestions, setSuggestions] = useState<CorrectionSuggestion[]>([]);
   const [isSuggesting, setIsSuggesting] = useState(false);
-  // Lines the last proofread couldn't check; shown until the next run or Dismiss All.
-  const [uncheckedLines, setUncheckedLines] = useState(0);
+  // Lines the last proofread couldn't check; shown until a retry checks them or Dismiss All.
+  const [uncheckedIds, setUncheckedIds] = useState<string[]>([]);
   const [findOpen, setFindOpen] = useState(false);
 
   // Mirrors state so async handlers and the key listener never read a stale stack.
@@ -279,22 +280,31 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     [guarded, meetingId, commit],
   );
 
-  const requestSuggestions = useCallback(async () => {
-    setIsSuggesting(true);
-    try {
-      const result = await invoke<ProofreadResult>('suggest_transcript_corrections', { meetingId });
-      setSuggestions(result.suggestions);
-      setUncheckedLines(result.failed_segment_ids.length);
-      if (result.suggestions.length === 0 && result.failed_segment_ids.length === 0) {
-        toast.success('No corrections suggested');
+  const runProofread = useCallback(
+    async (segmentIds: string[] | null) => {
+      setIsSuggesting(true);
+      try {
+        const result = await invoke<ProofreadResult>('suggest_transcript_corrections', { meetingId, segmentIds });
+        // A retry only checked the missed lines, so it adds to the fixes still under review.
+        setSuggestions((prev) =>
+          segmentIds ? mergeSuggestions(prev, result.suggestions, order) : mergeSuggestions([], result.suggestions, order),
+        );
+        setUncheckedIds(result.failed_segment_ids);
+        if (!segmentIds && result.suggestions.length === 0 && result.failed_segment_ids.length === 0) {
+          toast.success('No corrections suggested');
+        }
+      } catch (error) {
+        console.error('Failed to get suggestions:', error);
+        toast.error(`Could not get suggestions: ${errorMessage(error)}`);
+      } finally {
+        setIsSuggesting(false);
       }
-    } catch (error) {
-      console.error('Failed to get suggestions:', error);
-      toast.error(`Could not get suggestions: ${errorMessage(error)}`);
-    } finally {
-      setIsSuggesting(false);
-    }
-  }, [meetingId]);
+    },
+    [meetingId, order],
+  );
+
+  const requestSuggestions = useCallback(() => runProofread(null), [runProofread]);
+  const retryUnchecked = useCallback(() => runProofread(uncheckedIds), [runProofread, uncheckedIds]);
 
   const dismissSuggestion = useCallback(
     (segmentId: string) => setSuggestions((prev) => prev.filter((s) => s.segment_id !== segmentId)),
@@ -303,7 +313,7 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
 
   const dismissAllSuggestions = useCallback(() => {
     setSuggestions([]);
-    setUncheckedLines(0);
+    setUncheckedIds([]);
   }, []);
 
   const acceptSuggestion = useCallback(
@@ -408,8 +418,9 @@ export function useTranscriptEditor({ meetingId, segments, editable, reload }: U
     replaceAll,
     suggestions: visibleSuggestions,
     isSuggesting,
-    uncheckedLines,
+    uncheckedLines: uncheckedIds.length,
     requestSuggestions,
+    retryUnchecked,
     acceptSuggestion,
     dismissSuggestion,
     dismissAllSuggestions,

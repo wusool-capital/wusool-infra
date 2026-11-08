@@ -10,6 +10,19 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 
+# A 90-minute summary renders to about 10,000 characters, so real summaries fit
+# whole. This only stops an outsized migrated note filling every prompt.
+MAX_NOTE_CHARS = 16_000
+OVERSIZED_NOTE_MARKER = " ... [rest of this note omitted]"
+
+
+def bound_summary(summary: str) -> str:
+    """The summary whole, or its start when it is far longer than any real one."""
+    if len(summary) <= MAX_NOTE_CHARS:
+        return summary
+    return summary[:MAX_NOTE_CHARS] + OVERSIZED_NOTE_MARKER
+
+
 @dataclass(frozen=True)
 class MeetingNote:
     occurred_at: datetime

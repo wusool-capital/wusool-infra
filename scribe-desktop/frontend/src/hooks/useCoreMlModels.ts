@@ -43,7 +43,7 @@ export interface CoreMlModels {
 }
 
 /** Shared by Settings and the Separate Speakers prompt, so both download the same way. */
-export function useCoreMlModels(): CoreMlModels {
+export function useCoreMlModels(enabled = true): CoreMlModels {
   const [settings, setSettings] = useState<DiarizationBackendSettings | null>(null);
   const [models, setModels] = useState<DiarizationModelsStatus | null>(null);
   const [download, setDownload] = useState<CoreMlDownloadState>({ stage: 'closed' });
@@ -59,12 +59,13 @@ export function useCoreMlModels(): CoreMlModels {
   }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     refresh().catch(() => undefined);
     const unlisten = listen<DownloadProgress>('diarization-models-progress', (event) => setProgress(event.payload));
     return () => {
       unlisten.then((stop) => stop());
     };
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   const setBackend = useCallback(async (backend: DiarizationBackend) => {
     await invoke('set_diarization_backend', { backend });

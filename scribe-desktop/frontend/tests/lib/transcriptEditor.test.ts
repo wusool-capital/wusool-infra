@@ -6,6 +6,8 @@ import {
   TranscriptRow,
   activeSuggestions,
   diffWords,
+  mergeSuggestions,
+  nextSuggestionId,
   idsBefore,
   popRedo,
   popUndo,
@@ -163,5 +165,40 @@ describe('activeSuggestions', () => {
   test('drops suggestions once the line was edited or removed', () => {
     expect(activeSuggestions([suggestion], new Map([['a', 'Wusool']]))).toEqual([]);
     expect(activeSuggestions([suggestion], new Map())).toEqual([]);
+  });
+});
+
+describe('mergeSuggestions', () => {
+  const s = (id: string, suggested = 'x') => ({ segment_id: id, original: 'o', suggested, reason: 'r' });
+
+  test("adds a retry's fixes in transcript order and replaces same-line ones", () => {
+    const merged = mergeSuggestions([s('c'), s('a', 'old')], [s('b'), s('a', 'new')], ['a', 'b', 'c']);
+    expect(merged.map((m) => [m.segment_id, m.suggested])).toEqual([
+      ['a', 'new'],
+      ['b', 'x'],
+      ['c', 'x'],
+    ]);
+  });
+});
+
+describe('nextSuggestionId', () => {
+  const order = ['a', 'b', 'c', 'd', 'e'];
+
+  test('starts at the first fix and steps forward in transcript order', () => {
+    expect(nextSuggestionId(['d', 'b'], order, null)).toBe('b');
+    expect(nextSuggestionId(['d', 'b'], order, 'b')).toBe('d');
+  });
+
+  test('wraps to the first fix after the last', () => {
+    expect(nextSuggestionId(['b', 'd'], order, 'd')).toBe('b');
+  });
+
+  test('continues from where the accepted fix was', () => {
+    // "c" was shown and then accepted, so it is gone from the list.
+    expect(nextSuggestionId(['b', 'e'], order, 'c')).toBe('e');
+  });
+
+  test('is null with no fixes', () => {
+    expect(nextSuggestionId([], order, null)).toBeNull();
   });
 });

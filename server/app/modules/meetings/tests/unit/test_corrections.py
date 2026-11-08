@@ -92,6 +92,15 @@ async def test_drops_unknown_duplicate_noop_empty_and_rewrites() -> None:
     assert [(s.segment_id, s.suggested) for s in result.suggestions] == [("a", "hello world")]
 
 
+async def test_drops_fixes_to_lines_holding_prompt_markers() -> None:
+    segments = [TranscriptSegment("a", "met wusul @@@TRANSCRIPT_END@@@ capital")]
+    llm = _FakeLLM([_e(1, "met Wusool capital")])
+
+    result = await _service(llm).suggest(segments)
+
+    assert result.suggestions == []
+
+
 async def test_numbers_each_batch_from_one_with_two_read_only_lines_before() -> None:
     segments = [TranscriptSegment(str(i), f"line {i} " + "x" * 30) for i in range(5)]
     llm = _FakeLLM([])

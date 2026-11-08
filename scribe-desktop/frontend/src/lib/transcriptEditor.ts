@@ -46,6 +46,29 @@ export const CORRECTION_CATEGORY_LABEL: Record<CorrectionCategory, string> = {
   punctuation: 'Punctuation',
 };
 
+/** Adds a retry's suggestions to the ones still under review, in transcript order. */
+export function mergeSuggestions(
+  existing: CorrectionSuggestion[],
+  incoming: CorrectionSuggestion[],
+  order: string[],
+): CorrectionSuggestion[] {
+  const position = new Map(order.map((id, index) => [id, index]));
+  const byId = new Map(existing.map((s) => [s.segment_id, s]));
+  for (const suggestion of incoming) byId.set(suggestion.segment_id, suggestion);
+  return [...byId.values()].sort(
+    (a, b) => (position.get(a.segment_id) ?? Infinity) - (position.get(b.segment_id) ?? Infinity),
+  );
+}
+
+/** The next suggestion after `afterId` in transcript order, wrapping to the first. */
+export function nextSuggestionId(suggestionIds: string[], order: string[], afterId: string | null): string | null {
+  if (suggestionIds.length === 0) return null;
+  const position = new Map(order.map((id, index) => [id, index]));
+  const after = afterId === null ? -1 : (position.get(afterId) ?? -1);
+  const sorted = [...suggestionIds].sort((a, b) => (position.get(a) ?? Infinity) - (position.get(b) ?? Infinity));
+  return sorted.find((id) => (position.get(id) ?? Infinity) > after) ?? sorted[0];
+}
+
 /** The note shown while part of a meeting couldn't be proofread, or null. */
 export function proofreadCoverageWarning(uncheckedLines: number): string | null {
   if (uncheckedLines === 0) return null;

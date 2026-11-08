@@ -9,7 +9,6 @@ import { Input } from "./ui/input"
 import { SettingsRow, SettingsSection } from "./settings/SettingsSection"
 import {
   MAX_VOCABULARY_WORDS,
-  MAX_VOCABULARY_WORD_LENGTH,
   addVocabularyWords,
   removeVocabularyWord,
 } from "@/lib/proofreadVocabulary"
@@ -38,9 +37,20 @@ export function ProofreadVocabularySettings() {
 
   const add = (event: FormEvent) => {
     event.preventDefault()
+    const typed = draft.split(/[,\n]/).filter((word) => word.trim()).length
     const next = addVocabularyWords(words, draft)
+    const added = next.length - words.length
     setDraft("")
-    if (next.length !== words.length) void save(next)
+    if (added > 0) void save(next)
+    if (added < typed) {
+      toast.info(
+        next.length >= MAX_VOCABULARY_WORDS
+          ? `Your vocabulary is full at ${MAX_VOCABULARY_WORDS} words, so some weren't added.`
+          : added === 0
+            ? "Already in your vocabulary."
+            : `Added ${added}; the rest were already in your vocabulary.`,
+      )
+    }
   }
 
   const full = words.length >= MAX_VOCABULARY_WORDS
@@ -61,7 +71,6 @@ export function ProofreadVocabularySettings() {
             name="proofread-vocabulary"
             autoComplete="off"
             spellCheck={false}
-            maxLength={MAX_VOCABULARY_WORD_LENGTH * 10}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder={full ? "List is full" : "Add a name or term…"}

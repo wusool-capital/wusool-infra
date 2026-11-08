@@ -76,7 +76,8 @@ Bedrock call in the server goes through `run_bedrock_agent`: each client
 builds its agents with `structured_agent`, whose only output is the schema
 as a tool, so Bedrock is forced to answer through the tool and the agent
 validates the result. The runner retries transient AWS errors
-(`TRANSIENT_ERROR_CODES`, connection failures) three times with backoff,
+(`TRANSIENT_ERROR_CODES`, connection failures, but not read timeouts, which
+already waited the client's full timeout) three times with backoff,
 logs metadata only, and re-raises Pydantic AI errors as content-free
 `BedrockInvocationError`s, since they can embed model output.
 

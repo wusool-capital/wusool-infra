@@ -5,7 +5,10 @@ No DB, no Bedrock — pure functions only.
 from datetime import UTC, datetime
 
 from app.modules.matching_engine.domain.meetings import (
+    MAX_NOTE_CHARS,
+    OVERSIZED_NOTE_MARKER,
     MeetingNote,
+    bound_summary,
     render_meeting_notes_section,
     select_notes_within_budget,
 )
@@ -83,3 +86,9 @@ def test_render_states_omission_count_explicitly() -> None:
     section = render_meeting_notes_section(notes, total_char_budget=250, subject_name="Acme")
 
     assert "(1 older meetings omitted)" in section
+
+
+def test_bound_summary_keeps_real_summaries_whole_and_cuts_outsized_notes() -> None:
+    assert bound_summary("x" * 10_000) == "x" * 10_000
+    cut = bound_summary("y" * (MAX_NOTE_CHARS + 50_000))
+    assert cut == "y" * MAX_NOTE_CHARS + OVERSIZED_NOTE_MARKER

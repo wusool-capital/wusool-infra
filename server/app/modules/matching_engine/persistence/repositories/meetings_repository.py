@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Meeting
-from app.modules.matching_engine.domain.meetings import MeetingNote
+from app.modules.matching_engine.domain.meetings import MeetingNote, bound_summary
 
 
 class MeetingRepository:
@@ -18,7 +18,8 @@ class MeetingRepository:
 
     async def get_recent_by_org(self, org_attio_id: str) -> list[MeetingNote]:
         """All meeting notes for the org, ordered by occurred_at DESC, each
-        with its whole summary text. Returns [] for no
+        with its whole summary text (only an outsized note is cut, see
+        `bound_summary`). Returns [] for no
         rows or no match — never raises; meeting notes are optional context
         everywhere they're used. Total-budget selection (oldest +
         most-recent-until-budget-exhausted) is applied by the prompt-building
@@ -35,6 +36,10 @@ class MeetingRepository:
         )
         rows = (await self._session.execute(stmt)).scalars().all()
         return [
-            MeetingNote(occurred_at=row.occurred_at, title=row.title, summary=row.summary or "")
+            MeetingNote(
+                occurred_at=row.occurred_at,
+                title=row.title,
+                summary=bound_summary(row.summary or ""),
+            )
             for row in rows
         ]

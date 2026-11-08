@@ -423,6 +423,8 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_id: String,
+    // Only these lines, for retrying the part an earlier run couldn't check.
+    segment_ids: Option<Vec<String>>,
 ) -> Result<ProofreadResult, String> {
     let config = load_push_config(&app);
     if config.server_url.trim().is_empty() {
@@ -447,11 +449,17 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
         .map(|m| m.title)
         .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
 
+    let only: Option<std::collections::HashSet<String>> = segment_ids.map(|ids| ids.into_iter().collect());
     let segments: Vec<CorrectionSegment> = rows
         .into_iter()
         .filter(|r| !r.transcript.trim().is_empty())
+        .filter(|r| only.as_ref().is_none_or(|ids| ids.contains(&r.id)))
         .map(|r| CorrectionSegment {
-            speaker: speaker_display_name(r.speaker, &speaker_names, self_name.as_deref()),
+            // The server rejects longer speakers, which would fail the whole request.
+            speaker: speaker_display_name(r.speaker, &speaker_names, self_name.as_deref())
+                .chars()
+                .take(MAX_CONTEXT_ITEM_CHARS)
+                .collect(),
             segment_id: r.id,
             text: r.transcript,
         })

@@ -11,7 +11,8 @@ import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { SpeakersPanel } from '@/components/SpeakersPanel';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { proofreadCoverageWarning } from '@/lib/transcriptEditor';
+import { nextSuggestionId, proofreadCoverageWarning } from '@/lib/transcriptEditor';
+import { toast } from 'sonner';
 import { useCoreMlModels } from '@/hooks/useCoreMlModels';
 import { CoreMlDownloadDialog } from '@/components/CoreMlDownloadDialog';
 
@@ -72,27 +73,7 @@ export function TranscriptPanel({
   onUnnamedSpeakersChange,
 }: TranscriptPanelProps) {
   const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
-  const coreMl = useCoreMlModels();
-  // CoreML is the default, but its models download only when asked: offer that here first.
-  const separateSpeakers = () => {
-    if (coreMl.needsDownload) coreMl.ask();
-    else void speakers.separate?.();
-  };
-  // Choosing the slower model turns CoreML off, so this prompt doesn't come back.
-  const useSlowerModel = async () => {
-    await coreMl.setBackend('cpu').catch(() => undefined);
-    await speakers.separate?.();
-  };
   const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
-  // Steps through the suggested fixes in transcript order, wrapping at the end.
-  const nextFixRef = useRef(0);
-  const showNextFix = () => {
-    const ids = editor ? [...editor.suggestions.keys()] : [];
-    if (ids.length === 0) return;
-    const segmentId = ids[nextFixRef.current % ids.length];
-    nextFixRef.current += 1;
-    setFocusRequest({ segmentId, nonce: Date.now() });
-  };
 
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
@@ -128,6 +109,35 @@ export function TranscriptPanel({
     () => convertedSegments.some((segment) => segment.speaker === 'others'),
     [convertedSegments],
   );
+  const showSeparateBanner = Boolean(editable && speakers.separate && speakers.voiceCount === 0 && hasUnseparatedLines);
+
+  // Loaded only while the banner shows, so opening a meeting costs nothing extra.
+  const coreMl = useCoreMlModels(showSeparateBanner);
+  // CoreML is the default, but its models download only when asked: offer that here first.
+  const separateSpeakers = () => {
+    if (coreMl.needsDownload) coreMl.ask();
+    else void speakers.separate?.();
+  };
+  // Choosing the slower model turns CoreML off, so this prompt doesn't come back.
+  const useSlowerModel = async () => {
+    try {
+      await coreMl.setBackend('cpu');
+    } catch (error) {
+      toast.error("Couldn't switch to the slower model", { description: String(error) });
+    }
+    await speakers.separate?.();
+  };
+
+  // Steps through the suggested fixes in transcript order from the last one shown.
+  const lastFixRef = useRef<string | null>(null);
+  const segmentOrder = useMemo(() => convertedSegments.map((segment) => segment.id), [convertedSegments]);
+  const showNextFix = () => {
+    const ids = editor ? [...editor.suggestions.keys()] : [];
+    const segmentId = nextSuggestionId(ids, segmentOrder, lastFixRef.current);
+    if (!segmentId) return;
+    lastFixRef.current = segmentId;
+    setFocusRequest({ segmentId, nonce: Date.now() });
+  };
 
   return (
     <div className="flex w-full h-full min-w-0 bg-card flex-col relative">
@@ -147,7 +157,7 @@ export function TranscriptPanel({
         </div>
       )}
 
-      {editable && speakers.separate && speakers.voiceCount === 0 && hasUnseparatedLines && (
+      {showSeparateBanner && (
         <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
           <span className="min-w-0 text-sm text-foreground" aria-live="polite">
             {speakers.separation.status === 'running'
@@ -198,7 +208,7 @@ export function TranscriptPanel({
                 size="sm"
                 variant="ghost"
                 disabled={editor.isSuggesting}
-                onClick={() => void editor.requestSuggestions()}
+                onClick={() => void editor.retryUnchecked()}
               >
                 {editor.isSuggesting ? 'Proofreading…' : 'Try Again'}
               </Button>

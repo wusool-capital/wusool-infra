@@ -74,10 +74,17 @@ export function splitOwner(item: string): { owner: string | null; action: string
   return match ? { owner: match[1], action: match[2] } : { owner: null, action: item };
 }
 
+// Abbreviations whose full stop doesn't end a sentence.
+const ABBREVIATION = /(?:^|\s)(?:[A-Z]\.){1,3}$|\b(?:Mr|Mrs|Ms|Dr|Prof|St|Co|Inc|Ltd|LLC|Corp|vs|etc|e\.g|i\.e|approx|No)\.$/i;
+
 /** Splits off the gist's first sentence, which states where the meeting landed. */
 export function splitLead(paragraph: string): { lead: string; rest: string } {
-  const match = /^(.+?[.!?])\s+(\S[\s\S]*)$/.exec(paragraph);
-  return match ? { lead: match[1], rest: match[2] } : { lead: paragraph, rest: '' };
+  const boundary = /[.!?](?=\s+\S)/g;
+  for (let match = boundary.exec(paragraph); match; match = boundary.exec(paragraph)) {
+    const lead = paragraph.slice(0, match.index + 1);
+    if (!ABBREVIATION.test(lead)) return { lead, rest: paragraph.slice(match.index + 1).trim() };
+  }
+  return { lead: paragraph, rest: '' };
 }
 
 function bullets(heading: string, items: string[]): string {

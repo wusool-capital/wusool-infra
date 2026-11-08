@@ -6,8 +6,8 @@ import asyncio
 import logging
 
 import pytest
-from botocore.exceptions import EndpointConnectionError
 from pydantic import BaseModel
+from pydantic_ai.exceptions import ModelConnectionError, ModelTimeoutError
 
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
@@ -64,10 +64,23 @@ def test_transient_error_is_retried_and_logged(caplog: pytest.LogCaptureFixture)
 def test_connection_error_is_retried() -> None:
     def respond(call: int) -> JsonObject:
         if call == 1:
-            raise EndpointConnectionError(endpoint_url="https://bedrock")
+            raise ModelConnectionError("m", "connection reset")
         return {"value": 1}
 
     assert _run(respond)[1] == 2
+
+
+def test_read_timeout_is_not_retried() -> None:
+    calls = 0
+
+    def respond(_: int) -> JsonObject:
+        nonlocal calls
+        calls += 1
+        raise ModelTimeoutError("m", "read timed out")
+
+    with pytest.raises(BedrockInvocationError, match="ModelTimeoutError"):
+        _run(respond)
+    assert calls == 1
 
 
 def test_gives_up_after_three_attempts() -> None:
