@@ -6,6 +6,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 
 ### What's new
 
+* **Import Audio** now separates speakers too. Every voice in the file, including yours, appears in **Who Spoke?** to name.
 * **Change Speaker** fixes lines given to the wrong person. Right-click a line, or a selection of lines, and pick a speaker, yourself, or **New Speaker** for someone Scribe didn't separate.
 
 ### Fixed

@@ -12,7 +12,7 @@ use tauri_plugin_store::StoreExt;
 
 use super::engine::{self, DiarizationBackend, DownloadProgress};
 use super::overview::{build_overview, SpeakerOverview};
-use super::service::{diarize_and_notify, system_track_path, DiarizationOutcome};
+use super::service::{diarize_and_notify, meeting_audio_track, DiarizationOutcome};
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository, SpeakerTarget};
 use crate::state::AppState;
@@ -151,7 +151,7 @@ pub async fn speaker_voice_clip(
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("{label} has no lines in this meeting"))?;
-    let track = system_track_path(pool, &meeting_id)
+    let track = meeting_audio_track(pool, &meeting_id)
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| "The meeting audio for this recording is missing".to_string())?;

@@ -12,6 +12,9 @@ renaming a speaker changes one row.
 
 - **Live:** the mic and system audio go through separate voice-activity
   detectors. A bleed gate drops mic audio that only echoes the speakers.
+- **Imports:** imported lines start as `others`. With no `system.mp4`,
+  separation reads the file that `metadata.json` names when its `source`
+  is `import`. It runs after an import, as it does after a recording.
 - **After saving:** [speakrs](https://github.com/avencera/speakrs), a Rust
   port of the pyannote `community-1` pipeline, runs on `system.mp4`. Each
   `others` segment gets the voice that overlaps it most. ffmpeg decodes the

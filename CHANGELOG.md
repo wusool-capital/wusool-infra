@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Scribe 0.8.5 separates speakers in imported audio, using the imported file
+  as the meeting audio.
 - Scribe 0.8.5 adds **Change Speaker** to move transcript lines to another
   voice, to the user, or to a new speaker the separation missed.
 

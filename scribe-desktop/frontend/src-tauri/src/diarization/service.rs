@@ -3,12 +3,12 @@
 // Diarizes a saved meeting's audio, attributes its "others" lines, and auto-names voices the library knows.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
 
 use anyhow::{Context, Result};
 use log::{info, warn};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::Semaphore;
@@ -19,6 +19,7 @@ use super::SpeakerLabel;
 use crate::database::repositories::speaker::{DiarizedVoice, SpeakerRepository};
 
 const SYSTEM_TRACK_FILE: &str = "system.mp4";
+const FOLDER_METADATA_FILE: &str = "metadata.json";
 pub const DIARIZATION_EVENT: &str = "diarization-updated";
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,20 +84,42 @@ pub async fn diarize_and_notify<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePoo
     outcome
 }
 
-/// The meeting's separate meeting-audio recording, which every diarized voice comes from.
-pub async fn system_track_path(pool: &SqlitePool, meeting_id: &str) -> Result<Option<PathBuf>> {
+/// The fields of a meeting folder's metadata.json that say whether, and from which file, it was imported.
+#[derive(Deserialize)]
+struct FolderMetadata {
+    source: Option<String>,
+    audio_file: Option<String>,
+}
+
+/// Meeting audio without the user's microphone: a recording's system track, or an imported file.
+pub async fn meeting_audio_track(pool: &SqlitePool, meeting_id: &str) -> Result<Option<PathBuf>> {
     let folder: Option<(Option<String>,)> = sqlx::query_as("SELECT folder_path FROM meetings WHERE id = ?")
         .bind(meeting_id)
         .fetch_optional(pool)
         .await?;
-    Ok(folder
-        .and_then(|(path,)| path)
-        .map(|path| PathBuf::from(path).join(SYSTEM_TRACK_FILE))
-        .filter(|path| path.exists()))
+    let Some(folder) = folder.and_then(|(path,)| path).map(PathBuf::from) else {
+        return Ok(None);
+    };
+    let system_track = folder.join(SYSTEM_TRACK_FILE);
+    if system_track.exists() {
+        return Ok(Some(system_track));
+    }
+    Ok(imported_audio(&folder))
+}
+
+// An imported file has no microphone track mixed in, so all of it is meeting audio.
+fn imported_audio(folder: &Path) -> Option<PathBuf> {
+    let text = std::fs::read_to_string(folder.join(FOLDER_METADATA_FILE)).ok()?;
+    let metadata: FolderMetadata = serde_json::from_str(&text).ok()?;
+    if metadata.source.as_deref() != Some("import") {
+        return None;
+    }
+    let path = folder.join(metadata.audio_file?);
+    path.exists().then_some(path)
 }
 
 async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meeting_id: &str) -> Result<DiarizationOutcome> {
-    let Some(system_track) = system_track_path(pool, meeting_id).await? else {
+    let Some(system_track) = meeting_audio_track(pool, meeting_id).await? else {
         return Ok(skipped("no separate meeting-audio track was recorded"));
     };
 
@@ -180,4 +203,35 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
 
 fn skipped(reason: &str) -> DiarizationOutcome {
     DiarizationOutcome::Skipped { reason: reason.to_string() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn folder_with(metadata: &str, files: &[&str]) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join(FOLDER_METADATA_FILE), metadata).unwrap();
+        for file in files {
+            std::fs::write(dir.path().join(file), b"audio").unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn an_imported_file_is_the_meeting_audio() {
+        let dir = folder_with(r#"{"source": "import", "audio_file": "audio.m4a"}"#, &["audio.m4a"]);
+        assert_eq!(imported_audio(dir.path()), Some(dir.path().join("audio.m4a")));
+    }
+
+    #[test]
+    fn a_recording_or_a_missing_file_is_not() {
+        // A recording's audio.mp4 mixes in the user's microphone, so it never stands in for the system track.
+        let recorded = folder_with(r#"{"source": "recording", "audio_file": "audio.mp4"}"#, &["audio.mp4"]);
+        assert_eq!(imported_audio(recorded.path()), None);
+        let missing = folder_with(r#"{"source": "import", "audio_file": "audio.m4a"}"#, &[]);
+        assert_eq!(imported_audio(missing.path()), None);
+        let broken = folder_with("not json", &["audio.m4a"]);
+        assert_eq!(imported_audio(broken.path()), None);
+    }
 }
