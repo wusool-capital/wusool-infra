@@ -163,7 +163,9 @@ material.
 ## Send feedback
 
 Click the bug icon at the top of the sidebar, choose a category, and describe
-what happened. The form needs **Scribe Push** set up first.
+what happened. The form needs **Scribe Push** set up first. If you gave your
+name under **Speakers** in Settings, it's already filled in; change or clear it
+as you like.
 
 ## Updates
 

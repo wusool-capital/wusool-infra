@@ -20,6 +20,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Long meeting titles in a folder end with "…" instead of pushing the date off the edge of the window.
 * New meetings are named like "Meeting · 7 Nov, 18:22" instead of a file-style timestamp. Your own titles are never replaced by the summary's title.
 * Dialogs look sharp instead of slightly blurry, with a lighter background behind them. **Rename Meeting** selects the current name so you can type over it.
+* **Send feedback** fills in the name you gave under **Speakers** in Settings, so you don't have to type it again.
 
 ### Fixed
 
