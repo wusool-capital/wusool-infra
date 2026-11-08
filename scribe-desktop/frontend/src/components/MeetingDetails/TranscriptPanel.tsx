@@ -78,6 +78,11 @@ export function TranscriptPanel({
     if (coreMl.needsDownload) coreMl.ask();
     else void speakers.separate?.();
   };
+  // Choosing the slower model turns CoreML off, so this prompt doesn't come back.
+  const useSlowerModel = async () => {
+    await coreMl.setBackend('cpu').catch(() => undefined);
+    await speakers.separate?.();
+  };
   const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
   // Steps through the suggested fixes in transcript order, wrapping at the end.
   const nextFixRef = useRef(0);
@@ -163,9 +168,9 @@ export function TranscriptPanel({
 
       <CoreMlDownloadDialog
         coreMl={coreMl}
-        description="Separate speakers about 6× faster with a one-time download of about 300 MB. Or separate them now at standard speed."
-        skipLabel="Use Standard Speed"
-        onSkip={() => void speakers.separate?.()}
+        description="Separate speakers about 6× faster with a one-time download of about 300 MB. Or use the slower model, which needs no download. You can switch back in Settings."
+        skipLabel="Use Slower Model (6× Slower)"
+        onSkip={() => void useSlowerModel()}
         onDownloaded={() => void speakers.separate?.()}
       />
 

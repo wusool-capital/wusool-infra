@@ -6,7 +6,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 
 ### What's new
 
-* **Faster Speaker Separation (CoreML)** is now on by default. Its models (about 300 MB) download only when you ask. The first time you press **Separate Speakers**, Scribe offers the download with a progress bar, or **Use Standard Speed** to separate straight away. Separation that runs on its own after a recording uses the standard model until then.
+* **Faster Speaker Separation (CoreML)** is now on by default. Its models (about 300 MB) download only when you ask. The first time you press **Separate Speakers**, Scribe offers the download with a progress bar. **Use Slower Model** instead turns CoreML off and separates straight away, with no download. Separation that runs on its own after a recording uses the standard model until then.
 
 ### Changed
 

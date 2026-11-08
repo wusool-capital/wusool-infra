@@ -85,7 +85,8 @@ renaming a speaker changes one row.
   a peak of about 2.7 GB. CPU runs at about 15 times real time on Apple
   silicon with a peak of about 0.5 GB. If CoreML fails, that run falls back
   to CPU. The CoreML models download only on request, from Settings or the
-  prompt on **Separate Speakers**. Until then, automatic separation after a
+  prompt on **Separate Speakers**, whose **Use Slower Model** button switches
+  the setting to CPU. Until then, automatic separation after a
   recording runs on CPU, so it never downloads 272 MB in the background.
 - **Voice library:** naming a voice stores its embedding in
   `speaker_profiles`. Later meetings auto-name voices whose cosine
