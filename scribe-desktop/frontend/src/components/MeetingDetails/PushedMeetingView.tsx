@@ -5,11 +5,12 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, FileText, Sparkles, Mic, Copy, RefreshCw } from 'lucide-react';
+import { FolderOpen, FileText, ListChecks, Mic, Copy, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptPanel } from './TranscriptPanel';
-import { SummaryView, summaryToPlainText } from './SummaryView';
+import { SummaryView } from './SummaryView';
+import { summaryToPlainText } from '@/lib/pushedSummary';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface PushedMeetingViewProps {
@@ -48,6 +49,7 @@ export function PushedMeetingView({
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(true);
   const [isChecking, setIsChecking] = useState(false);
+  const [tab, setTab] = useState('summary');
 
   const loadSummary = useCallback(async () => {
     try {
@@ -100,13 +102,24 @@ export function PushedMeetingView({
     }
   };
 
+  const handleCopySummary = async () => {
+    if (!summary) return;
+    try {
+      await navigator.clipboard.writeText(summaryToPlainText(summary));
+      toast.success('Summary copied');
+    } catch (error) {
+      console.error('Failed to copy summary:', error);
+      toast.error("Couldn't copy the summary. Try again.");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full bg-card ">
-      <Tabs defaultValue="summary" className="flex flex-col h-full">
-        <div className="p-4 border-b border-border ">
+      <Tabs value={tab} onValueChange={setTab} className="flex flex-col h-full">
+        <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <TabsList>
             <TabsTrigger value="summary" className="gap-1.5">
-              <Sparkles size={14} /> Summary
+              <ListChecks size={14} /> Summary
             </TabsTrigger>
             <TabsTrigger value="transcript" className="gap-1.5">
               <FileText size={14} /> Transcript
@@ -115,42 +128,33 @@ export function PushedMeetingView({
               <Mic size={14} /> Recording
             </TabsTrigger>
           </TabsList>
+          {/* Copy belongs to the summary, so it only shows while that tab is open. */}
+          {tab === 'summary' && summary && (
+            <Button size="sm" variant="outline" onClick={() => void handleCopySummary()} aria-label="Copy Summary">
+              <Copy />
+              <span className="hidden lg:inline">Copy</span>
+            </Button>
+          )}
         </div>
 
         <TabsContent value="summary" className="flex-1 min-h-0 mt-0">
           <ScrollArea className="h-full">
             <div className="p-6">
-            {isLoadingSummary ? (
-            <p className="text-sm text-muted-foreground ">Loading summary...</p>
-          ) : summary ? (
-            <div className="space-y-4">
-              <div className="flex justify-end">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    navigator.clipboard.writeText(summaryToPlainText(summary));
-                    toast.success('Summary copied to clipboard');
-                  }}
-                  title="Copy Summary"
-                >
-                  <Copy />
-                  <span className="hidden lg:inline">Copy</span>
-                </Button>
-              </div>
-              <SummaryView summary={summary} />
-            </div>
-          ) : (
-            <div className="flex flex-col items-start gap-3">
-              <p className="text-sm text-muted-foreground ">
-                No summary available yet. Scribe may still be processing it.
-              </p>
-              <Button size="sm" variant="outline" onClick={handleCheckNow} disabled={isChecking}>
-                <RefreshCw size={14} className={isChecking ? 'animate-spin' : undefined} />
-                <span>{isChecking ? 'Checking...' : 'Check now'}</span>
-              </Button>
-            </div>
-            )}
+              {isLoadingSummary ? (
+                <p className="text-sm text-muted-foreground">Loading summary…</p>
+              ) : summary ? (
+                <SummaryView summary={summary} />
+              ) : (
+                <div className="flex flex-col items-start gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    No summary available yet. Scribe may still be processing it.
+                  </p>
+                  <Button size="sm" variant="outline" onClick={handleCheckNow} disabled={isChecking}>
+                    <RefreshCw size={14} className={isChecking ? 'motion-safe:animate-spin' : undefined} />
+                    <span>{isChecking ? 'Checking…' : 'Check Now'}</span>
+                  </Button>
+                </div>
+              )}
             </div>
           </ScrollArea>
         </TabsContent>
@@ -178,25 +182,16 @@ export function PushedMeetingView({
 
         <TabsContent value="recording" className="flex-1 min-h-0 mt-0">
           <ScrollArea className="h-full">
-            <div className="p-6">
-              <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium text-foreground mb-1">Recording folder</h3>
-              <p className="text-sm text-muted-foreground break-all font-mono text-xs">
-                {folderPath || 'No recording folder for this meeting'}
+            <section className="max-w-[70ch] space-y-3 p-6">
+              <h2 className="text-base font-semibold text-foreground">Recording Folder</h2>
+              <p className="select-text break-all text-sm text-muted-foreground">
+                {folderPath || 'This meeting has no recording folder.'}
               </p>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onOpenMeetingFolder}
-              disabled={!folderPath}
-            >
-              <FolderOpen size={16} />
-              Open Recording Folder
-            </Button>
-              </div>
-            </div>
+              <Button size="sm" variant="outline" onClick={onOpenMeetingFolder} disabled={!folderPath}>
+                <FolderOpen size={16} />
+                Open Folder
+              </Button>
+            </section>
           </ScrollArea>
         </TabsContent>
       </Tabs>

@@ -24,6 +24,21 @@ import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperatio
 import { useConfig } from '@/contexts/ConfigContext';
 import { useTranscriptEditor } from '@/hooks/meeting-details/useTranscriptEditor';
 
+function formatDate(value: string | null | undefined, options: Intl.DateTimeFormatOptions): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : new Intl.DateTimeFormat(undefined, options).format(date);
+}
+
+/** "6 Nov 2026, 10:00 · 19 lines · Sent to Attio 6 Nov 2026": when, how much, and whether it was pushed. */
+function meetingSummaryLine(createdAt: string, lineCount: number, pushedAt?: string | null, unnamedSpeakers = 0): string {
+  const when = formatDate(createdAt, { dateStyle: 'medium', timeStyle: 'short' });
+  const lines = `${new Intl.NumberFormat().format(lineCount)} ${lineCount === 1 ? 'line' : 'lines'}`;
+  const sent = formatDate(pushedAt, { dateStyle: 'medium' });
+  const toName = unnamedSpeakers > 0 && `${unnamedSpeakers} ${unnamedSpeakers === 1 ? 'speaker' : 'speakers'} to name`;
+  return [when, lines, toName, sent && `Sent to Attio ${sent}`].filter(Boolean).join(' · ');
+}
+
 export default function PageContent({
   meeting,
   summaryData,
@@ -65,6 +80,7 @@ export default function PageContent({
   const [isRecording] = useState(false);
   const [summaryResponse] = useState<SummaryResponse | null>(null);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [unnamedSpeakers, setUnnamedSpeakers] = useState(0);
 
   // A meeting is locked for editing once it's been pushed to Scribe --
   // pushed_at is persisted so this holds across app restarts, not just
@@ -194,15 +210,16 @@ export default function PageContent({
       transition={{ duration: 0.3, ease: 'easeOut' }}
       className="flex flex-col h-screen bg-muted "
     >
-      {folderName && (
-        <div className="flex items-center px-4 py-2 border-b border-border bg-card">
+      <header className="border-b border-border bg-card px-4 py-3">
+        {folderName && (
+          <div className="flex">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="max-w-xs"
+                  className="-ml-2 mb-1 h-7 max-w-xs text-muted-foreground"
                   onClick={() =>
                     router.push(`/folder?tag=${encodeURIComponent(slugifyTag(folderName))}&name=${encodeURIComponent(folderName)}`)
                   }
@@ -214,8 +231,11 @@ export default function PageContent({
               <TooltipContent>Back to {folderName}</TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        </div>
-      )}
+          </div>
+        )}
+        <h1 className="select-text truncate text-xl font-semibold text-foreground">{meeting.title}</h1>
+        <p className="select-text text-sm text-muted-foreground tabular-nums">{meetingSummaryLine(meeting.created_at, totalCount ?? meetingData.transcripts.length, meeting.pushed_at, isPushed ? 0 : unnamedSpeakers)}</p>
+      </header>
 
       <div className="flex flex-1 overflow-hidden">
         {isPushed ? (
@@ -255,6 +275,7 @@ export default function PageContent({
             editable={!isPushed}
             editor={transcriptEditor}
             onSummarize={() => setShowSummaryDialog(true)}
+            onUnnamedSpeakersChange={setUnnamedSpeakers}
           />
         )}
       </div>

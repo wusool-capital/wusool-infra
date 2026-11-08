@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "e6f9d9a904d04591163137005f0236fb9952f015"
+      "revision": "66bf7095f6ad2edd2bb339ae1e105e89eec486a8"
     },
     "viewBox": [
       1240,
@@ -167,7 +167,7 @@
       "id": "bedrock",
       "type": "cloud",
       "label": "AWS Bedrock",
-      "sublabel": "matching + summaries",
+      "sublabel": "all LLM calls, via Pydantic AI",
       "pos": [
         920,
         255
@@ -180,6 +180,10 @@
         {
           "path": "gitbook/technical-documentation/toolkit.md",
           "label": "AI dependency"
+        },
+        {
+          "path": "server/app/modules/utilities/providers/bedrock/agent.py",
+          "label": "Pydantic AI runner"
         }
       ]
     },
@@ -187,7 +191,7 @@
       "id": "research",
       "type": "external",
       "label": "Research providers",
-      "sublabel": "Firecrawl · Diffbot · PDL · Apify · Places",
+      "sublabel": "Firecrawl \u00b7 Diffbot \u00b7 PDL \u00b7 Apify \u00b7 Places",
       "pos": [
         940,
         650
@@ -211,7 +215,7 @@
       "id": "github",
       "type": "cloud",
       "label": "GitHub Actions",
-      "sublabel": "OIDC · build · OpenTofu · SSM",
+      "sublabel": "OIDC \u00b7 build \u00b7 OpenTofu \u00b7 SSM",
       "pos": [
         920,
         20
@@ -235,7 +239,7 @@
       "id": "operations",
       "type": "security",
       "label": "AWS operations",
-      "sublabel": "SSM access · logs · Secrets",
+      "sublabel": "SSM access \u00b7 logs \u00b7 Secrets",
       "pos": [
         920,
         520
@@ -453,7 +457,23 @@
       "from": "website",
       "to": "posthog",
       "label": "browser events, after consent",
-      "variant": "dashed"
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          440,
+          346
+        ],
+        [
+          440,
+          628
+        ]
+      ],
+      "labelAt": [
+        440,
+        534
+      ]
     },
     {
       "from": "attio",
@@ -516,7 +536,10 @@
       "to": "ses",
       "label": "lead + code emails",
       "variant": "dashed",
-      "labelSegment": 2
+      "labelAt": [
+        883,
+        499
+      ]
     },
     {
       "from": "toolkit",
@@ -524,7 +547,17 @@
       "label": "enrichment + Places APIs",
       "variant": "dashed",
       "fromSide": "bottom",
-      "toSide": "top"
+      "toSide": "top",
+      "via": [
+        [
+          620,
+          592
+        ],
+        [
+          1065,
+          592
+        ]
+      ]
     },
     {
       "from": "website",

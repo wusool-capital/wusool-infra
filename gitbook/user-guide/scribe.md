@@ -6,7 +6,7 @@ meeting to Attio as a note.
 
 Audio and transcription stay on your Mac. A cloud summary provider receives
 transcript text only when you choose one. Sending a meeting to Attio sends
-the transcript and summary, never the audio.
+the transcript, its speaker names, and the summary, never the audio.
 
 ## Install and set up
 
@@ -40,8 +40,12 @@ again. Allow it, or recordings will be silent.
 
 1. Check the microphone and system-audio devices. Set the defaults under
    **Settings → Recordings → Default Audio Devices**.
-2. Optionally name the meeting, then press **Record**.
-3. Check that transcript lines appear while people speak.
+2. Optionally name the meeting, then press **Start Recording** on the home
+   screen. The home screen shows which microphone and system audio will be
+   used.
+3. Check that the level meter beside the timer moves when you speak, and that
+   transcript lines appear while people speak. A flat meter means the
+   microphone hears nothing.
 4. Pause when needed, then press **Stop**.
 
 **Expected result:** the meeting opens as soon as it is saved, so you can
@@ -55,16 +59,70 @@ Auto-stop When Meeting Ends**.
 If only your voice is captured, or no speech appears, see
 [Troubleshooting](troubleshooting.md).
 
+## See who said what
+
+Scribe labels each speaker's turn in the transcript:
+
+- **Your lines** come from your microphone and show your name. Set it under
+  **Settings → General → Speakers → Your name**.
+- **Other people** show as **Others** while you record. When you stop,
+  Scribe separates their voices on your Mac and relabels them **Speaker 1**,
+  **Speaker 2**, and so on.
+- **Faster separation.** **Faster Speaker Separation (CoreML)** is on by
+  default: about 40 seconds for a one-hour meeting, using up to 2.7 GB of
+  memory. Its models (about 300 MB) download only when you ask. The first
+  time you press **Separate Speakers**, Scribe offers the download.
+- **Slower separation.** **Use Slower Model** in that prompt turns CoreML
+  off and separates straight away. It takes about four minutes for a
+  one-hour meeting, after a one-time 32 MB download. You can change this
+  any time under **Settings → General → Speakers**.
+- **Name everyone in one place.** Above the transcript, **Who Spoke?**
+  lists every separated voice, most talk time first, with one of their
+  lines. Press ▶ to hear a few seconds of their voice, type a name and
+  press Enter to move on to the next person. Every line they spoke in that
+  meeting is renamed, and Scribe recognises their voice in later meetings.
+  Click a quoted line to jump to it in the transcript.
+- **Confirm a likely match.** When a voice sounds close to someone you've
+  named before, Scribe asks "Sounds like Faisal?". Press **Yes** to name
+  them, or **No** to type a different name.
+- You can still click a speaker's name on any line to rename them.
+
+Voice fingerprints are stored only on your Mac. To make Scribe forget
+someone, delete them under **Settings → General → Speakers**.
+
+If speakers were not separated, for example because you were offline, press
+**Separate Speakers** above the transcript to try again.
+
+Speakers are only separated for meetings recorded with **Auto-save** on,
+because Scribe needs the meeting audio on its own. Imported meetings are not
+separated. Enhancing a meeting keeps its speakers. Without headphones, your
+microphone also picks up the meeting audio, and Scribe ignores that echo.
+
 ## Edit a transcript
 
 Fix the transcript before you summarize or send it:
 
-- Tick lines (Shift-click for a range), then delete, merge, or split them.
+- Hover over a line to show its tick box, or click its time. Shift-click
+  selects a range. Then delete, merge, or split the selected lines.
 - Right-click a line to delete everything before it.
-- Use **Find & replace** (Cmd+F) to fix a misheard name everywhere.
+- Press **Tidy Lines** to join short fragments from the same speaker into
+  full sentences. It never changes a word, and Cmd+Z undoes it.
+- Use **Find & Replace** (Cmd+F) to fix a misheard name everywhere.
+- Press **Proofread** to get suggested fixes for misheard words, names and
+  terms. Each fix shows its type (name, term, number, word or punctuation).
+  Accept or dismiss each one, press **Next Fix** to jump to the next, or
+  press **Accept All** or **Dismiss All**. Cmd+Z undoes Accept All in one step.
+  Scribe sends the transcript text, speaker names and meeting title to the
+  Toolkit server for this, and nothing is stored there. If part of a long
+  meeting can't be checked, Scribe says how many lines were missed and offers
+  **Try Again**.
+- Proofread already knows common deal, finance and GCC terms. Add your own
+  client names and project code names in **Settings → General → Proofread**.
 - Undo and redo with Cmd+Z and Cmd+Shift+Z.
 
-Deleted lines are not sent to Summarize.
+Deleted lines are not sent to Summarize. Filler words such as "um" appear
+exactly as recorded, because that is the text Summarize receives. Remove them
+with Proofread or Find & Replace.
 
 ## Summarize a meeting
 
@@ -93,6 +151,19 @@ original audio until you have checked the result.
 status once the note reaches Attio. With an organization selected, the note
 links to its buyer or seller record; otherwise it becomes a general note.
 
+The summary that comes back is built to scan. It shows, in this order:
+
+- a gist of 2–3 sentences: where the meeting landed and what it waits on;
+- **Next steps**, each starting with the owner's name;
+- **Decisions**, when something was agreed;
+- **Deal signal** for buyer, seller and investor meetings: momentum, claims to
+  verify before relying on them, and risks. Other meetings show **Risks**;
+- **Notes**, grouped by topic. A short call gets 1–2 topics; a 90-minute
+  meeting gets up to 8.
+
+The Attio note and `summary.md` in the meeting folder follow the same order.
+Meetings summarised before version 0.8.2 keep their longer opening.
+
 You can close the app while processing continues. Don't push again just
 because it takes a while. If it fails, see
 [Troubleshooting](troubleshooting.md).
@@ -115,7 +186,9 @@ material.
 ## Send feedback
 
 Click the bug icon at the top of the sidebar, choose a category, and describe
-what happened. The form needs **Scribe Push** set up first.
+what happened. The form needs **Scribe Push** set up first. If you gave your
+name under **Speakers** in Settings, it's already filled in; change or clear it
+as you like.
 
 ## Updates
 

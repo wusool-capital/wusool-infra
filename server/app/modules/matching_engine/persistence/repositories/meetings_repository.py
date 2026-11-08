@@ -9,17 +9,17 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Meeting
-from app.modules.matching_engine.domain.meetings import MeetingNote, truncate_summary
+from app.modules.matching_engine.domain.meetings import MeetingNote, bound_summary
 
 
 class MeetingRepository:
-    def __init__(self, session: AsyncSession, *, max_chars: int) -> None:
+    def __init__(self, session: AsyncSession) -> None:
         self._session = session
-        self._max_chars = max_chars
 
     async def get_recent_by_org(self, org_attio_id: str) -> list[MeetingNote]:
         """All meeting notes for the org, ordered by occurred_at DESC, each
-        cut to `max_chars` (head + tail, visible marker). Returns [] for no
+        with its whole summary text (only an outsized note is cut, see
+        `bound_summary`). Returns [] for no
         rows or no match — never raises; meeting notes are optional context
         everywhere they're used. Total-budget selection (oldest +
         most-recent-until-budget-exhausted) is applied by the prompt-building
@@ -35,13 +35,11 @@ class MeetingRepository:
             .order_by(Meeting.occurred_at.desc())
         )
         rows = (await self._session.execute(stmt)).scalars().all()
-        return [self._to_note(row) for row in rows]
-
-    def _to_note(self, row: Meeting) -> MeetingNote:
-        summary, truncated = truncate_summary(row.summary or "", self._max_chars)
-        return MeetingNote(
-            occurred_at=row.occurred_at,
-            title=row.title,
-            summary=summary,
-            truncated=truncated,
-        )
+        return [
+            MeetingNote(
+                occurred_at=row.occurred_at,
+                title=row.title,
+                summary=bound_summary(row.summary or ""),
+            )
+            for row in rows
+        ]

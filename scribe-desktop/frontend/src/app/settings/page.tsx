@@ -23,11 +23,20 @@ const TABS = [
   { value: 'beta', label: 'Beta', icon: FlaskConical }
 ] as const;
 
+// One gap under the tabs, and a measure that keeps each switch close to its label.
+const TAB_CONTENT = "mt-6 max-w-3xl";
+
 export default function SettingsPage() {
   const { transcriptModelConfig, setTranscriptModelConfig } = useConfig();
 
   // Animation state for tabs
   const [activeTab, setActiveTab] = useState('general');
+
+  // Lets other screens link straight to a tab, e.g. /settings?tab=recording.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (requested && TABS.some((tab) => tab.value === requested)) setActiveTab(requested);
+  }, []);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [underlineStyle, setUnderlineStyle] = useState({ left: 0, width: 0 });
 
@@ -51,15 +60,22 @@ export default function SettingsPage() {
     loadTranscriptConfig();
   }, [setTranscriptModelConfig]);
 
-  // Update underline position when active tab changes
+  // Update underline position when the active tab changes, and when tabs resize with the window.
   useLayoutEffect(() => {
     const activeIndex = TABS.findIndex(tab => tab.value === activeTab);
     const activeTabElement = tabRefs.current[activeIndex];
+    if (!activeTabElement) return;
 
-    if (activeTabElement) {
+    const measure = () => {
       const { offsetLeft, offsetWidth } = activeTabElement;
       setUnderlineStyle({ left: offsetLeft, width: offsetWidth });
-    }
+    };
+    measure();
+    const list = activeTabElement.parentElement;
+    if (!list) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
   }, [activeTab]);
 
   return (
@@ -68,7 +84,7 @@ export default function SettingsPage() {
       <div className="sticky top-0 z-10 bg-muted border-b border-border ">
         <div className="px-8 py-5">
           <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-foreground ">Settings</h1>
+            <h1 className="text-2xl font-semibold text-foreground">Settings</h1>
           </div>
         </div>
       </div>
@@ -78,7 +94,7 @@ export default function SettingsPage() {
         <div className="p-8 pt-3">
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="bg-transparent relative rounded-none border-b border-border p-0 h-auto">
+            <TabsList className="settings-tabs bg-transparent relative w-full justify-start overflow-x-auto [scrollbar-width:none] rounded-none border-b border-border p-0 h-auto">
               {TABS.map((tab, index) => {
                 const Icon = tab.icon;
                 return (
@@ -86,7 +102,7 @@ export default function SettingsPage() {
                     key={tab.value}
                     value={tab.value}
                     ref={el => { tabRefs.current[index] = el }}
-                    className="flex items-center gap-2 px-6 py-4 bg-transparent rounded-none border-0 data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none text-muted-foreground hover:text-foreground relative z-10"
+                    className="settings-tab flex shrink-0 items-center gap-2 px-6 py-4 bg-transparent rounded-none border-0 data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none text-muted-foreground hover:text-foreground relative z-10"
                   >
                     <Icon className="w-4 h-4" />
                     {tab.label}
@@ -95,29 +111,29 @@ export default function SettingsPage() {
               })}
 
               <motion.div
-                className="absolute bottom-0 z-20 h-0.5 bg-primary"
+                className="absolute bottom-0 z-20 h-0.5 bg-foreground"
                 layoutId="underline"
                 style={{ left: underlineStyle.left, width: underlineStyle.width }}
                 transition={{ type: 'spring', stiffness: 400, damping: 40 }}
               />
             </TabsList>
 
-            <TabsContent value="general">
+            <TabsContent value="general" className={TAB_CONTENT}>
               <PreferenceSettings />
             </TabsContent>
-            <TabsContent value="recording">
+            <TabsContent value="recording" className={TAB_CONTENT}>
               <RecordingSettings />
             </TabsContent>
-            <TabsContent value="Transcriptionmodels">
+            <TabsContent value="Transcriptionmodels" className={TAB_CONTENT}>
               <TranscriptSettings
                 transcriptModelConfig={transcriptModelConfig}
                 setTranscriptModelConfig={setTranscriptModelConfig}
               />
             </TabsContent>
-            <TabsContent value="push">
+            <TabsContent value="push" className={TAB_CONTENT}>
               <PushDestinationSettings />
             </TabsContent>
-            <TabsContent value="beta" className="mt-6">
+            <TabsContent value="beta" className={TAB_CONTENT}>
               <BetaSettings />
             </TabsContent>
           </Tabs>

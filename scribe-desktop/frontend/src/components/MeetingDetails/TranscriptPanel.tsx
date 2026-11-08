@@ -6,7 +6,15 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { TranscriptSelectionBar } from './TranscriptSelectionBar';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
+import { SpeakersPanel } from '@/components/SpeakersPanel';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { nextSuggestionId, proofreadCoverageWarning } from '@/lib/transcriptEditor';
+import { toast } from 'sonner';
+import { useCoreMlModels } from '@/hooks/useCoreMlModels';
+import { CoreMlDownloadDialog } from '@/components/CoreMlDownloadDialog';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -37,6 +45,8 @@ interface TranscriptPanelProps {
   // Hide the Copy/Recording/Enhance action bar entirely (e.g. inside a
   // read-only tab of an already-pushed meeting).
   showActions?: boolean;
+  /** Voices still waiting for a name, for the meeting header; editable meetings only. */
+  onUnnamedSpeakersChange?: (count: number) => void;
 }
 
 export function TranscriptPanel({
@@ -60,7 +70,11 @@ export function TranscriptPanel({
   editor,
   onSummarize,
   showActions = true,
+  onUnnamedSpeakersChange,
 }: TranscriptPanelProps) {
+  const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
+  const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
+
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
     if (usePagination && segments) {
@@ -73,12 +87,61 @@ export function TranscriptPanel({
       endTime: t.audio_end_time,
       text: t.text,
       confidence: t.confidence,
+      speaker: t.speaker,
     }));
   }, [transcripts, usePagination, segments]);
 
+  const unnamedCount = speakers.overview.filter((voice) => voice.name === null).length;
+  useEffect(() => {
+    if (editable) onUnnamedSpeakersChange?.(unnamedCount);
+  }, [editable, unnamedCount, onUnnamedSpeakersChange]);
+
+  // Edits, tidying and deletes change talk time and sample lines; a short delay batches a burst of edits.
+  const { refresh } = speakers;
+  const editRevision = editor?.revision ?? 0;
+  useEffect(() => {
+    if (!editable || editRevision === 0) return;
+    const timer = setTimeout(() => void refresh(), 400);
+    return () => clearTimeout(timer);
+  }, [editable, editRevision, refresh]);
+
+  const hasUnseparatedLines = useMemo(
+    () => convertedSegments.some((segment) => segment.speaker === 'others'),
+    [convertedSegments],
+  );
+  const showSeparateBanner = Boolean(editable && speakers.separate && speakers.voiceCount === 0 && hasUnseparatedLines);
+
+  // Loaded only while the banner shows, so opening a meeting costs nothing extra.
+  const coreMl = useCoreMlModels(showSeparateBanner);
+  // CoreML is the default, but its models download only when asked: offer that here first.
+  const separateSpeakers = () => {
+    if (coreMl.needsDownload) coreMl.ask();
+    else void speakers.separate?.();
+  };
+  // Choosing the slower model turns CoreML off, so this prompt doesn't come back.
+  const useSlowerModel = async () => {
+    try {
+      await coreMl.setBackend('cpu');
+    } catch (error) {
+      toast.error("Couldn't switch to the slower model", { description: String(error) });
+    }
+    await speakers.separate?.();
+  };
+
+  // Steps through the suggested fixes in transcript order from the last one shown.
+  const lastFixRef = useRef<string | null>(null);
+  const segmentOrder = useMemo(() => convertedSegments.map((segment) => segment.id), [convertedSegments]);
+  const showNextFix = () => {
+    const ids = editor ? [...editor.suggestions.keys()] : [];
+    const segmentId = nextSuggestionId(ids, segmentOrder, lastFixRef.current);
+    if (!segmentId) return;
+    lastFixRef.current = segmentId;
+    setFocusRequest({ segmentId, nonce: Date.now() });
+  };
+
   return (
     <div className="flex w-full h-full min-w-0 bg-card flex-col relative">
-      {/* Title area */}
+      {/* Toolbar */}
       {showActions && (
         <div className="p-4 border-b border-border ">
           <TranscriptButtonGroup
@@ -91,6 +154,79 @@ export function TranscriptPanel({
             onSummarize={onSummarize}
             editor={editable ? editor : undefined}
           />
+        </div>
+      )}
+
+      {showSeparateBanner && (
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
+          <span className="min-w-0 text-sm text-foreground" aria-live="polite">
+            {speakers.separation.status === 'running'
+              ? 'Separating speakers…'
+              : speakers.separation.status === 'failed'
+                ? `Couldn't separate speakers: ${speakers.separation.error}`
+                : "Other speakers haven't been separated yet."}
+          </span>
+          {speakers.separation.status === 'running' ? (
+            <Spinner className="h-4 w-4 shrink-0" />
+          ) : (
+            <Button size="sm" variant="outline" onClick={separateSpeakers}>
+              {speakers.separation.status === 'failed' ? 'Try Again' : 'Separate Speakers'}
+            </Button>
+          )}
+        </div>
+      )}
+
+      <CoreMlDownloadDialog
+        coreMl={coreMl}
+        description="Separate speakers about 6× faster with a one-time download of about 300 MB. Or use the slower model, which needs no download. You can switch back in Settings."
+        skipLabel="Use Slower Model (6× Slower)"
+        onSkip={() => void useSlowerModel()}
+        onDownloaded={() => void speakers.separate?.()}
+      />
+
+      {editable && meetingId && (
+        <SpeakersPanel
+          meetingId={meetingId}
+          speakers={speakers}
+          onShowLine={(segmentId) => setFocusRequest({ segmentId, nonce: Date.now() })}
+        />
+      )}
+
+      {editable && editor && (editor.suggestions.size > 0 || editor.uncheckedLines > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-muted px-4 py-2">
+          <p className="text-sm text-foreground tabular-nums" aria-live="polite">
+            {editor.suggestions.size > 0
+              ? `${editor.suggestions.size} suggested ${editor.suggestions.size === 1 ? 'fix' : 'fixes'}`
+              : 'No suggested fixes'}
+            {editor.uncheckedLines > 0 && (
+              <span className="text-muted-foreground"> · {proofreadCoverageWarning(editor.uncheckedLines)}</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            {editor.uncheckedLines > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={editor.isSuggesting}
+                onClick={() => void editor.retryUnchecked()}
+              >
+                {editor.isSuggesting ? 'Proofreading…' : 'Try Again'}
+              </Button>
+            )}
+            {editor.suggestions.size > 1 && (
+              <Button size="sm" variant="ghost" onClick={showNextFix}>
+                Next Fix
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={editor.dismissAllSuggestions}>
+              Dismiss All
+            </Button>
+            {editor.suggestions.size > 0 && (
+              <Button size="sm" variant="outline" onClick={() => void editor.acceptAllSuggestions()}>
+                Accept All
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
@@ -113,6 +249,8 @@ export function TranscriptPanel({
           editable={editable}
           onEditSegment={onEditSegment}
           editor={editable ? editor : undefined}
+          speakers={speakers}
+          focusRequest={focusRequest}
         />
       </div>
 

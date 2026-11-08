@@ -235,3 +235,40 @@
     overflow: visible !important;
   }
 }
+
+/* Desktop-app behaviour: chrome is not selectable; fields and reading text (marked select-text) are. */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+}
+input,
+textarea,
+[contenteditable="true"],
+[contenteditable=""] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Transcript toolbar: labels drop to icons when the toolbar itself is too narrow for them. */
+.toolbar {
+  container-type: inline-size;
+}
+@container (max-width: 780px) {
+  .toolbar-label {
+    display: none;
+  }
+}
+
+/* Settings tabs: tighter and icon-free when the tab row itself is narrow (e.g. beside a wide sidebar). */
+.settings-tabs {
+  container-type: inline-size;
+}
+@container (max-width: 700px) {
+  .settings-tab {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+  .settings-tab svg {
+    display: none;
+  }
+}

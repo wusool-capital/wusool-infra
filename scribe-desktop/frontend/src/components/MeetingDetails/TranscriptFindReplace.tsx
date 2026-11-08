@@ -55,20 +55,26 @@ export function TranscriptFindReplace({ editor }: { editor: TranscriptEditorApi 
   return (
     <Popover open={findOpen} onOpenChange={setFindOpen}>
       <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" title="Find & replace (Cmd+F)">
-          <Search size={16} />
-          <span className="hidden xl:inline">Find</span>
+        <Button size="sm" variant="outline" aria-label="Find & Replace" title="Find & Replace (⌘F)">
+          <Search />
+          <span className="toolbar-label">Find</span>
         </Button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 space-y-2">
         <Input
           autoFocus
-          placeholder="Find"
+          name="transcript-find"
+          autoComplete="off"
+          aria-label="Find"
+          placeholder="Find…"
           value={find}
           onChange={(e) => setFind(e.target.value)}
         />
         <Input
-          placeholder="Replace with"
+          name="transcript-replace"
+          autoComplete="off"
+          aria-label="Replace with"
+          placeholder="Replace with…"
           value={replacement}
           onChange={(e) => setReplacement(e.target.value)}
           onKeyDown={(e) => {
@@ -76,11 +82,11 @@ export function TranscriptFindReplace({ editor }: { editor: TranscriptEditorApi 
           }}
         />
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
             {find === '' ? 'Case-insensitive, whole transcript' : `${matchCount} ${matchCount === 1 ? 'match' : 'matches'}`}
           </span>
           <Button size="sm" disabled={matchCount === 0 || isReplacing} onClick={handleReplace}>
-            Replace all
+            Replace All
           </Button>
         </div>
       </PopoverContent>

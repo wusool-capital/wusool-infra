@@ -8,6 +8,37 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-08
+
+### Changed
+
+- Meeting summaries lead with a 2–3 sentence gist. Next steps, decisions
+  and notes by topic follow, plus a deal signal for buyer, seller and
+  investor meetings. Notes grow with the meeting instead of a fixed 1,500-word cap.
+  The Attio note, Scribe and the matching engine all get the new order.
+- Proofread sends the meeting's speakers, title and the user's own
+  vocabulary, on top of a default list of deal, finance and GCC terms. The
+  server rejects rewrites and reports lines it couldn't check. A labelled
+  test set scores models: Sonnet 4.6 caught 18 of 19 errors, no false fixes.
+- Matching reads each meeting summary whole instead of cutting it at 3,000
+  characters. Each prompt holds up to 24,000 characters of meeting notes and
+  always includes the newest and oldest meetings.
+- Scribe 0.8.3 turns on faster speaker separation (CoreML) by default and
+  downloads its models on first use, with a slower no-download option.
+- Every Bedrock call in the server now runs through Pydantic AI agents:
+  meetings, matching, enrichment, discrepancies and the website lead tools.
+  Each validates its schema and returns typed results. Meeting summaries
+  also retry once when a gist or note breaks the length rules.
+
+## 2026-11-07
+
+### Added
+
+- Scribe shows who said each line. Your lines carry your name. Other
+  voices are separated on the Mac after the meeting. A person you name once
+  is recognised in later meetings. Voice fingerprints stay on the Mac, and
+  pushed meetings now send speaker names instead of "Participant".
+
 ## 2026-11-05
 
 ### Added

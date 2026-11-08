@@ -23,6 +23,7 @@ pub struct IncrementalAudioSaver {
     checkpoints_dir: PathBuf,
     meeting_folder: PathBuf,
     sample_rate: u32,
+    output_file_name: &'static str,
 }
 
 impl IncrementalAudioSaver {
@@ -32,7 +33,22 @@ impl IncrementalAudioSaver {
     /// * `meeting_folder` - Path to the meeting folder (contains .checkpoints/)
     /// * `sample_rate` - Sample rate of audio (typically 48000)
     pub fn new(meeting_folder: PathBuf, sample_rate: u32) -> Result<Self> {
-        let checkpoints_dir = meeting_folder.join(".checkpoints");
+        Self::for_track(meeting_folder, sample_rate, ".checkpoints", "audio.mp4")
+    }
+
+    /// Saver for the meeting audio alone, which diarization needs without the local mic mixed in.
+    pub fn new_system_track(meeting_folder: PathBuf, sample_rate: u32) -> Result<Self> {
+        std::fs::create_dir_all(meeting_folder.join(".checkpoints_system"))?;
+        Self::for_track(meeting_folder, sample_rate, ".checkpoints_system", "system.mp4")
+    }
+
+    fn for_track(
+        meeting_folder: PathBuf,
+        sample_rate: u32,
+        checkpoints_dir_name: &str,
+        output_file_name: &'static str,
+    ) -> Result<Self> {
+        let checkpoints_dir = meeting_folder.join(checkpoints_dir_name);
 
         // Verify checkpoints directory exists
         if !checkpoints_dir.exists() {
@@ -46,6 +62,7 @@ impl IncrementalAudioSaver {
             checkpoints_dir,
             meeting_folder,
             sample_rate,
+            output_file_name,
         })
     }
 
@@ -129,7 +146,7 @@ impl IncrementalAudioSaver {
         }
 
         // Merge all checkpoints using FFmpeg concat
-        let final_audio_path = self.meeting_folder.join("audio.mp4");
+        let final_audio_path = self.meeting_folder.join(self.output_file_name);
         self.merge_checkpoints(&final_audio_path).await?;
 
         // Clean up checkpoints directory
@@ -337,6 +354,7 @@ pub async fn recover_audio_from_checkpoints(
             let _ = std::fs::remove_file(concat_file_path);
 
             info!("Successfully recovered audio: {}", output_path_str);
+            recover_system_track(&folder_path);
 
             Ok(AudioRecoveryStatus {
                 status: "success".to_string(),
@@ -370,6 +388,53 @@ pub async fn recover_audio_from_checkpoints(
     }
 }
 
+/// Rebuilds system.mp4 so a recovered meeting can still be diarized. Best effort: the
+/// meeting is already recovered without it.
+fn recover_system_track(folder_path: &std::path::Path) {
+    let checkpoints_dir = folder_path.join(".checkpoints_system");
+    let mut chunks: Vec<PathBuf> = match std::fs::read_dir(&checkpoints_dir) {
+        Ok(entries) => entries
+            .filter_map(|entry| entry.ok().map(|e| e.path()))
+            .filter(|path| path.extension().and_then(|s| s.to_str()) == Some("mp4"))
+            .collect(),
+        Err(_) => return,
+    };
+    if chunks.is_empty() {
+        return;
+    }
+    chunks.sort();
+
+    let list = chunks
+        .iter()
+        .filter_map(|path| path.canonicalize().ok())
+        .map(|path| format!("file '{}'\n", path.display()))
+        .collect::<String>();
+    let list_path = checkpoints_dir.join("concat_list.txt");
+    let Some(ffmpeg) = find_ffmpeg_path() else { return };
+    if std::fs::write(&list_path, list).is_err() {
+        return;
+    }
+
+    let mut command = std::process::Command::new(ffmpeg);
+    command
+        .args(["-f", "concat", "-safe", "0", "-i"])
+        .arg(&list_path)
+        .args(["-c", "copy", "-y"])
+        .arg(folder_path.join("system.mp4"));
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    match command.output() {
+        Ok(output) if output.status.success() => info!("Recovered system track for diarization"),
+        Ok(output) => warn!("System track recovery failed: {}", String::from_utf8_lossy(&output.stderr)),
+        Err(e) => warn!("Could not run FFmpeg for system track recovery: {}", e),
+    }
+    let _ = std::fs::remove_file(list_path);
+}
+
 /// Clean up checkpoint files after successful recording or recovery
 /// This command is called by the frontend after successful save to clean up checkpoint files
 #[tauri::command]
@@ -385,6 +450,12 @@ pub async fn cleanup_checkpoints(meeting_folder: String) -> Result<(), String> {
         info!("Successfully cleaned up checkpoints directory");
     } else {
         info!("No checkpoints directory to clean up");
+    }
+
+    let system_checkpoints = folder_path.join(".checkpoints_system");
+    if system_checkpoints.exists() {
+        std::fs::remove_dir_all(&system_checkpoints)
+            .map_err(|e| format!("Failed to remove system checkpoints directory: {}", e))?;
     }
 
     Ok(())

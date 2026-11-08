@@ -42,7 +42,9 @@ pub mod autostart;
 pub mod config;
 pub mod console_utils;
 pub mod database;
+pub mod diarization;
 pub mod feedback;
+pub mod meeting_title;
 pub mod notifications;
 pub mod ollama;
 pub mod onboarding;
@@ -261,7 +263,8 @@ async fn start_audio_level_monitoring<R: Runtime>(
         device_names
     );
 
-    audio::simple_level_monitor::start_monitoring(app, device_names)
+    // Only the first device is opened: opening every mic would push Bluetooth headsets into call mode.
+    audio::mic_test::start(app, device_names.into_iter().next())
         .await
         .map_err(|e| format!("Failed to start audio level monitoring: {}", e))
 }
@@ -270,14 +273,13 @@ async fn start_audio_level_monitoring<R: Runtime>(
 async fn stop_audio_level_monitoring() -> Result<(), String> {
     log_info!("Stopping audio level monitoring");
 
-    audio::simple_level_monitor::stop_monitoring()
-        .await
-        .map_err(|e| format!("Failed to stop audio level monitoring: {}", e))
+    audio::mic_test::stop();
+    Ok(())
 }
 
 #[tauri::command]
 async fn is_audio_level_monitoring() -> bool {
-    audio::simple_level_monitor::is_monitoring()
+    audio::mic_test::is_running()
 }
 
 // Analytics commands are now handled by analytics::commands module
@@ -682,6 +684,7 @@ pub fn run() {
             start_recording_with_devices,
             start_recording_with_devices_and_meeting,
             start_audio_level_monitoring,
+            audio::mic_level::get_mic_level,
             stop_audio_level_monitoring,
             is_audio_level_monitoring,
             // Recording pause/resume commands
@@ -736,6 +739,7 @@ pub fn run() {
             api::delete_transcript_segments,
             api::split_transcript_segment,
             api::merge_transcript_segments,
+            api::tidy_transcript_lines,
             api::find_in_transcripts,
             api::replace_in_transcripts,
             api::apply_transcript_edit,
@@ -774,6 +778,21 @@ pub fn run() {
             openrouter::get_openrouter_models,
             // Push-to-Scribe-backend commands
             push::get_push_config,
+            diarization::commands::diarize_meeting,
+            diarization::commands::get_meeting_speakers,
+            diarization::commands::get_speaker_overview,
+            diarization::commands::speaker_voice_clip,
+            diarization::commands::name_meeting_speaker,
+            diarization::commands::list_speaker_profiles,
+            diarization::commands::delete_speaker_profile,
+            diarization::commands::get_self_speaker_name,
+            diarization::commands::set_self_speaker_name,
+            diarization::commands::get_diarization_backend,
+            diarization::commands::set_diarization_backend,
+            diarization::commands::get_diarization_models_status,
+            diarization::commands::download_diarization_models,
+            diarization::commands::cancel_diarization_model_download,
+            diarization::commands::delete_coreml_models,
             push::set_push_config,
             push::set_skip_attio,
             push::verify_push_config,
@@ -782,6 +801,8 @@ pub fn run() {
             push::update_meeting_tag,
             push::search_companies,
             push::suggest_transcript_corrections,
+            push::get_proofread_vocabulary,
+            push::set_proofread_vocabulary,
             push::get_saved_summary,
             push::sync_pushed_meetings,
             push::delete_remote_meeting,

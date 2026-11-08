@@ -65,6 +65,12 @@ export function FeedbackDialog({ open, onOpenChange }: FeedbackDialogProps) {
       .finally(() => {
         if (!cancelled) setCheckingConfig(false);
       });
+    // Reuse the name given for speaker labels so people needn't type it again.
+    invoke<string | null>('get_self_speaker_name')
+      .then((name) => {
+        if (!cancelled && name?.trim()) setContact((current) => current || name.trim());
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
     };

@@ -8,6 +8,7 @@ import { recordingService } from '@/services/recordingService';
 import Analytics from '@/lib/analytics';
 import { showRecordingNotification } from '@/lib/recordingNotification';
 import { toast } from 'sonner';
+import { defaultMeetingTitle } from '@/lib/meetingTitle';
 
 interface UseRecordingStartReturn {
   handleRecordingStart: () => Promise<void>;
@@ -37,17 +38,7 @@ export function useRecordingStart(
   const { selectedDevices } = useConfig();
   const { setStatus } = useRecordingState();
 
-  // Generate meeting title with timestamp
-  const generateMeetingTitle = useCallback(() => {
-    const now = new Date();
-    const day = String(now.getDate()).padStart(2, '0');
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const year = String(now.getFullYear()).slice(-2);
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    return `Meeting ${day}_${month}_${year}_${hours}_${minutes}_${seconds}`;
-  }, []);
+  const generateMeetingTitle = useCallback(() => defaultMeetingTitle(), []);
 
   // Check if Parakeet transcription model is ready
   const checkParakeetReady = useCallback(async (): Promise<boolean> => {

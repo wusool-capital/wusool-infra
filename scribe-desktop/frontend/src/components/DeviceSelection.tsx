@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { RefreshCw, Mic, Speaker } from 'lucide-react';
@@ -107,6 +107,18 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
     };
   }, [isMonitoring]);
 
+  // A running test follows the selected mic, so the meter never shows the old device.
+  const testedMic = useRef(selectedDevices.micDevice);
+  useEffect(() => {
+    if (testedMic.current === selectedDevices.micDevice) return;
+    testedMic.current = selectedDevices.micDevice;
+    if (isMonitoring) {
+      setAudioLevels(new Map());
+      void startAudioLevelMonitoring();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only on a mic change
+  }, [selectedDevices.micDevice]);
+
   // Handle device refresh
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -174,12 +186,13 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
   // Start audio level monitoring
   const startAudioLevelMonitoring = async () => {
     try {
-      // Only monitor input devices for now (microphones)
-      const deviceNames = inputDevices.map(device => device.name);
-      if (deviceNames.length === 0) {
+      if (inputDevices.length === 0) {
         setError('No microphone devices found to monitor');
         return;
       }
+      // Test only the chosen mic (empty means the system default); opening every mic would
+      // switch Bluetooth headsets into call mode.
+      const deviceNames = selectedDevices.micDevice ? [selectedDevices.micDevice] : [];
 
       await invoke('start_audio_level_monitoring', { deviceNames });
       setIsMonitoring(true);
@@ -295,34 +308,30 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
           {showLevels && inputDevices.length > 0 && (
             <div className="space-y-2 pt-2 border-t border-border">
               <p className="text-xs text-muted-foreground font-medium">Microphone Levels:</p>
-              {inputDevices.map((device) => {
-                const levelData = audioLevels.get(device.name);
-                return (
-                  <div key={`level-${device.name}`} className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {device.name}
-                      </span>
-                      {levelData && (
-                        <CompactAudioLevelMeter
-                          rmsLevel={levelData.rms_level}
-                          peakLevel={levelData.peak_level}
-                          isActive={levelData.is_active}
-                        />
-                      )}
-                    </div>
-                    {levelData && (
-                      <AudioLevelMeter
-                        rmsLevel={levelData.rms_level}
-                        peakLevel={levelData.peak_level}
-                        isActive={levelData.is_active}
-                        deviceName={device.name}
-                        size="small"
-                      />
-                    )}
+              {audioLevels.size === 0 && (
+                <p className="text-xs text-muted-foreground">Opening the microphone…</p>
+              )}
+              {[...audioLevels.values()].map((levelData) => (
+                <div key={`level-${levelData.device_name}`} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                      {levelData.device_name}
+                    </span>
+                    <CompactAudioLevelMeter
+                      rmsLevel={levelData.rms_level}
+                      peakLevel={levelData.peak_level}
+                      isActive={levelData.is_active}
+                    />
                   </div>
-                );
-              })}
+                  <AudioLevelMeter
+                    rmsLevel={levelData.rms_level}
+                    peakLevel={levelData.peak_level}
+                    isActive={levelData.is_active}
+                    deviceName={levelData.device_name}
+                    size="small"
+                  />
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -372,8 +381,6 @@ export function DeviceSelection({ selectedDevices, onDeviceChange, disabled = fa
 
       {/* Info text */}
       <div className="text-xs text-muted-foreground space-y-1">
-        <p>• <strong>Microphone:</strong> Records your voice and ambient sound</p>
-        <p>• <strong>System Audio:</strong> Records computer audio (music, calls, etc.)</p>
         {isMonitoring && (
           <p>• <strong>Mic Levels:</strong> Green = good, Yellow = loud, Red = too loud</p>
         )}

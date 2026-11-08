@@ -1,6 +1,8 @@
 use log::{debug as log_debug, error as log_error, info as log_info, warn as log_warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use crate::diarization::SpeakerLabel;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_store::StoreExt;
 
@@ -150,6 +152,8 @@ pub struct MeetingTranscript {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<SpeakerLabel>,
 }
 
 /// Meeting metadata without transcripts (for pagination)
@@ -205,6 +209,9 @@ pub struct TranscriptSegment {
     pub audio_end_time: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration: Option<f64>,
+    // Missing for imported audio and for transcripts saved before speaker attribution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub speaker: Option<SpeakerLabel>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -951,6 +958,7 @@ pub async fn api_get_meeting_transcripts<R: Runtime>(
                     audio_start_time: t.audio_start_time,
                     audio_end_time: t.audio_end_time,
                     duration: t.duration,
+                    speaker: t.speaker,
                 })
                 .collect::<Vec<_>>();
 
@@ -1086,6 +1094,19 @@ pub async fn merge_transcript_segments<R: Runtime>(
 }
 
 #[tauri::command]
+pub async fn tidy_transcript_lines<R: Runtime>(
+    _app: AppHandle<R>,
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+) -> Result<TranscriptEdit, String> {
+    let pool = state.db_manager.pool();
+    ensure_editable(pool, &meeting_id).await?;
+    TranscriptsRepository::tidy_transcripts(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to tidy lines: {}", e))
+}
+
+#[tauri::command]
 pub async fn find_in_transcripts<R: Runtime>(
     _app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
@@ -1137,7 +1158,7 @@ pub async fn apply_transcript_edit<R: Runtime>(
 
 #[tauri::command]
 pub async fn api_save_transcript<R: Runtime>(
-    _app: AppHandle<R>,
+    app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_title: String,
     transcripts: Vec<serde_json::Value>,
@@ -1191,6 +1212,12 @@ pub async fn api_save_transcript<R: Runtime>(
     .await
     {
         Ok(meeting_id) => {
+            // Runs in the background so saving never waits on minutes of diarization.
+            let (diarize_app, diarize_pool, diarize_id) = (app.clone(), pool.clone(), meeting_id.clone());
+            tauri::async_runtime::spawn(async move {
+                crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
+            });
+
             log_info!(
                 "Successfully saved transcript and created meeting with id: {}",
                 meeting_id

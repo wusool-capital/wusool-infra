@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Bug, ChevronDown, ChevronRight, File, Settings, PanelLeft, Calendar, StickyNote, Home, Trash2, Mic, Square, Plus, Search, Pencil, NotebookPen, SearchIcon, X, Upload, Folder } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useRouter, usePathname } from 'next/navigation';
@@ -26,9 +26,9 @@ import {
   Dialog,
   DialogContent,
   DialogFooter,
+  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { VisuallyHidden } from "@/components/ui/visually-hidden"
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -76,8 +76,21 @@ function formatMeetingDate(createdAt?: string | null): string | null {
 }
 
 const SIDEBAR_MIN_WIDTH = 256;
-const SIDEBAR_MAX_VIEWPORT_RATIO = 0.7;
+// Wide enough for long meeting titles; beyond this the sidebar crowds the transcript.
+// Well under any window (minimum 900px), so no viewport-relative cap is needed.
+const SIDEBAR_MAX_WIDTH = 420;
 const SIDEBAR_WIDTH_STORAGE_KEY = 'sidebarWidth';
+
+const clampSidebarWidth = (width: number) =>
+  Math.round(Math.min(Math.max(width, SIDEBAR_MIN_WIDTH), SIDEBAR_MAX_WIDTH));
+
+const saveSidebarWidth = (width: number) => {
+  try {
+    localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(width));
+  } catch (error) {
+    console.error('Failed to save sidebar width:', error);
+  }
+};
 
 const Sidebar: React.FC = () => {
   const router = useRouter();
@@ -91,39 +104,56 @@ const Sidebar: React.FC = () => {
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_STORAGE_KEY));
-      if (saved >= SIDEBAR_MIN_WIDTH) setSidebarWidth(saved);
+      if (saved >= SIDEBAR_MIN_WIDTH) setSidebarWidth(Math.min(saved, SIDEBAR_MAX_WIDTH));
     } catch (error) {
       console.error('Failed to load sidebar width:', error);
     }
   }, []);
 
   const handleResizeStart = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
     e.preventDefault();
+    const handle = e.currentTarget;
+    const pointerId = e.pointerId;
+    // Capture keeps the release coming here even if it happens outside the window or a system dialog steals focus.
+    handle.setPointerCapture(pointerId);
     setIsResizing(true);
     // Body-level cursor/select overrides keep the drag smooth when the pointer leaves the thin handle.
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    let latestWidth = sidebarWidth;
+    const startWidth = sidebarWidth;
+    let latestWidth = startWidth;
+    let ended = false;
 
     const onMove = (event: PointerEvent) => {
-      const maxWidth = Math.max(SIDEBAR_MIN_WIDTH, window.innerWidth * SIDEBAR_MAX_VIEWPORT_RATIO);
-      latestWidth = Math.round(Math.min(Math.max(event.clientX, SIDEBAR_MIN_WIDTH), maxWidth));
+      latestWidth = clampSidebarWidth(event.clientX);
       setSidebarWidth(latestWidth);
     };
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+    const end = () => {
+      if (ended) return;
+      ended = true;
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', end);
+      handle.removeEventListener('pointercancel', end);
+      handle.removeEventListener('lostpointercapture', end);
+      window.removeEventListener('blur', end);
+      if (handle.hasPointerCapture(pointerId)) handle.releasePointerCapture(pointerId);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       setIsResizing(false);
-      try {
-        localStorage.setItem(SIDEBAR_WIDTH_STORAGE_KEY, String(latestWidth));
-      } catch (error) {
-        console.error('Failed to save sidebar width:', error);
-      }
+      // A click on the handle without a drag must not overwrite the saved width.
+      if (latestWidth !== startWidth) saveSidebarWidth(latestWidth);
     };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+    handle.addEventListener('lostpointercapture', end);
+    window.addEventListener('blur', end);
+  };
+
+  const resetSidebarWidth = () => {
+    setSidebarWidth(SIDEBAR_MIN_WIDTH);
+    saveSidebarWidth(SIDEBAR_MIN_WIDTH);
   };
 
   const {
@@ -172,6 +202,8 @@ const Sidebar: React.FC = () => {
     currentTitle: ''
   });
   const [editingTitle, setEditingTitle] = useState<string>('');
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const canRename = editingTitle.trim() !== '' && editingTitle.trim() !== editModalState.currentTitle;
 
   // Ensure 'meetings' folder is always expanded
   useEffect(() => {
@@ -536,6 +568,8 @@ const Sidebar: React.FC = () => {
             </TooltipContent>
           </Tooltip>
 
+          {/* Home has its own record control; a second one there would compete with it. */}
+          {pathname !== '/' && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -543,6 +577,7 @@ const Sidebar: React.FC = () => {
                 size="icon"
                 onClick={handleRecordingToggle}
                 disabled={isRecording || isStarting}
+                aria-label={isStarting ? 'Starting…' : isRecording ? 'Recording in progress' : 'Start Recording'}
                 className="rounded-full shadow-sm"
               >
                 {isStarting ? (
@@ -555,9 +590,10 @@ const Sidebar: React.FC = () => {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="right">
-              <p>{isStarting ? "Starting..." : isRecording ? "Recording in progress..." : "Start Recording"}</p>
+              <p>{isStarting ? "Starting…" : isRecording ? "Recording in progress…" : "Start Recording"}</p>
             </TooltipContent>
           </Tooltip>
+          )}
 
           {betaFeatures.importAndRetranscribe && (
             <Tooltip>
@@ -712,7 +748,7 @@ const Sidebar: React.FC = () => {
             </>
           ) : (
             <div className="flex flex-col w-full">
-              <div className="flex items-center w-full">
+              <div className="relative flex items-center w-full">
                 {isMeetingItem ? (
                   <div className="flex-shrink-0 flex items-center justify-center w-6 h-6 rounded-full mr-2 bg-muted">
                     <File className="w-3.5 h-3.5 text-muted-foreground" />
@@ -724,14 +760,15 @@ const Sidebar: React.FC = () => {
                 )}
                 <span className="flex-1 truncate min-w-0" title={item.title}>{item.title}</span>
                 {isMeetingItem && (formatMeetingDate(item.createdAt) || formatDuration(item.durationSeconds)) && (
-                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap">
+                  <span className="flex-shrink-0 ml-2 text-xs text-muted-foreground whitespace-nowrap group-hover:invisible group-focus-within:invisible">
                     {[formatMeetingDate(item.createdAt), formatDuration(item.durationSeconds)]
                       .filter(Boolean)
                       .join(' · ')}
                   </span>
                 )}
                 {isMeetingItem && (
-                  <div className="flex items-center gap-1 ml-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                  // Overlaid on the date while hovered, so the hidden buttons never take space from the title.
+                  <div className="absolute inset-y-0 right-0 flex items-center gap-1 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity duration-150">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -794,8 +831,7 @@ const Sidebar: React.FC = () => {
           !isResizing && 'transition-all duration-300',
           isCollapsed && 'w-16'
         )}
-        // maxWidth re-clamps a saved width when the window later shrinks.
-        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: `${SIDEBAR_MAX_VIEWPORT_RATIO * 100}vw` }}
+        style={isCollapsed ? undefined : { width: sidebarWidth, minWidth: SIDEBAR_MIN_WIDTH, maxWidth: SIDEBAR_MAX_WIDTH }}
       >
         {/*  Header with traffic light spacing */}
         <div className="flex-shrink-0">
@@ -813,6 +849,7 @@ const Sidebar: React.FC = () => {
                           variant="ghost"
                           size="icon"
                           onClick={() => setShowFeedback(true)}
+                          aria-label="Send Feedback"
                           className="h-10 w-10 rounded-lg text-muted-foreground"
                         >
                           <Bug className="w-5 h-5" />
@@ -828,6 +865,7 @@ const Sidebar: React.FC = () => {
                           variant="ghost"
                           size="icon"
                           onClick={toggleCollapse}
+                          aria-label="Collapse Sidebar"
                           className="h-10 w-10 rounded-lg text-muted-foreground"
                         >
                           <PanelLeft className="w-5 h-5" />
@@ -927,6 +965,7 @@ const Sidebar: React.FC = () => {
         {!isCollapsed && (
 
           <div className="flex-shrink-0 p-2 pt-3 space-y-1.5 border-t border-border/60">
+            {pathname !== '/' && (
             <Button
               variant="destructive"
               onClick={handleRecordingToggle}
@@ -936,12 +975,12 @@ const Sidebar: React.FC = () => {
               {isStarting ? (
                 <>
                   <Spinner className="w-4 h-4 mr-2" />
-                  <span>Starting...</span>
+                  <span>Starting…</span>
                 </>
               ) : isRecording ? (
                 <>
                   <Square className="w-4 h-4 mr-2" />
-                  <span>Recording in progress...</span>
+                  <span>Recording in progress…</span>
                 </>
               ) : (
                 <>
@@ -950,6 +989,7 @@ const Sidebar: React.FC = () => {
                 </>
               )}
             </Button>
+            )}
 
             {betaFeatures.importAndRetranscribe && (
               <Button
@@ -982,7 +1022,9 @@ const Sidebar: React.FC = () => {
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize sidebar"
+          title="Drag to resize. Double-click to reset."
           onPointerDown={handleResizeStart}
+          onDoubleClick={resetSidebarWidth}
           className={cn(
             'absolute top-0 right-0 h-full w-1.5 -mr-0.5 cursor-col-resize z-10 transition-colors hover:bg-primary/30',
             isResizing && 'bg-primary/40'
@@ -1013,47 +1055,46 @@ const Sidebar: React.FC = () => {
         )}
       </ConfirmationModal>
 
-      {/* Edit Meeting Title Modal */}
       <Dialog open={editModalState.isOpen} onOpenChange={(open) => {
         if (!open) handleEditCancel();
       }}>
-        <DialogContent className="sm:max-w-[425px]">
-          <VisuallyHidden>
-            <DialogTitle>Edit Meeting Title</DialogTitle>
-          </VisuallyHidden>
-          <div className="py-4">
-            <h3 className="text-lg font-semibold mb-4">Edit Meeting Title</h3>
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="meeting-title" className="block text-sm font-medium text-foreground mb-2">
-                  Meeting Title
-                </label>
-                <Input
-                  id="meeting-title"
-                  type="text"
-                  value={editingTitle}
-                  onChange={(e) => setEditingTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleEditConfirm();
-                    } else if (e.key === 'Escape') {
-                      handleEditCancel();
-                    }
-                  }}
-                  placeholder="Enter meeting title"
-                  autoFocus
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="secondary" onClick={handleEditCancel}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditConfirm}>
-              Save
-            </Button>
-          </DialogFooter>
+        <DialogContent
+          className="sm:max-w-[440px]"
+          // Select the whole name so typing replaces it, as renaming does in Finder.
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            titleInputRef.current?.select();
+          }}
+        >
+          <form
+            className="grid gap-5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void handleEditConfirm();
+            }}
+          >
+            <DialogHeader>
+              <DialogTitle>Rename Meeting</DialogTitle>
+            </DialogHeader>
+            <Input
+              ref={titleInputRef}
+              id="meeting-title"
+              name="meeting-title"
+              aria-label="Meeting title"
+              autoComplete="off"
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              placeholder="Meeting title…"
+            />
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={handleEditCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={!canRename}>
+                Rename
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 

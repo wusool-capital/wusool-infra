@@ -4,6 +4,7 @@ anything. No value here is ever written on its own — see `RoleUpdaterPort`.
 
 from dataclasses import dataclass
 from datetime import date
+from typing import Literal
 
 from app.modules.enrichment.domain.field_plans import WriteTarget
 from app.modules.enrichment.domain.targets import EnrichmentTarget
@@ -15,6 +16,21 @@ from app.modules.utilities.domain.json_types import JsonObject
 # (multi_select_text), and the currency field's own raw DB-storage shape
 # (`{"amount": ..., "currency": "USD"}`) for `current` specifically.
 FieldValue = str | float | bool | int | date | list[str] | JsonObject
+
+
+ConfidenceLevel = Literal["high", "medium", "low"]
+
+
+@dataclass(frozen=True)
+class ExtractedField:
+    """One LLM-extracted field value, still the model's raw string, before
+    `EnrichMixin` coerces and scores it into a `ProposedFieldValue`."""
+
+    field_name: str
+    value: str
+    source_url: str
+    confidence: ConfidenceLevel
+    rationale: str
 
 
 @dataclass(frozen=True)

@@ -52,7 +52,7 @@ impl Drop for ImportGuard {
 }
 
 /// VAD redemption time in milliseconds - bridges natural pauses in speech
-/// Batch processing needs longer redemption (2000ms) than live pipeline (400ms)
+/// Batch processing needs longer redemption (2000ms) than live pipeline (800ms)
 /// because the entire file is processed at once by VAD, and 400ms fragments
 /// speech at every natural sentence/topic pause (500ms-2s)
 const VAD_REDEMPTION_TIME_MS: u32 = 2000;
@@ -1181,6 +1181,7 @@ mod tests {
                 audio_start_time: Some(0.0),
                 audio_end_time: Some(1.5),
                 duration: Some(1.5),
+                speaker: None,
             },
             TranscriptSegment {
                 id: "t-2".to_string(),
@@ -1189,6 +1190,7 @@ mod tests {
                 audio_start_time: Some(2.0),
                 audio_end_time: Some(3.5),
                 duration: Some(1.5),
+                speaker: None,
             },
         ];
 

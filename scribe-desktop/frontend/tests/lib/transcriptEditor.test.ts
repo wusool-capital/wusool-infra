@@ -5,7 +5,9 @@ import {
   TranscriptEdit,
   TranscriptRow,
   activeSuggestions,
-  diffSpan,
+  diffWords,
+  mergeSuggestions,
+  nextSuggestionId,
   idsBefore,
   popRedo,
   popUndo,
@@ -117,28 +119,39 @@ describe('edit history', () => {
   });
 });
 
-describe('diffSpan', () => {
-  test('isolates a misheard word', () => {
-    expect(diffSpan('Wasool is great', 'Wusool is great')).toEqual({
-      prefix: '',
-      removed: 'Wasool',
-      added: 'Wusool',
-      suffix: ' is great',
-    });
+describe('diffWords', () => {
+  const rejoin = (parts: { kind: string; text: string }[], skip: string) =>
+    parts.filter((p) => p.kind !== skip).map((p) => p.text).join('');
+
+  test('marks only the misheard word', () => {
+    expect(diffWords('Wasool is great', 'Wusool is great')).toEqual([
+      { kind: 'removed', text: 'Wasool' },
+      { kind: 'added', text: 'Wusool' },
+      { kind: 'same', text: ' is great' },
+    ]);
   });
 
-  test('keeps surrounding words in the prefix and suffix', () => {
-    const span = diffSpan('we met the Acme team today', 'we met the ACME team today');
-    expect(span.prefix).toBe('we met the ');
-    expect(span.removed).toBe('Acme');
-    expect(span.added).toBe('ACME');
-    expect(span.suffix).toBe(' team today');
+  test('keeps two separate fixes separate', () => {
+    const parts = diffWords('the a bit dah before the add backs.', 'the EBITDA before the add-backs.');
+    expect(parts.filter((p) => p.kind === 'added').map((p) => p.text)).toEqual(['EBITDA', 'add-backs.']);
+    expect(parts.some((p) => p.kind === 'same' && p.text.includes('before the'))).toBe(true);
   });
 
-  test('handles a change at the end of the line', () => {
-    const span = diffSpan('that is right', 'that is right.');
-    expect(span.removed).toBe('right');
-    expect(span.added).toBe('right.');
+  test('groups a run of changed words into one phrase', () => {
+    expect(diffWords('I think all water foods wants it', 'I think Al Waha Foods wants it')).toEqual([
+      { kind: 'same', text: 'I think ' },
+      { kind: 'removed', text: 'all water foods' },
+      { kind: 'added', text: 'Al Waha Foods' },
+      { kind: 'same', text: ' wants it' },
+    ]);
+  });
+
+  test('rejoins to the exact original and suggested lines', () => {
+    const original = 'we met  the Acme team today';
+    const suggested = 'we met  the ACME team, today';
+    const parts = diffWords(original, suggested);
+    expect(rejoin(parts, 'added')).toBe(original);
+    expect(rejoin(parts, 'removed')).toBe(suggested);
   });
 });
 
@@ -152,5 +165,40 @@ describe('activeSuggestions', () => {
   test('drops suggestions once the line was edited or removed', () => {
     expect(activeSuggestions([suggestion], new Map([['a', 'Wusool']]))).toEqual([]);
     expect(activeSuggestions([suggestion], new Map())).toEqual([]);
+  });
+});
+
+describe('mergeSuggestions', () => {
+  const s = (id: string, suggested = 'x') => ({ segment_id: id, original: 'o', suggested, reason: 'r' });
+
+  test("adds a retry's fixes in transcript order and replaces same-line ones", () => {
+    const merged = mergeSuggestions([s('c'), s('a', 'old')], [s('b'), s('a', 'new')], ['a', 'b', 'c']);
+    expect(merged.map((m) => [m.segment_id, m.suggested])).toEqual([
+      ['a', 'new'],
+      ['b', 'x'],
+      ['c', 'x'],
+    ]);
+  });
+});
+
+describe('nextSuggestionId', () => {
+  const order = ['a', 'b', 'c', 'd', 'e'];
+
+  test('starts at the first fix and steps forward in transcript order', () => {
+    expect(nextSuggestionId(['d', 'b'], order, null)).toBe('b');
+    expect(nextSuggestionId(['d', 'b'], order, 'b')).toBe('d');
+  });
+
+  test('wraps to the first fix after the last', () => {
+    expect(nextSuggestionId(['b', 'd'], order, 'd')).toBe('b');
+  });
+
+  test('continues from where the accepted fix was', () => {
+    // "c" was shown and then accepted, so it is gone from the list.
+    expect(nextSuggestionId(['b', 'e'], order, 'c')).toBe('e');
+  });
+
+  test('is null with no fixes', () => {
+    expect(nextSuggestionId([], order, null)).toBeNull();
   });
 });

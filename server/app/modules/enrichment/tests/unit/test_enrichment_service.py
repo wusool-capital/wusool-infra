@@ -5,6 +5,7 @@ import pytest
 from app.modules.enrichment.application.ports.company_data import CompanyDataField
 from app.modules.enrichment.application.service import EnrichmentService
 from app.modules.enrichment.domain.field_plans import WriteTarget
+from app.modules.enrichment.domain.proposals import ExtractedField
 from app.modules.enrichment.domain.research_context import CompanyContext
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.enrichment.tests.fakes.company_data import FakeCompanyDataClient
@@ -16,7 +17,7 @@ from app.modules.enrichment.tests.fakes.role_ports import FakeReviewPort, FakeRo
 def _service(
     *,
     current_values: dict,
-    extraction_response: dict,
+    extraction_response: tuple[ExtractedField, ...] = (),
     research_client=None,
     company_data_clients=(),
     context: CompanyContext | None = None,
@@ -59,7 +60,6 @@ def buyer_target() -> EnrichmentTarget:
 async def test_propose_skips_already_populated_fields(target: EnrichmentTarget) -> None:
     service, _ = _service(
         current_values={"est_revenue": 1_000_000},
-        extraction_response={"fields": []},
     )
     proposal = await service.propose(target)
     # est_revenue is populated; the extraction client is only called for
@@ -71,17 +71,15 @@ async def test_propose_skips_already_populated_fields(target: EnrichmentTarget) 
 async def test_propose_drops_low_confidence_values(target: EnrichmentTarget) -> None:
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "est_revenue",
-                    "value": "5000000",
-                    "source_url": "https://example.com",
-                    "confidence": "low",
-                    "rationale": "mentioned once",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="est_revenue",
+                value="5000000",
+                source_url="https://example.com",
+                confidence="low",
+                rationale="mentioned once",
+            ),
+        ),
     )
     proposal = await service.propose(target)
     assert proposal.values == ()
@@ -90,17 +88,15 @@ async def test_propose_drops_low_confidence_values(target: EnrichmentTarget) -> 
 async def test_propose_keeps_high_confidence_values(target: EnrichmentTarget) -> None:
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "est_revenue",
-                    "value": "5000000",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "stated in press release",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="est_revenue",
+                value="5000000",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="stated in press release",
+            ),
+        ),
     )
     proposal = await service.propose(target)
     assert len(proposal.values) == 1
@@ -119,17 +115,15 @@ async def test_propose_proposes_sector_focus_for_the_organization(
     """
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "sector_focus",
-                    "value": "Fintech, Not A Real Sector",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "described as a fintech company on its site",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="sector_focus",
+                value="Fintech, Not A Real Sector",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="described as a fintech company on its site",
+            ),
+        ),
     )
     proposal = await service.propose(target)
     assert len(proposal.values) == 1
@@ -140,17 +134,15 @@ async def test_propose_proposes_sector_focus_for_the_organization(
 async def test_propose_proposes_funding_stage_for_a_seller(target: EnrichmentTarget) -> None:
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "funding_stage",
-                    "value": "Series B",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "reported in a funding announcement",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="funding_stage",
+                value="Series B",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="reported in a funding announcement",
+            ),
+        ),
     )
     proposal = await service.propose(target)
     assert len(proposal.values) == 1
@@ -161,24 +153,22 @@ async def test_propose_proposes_funding_stage_for_a_seller(target: EnrichmentTar
 async def test_propose_proposes_deal_criteria_for_a_buyer(buyer_target: EnrichmentTarget) -> None:
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "check_size_min",
-                    "value": "1000000",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "stated on the fund's site",
-                },
-                {
-                    "field_name": "deal_structure_tolerance",
-                    "value": "Majority",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "the fund states it only takes majority positions",
-                },
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="check_size_min",
+                value="1000000",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="stated on the fund's site",
+            ),
+            ExtractedField(
+                field_name="deal_structure_tolerance",
+                value="Majority",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="the fund states it only takes majority positions",
+            ),
+        ),
     )
     proposal = await service.propose(buyer_target)
     by_field = {v.field_name: v for v in proposal.values}
@@ -195,17 +185,15 @@ async def test_propose_proposes_region_for_the_organization(target: EnrichmentTa
     """
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "region",
-                    "value": "GCC",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "HQ'd in the UAE, per the company site",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="region",
+                value="GCC",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="HQ'd in the UAE, per the company site",
+            ),
+        ),
     )
     proposal = await service.propose(target)
     assert len(proposal.values) == 1
@@ -228,7 +216,6 @@ async def test_propose_uses_the_structured_tier_before_the_llm_for_a_seller(
     )
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         company_data_clients=(diffbot,),
     )
 
@@ -256,17 +243,15 @@ async def test_propose_falls_back_to_llm_for_fields_the_structured_tier_missed(
     )
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "years_active",
-                    "value": "10",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "founded 2015",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="years_active",
+                value="10",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="founded 2015",
+            ),
+        ),
         company_data_clients=(diffbot,),
     )
 
@@ -308,7 +293,6 @@ async def test_propose_tries_a_second_tier_only_for_fields_the_first_tier_missed
     )
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         company_data_clients=(diffbot, pdl),
     )
 
@@ -370,7 +354,6 @@ async def test_propose_never_asks_the_structured_tier_for_a_buyer_role_field(
             "twitter": "x",
             "twitter_follower_count": 1,
         },
-        extraction_response={"fields": []},
         company_data_clients=(diffbot,),
     )
 
@@ -399,7 +382,6 @@ async def test_propose_uses_the_structured_tier_for_a_buyers_organization(
     )
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         company_data_clients=(diffbot,),
     )
 
@@ -432,7 +414,6 @@ async def test_structured_tier_constrains_an_option_bearing_field(target: Enrich
     )
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         company_data_clients=(diffbot,),
     )
 
@@ -450,17 +431,15 @@ async def test_propose_proposes_region_for_a_buyers_organization(
     """
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "region",
-                    "value": "MENA",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "HQ'd in Cairo, per the firm's site",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="region",
+                value="MENA",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="HQ'd in Cairo, per the firm's site",
+            ),
+        ),
     )
     proposal = await service.propose(buyer_target)
     assert len(proposal.values) == 1
@@ -479,17 +458,15 @@ async def test_propose_drops_target_region_entirely_when_no_value_matches_vocabu
     """
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "target_region",
-                    "value": "Gulf Cooperation Council (GCC) countries, Atlantis, Narnia, Mordor",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "stated client base",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="target_region",
+                value="Gulf Cooperation Council (GCC) countries, Atlantis, Narnia, Mordor",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="stated client base",
+            ),
+        ),
     )
     proposal = await service.propose(buyer_target)
     assert proposal.values == ()
@@ -500,17 +477,15 @@ async def test_propose_keeps_only_the_valid_members_of_a_partially_matching_targ
 ) -> None:
     service, _ = _service(
         current_values={},
-        extraction_response={
-            "fields": [
-                {
-                    "field_name": "target_region",
-                    "value": "GCC, Atlantis",
-                    "source_url": "https://example.com",
-                    "confidence": "high",
-                    "rationale": "stated client base",
-                }
-            ]
-        },
+        extraction_response=(
+            ExtractedField(
+                field_name="target_region",
+                value="GCC, Atlantis",
+                source_url="https://example.com",
+                confidence="high",
+                rationale="stated client base",
+            ),
+        ),
     )
     proposal = await service.propose(buyer_target)
     assert len(proposal.values) == 1
@@ -524,7 +499,6 @@ async def test_research_query_falls_back_to_bare_name_with_no_context(
     research_client = FakeResearchClient()
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         research_client=research_client,
     )
 
@@ -539,7 +513,6 @@ async def test_research_query_is_anchored_on_domain_when_known(
     research_client = FakeResearchClient()
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         research_client=research_client,
         context=CompanyContext(org_name="Acme Co", domains=("acme.com",)),
     )
@@ -552,7 +525,7 @@ async def test_research_query_is_anchored_on_domain_when_known(
 async def test_extraction_prompt_includes_known_facts_when_context_is_populated(
     target: EnrichmentTarget,
 ) -> None:
-    extraction_client = FakeExtractionClient({"fields": []})
+    extraction_client = FakeExtractionClient()
     service = EnrichmentService(
         research_client=FakeResearchClient(),
         extraction_client=extraction_client,
@@ -575,7 +548,6 @@ async def test_propose_without_research_skips_the_llm_path(target: EnrichmentTar
     research = FakeResearchClient()
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         research_client=research,
         company_data_clients=(FakeCompanyDataClient(),),
     )
@@ -596,7 +568,6 @@ async def test_propose_basic_uses_structured_providers_with_the_domain() -> None
     research = FakeResearchClient()
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         research_client=research,
         company_data_clients=(client,),
     )
@@ -625,7 +596,6 @@ async def test_propose_basic_reports_each_contributing_providers_website() -> No
     unused = FakeCompanyDataClient([], website="other.com")
     service, _ = _service(
         current_values={},
-        extraction_response={"fields": []},
         company_data_clients=(diffbot, pdl, unused),
     )
 

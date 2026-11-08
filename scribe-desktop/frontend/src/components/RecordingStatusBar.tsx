@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { useRecordingState } from '@/contexts/RecordingStateContext';
 import { useEffect, useState } from 'react';
+import { formatElapsed } from '@/lib/formatElapsed';
 
 interface RecordingStatusBarProps {
   isPaused?: boolean;
@@ -24,24 +25,19 @@ export const RecordingStatusBar: React.FC<RecordingStatusBarProps> = ({ isPaused
     }
   }, [activeDuration]);
 
-  const formatDuration = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.2 }}
-      className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg mb-2"
+      className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg"
     >
-      <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-warning' : 'bg-destructive animate-pulse'}`} />
+      <div className={`w-2 h-2 rounded-full ${isPaused ? 'bg-warning' : 'bg-destructive motion-safe:animate-pulse'}`} />
       <span className={`text-sm ${isPaused ? 'text-warning' : 'text-foreground/90'}`}>
-        {isPaused ? 'Paused' : 'Recording'} • {formatDuration(displaySeconds)}
+        {isPaused ? 'Paused' : 'Recording'}
       </span>
+      <span className="text-sm text-muted-foreground tabular-nums">{formatElapsed(displaySeconds)}</span>
     </motion.div>
   );
 };

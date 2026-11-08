@@ -64,7 +64,7 @@ keys.
 | `organizations` | Organization search and persistence, shared by matching and profile commands. |
 | `attio` | Attio API client, value conversion, notes, and webhook types. |
 | `notifications` | Shared Slack message formatting and notifications. Every message it sends has link previews turned off. Every form it opens has its number fields written the way Slack accepts, so one bad value can't stop the form opening. |
-| `utilities` | Database wiring, logging, retries, and money handling. |
+| `utilities` | Database wiring, logging, retries, money handling, and the shared Bedrock runner. Every AI call goes through Pydantic AI agents, which validate the model's structured answer. |
 
 ## Code
 

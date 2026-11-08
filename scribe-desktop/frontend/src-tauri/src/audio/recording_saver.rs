@@ -7,7 +7,8 @@ use tokio::sync::mpsc;
 use serde::{Serialize, Deserialize};
 use std::path::PathBuf;
 
-use super::recording_state::AudioChunk;
+use super::recording_state::{AudioChunk, DeviceType};
+use crate::diarization::SpeakerLabel;
 use super::audio_processing::create_meeting_folder;
 use super::incremental_saver::IncrementalAudioSaver;
 
@@ -22,6 +23,9 @@ pub struct TranscriptSegment {
     pub display_time: String,   // Formatted time for display like "[02:15]"
     pub confidence: f32,
     pub sequence_id: u64,
+    // Absent in transcripts.json files written before speaker attribution existed.
+    #[serde(default)]
+    pub speaker: Option<SpeakerLabel>,
 }
 
 /// Meeting metadata structure
@@ -49,6 +53,7 @@ pub struct DeviceInfo {
 /// New recording saver using incremental saving strategy
 pub struct RecordingSaver {
     incremental_saver: Option<Arc<AsyncMutex<IncrementalAudioSaver>>>,
+    system_track_saver: Option<Arc<AsyncMutex<IncrementalAudioSaver>>>,
     meeting_folder: Option<PathBuf>,
     meeting_name: Option<String>,
     metadata: Option<MeetingMetadata>,
@@ -61,6 +66,7 @@ impl RecordingSaver {
     pub fn new() -> Self {
         Self {
             incremental_saver: None,
+            system_track_saver: None,
             meeting_folder: None,
             meeting_name: None,
             metadata: None,
@@ -129,6 +135,7 @@ impl RecordingSaver {
             display_time: "[00:00]".to_string(),
             confidence: 1.0,
             sequence_id: 0,
+            speaker: None,
         };
         self.add_transcript_segment(segment);
     }
@@ -175,6 +182,7 @@ impl RecordingSaver {
         // Start accumulation task
         let is_saving_clone = self.is_saving.clone();
         let incremental_saver_arc = self.incremental_saver.clone();
+        let system_track_saver_arc = self.system_track_saver.clone();
         let save_audio = auto_save;
 
         if let Some(mut receiver) = self.chunk_receiver.take() {
@@ -195,6 +203,16 @@ impl RecordingSaver {
 
                     // Only process audio chunks if auto_save is enabled
                     if save_audio {
+                        // The pipeline tags meeting-audio-only chunks as System; everything else is the mix.
+                        if chunk.device_type == DeviceType::System {
+                            if let Some(saver_arc) = &system_track_saver_arc {
+                                if let Err(e) = saver_arc.lock().await.add_chunk(chunk) {
+                                    error!("Failed to add chunk to system track saver: {}", e);
+                                }
+                            }
+                            continue;
+                        }
+
                         // Add chunk to incremental saver
                         if let Some(saver_arc) = &incremental_saver_arc {
                             let mut saver_guard = saver_arc.lock().await;
@@ -239,6 +257,12 @@ impl RecordingSaver {
             let incremental_saver = IncrementalAudioSaver::new(meeting_folder.clone(), 48000)?;
             self.incremental_saver = Some(Arc::new(AsyncMutex::new(incremental_saver)));
             info!("✅ Incremental audio saver initialized for meeting: {}", meeting_name);
+
+            // Recording continues without it; only speaker separation is skipped for this meeting.
+            match IncrementalAudioSaver::new_system_track(meeting_folder.clone(), 48000) {
+                Ok(saver) => self.system_track_saver = Some(Arc::new(AsyncMutex::new(saver))),
+                Err(e) => warn!("System track saver unavailable, diarization will be skipped: {}", e),
+            }
         } else {
             info!("⚠️  Skipped incremental audio saver (auto-save disabled)");
         }
@@ -396,6 +420,13 @@ impl RecordingSaver {
             error!("No incremental saver initialized - cannot save recording");
             return Err("No incremental saver initialized".to_string());
         };
+
+        if let Some(saver_arc) = &self.system_track_saver {
+            match saver_arc.lock().await.finalize().await {
+                Ok(path) => info!("✅ Finalized system track: {}", path.display()),
+                Err(e) => warn!("System track not saved, diarization will be skipped: {}", e),
+            }
+        }
 
         // Save final transcripts.json with validation
         if let Some(folder) = &self.meeting_folder {

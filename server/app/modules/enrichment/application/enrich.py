@@ -5,7 +5,6 @@ then research + extract via the LLM path for whatever's still missing.
 Never writes anything — see `ReviewMixin` for that.
 """
 
-import json
 import math
 from datetime import date
 
@@ -19,6 +18,7 @@ from app.modules.enrichment.domain.field_plans import (
 from app.modules.enrichment.domain.missingness import is_missing
 from app.modules.enrichment.domain.proposals import (
     BasicEnrichment,
+    ConfidenceLevel,
     EnrichmentProposal,
     FieldValue,
     ProposedFieldValue,
@@ -32,7 +32,7 @@ from app.modules.enrichment.domain.research_context import (
 from app.modules.enrichment.domain.targets import EnrichmentTarget, EnrichmentTargetKind
 from app.modules.utilities.domain.json_types import JsonObject
 
-_CONFIDENCE_SCORE = {"high": 0.9, "medium": 0.6, "low": 0.3}
+_CONFIDENCE_SCORE: dict[ConfidenceLevel, float] = {"high": 0.9, "medium": 0.6, "low": 0.3}
 
 # A structured company-data provider's own database is at least as
 # trustworthy as the LLM's own "high" narrative-confidence tier — it's a
@@ -146,15 +146,6 @@ def _build_prompt(
         "Cite the exact source URL you drew each value from.\n\n"
         f"Fields to fill:\n{field_lines}\n\n"
         f"Source material:\n{source_lines}"
-    )
-
-
-def _repair_prompt(raw: JsonObject, error: str) -> str:
-    return (
-        "Your previous response did not match the required schema.\n"
-        f"Error: {error}\n"
-        f"Previous response: {json.dumps(raw)}\n"
-        "Return corrected, schema-valid JSON only."
     )
 
 
@@ -308,24 +299,23 @@ class EnrichMixin(ServiceBase):
         documents = await self._research_client.search(build_research_query(context), limit=5)
         sources = [f"[{doc.url}] {doc.title}\n{doc.content}" for doc in documents]
 
-        raw = await self._extraction_client.extract_fields(
+        extracted = await self._extraction_client.extract_fields(
             model_id=self._model_id,
             prompt=_build_prompt(target.org_name, missing, sources, context),
-            repair_prompt_builder=_repair_prompt,
             temperature=self._temperature,
             max_tokens=self._max_tokens,
         )
 
         proposed: list[ProposedFieldValue] = []
-        for entry in raw.get("fields", []):
-            field = fields_by_name.get(entry.get("field_name", ""))
+        for entry in extracted:
+            field = fields_by_name.get(entry.field_name)
             if field is None:
                 continue
-            confidence = _CONFIDENCE_SCORE.get(entry.get("confidence"), 0.0)
+            confidence = _CONFIDENCE_SCORE[entry.confidence]
             if confidence < self._min_confidence:
                 continue
             try:
-                proposed_value = _coerce_proposed_value(field.kind, entry.get("value", ""))
+                proposed_value = _coerce_proposed_value(field.kind, entry.value)
             except ValueError:
                 # LLM returned something that doesn't parse as this field's
                 # kind (e.g. a non-numeric string for a currency field) —
@@ -345,9 +335,9 @@ class EnrichMixin(ServiceBase):
                     write_target=field.write_target,
                     current=current_values.get(field.name),
                     proposed=proposed_value,
-                    source_url=entry.get("source_url", ""),
+                    source_url=entry.source_url,
                     confidence=confidence,
-                    rationale=entry.get("rationale", ""),
+                    rationale=entry.rationale,
                 )
             )
         return proposed

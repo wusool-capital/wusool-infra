@@ -1,12 +1,22 @@
-"""Real AWS Bedrock implementation of `ContextExtractor`, using the
-Converse API. The validate -> repair-prompt retry -> fail-closed policy is
-the shared `utilities` `invoke_validated`, same as `enrichment`'s client.
+"""Real AWS Bedrock implementation of `ContextExtractor`, built on a
+Pydantic AI agent over the Converse API.
+
+The agent's `output_type` is a `ToolOutput` with no text output allowed, so
+Bedrock is forced to call the output tool, and the agent validates the
+result into `ExtractedContext`. A schema failure gets one retry with the
+error sent back to the model in the same conversation; a second failure
+raises `BedrockInvocationError`.
+
+Transient-error retries, metadata-only logging and content-free errors
+come from the shared `utilities.providers.bedrock.agent.run_bedrock_agent`.
 """
 
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
+
+from pydantic_ai import Agent
+from pydantic_ai.models.bedrock import BedrockModelSettings
 
 from app.modules.discrepancies.domain.criteria import ParsedContext
 from app.modules.discrepancies.domain.vocabulary import (
@@ -17,17 +27,15 @@ from app.modules.discrepancies.domain.vocabulary import (
 )
 from app.modules.discrepancies.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.discrepancies.providers.bedrock.schemas import ExtractedContext
-from app.modules.utilities.domain.bedrock import converse_kwargs
-from app.modules.utilities.domain.json_types import JsonObject
-from app.modules.utilities.providers.bedrock.retry import (
-    invoke_bedrock_with_retry,
-    invoke_validated,
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
 )
 
-if TYPE_CHECKING:
-    from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
-
 _OPERATION = "discrepancy_context_extraction"
+# One repair round, matching the old validate-repair-retry policy.
+_OUTPUT_RETRIES = 1
 
 
 def _system_prompt() -> str:
@@ -99,7 +107,6 @@ def _system_prompt() -> str:
 
 # Stable rules live in the system prompt, so the repair retry keeps them too.
 _SYSTEM_PROMPT = _system_prompt()
-_OUTPUT_SCHEMA = ExtractedContext.model_json_schema()
 # Stops a pasted "</note>" from closing the data block early.
 _NOTE_TAG = re.compile(r"</?note\s*>", re.IGNORECASE)
 
@@ -110,33 +117,21 @@ def _build_prompt(text: str) -> str:
 
 class BedrockContextExtractor:
     def __init__(self, *, model_id: str, temperature: float, max_tokens: int) -> None:
-        self._client = get_bedrock_runtime_client()
         self._model_id = model_id
-        self._temperature = temperature
-        self._max_tokens = max_tokens
+        self._model = bedrock_model(model_id, get_bedrock_runtime_client())
+        self._settings = BedrockModelSettings(max_tokens=max_tokens, temperature=temperature)
+        self.agent: Agent[None, ExtractedContext] = structured_agent(
+            ExtractedContext,
+            name="extracted_context",
+            instructions=_SYSTEM_PROMPT,
+            output_retries=_OUTPUT_RETRIES,
+        )
 
     async def extract(self, text: str) -> ParsedContext:
-        validated = await invoke_validated(
-            schema=ExtractedContext,
-            invoke=self._invoke,
-            prompt=_build_prompt(text),
+        prompt = _build_prompt(text)
+        output = await run_bedrock_agent(
+            lambda: self.agent.run(prompt, model=self._model, model_settings=self._settings),
+            model_id=self._model_id,
             operation=_OPERATION,
         )
-        return validated.to_domain()
-
-    async def _invoke(self, prompt: str) -> JsonObject:
-        def converse() -> ConverseResponseTypeDef:
-            return self._client.converse(
-                **converse_kwargs(
-                    model_id=self._model_id,
-                    prompt=prompt,
-                    output_schema=_OUTPUT_SCHEMA,
-                    max_tokens=self._max_tokens,
-                    temperature=self._temperature,
-                    system_prompt=_SYSTEM_PROMPT,
-                )
-            )
-
-        return await invoke_bedrock_with_retry(
-            converse=converse, model_id=self._model_id, operation=_OPERATION
-        )
+        return output.to_domain()

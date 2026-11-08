@@ -161,7 +161,6 @@ async def test_prompt_includes_labeled_buyer_meeting_notes_when_present() -> Non
                 occurred_at=datetime(2026, 8, 1, tzinfo=UTC),
                 title="Mandate call",
                 summary="Ticket $20-50M, UAE and GCC platform plays.",
-                truncated=False,
             )
         ],
     )
@@ -185,7 +184,6 @@ async def test_candidates_context_carries_per_candidate_meeting_notes_when_enabl
                 occurred_at=datetime(2026, 7, 1, tzinfo=UTC),
                 title="Seller call",
                 summary="Considering a majority sale, 70-80% stake.",
-                truncated=False,
             )
         ],
     )

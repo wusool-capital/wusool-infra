@@ -46,6 +46,11 @@ class Settings(SecretsManagerSettings):
     aws_secret_access_key: str | None = None
     aws_bedrock_model_id: str = "eu.anthropic.claude-sonnet-4-6"
 
+    # Proofread: its own model and output budget. Output is only the changed
+    # lines (numbered, without the original text), so it needs far less.
+    correction_model_id: str = "eu.anthropic.claude-sonnet-4-6"
+    correction_max_tokens: int = 4096
+
     summary_max_tokens: int = 8192
     summary_max_tokens_per_chunk: int = 8000
     max_concurrent_summaries: int = 1

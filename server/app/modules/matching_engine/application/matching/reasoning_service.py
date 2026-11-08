@@ -5,12 +5,11 @@ only: why a match works, why it was chosen over the alternatives, a
 recommended pitch, and risks/gaps. It is never responsible for the numeric
 score, hard-filter decisions, entity IDs, or database writes.
 
-The Bedrock Port owns the validate-repair-retry-then-fail-closed policy
-(`application/ports/llm.py`) — this service only builds the prompt/repair
-prompt (business-content-aware) and converts the already-validated result
-dict into the domain `ReasoningOutcome`. No `pydantic` import here: the
-vendor-response schema (`providers/bedrock/schemas.py`) never crosses this
-boundary.
+The Bedrock Port owns the validate-retry-then-fail-closed policy
+(`application/ports/llm.py`) and returns the domain `ReasoningOutcome`
+directly — this service only builds the prompt (business-content-aware).
+No `pydantic` import here: the vendor-response schema
+(`providers/bedrock/schemas.py`) never crosses this boundary.
 """
 
 from dataclasses import asdict
@@ -22,14 +21,12 @@ from app.modules.matching_engine.application.ports.llm import (
 )
 from app.modules.matching_engine.domain.buyers import BuyerContext
 from app.modules.matching_engine.domain.matching.entities import (
-    CandidateNarrative,
     CandidateScore,
     ReasoningOutcome,
 )
 from app.modules.matching_engine.domain.meetings import render_meeting_notes_section
 from app.modules.matching_engine.domain.requirements import RequirementProfile
 from app.modules.matching_engine.domain.sellers import SellerCandidate
-from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 
@@ -40,7 +37,7 @@ class MatchReasoningService:
         *,
         model_id: str,
         inference_config: InferenceConfig,
-        meeting_notes_char_budget: int = 12000,
+        meeting_notes_char_budget: int = 24000,
     ) -> None:
         self._client = bedrock_client
         self._model_id = model_id
@@ -54,12 +51,9 @@ class MatchReasoningService:
         shortlist: list[tuple[SellerCandidate, CandidateScore]],
     ) -> ReasoningOutcome:
         try:
-            result = await self._client.generate_reasoning(
+            return await self._client.generate_reasoning(
                 model_id=self._model_id,
                 prompt=self._build_prompt(buyer, profile, shortlist),
-                repair_prompt_builder=lambda invalid_raw, error: self._build_repair_prompt(
-                    buyer, profile, shortlist, invalid_raw, error
-                ),
                 inference_config=self._inference_config,
             )
         except BedrockInvocationError as exc:
@@ -67,8 +61,6 @@ class MatchReasoningService:
                 f"Bedrock reasoning output for buyer_role={buyer.buyer_role_id} failed "
                 "validation after one repair attempt"
             ) from exc
-
-        return ReasoningOutcome(candidates=[CandidateNarrative(**c) for c in result["candidates"]])
 
     def _build_prompt(
         self,
@@ -142,20 +134,4 @@ class MatchReasoningService:
             f"Notes (free text): {buyer.notes or 'Unknown'}"
             f"{buyer_meeting_notes_line}\n"
             f"Shortlisted candidates with deterministic scores: {candidates_context}"
-        )
-
-    def _build_repair_prompt(
-        self,
-        buyer: BuyerContext,
-        profile: RequirementProfile,
-        shortlist: list[tuple[SellerCandidate, CandidateScore]],
-        invalid_raw: JsonObject,
-        error: str | None,
-    ) -> str:
-        return (
-            f"{self._build_prompt(buyer, profile, shortlist)}\n\n"
-            f"Your previous response was: {invalid_raw}\n"
-            f"It failed schema validation with this specific error: {error}\n"
-            "Return only corrected, valid JSON that fixes exactly that problem — "
-            "no prose, no markdown fences."
         )

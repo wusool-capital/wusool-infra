@@ -37,7 +37,7 @@ persists the run, and posts an Approve/Reject message to Slack.
          - builds the prompt from the buyer's investment_strategy/notes
            plus recent meeting notes (domain/meetings.py: per-note
            head+tail cut, then newest-first total budget, oldest kept)
-         - the Bedrock call itself, including the validate-repair-retry-
+         - the Bedrock call itself, including the validate-retry-
            then-fail-closed policy, lives behind a Port
            (application/ports/llm.py) — this service only owns prompt
            content, never talks to boto3 directly
@@ -111,10 +111,11 @@ Both `BuyerRequirementExtractionService` and `MatchReasoningService` say
 the same thing in their docstrings, and it's a useful rule to internalize:
 **the Port (`application/ports/llm.py`, implemented by
 `providers/bedrock/client.py`) owns the mechanics of getting a valid
-response out of Bedrock** — retry on failure, one repair attempt on a
+response out of Bedrock** — a Pydantic AI agent per call, transient-error
+retries, one retry with the validation error sent back to the model on a
 malformed response, fail closed if that also fails. **The application
-service only owns the actual prompt content** — what to ask, how to
-build a repair prompt when the first attempt came back wrong. If you're
+service only owns the actual prompt content** — what to ask; the retry
+keeps the whole conversation, so it needs no separate repair prompt. If you're
 fixing "Bedrock returned garbage," look in `providers/bedrock/client.py`.
 If you're fixing "the LLM keeps getting the wrong idea," look in
 `application/requirements.py` or `application/matching/reasoning_service.py`.

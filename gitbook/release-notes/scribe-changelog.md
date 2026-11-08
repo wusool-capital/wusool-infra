@@ -2,6 +2,76 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.3
+
+### What's new
+
+* **Faster Speaker Separation (CoreML)** is now on by default. Its models (about 300 MB) download only when you ask. The first time you press **Separate Speakers**, Scribe offers the download with a progress bar. **Use Slower Model** instead turns CoreML off and separates straight away, with no download. Separation that runs on its own after a recording uses the standard model until then.
+
+### Changed
+
+* Summaries are shorter and easier to scan. A 2–3 sentence gist comes first, then next steps with the owner's name, decisions, and notes by topic. Buyer, seller and investor meetings also show a deal signal: momentum, claims to verify and risks. Notes grow with the meeting, from 1–2 topics for a short call to up to 8 for a 90-minute meeting. Older summaries keep their longer opening.
+* **Proofread** catches more misheard names and terms. It knows common deal, finance and GCC terms, plus the meeting's speakers and title. Add your own words in **Settings → General → Proofread**. Each fix marks only the words it changes and shows its type. **Next Fix** steps through them, and **Accept All** confirms how many it applied. When part of a long meeting couldn't be checked, Scribe keeps saying so and offers **Try Again**.
+* **Send feedback** fills in the name you gave under **Speakers** in Settings, so you don't have to type it again.
+
+## 0.8.2
+
+### What's new
+
+* **Who Spoke?** above the transcript lists every separated voice with how long they spoke and one of their lines. Play a few seconds of a voice, type a name and press Enter to move on to the next person, with no scrolling.
+* When a voice sounds close to someone you've named before, Scribe asks "Sounds like Faisal?" so you can confirm with one click.
+* The meeting header shows how many speakers are still to name.
+* Turning on **Faster Speaker Separation (CoreML)** downloads its models straight away with a progress bar. Turning it off asks whether to keep the models, so switching back on later needs no download.
+
+### Changed
+
+* Dropdowns and menus clearly highlight the option under the pointer, in light and dark mode.
+* **Recording Settings** on the home screen opens the Recording tab of Settings directly.
+* Changing your microphone or system audio in Settings shows straight away on the home screen.
+* Select All (⌘A) only selects text inside text fields. You can still drag to select text in summaries, transcripts, and meeting titles and headings.
+* Long meeting titles in a folder end with "…" instead of pushing the date off the edge of the window.
+* New meetings are named like "Meeting · 7 Nov, 18:22" instead of a file-style timestamp. Your own titles are never replaced by the summary's title.
+* Dialogs look sharp instead of slightly blurry, with a lighter background behind them. **Rename Meeting** selects the current name so you can type over it.
+
+### Fixed
+
+* The CoreML download bar fills as the download progresses and shows the real size, instead of sitting at 100%.
+* After **Tidy Lines**, transcript lines no longer overlap until you resize the window.
+* The sidebar keeps the width you set instead of stretching to fit long meeting titles. It can be at most 420 px wide, and double-clicking its edge resets it.
+* Meeting titles in the sidebar have more room. The edit and delete buttons replace the date only while you point at a meeting.
+* The transcript toolbar fits beside a wide sidebar: its buttons switch to icons when space runs out, and **Summarize** is never cut off.
+* Settings fit beside a wide sidebar: text wraps, switches stay visible, and the tabs tighten up instead of running off the edge.
+
+## 0.8.1
+
+### What's new
+
+* **Tidy Lines** joins short fragments from the same speaker into full sentences, in one step you can undo.
+
+### Changed
+
+* A sent meeting's summary opens with its action items and decisions, and the page header shows when it was sent to Attio. Copy sits beside the tabs.
+* While recording, one bar at the bottom shows the status, timer, a live microphone level, and Pause and Stop. The level meter now reflects what the microphone actually hears.
+* The home screen shows which microphone and system audio a recording will use, with one **Start Recording** button.
+* **Test Mic** in Settings shows the real level of the selected microphone. It used to show a simulated level.
+* Live transcripts break into full sentences instead of short fragments, which also makes them more accurate. Lines appear a second or two after people stop speaking.
+
+## 0.8.0
+
+### What's new
+
+* Transcripts show who said each line. Your lines carry your name, set under **Settings → General → Speakers**. After a meeting, Scribe separates the other voices on your Mac into Speaker 1, Speaker 2 and so on.
+* Click a speaker's name to say who they are. Scribe renames everything they said in that meeting and recognises their voice in later meetings. Voice fingerprints stay on your Mac.
+* **Faster Speaker Separation (CoreML)** in Settings separates voices about six times faster, using more memory while it runs.
+* **Proofread** suggests fixes for misheard words. Accept or dismiss each one, or all at once.
+* Meetings pushed to Attio carry each speaker's name instead of "Participant".
+
+### Changed
+
+* The meeting page shows the meeting's name and date at the top. Long lines are no longer cut off when the window is narrow, and tick boxes appear only when you hover or start selecting.
+* Settings are grouped into clearer sections, and the auto-stop description no longer runs under its switch.
+* Transcripts show filler words such as "um" as recorded, matching the text that Summarize and Attio receive.
+
 ## 0.7.7
 
 ### What's new

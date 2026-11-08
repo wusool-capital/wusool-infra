@@ -9,7 +9,7 @@ constructor.
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
@@ -22,12 +22,13 @@ from app.modules.activities import (
     LedgerType,
     SubjectType,
 )
+from app.modules.meetings.api.schemas import to_status_response
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
 from app.modules.meetings.domain.meeting_record import SKIP_ATTIO_METADATA_KEY, MeetingRecord
 from app.modules.meetings.domain.role_ref import ActiveRoleRef
 from app.modules.meetings.domain.roles import MeetingRole
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.meetings.domain.summary import MeetingSummary
 
 _MEETING_ID = uuid4()
 _ORG_ID = "org-attio-1"
@@ -80,8 +81,15 @@ def _meeting(**overrides: object) -> MeetingRecord:
 
 class _FakeSummarizerLLM:
     async def summarize(
-        self, *, model_id: str, prompt: str, system_prompt: str, max_tokens: int, temperature: float
-    ) -> JsonObject:
+        self,
+        *,
+        model_id: str,
+        prompt: str,
+        system_prompt: str,
+        max_tokens: int,
+        temperature: float,
+        check_limits: bool,
+    ) -> MeetingSummary:
         raise AssertionError("LLM should never be called for a short transcript in these tests")
 
 
@@ -499,3 +507,18 @@ async def test_a_missing_meeting_records_no_event() -> None:
     await service.summarize_and_publish(_MEETING_ID)
 
     assert _RECORDED == []
+
+
+def test_status_response_carries_the_rendered_summary_text() -> None:
+    summary = MeetingSummary(title="t", executive_summary="Gist.", action_items=["Sinan: do it"])
+    meeting = _meeting(
+        status="completed",
+        summary="Gist.\n\nNext steps:\n- Sinan: do it",
+        summary_json=asdict(summary),
+    )
+
+    response = to_status_response(meeting)
+
+    assert response.summary_text == "Gist.\n\nNext steps:\n- Sinan: do it"
+    assert response.summary is not None
+    assert response.summary.action_items == ["Sinan: do it"]
