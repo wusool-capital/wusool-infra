@@ -16,6 +16,8 @@ for current production evidence and open handover items.
   to speaker names. Every change must sound like the words it replaces, and
   a batch's prompt only carries the names and words something in it sounds
   like.
+- Scribe 0.8.4 auto-names a voice only on a clear match and marks it for the
+  user to confirm. Accept All lists name changes before applying them.
 
 ### Changed
 

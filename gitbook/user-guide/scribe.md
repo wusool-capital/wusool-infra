@@ -81,7 +81,9 @@ Scribe labels each speaker's turn in the transcript:
   lines. Press ▶ to hear a few seconds of their voice, type a name and
   press Enter to move on to the next person. Every line they spoke in that
   meeting is renamed, and Scribe recognises their voice in later meetings.
-  Click a quoted line to jump to it in the transcript.
+  A voice it recognised on its own says **recognised by voice**: press
+  **Confirm** if that's right, or **Change**. Click a quoted line to jump to
+  it in the transcript.
 - **Confirm a likely match.** When a voice sounds close to someone you've
   named before, Scribe asks "Sounds like Faisal?". Press **Yes** to name
   them, or **No** to type a different name.
@@ -111,7 +113,8 @@ Fix the transcript before you summarize or send it:
 - Press **Proofread** to get suggested fixes for misheard words, names and
   terms. Each fix shows its type (name, term, number, word or punctuation).
   Accept or dismiss each one, press **Next Fix** to jump to the next, or
-  press **Accept All** or **Dismiss All**. Cmd+Z undoes Accept All in one step.
+  press **Accept All** or **Dismiss All**. If any fixes change a name, Accept
+  All lists them first. Cmd+Z undoes Accept All in one step.
   Scribe sends the transcript text, speaker names and meeting title to the
   Toolkit server for this, and nothing is stored there. If part of a long
   meeting can't be checked, Scribe says how many lines were missed and offers

@@ -88,9 +88,13 @@ renaming a speaker changes one row.
   prompt on **Separate Speakers**, whose **Use Slower Model** button switches
   the setting to CPU. Until then, automatic separation after a
   recording runs on CPU, so it never downloads 272 MB in the background.
-- **Voice library:** naming a voice stores its embedding in
-  `speaker_profiles`. Later meetings auto-name voices whose cosine
-  similarity is at least 0.7, and never give two voices the same person.
+- **Voice library:** naming a voice saves its embedding to
+  `speaker_profiles`.
+- **Auto-naming:** a later meeting names a voice only on a clear match. Its
+  cosine similarity must be at least 0.7 and lead the next-closest person by
+  0.1. Two voices never get the same person. A close call stays unnamed
+  and gets a one-click suggestion. `meeting_speakers.auto_named` marks
+  auto-named voices until the user confirms or changes them.
 - **Naming panel:** `get_speaker_overview` returns each voice's line
   count, talk time and a sample line (the longest of its first five).
   Unnamed voices scoring 0.5 or more against a profile not already in the
@@ -178,8 +182,9 @@ applying a fix.
 Each change must also sound like the words it replaces (`sounds_alike`), so a
 fix can't swap one name for an unrelated one. A change that fails is put back,
 and the rest of that line's fix is kept. Each batch's prompt carries only the
-speaker names and user words that something in the batch sounds like. Shown a
-name, the model tended to rename strangers to it.
+speaker names and user words that something in the batch sounds like. Common
+names (`COMMON_NAMES`) are sent the same way, never in the cached system
+prompt. Shown a name, the model tended to rename strangers to it.
 
 `CORRECTION_MODEL_ID` and `CORRECTION_MAX_TOKENS` set the model and output
 budget. `scripts/eval_proofread.py` scores models against labelled excerpts.
