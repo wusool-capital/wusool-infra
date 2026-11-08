@@ -62,9 +62,7 @@ def seller_edit_port() -> SellerEditPort:
 
 
 def _matching_unit_of_work_factory() -> MatchingUnitOfWorkFactory:
-    return build_matching_unit_of_work_factory(
-        get_sessionmaker(), meeting_notes_max_chars=get_settings().meeting_notes_max_chars
-    )
+    return build_matching_unit_of_work_factory(get_sessionmaker())
 
 
 @lru_cache

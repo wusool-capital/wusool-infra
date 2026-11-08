@@ -136,8 +136,8 @@ assigned, but not placeholders such as "Speaker 2", "Others" or "Me".
 `render_summary_text` writes the plain text stored in `meetings.summary`,
 filed as the Attio note and read by the matching engine. Its order is gist,
 next steps, decisions, deal momentum, claims to verify, risks, keywords,
-then notes. Notes go last because the matching engine keeps the start and
-end of a summary over 3,000 characters, so it cuts middle notes first.
+then notes by topic. The matching engine reads each summary whole, never
+cut, as context for buyer and seller matching.
 Summaries are not regenerated, so older ones keep their long opening.
 
 The Bedrock calls run through Pydantic AI agents

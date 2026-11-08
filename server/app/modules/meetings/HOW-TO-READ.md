@@ -161,8 +161,7 @@ constructed?", the answer is always `bootstrap.py`.
   plain text (for the `meetings.summary` column, the Attio note and the
   matching engine) and turns a transcript's turns back into "Speaker: text"
   lines. The order is gist, next steps, decisions, deal signal, then notes
-  last, so the matching engine's cut of a long summary loses middle notes
-  first.
+  by topic. The matching engine reads this text whole.
 
 ### Talking to our own database (`persistence/`)
 

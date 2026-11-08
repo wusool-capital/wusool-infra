@@ -16,6 +16,9 @@ for current production evidence and open handover items.
   and notes by topic follow, plus a deal signal for buyer, seller and
   investor meetings. Notes grow with the meeting instead of a fixed 1,500-word cap.
   The Attio note, Scribe and the matching engine all get the new order.
+- Matching reads each meeting summary whole instead of cutting it at 3,000
+  characters. Each prompt holds up to 24,000 characters of meeting notes and
+  always includes the newest and oldest meetings.
 - Every Bedrock call in the server now runs through Pydantic AI agents:
   meetings, matching, enrichment, discrepancies and the website lead tools.
   Each validates its schema and returns typed results. Meeting summaries

@@ -47,9 +47,9 @@ def render_summary_text(summary: MeetingSummary) -> str:
     Sections that came back empty are omitted entirely rather than
     rendered as empty headings.
 
-    Notes come last on purpose: matching_engine keeps the start and end of
-    an over-long summary, so a long meeting loses middle notes rather than
-    the gist, next steps or risks.
+    The order matches the Scribe summary tab: what was decided and what
+    happens next first, the detail by topic last. matching_engine reads
+    this text whole as meeting context.
     """
     parts: list[str] = []
 

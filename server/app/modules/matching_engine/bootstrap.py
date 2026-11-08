@@ -52,8 +52,8 @@ def build_buyer_repository(session: AsyncSession) -> BuyerRepository:
     return BuyerRepository(session)
 
 
-def build_meeting_repository(session: AsyncSession, *, max_chars: int) -> MeetingRepository:
-    return MeetingRepository(session, max_chars=max_chars)
+def build_meeting_repository(session: AsyncSession) -> MeetingRepository:
+    return MeetingRepository(session)
 
 
 def build_bedrock_client() -> BedrockConverseClient:
@@ -73,12 +73,10 @@ def build_deal_gateway() -> AttioDealGateway:
 
 
 def build_matching_unit_of_work_factory(
-    sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int
+    sessionmaker: async_sessionmaker[AsyncSession],
 ) -> MatchingUnitOfWorkFactory:
     def _factory() -> SqlAlchemyMatchingUnitOfWork:
-        return SqlAlchemyMatchingUnitOfWork(
-            sessionmaker, meeting_notes_max_chars=meeting_notes_max_chars
-        )
+        return SqlAlchemyMatchingUnitOfWork(sessionmaker)
 
     return _factory
 
@@ -105,9 +103,7 @@ def build_matching_engine_service(
     return MatchingEngineService(
         uow_factory,
         buyer_repository=build_buyer_repository(session),
-        meeting_repository=build_meeting_repository(
-            session, max_chars=settings.meeting_notes_max_chars
-        ),
+        meeting_repository=build_meeting_repository(session),
         extraction_service=BuyerRequirementExtractionService(
             bedrock_client,
             model_id=settings.aws_bedrock_model_id_extraction,

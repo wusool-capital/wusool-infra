@@ -9,48 +9,34 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# Marks the cut so the model doesn't read a shortened summary as complete.
-MIDDLE_TRUNCATED_MARKER = " ... [middle truncated] ... "
-
 
 @dataclass(frozen=True)
 class MeetingNote:
     occurred_at: datetime
     title: str | None
     summary: str
-    truncated: bool
-
-
-def truncate_summary(summary: str, max_chars: int) -> tuple[str, bool]:
-    """Returns (text, was_truncated). Over-cap summaries keep their start
-    (context) and end (next steps, terms) — the middle is what gets cut.
-    """
-    if len(summary) <= max_chars:
-        return summary, False
-    head_chars = max_chars * 2 // 3
-    tail_chars = max_chars - head_chars
-    tail = summary[-tail_chars:] if tail_chars else ""
-    return f"{summary[:head_chars]}{MIDDLE_TRUNCATED_MARKER}{tail}", True
 
 
 def select_notes_within_budget(
     notes: list[MeetingNote], total_char_budget: int
 ) -> tuple[list[MeetingNote], int]:
-    """`notes` must already be ordered most-recent-first. Fills
-    `total_char_budget` greedily from most recent, but always keeps the
-    oldest note too — a buyer's founding/mandate-defining meeting shouldn't
-    silently drop just because more recent, narrower ones exist. Returns
-    (selected notes, count of older notes omitted). Never raises.
+    """`notes` must already be ordered most-recent-first. Each note is used
+    whole — a summary is gist, next steps, deal signal and notes by topic,
+    and cutting it would drop topics. The most recent note (where the
+    relationship stands now) and the oldest (the founding/mandate-defining
+    meeting) are always kept, even over budget; the budget then fills with
+    the next most recent notes that fit. Returns (selected notes, count of
+    older notes omitted). Never raises.
     """
-    if len(notes) <= 1:
+    if len(notes) <= 2:
         return list(notes), 0
 
-    oldest = notes[-1]
-    remaining_budget = total_char_budget - len(oldest.summary)
+    newest, middle, oldest = notes[0], notes[1:-1], notes[-1]
+    remaining_budget = total_char_budget - len(newest.summary) - len(oldest.summary)
 
-    selected: list[MeetingNote] = []
+    selected = [newest]
     used = 0
-    for note in notes[:-1]:
+    for note in middle:
         cost = len(note.summary)
         if used + cost > remaining_budget:
             break
@@ -83,10 +69,9 @@ def render_meeting_notes_section(
     if omitted:
         lines.append(f"({omitted} older meetings omitted)")
     logger.debug(
-        "meeting_notes_section subject=%s included=%d truncated=%d omitted=%d",
+        "meeting_notes_section subject=%s included=%d omitted=%d",
         subject_name,
         len(selected),
-        sum(note.truncated for note in selected),
         omitted,
     )
     return "\n".join(lines)

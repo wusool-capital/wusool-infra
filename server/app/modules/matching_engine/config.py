@@ -78,10 +78,10 @@ class Settings(SecretsManagerSettings):
     # module's own call about match quality.
     web_fallback_min_score: float = 50.0
 
-    # Meeting-notes enrichment: free-text call/meeting notes (`meetings`
-    # table) appended to the buyer/reasoning prompts as unverified context.
-    meeting_notes_max_chars: int = Field(default=3000, gt=0)
-    meeting_notes_max_total_chars: int = Field(default=12000, gt=0)
+    # Meeting-notes enrichment: whole meeting summaries (`meetings` table)
+    # appended to the buyer/reasoning prompts as unverified context. Sized
+    # for about two long meetings; the newest and oldest are always kept.
+    meeting_notes_max_total_chars: int = Field(default=24000, gt=0)
     enable_seller_meeting_notes: bool = True
 
     # Attio workspace member who owns the Qualified deal an approval creates.
