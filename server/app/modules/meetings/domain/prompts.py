@@ -671,8 +671,8 @@ def _notes_field(budget: SummaryBudget) -> str:
         'objects, each of the form {"topic": "<short topic label>", '
         '"points": ["<specific point>", ...]} — the meeting\'s substance '
         "grouped by what was being discussed, in the order the topics "
-        "came up. Every point is one specific fact, position, or "
-        "exchange, 25 words or fewer, carrying its numbers. Together, "
+        "came up, with 2-4 points under each. Every point is one specific "
+        "fact, position, or exchange, 25 words or fewer, carrying its numbers. Together, "
         f"executive_summary and notes run to about {budget.max_words} "
         "words at most. That is a ceiling for a meeting with that much "
         "substance, not a target: use fewer topics and points when less "

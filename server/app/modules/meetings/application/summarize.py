@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from typing import Any
 
 from app.modules.meetings.application.ports.summarizer_llm import SummarizerLLM
@@ -27,7 +28,7 @@ from app.modules.meetings.domain.prompts import (
     build_single_pass_summary_prompt,
     summary_budget,
 )
-from app.modules.meetings.domain.roles import MeetingRole
+from app.modules.meetings.domain.roles import MeetingRole, momentum_applies
 from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -85,6 +86,18 @@ def _to_meeting_summary(data: JsonObject) -> MeetingSummary:
     )
 
 
+def _without_stray_momentum(
+    summary: MeetingSummary, companies: Mapping[MeetingRole, str] | None
+) -> MeetingSummary:
+    """Bedrock's forced schema makes the model fill deal_momentum even for
+    internal meetings ("N/A — internal update"), which would show a deal
+    signal on a meeting with no counterparty.
+    """
+    if not summary.deal_momentum or (companies and momentum_applies(companies)):
+        return summary
+    return replace(summary, deal_momentum="")
+
+
 class SummarizationService:
     def __init__(
         self,
@@ -134,7 +147,7 @@ class SummarizationService:
                     single, budget=budget, companies=companies, meeting_date=meeting_date
                 )
             )
-            return _to_meeting_summary(raw)
+            return _without_stray_momentum(_to_meeting_summary(raw), companies)
 
         # MAP: one summarize() call per chunk. Run concurrently — unlike
         # Scribe, which does this serially — since nothing here forbids
@@ -163,7 +176,7 @@ class SummarizationService:
                 meeting_date=meeting_date,
             )
         )
-        return _to_meeting_summary(merge_raw)
+        return _without_stray_momentum(_to_meeting_summary(merge_raw), companies)
 
     async def _call_llm(self, prompt: str) -> JsonObject:
         # temperature=0.0 always: summarization wants the same deterministic-

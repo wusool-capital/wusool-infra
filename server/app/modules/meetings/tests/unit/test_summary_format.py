@@ -109,14 +109,15 @@ def test_render_skips_empty_sections() -> None:
 
 
 class _RecordingLLM:
-    def __init__(self) -> None:
+    def __init__(self, deal_momentum: str = "") -> None:
         self.prompts: list[str] = []
+        self.deal_momentum = deal_momentum
 
     async def summarize(
         self, *, model_id: str, prompt: str, system_prompt: str, max_tokens: int, temperature: float
     ) -> JsonObject:
         self.prompts.append(prompt)
-        return {"title": "t", "executive_summary": "g"}
+        return {"title": "t", "executive_summary": "g", "deal_momentum": self.deal_momentum}
 
 
 def test_service_sizes_budget_from_whole_transcript() -> None:
@@ -130,3 +131,21 @@ def test_service_sizes_budget_from_whole_transcript() -> None:
 
     assert len(llm.prompts) == 1
     assert "3-4 objects" in llm.prompts[0]
+
+
+@pytest.mark.parametrize(
+    ("companies", "expected"),
+    [(None, ""), ({MeetingRole.INTERNAL: "Wusool"}, ""), (_SELLER, "N/A — internal update")],
+)
+def test_momentum_is_dropped_without_a_counterparty(
+    companies: dict[MeetingRole, str] | None, expected: str
+) -> None:
+    llm = _RecordingLLM(deal_momentum="N/A — internal update")
+    service = SummarizationService(
+        llm, model_id="m", summary_max_tokens=100, summary_max_tokens_per_chunk=8000
+    )
+    transcript = " ".join(["word"] * 50)
+
+    summary = asyncio.run(service.summarize(transcript, companies=companies, meeting_date=None))
+
+    assert summary.deal_momentum == expected
