@@ -22,6 +22,8 @@ for current production evidence and open handover items.
 - Scribe 0.8.5 plays voice samples through the Web Audio API, since the
   macOS webview can't play `blob:` audio. The sample is each voice's
   longest line.
+- Scribe 0.8.5 voice samples play on the current output device after
+  headphones disconnect, instead of going silent.
 
 - Proofread no longer renames people to words from the user's vocabulary or
   to speaker names. Every change must sound like the words it replaces, and
