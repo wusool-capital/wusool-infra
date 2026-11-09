@@ -56,6 +56,19 @@ export function useVoiceClip(meetingId?: string): VoiceClip {
     };
   }, [meetingId]);
 
+  // WebKit keeps a context on the output it started with, so after headphones disconnect it plays into nothing.
+  useEffect(() => {
+    const devices = navigator.mediaDevices;
+    if (!devices) return;
+    const reset = () => {
+      stop();
+      void contextRef.current?.close();
+      contextRef.current = null;
+    };
+    devices.addEventListener('devicechange', reset);
+    return () => devices.removeEventListener('devicechange', reset);
+  }, [stop]);
+
   const toggle = useCallback(
     async (label: SpeakerLabel, sample: VoiceSample) => {
       if (!meetingId) return;
