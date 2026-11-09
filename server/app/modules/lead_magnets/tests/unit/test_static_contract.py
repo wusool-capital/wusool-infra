@@ -436,7 +436,7 @@ def test_replay_block_covers_every_email_phone_and_linkedin_input() -> None:
     sensitive = re.compile(r'\b(?:id|name)="[^"]*(?:email|phone|tel|linkedin)[^"]*"', re.IGNORECASE)
     patterns = [_selector_pattern(s) for s in _replay_block()]
     for tool_dir in _tool_dirs():
-        for tag in re.findall(r"<input\b[^>]*>", _page_sources(tool_dir)):
+        for tag in re.findall(r"<input\b(?:[^>]|=>)*>", _page_sources(tool_dir)):
             if sensitive.search(tag):
                 assert any(p.search(tag) for p in patterns), f"{tool_dir.name}: {tag[:80]}"
 
