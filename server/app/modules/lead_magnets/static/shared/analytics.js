@@ -34,6 +34,10 @@
   var UTM_KEY = "wusool_utm";
   var UTM_FIELDS = ["source", "medium", "campaign", "term", "content"];
   var QUEUE_MAX = 50;
+  // Contact fields, plus the two nodes that echo them as page text; replay draws these as blocked boxes.
+  var REPLAY_BLOCK =
+    '#name, #fullName, #cName, #g-name, input[name="name"], input[type="email"], ' +
+    'input[type="tel"], #linkedin, #code-email, #resDate';
   // Longest we wait for the parent's answer before treating the visitor as not consenting.
   var PARENT_WAIT_MS = 3000;
 
@@ -164,6 +168,7 @@
             // Replay shows the page as the visitor saw it; requests and console output stay unrecorded.
             session_recording: {
               maskAllInputs: false,
+              blockSelector: REPLAY_BLOCK,
               recordHeaders: false,
               recordBody: false,
             },
