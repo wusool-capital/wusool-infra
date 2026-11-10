@@ -3,7 +3,7 @@
 // Pure attribution logic, free of I/O so it tests directly: segments to voices, voices to people.
 
 /// A span of meeting audio attributed to one diarized voice, in seconds.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SpeakerTurn {
     pub start: f64,
     pub end: f64,

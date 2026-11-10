@@ -27,6 +27,13 @@ renaming a speaker changes one row.
   prompt on **Separate Speakers**, whose **Use Slower Model** button switches
   the setting to CPU. Until then, automatic separation after a
   recording runs on CPU, so it never downloads 272 MB in the background.
+- **Worker process:** separation runs in a child copy of the app, started
+  with `--diarize-worker`, which prints its result as JSON. The app kills
+  it if it runs past four times its estimate, or three minutes if longer.
+  A CoreML run that fails or overruns retries once on CPU. The worker exits
+  when its stdin closes, which the OS does however the app ends, including
+  a force quit. So a stuck run never outlives Scribe, and killing it frees
+  all its memory.
 - **Automatic runs:** the `auto_separate` key in `diarization.json` (default
   on) controls whether separation starts after a recording is saved or an
   import finishes. Off, it runs only from **Separate Speakers**.

@@ -16,6 +16,7 @@ use tokio::sync::Semaphore;
 
 use super::assign::{attribute_segments, match_profiles, VoiceProfile, PROFILE_MATCH_MARGIN, PROFILE_MATCH_THRESHOLD};
 use super::engine::{self, DiarizationBackend};
+use super::worker;
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{DiarizedVoice, SpeakerRepository};
 
@@ -182,25 +183,32 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
     let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running", run });
 
     let started = Instant::now();
-    let (diarization, ran_on) = tokio::task::spawn_blocking(move || -> Result<(engine::Diarization, DiarizationBackend)> {
-        let audio = super::audio::decode_16k_mono(&system_track)?;
-        match engine::diarize(&models_dir, backend, &audio) {
-            // CPU files always download with CoreML ones, so this retry has its models.
-            Err(e) if backend == DiarizationBackend::CoreMl => {
-                warn!("CoreML diarization failed, retrying on CPU: {:#}", e);
-                engine::diarize(&models_dir, DiarizationBackend::Cpu, &audio).map(|d| (d, DiarizationBackend::Cpu))
+    let limit = worker::time_limit(speed.estimate_secs(backend, audio_secs));
+    let diarization = match worker::diarize_in_worker(&system_track, &models_dir, backend, limit).await {
+        Ok(diarization) => {
+            info!("Diarized {} ({:.0} s of audio) on {:?} in {:.1} s", meeting_id, audio_secs, backend, started.elapsed().as_secs_f64());
+            let learned = speed.learn(backend, audio_secs, started.elapsed().as_secs_f64());
+            if let Err(e) = super::commands::save_speed(app, learned) {
+                warn!("Could not save separation speed: {}", e);
             }
-            result => result.map(|d| (d, backend)),
+            diarization
         }
-    })
-    .await??;
-    // A fallback run mixes two backends' timings, so only a clean run teaches the estimate.
-    if ran_on == backend {
-        let learned = speed.learn(backend, audio_secs, started.elapsed().as_secs_f64());
-        if let Err(e) = super::commands::save_speed(app, learned) {
-            warn!("Could not save separation speed: {}", e);
+        // CPU files always download with CoreML ones, and CPU stays near 0.5 GB where CoreML can balloon.
+        Err(e) if backend == DiarizationBackend::CoreMl => {
+            warn!("CoreML diarization failed for {}, retrying on CPU: {:#}", meeting_id, e);
+            let cpu = DiarizationBackend::Cpu;
+            let estimate = speed.estimate_secs(cpu, audio_secs);
+            let retry = DiarizationRun { started_at_ms: Some(epoch_ms()), estimated_seconds: Some(estimate) };
+            if let Some(entry) = in_flight().get_mut(meeting_id) {
+                *entry = retry;
+            }
+            let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running", run: retry });
+            worker::diarize_in_worker(&system_track, &models_dir, cpu, worker::time_limit(estimate))
+                .await
+                .context("separating speakers on CPU after CoreML failed")?
         }
-    }
+        Err(e) => return Err(e.context("separating speakers")),
+    };
 
     // A voice without a usable embedding could never be recognised or enrolled, so its turns are dropped.
     let has_voiceprint = |cluster: u32| diarization.centroids.get(cluster as usize).is_some_and(|c| !c.is_empty());

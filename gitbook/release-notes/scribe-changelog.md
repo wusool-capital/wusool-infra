@@ -19,6 +19,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * A name typed in **Who Spoke?** saves when you click away, not only when you press Enter.
 * ▶ in **Who Spoke?** plays the voice again. It plays each voice's longest line, so you hear more of the person.
 * ▶ in **Who Spoke?** still plays after your headphones disconnect, instead of going silent.
+* Speaker separation can no longer run for ages and use up your Mac's memory. A run that takes far longer than expected is stopped and retried on the slower, lighter model, and quitting Scribe now always stops it too.
 * A meeting opened while its speakers are still being separated shows **Separating speakers…** instead of the **Separate Speakers** button.
 
 ## 0.8.4

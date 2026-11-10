@@ -10,5 +10,6 @@ pub mod label;
 pub mod overview;
 pub mod service;
 pub mod speed;
+pub mod worker;
 
 pub use label::SpeakerLabel;
