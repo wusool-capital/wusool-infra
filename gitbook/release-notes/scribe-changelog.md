@@ -14,7 +14,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 ### Fixed
 
 * Speaker separation can no longer run for ages and use up your Mac's memory. A run that takes far longer than expected is stopped and retried on the slower, lighter model, and quitting Scribe now always stops it too.
-* ▶ in **Who Spoke?** plays each person talking alone. It used to play the start of their longest line, which could be someone else, so two voices could sound like the same person. Use **Separate Again** on older meetings to get the new clips.
+* ▶ in **Who Spoke?** plays the quoted line in full, picked so only that person speaks in it. It used to play the start of their longest line, which could be someone else, so two voices could sound like the same person. Use **Separate Again** on older meetings to get the new clips.
 * A meeting opened while its speakers are still being separated shows **Separating speakers…** instead of the **Separate Speakers** button.
 
 ## 0.8.5

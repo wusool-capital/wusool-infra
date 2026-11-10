@@ -10,6 +10,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_store::StoreExt;
 
+use super::assign::VOICE_CLIP_MAX_SECS;
 use super::engine::{self, DiarizationBackend, DownloadProgress};
 use super::overview::{build_overview, SpeakerOverview};
 use super::service::{diarize_and_notify, meeting_audio_track, running_status, DiarizationOutcome, DiarizationRun};
@@ -182,8 +183,6 @@ pub async fn get_speaker_overview(
     Ok(build_overview(voices, &profiles))
 }
 
-// Long enough to recognise a voice; capped at the sample line so it never runs into the next speaker.
-const VOICE_CLIP_MAX_SECS: f64 = 6.0;
 
 /// A few seconds of a voice from the meeting audio, as WAV bytes the transcript can play.
 #[tauri::command]

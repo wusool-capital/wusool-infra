@@ -14,7 +14,7 @@ use sqlx::SqlitePool;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tokio::sync::Semaphore;
 
-use super::assign::{attribute_segments, longest_turn, match_profiles, VoiceProfile, PROFILE_MATCH_MARGIN, PROFILE_MATCH_THRESHOLD};
+use super::assign::{attribute_segments, match_profiles, sample_span, VoiceProfile, PROFILE_MATCH_MARGIN, PROFILE_MATCH_THRESHOLD};
 use super::engine::{self, DiarizationBackend};
 use super::worker;
 use super::SpeakerLabel;
@@ -246,7 +246,7 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
             label: SpeakerLabel::Speaker(index as u32),
             profile_id,
             embedding,
-            sample: longest_turn(&turns, attribution.label_clusters[index]),
+            sample: sample_span(&spans, &turns, attribution.label_clusters[index]),
         })
         .collect();
     // Unmatched segments become "others", clearing labels from a previous run's replaced voices.

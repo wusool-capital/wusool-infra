@@ -61,14 +61,16 @@ renaming a speaker changes one row.
   and gets a one-click suggestion. `meeting_speakers.auto_named` marks
   auto-named voices until the user confirms or changes them.
 - **Naming panel:** `get_speaker_overview` returns each voice's line
-  count, talk time and a sample. The sample is the voice's longest
-  uninterrupted turn, stored in `meeting_speakers.sample_start` and
-  `sample_end` when separation runs. Transcript lines can hold several
-  people, so a clip cut from a line could play someone else. The quote
-  shown is the line that turn falls in. Voices added by hand, or separated
-  before 0.8.6, fall back to their longest line.
+  count, talk time and a sample. The sample is the voice's longest line
+  of 2 to 15 seconds that it speaks at least 90% alone. So the quote
+  shown is exactly what plays. Transcript lines can hold several people,
+  so a clip cut from any line could play someone else. Without such a
+  line, it's the first 15 seconds of the voice's longest turn. The span is
+  stored in `meeting_speakers.sample_start` and `sample_end` when
+  separation runs. Voices added by hand, or separated before 0.8.6, fall
+  back to their longest line.
   Unnamed voices scoring 0.5 or more against a profile not already in the
-  meeting get a one-click suggestion. `speaker_voice_clip` cuts up to six
+  meeting get a one-click suggestion. `speaker_voice_clip` cuts up to 15
   seconds of the sample from `system.mp4` with ffmpeg and returns it
   as WAV bytes. The app decodes and plays them with the Web Audio API; the
   macOS webview can't play `blob:` URLs in an `<audio>` element.

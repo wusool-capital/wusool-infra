@@ -35,7 +35,7 @@ Scribe labels each speaker's turn in the transcript:
   any time under **Settings → General → Speakers**.
 - **Name everyone in one place.** Above the transcript, **Who Spoke?**
   lists every separated voice, most talk time first, with one of their
-  lines. Press ▶ to hear a few seconds of them talking alone, then type a name. It
+  lines. Press ▶ to hear them say the quoted line, then type a name. It
   saves when you press Enter, which moves on to the next person, or when
   you click away. Every line they spoke in that meeting is renamed, and
   Scribe recognises their voice in later meetings. Click a quoted line to
