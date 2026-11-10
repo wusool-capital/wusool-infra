@@ -138,10 +138,10 @@ mod tests {
     #[cfg(unix)]
     #[tokio::test]
     async fn an_overrunning_worker_is_killed() {
-        // A distinctive duration so the check below finds only this test's process.
-        let marker = "31.4159";
+        // Unique per run, so the check below never finds a leftover from an earlier run.
+        let marker = format!("31.{}", std::process::id());
         let mut command = tokio::process::Command::new("sleep");
-        command.arg(marker);
+        command.arg(&marker);
         let started = std::time::Instant::now();
         let error = run_with_limit(command, Duration::from_millis(300)).await.unwrap_err();
         assert!(error.to_string().contains("stopped after"), "{error}");
@@ -152,10 +152,11 @@ mod tests {
         assert!(!still_running.success(), "the timed-out worker is still running");
     }
 
+    // run_worker, not run_from_args: its stdin watcher would exit the whole test binary on EOF.
     #[test]
     fn bad_arguments_fail_without_running() {
-        assert_eq!(run_from_args(&["only-one".to_string()]), 1);
+        assert!(run_worker(&["only-one".to_string()]).is_err());
         let args = ["a.wav", "models", "gpu"].map(String::from);
-        assert_eq!(run_from_args(&args), 1);
+        assert!(run_worker(&args).unwrap_err().to_string().contains("unknown backend"));
     }
 }
