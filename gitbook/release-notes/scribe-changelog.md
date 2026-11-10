@@ -2,14 +2,24 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.6
+
+### What's new
+
+* **Separate Speakers Automatically** in **Settings → General → Speakers** can be turned off, so speakers are separated only when you press **Separate Speakers**.
+* Giving two voices in **Who Spoke?** the same name merges them into one row, for when Scribe splits one person in two. Scribe warns you before it saves, and **Undo** separates them again.
+* Separating speakers shows an estimated time left and a progress bar. The estimate gets more accurate as Scribe learns how fast your Mac separates.
+
+### Fixed
+
+* Speaker separation can no longer run for ages and use up your Mac's memory. A run that takes far longer than expected is stopped and retried on the slower, lighter model, and quitting Scribe now always stops it too.
+* A meeting opened while its speakers are still being separated shows **Separating speakers…** instead of the **Separate Speakers** button.
+
 ## 0.8.5
 
 ### What's new
 
 * **Import Audio** now separates speakers too. Every voice in the file, including yours, appears in **Who Spoke?** to name.
-* **Separate Speakers Automatically** in **Settings → General → Speakers** can be turned off, so speakers are separated only when you press **Separate Speakers**.
-* Giving two voices in **Who Spoke?** the same name merges them into one row, for when Scribe splits one person in two. Scribe warns you before it saves, and **Undo** separates them again.
-* Separating speakers shows an estimated time left and a progress bar. The estimate gets more accurate as Scribe learns how fast your Mac separates.
 * **Change Speaker** fixes lines given to the wrong person. Right-click a line, or a selection of lines, and pick a speaker, yourself, or **New Speaker** for someone Scribe didn't separate.
 
 ### Fixed
@@ -19,8 +29,6 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * A name typed in **Who Spoke?** saves when you click away, not only when you press Enter.
 * ▶ in **Who Spoke?** plays the voice again. It plays each voice's longest line, so you hear more of the person.
 * ▶ in **Who Spoke?** still plays after your headphones disconnect, instead of going silent.
-* Speaker separation can no longer run for ages and use up your Mac's memory. A run that takes far longer than expected is stopped and retried on the slower, lighter model, and quitting Scribe now always stops it too.
-* A meeting opened while its speakers are still being separated shows **Separating speakers…** instead of the **Separate Speakers** button.
 
 ## 0.8.4
 

@@ -12,7 +12,7 @@ Scribe labels each speaker's turn in the transcript:
   **Settings → General → Speakers → Your name**.
 - **Other people** show as **Others** while you record. When you stop,
   Scribe separates their voices on your Mac and relabels them **Speaker 1**,
-  **Speaker 2**, and so on.
+  **Speaker 2**, and so on, unless you've turned that off.
 - **Turn off automatic separation.** **Separate Speakers Automatically**
   under **Settings → General → Speakers** is on by default. Turn it off to
   separate only when you press **Separate Speakers** in a meeting. While

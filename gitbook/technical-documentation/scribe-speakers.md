@@ -1,8 +1,8 @@
 # WusoolScribe speaker separation
 
 How Scribe labels who said what. Your own microphone carries your name.
-Other voices are separated on the Mac after the meeting and matched against a
-local voice library. See [WusoolScribe](scribe.md) for the rest of the app.
+Other voices are separated on the Mac after the meeting, or on request when
+automatic separation is off. They're matched against a local voice library. See [WusoolScribe](scribe.md) for the rest of the app.
 
 ## How it works
 
