@@ -1,4 +1,3 @@
-import { ModelConfig } from "@/components/ModelSettingsModal";
 import { PreferenceSettings } from "@/components/PreferenceSettings";
 import { DeviceSelection } from "@/components/DeviceSelection";
 import { LanguageSelection } from "@/components/LanguageSelection";
@@ -12,13 +11,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { useConfig } from "@/contexts/ConfigContext";
@@ -58,11 +50,6 @@ export function SettingsModals({
 }: SettingsModalsProps) {
   // Contexts
   const {
-    modelConfig,
-    setModelConfig,
-    models,
-    modelOptions,
-    error,
     selectedDevices,
     setSelectedDevices,
     selectedLanguage,
@@ -88,84 +75,6 @@ export function SettingsModals({
           <div className="p-6 space-y-8">
           {/* General Preferences Section */}
           <PreferenceSettings />
-
-          {/* Divider */}
-          <div className="border-t border-border pt-8">
-            <h4 className="text-lg font-semibold text-foreground mb-4">AI Model Configuration</h4>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">
-                  Summarization Model
-                </label>
-                <div className="flex space-x-2">
-                  <Select
-                    value={modelConfig.provider}
-                    onValueChange={(provider: ModelConfig['provider']) => {
-                      setModelConfig({
-                        ...modelConfig,
-                        provider,
-                        model: modelOptions[provider][0]
-                      });
-                    }}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="builtin-ai">Built-in AI</SelectItem>
-                      <SelectItem value="claude">Claude</SelectItem>
-                      <SelectItem value="groq">Groq</SelectItem>
-                      <SelectItem value="ollama">Ollama</SelectItem>
-                      <SelectItem value="openrouter">OpenRouter</SelectItem>
-                      <SelectItem value="openai">OpenAI</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  <Select
-                    value={modelConfig.model}
-                    onValueChange={(model: string) => setModelConfig((prev: ModelConfig) => ({ ...prev, model }))}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {modelOptions[modelConfig.provider].map((model: string) => (
-                        <SelectItem key={model} value={model}>
-                          {model}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {modelConfig.provider === 'ollama' && (
-                <div>
-                  <h4 className="text-lg font-bold mb-4">Available Ollama Models</h4>
-                  {error && (
-                    <Alert variant="destructive" className="mb-4">
-                      <AlertDescription>{error}</AlertDescription>
-                    </Alert>
-                  )}
-                  <ScrollArea className="max-h-[400px] pr-2">
-                    <div className="grid gap-4">
-                    {models.map((model) => (
-                      <div
-                        key={model.id}
-                        className={`bg-card p-4 rounded-lg shadow cursor-pointer transition-colors ${modelConfig.model === model.name ? 'ring-2 ring-primary bg-primary/5' : 'hover:bg-accent/60'
-                          }`}
-                        onClick={() => setModelConfig((prev: ModelConfig) => ({ ...prev, model: model.name }))}
-                      >
-                        <h3 className="font-bold">{model.name}</h3>
-                        <p className="text-muted-foreground">Size: {model.size}</p>
-                        <p className="text-muted-foreground">Modified: {model.modified}</p>
-                      </div>
-                    ))}
-                    </div>
-                  </ScrollArea>
-                </div>
-              )}
-            </div>
-          </div>
           </div>
         </ScrollArea>
 
