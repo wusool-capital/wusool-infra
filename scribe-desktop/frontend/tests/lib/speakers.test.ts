@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MeetingSpeaker, diarizedIndex, formatTalkTime, separationProgress, speakerDisplayName } from '../../src/lib/speakers';
+import { MeetingSpeaker, diarizedIndex, formatTalkTime, mergeTarget, separationProgress, speakerDisplayName } from '../../src/lib/speakers';
 
 const speakers: MeetingSpeaker[] = [
   { label: 'speaker_0', profile_id: 'p-1', name: 'Alice' },
@@ -57,5 +57,22 @@ describe('separationProgress', () => {
 
   test('holds short of full when the run outlasts its estimate', () => {
     expect(separationProgress(run, 1_000_000 + 500_000)).toEqual({ percent: 95, secondsLeft: 0 });
+  });
+});
+
+describe('mergeTarget', () => {
+  const speakers: MeetingSpeaker[] = [
+    { label: 'speaker_0', profile_id: 'p-1', name: 'Saleeq' },
+    { label: 'speaker_1', profile_id: null, name: null },
+  ];
+
+  test('finds another voice already named that, in any case', () => {
+    expect(mergeTarget('speaker_1', '  saleeq ', speakers)).toBe('Saleeq');
+  });
+
+  test('ignores the voice being named and new names', () => {
+    expect(mergeTarget('speaker_0', 'Saleeq', speakers)).toBeNull();
+    expect(mergeTarget('speaker_1', 'Oliver', speakers)).toBeNull();
+    expect(mergeTarget('speaker_1', '   ', speakers)).toBeNull();
   });
 });

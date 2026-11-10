@@ -783,6 +783,7 @@ pub fn run() {
             diarization::commands::get_speaker_overview,
             diarization::commands::speaker_voice_clip,
             diarization::commands::name_meeting_speaker,
+            diarization::commands::undo_speaker_merge,
             diarization::commands::reassign_transcript_speaker,
             diarization::commands::list_speaker_profiles,
             diarization::commands::delete_speaker_profile,

@@ -1,19 +1,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { toast } from 'sonner';
 import type { SpeakerLabel } from '@/types';
 import {
   DiarizationOutcome,
   DiarizationRun,
   DiarizationUpdatedEvent,
   MeetingSpeaker,
+  NamedSpeaker,
   SeparationState,
+  SpeakerMerge,
   SpeakerOverview,
   SpeakerProfileSummary,
   SpeakerTarget,
   diarizedIndex,
+  mergeTarget,
   speakerDisplayName,
 } from '@/lib/speakers';
+
+// Long enough to read the toast and reach Undo after noticing a mistake.
+const UNDO_WINDOW_MS = 10_000;
 
 export interface SpeakerNames {
   resolveName: (label: SpeakerLabel | null | undefined) => string | null;
@@ -21,6 +28,8 @@ export interface SpeakerNames {
   isNamed: (label: SpeakerLabel) => boolean;
   /** Present only for saved meetings, where diarized voices can be named. */
   rename?: (label: SpeakerLabel, name: string) => Promise<void>;
+  /** The other voice in this meeting that naming `label` as `name` would combine it with, if any. */
+  mergeTargetFor: (label: SpeakerLabel, name: string) => string | null;
   /** People already in the voice library, offered as suggestions when naming. */
   knownNames: string[];
   /** Voices separated for this meeting; zero means diarization has not produced any yet. */
@@ -96,14 +105,43 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     };
   }, [meetingId, load, onLabelsChanged]);
 
-  const rename = useCallback(
-    async (label: SpeakerLabel, name: string) => {
-      const kept = await invoke<SpeakerLabel>('name_meeting_speaker', { meetingId, label, name });
-      await load();
-      // Naming a voice after someone already in the meeting merges it, moving its lines.
-      if (kept !== label) onLabelsChanged?.();
+  const undoMerge = useCallback(
+    async (merge: SpeakerMerge) => {
+      try {
+        await invoke('undo_speaker_merge', { meetingId, merge });
+        await load();
+        onLabelsChanged?.();
+        toast.success('Voices separated again');
+      } catch (error) {
+        toast.error("Couldn't separate these voices", {
+          description: `${String(error)}. Move their lines with Change Speaker instead.`,
+        });
+      }
     },
     [meetingId, load, onLabelsChanged],
+  );
+
+  const rename = useCallback(
+    async (label: SpeakerLabel, name: string) => {
+      const person = mergeTarget(label, name, speakers) ?? name.trim();
+      const named = await invoke<NamedSpeaker>('name_meeting_speaker', { meetingId, label, name });
+      await load();
+      if (!named.merge) return;
+      // Naming a voice after someone already in the meeting merges it, moving its lines.
+      onLabelsChanged?.();
+      const merge = named.merge;
+      toast(`Combined with ${person}`, {
+        description: 'Their lines are now under one name.',
+        duration: UNDO_WINDOW_MS,
+        action: { label: 'Undo', onClick: () => void undoMerge(merge) },
+      });
+    },
+    [meetingId, load, onLabelsChanged, speakers, undoMerge],
+  );
+
+  const mergeTargetFor = useCallback(
+    (label: SpeakerLabel, name: string) => mergeTarget(label, name, speakers),
+    [speakers],
   );
 
   const reassign = useCallback(
@@ -151,6 +189,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     resolveName,
     isNamed,
     rename: meetingId ? rename : undefined,
+    mergeTargetFor,
     knownNames,
     voiceCount: speakers.length,
     voices,

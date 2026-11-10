@@ -15,7 +15,9 @@ use super::overview::{build_overview, SpeakerOverview};
 use super::service::{diarize_and_notify, meeting_audio_track, running_status, DiarizationOutcome, DiarizationRun};
 use super::speed::SeparationSpeed;
 use super::SpeakerLabel;
-use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository, SpeakerTarget};
+use crate::database::repositories::speaker::{
+    MeetingSpeaker, NamedSpeaker, SpeakerMerge, SpeakerProfileSummary, SpeakerRepository, SpeakerTarget,
+};
 use crate::state::AppState;
 
 const SETTINGS_STORE: &str = "diarization.json";
@@ -219,12 +221,23 @@ pub async fn name_meeting_speaker(
     meeting_id: String,
     label: SpeakerLabel,
     name: String,
-) -> Result<SpeakerLabel, String> {
+) -> Result<NamedSpeaker, String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("Speaker name cannot be empty".to_string());
     }
     SpeakerRepository::name_meeting_speaker(state.db_manager.pool(), &meeting_id, label, name)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn undo_speaker_merge(
+    state: tauri::State<'_, AppState>,
+    meeting_id: String,
+    merge: SpeakerMerge,
+) -> Result<(), String> {
+    SpeakerRepository::undo_merge(state.db_manager.pool(), &meeting_id, &merge)
         .await
         .map_err(|e| e.to_string())
 }

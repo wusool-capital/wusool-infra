@@ -84,6 +84,31 @@ export function separationProgress(
   };
 }
 
+// Mirrors the Rust `SpeakerMerge`: what a merge changed, handed back to undo it.
+export interface SpeakerMerge {
+  kept: SpeakerLabel;
+  kept_embedding: number[];
+  kept_auto_named: boolean;
+  merged: SpeakerLabel;
+  merged_embedding: number[];
+  merged_profile_id: string | null;
+  merged_auto_named: boolean;
+  segment_ids: string[];
+}
+
+// Mirrors the Rust `NamedSpeaker` returned by name_meeting_speaker.
+export interface NamedSpeaker {
+  label: SpeakerLabel;
+  merge: SpeakerMerge | null;
+}
+
+/** The name of another voice in this meeting that naming `label` as `name` would combine it with. */
+export function mergeTarget(label: SpeakerLabel, name: string, speakers: MeetingSpeaker[]): string | null {
+  const typed = name.trim().toLowerCase();
+  if (!typed) return null;
+  return speakers.find((s) => s.label !== label && s.name?.toLowerCase() === typed)?.name ?? null;
+}
+
 // Mirrors the Rust `SpeakerTarget` taken by reassign_transcript_speaker.
 export type SpeakerTarget = { kind: 'existing'; label: SpeakerLabel } | { kind: 'new' };
 
