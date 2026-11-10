@@ -68,12 +68,6 @@ Ollama and a built-in model. The online ones are OpenAI, Claude, Groq,
 OpenRouter, and a custom OpenAI-compatible endpoint. Remote providers receive the
 transcript text when chosen.
 
-Summarize reads the meeting's saved lines, so edits from Tidy Lines and
-Proofread are included. Each line is sent as `[mm:ss] Name: text`, with the
-name shown in the transcript: your name, a named voice, **Speaker N** for an
-unnamed one, or **Others**. The prompts tell the model to attribute decisions
-and action items by name, and never to invent a name for an unnamed voice.
-
 ## Speaker separation
 
 Scribe labels your microphone with your name and separates other voices on

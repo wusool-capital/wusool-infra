@@ -88,13 +88,9 @@ Fix the transcript before you summarize or send it:
   client names and project code names in **Settings → General → Proofread**.
 - Undo and redo with Cmd+Z and Cmd+Shift+Z.
 
-Summarize reads the transcript as it is now, so fix it first: name the
-speakers in **Who Spoke?**, then Tidy Lines and Proofread. Each line goes to
-Summarize with its speaker's name, so the summary can say who decided or will
-do what. An unnamed voice goes as **Speaker 1** and so on. Deleted lines are
-not sent. Filler words such as "um" appear exactly as recorded; remove them
-with Proofread or Find & Replace. After changing the transcript, press
-Summarize again: a summary doesn't update on its own.
+Deleted lines are not sent to Summarize. Filler words such as "um" appear
+exactly as recorded, because that is the text Summarize receives. Remove them
+with Proofread or Find & Replace.
 
 ## Import or enhance existing audio
 

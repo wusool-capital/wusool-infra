@@ -12,24 +12,6 @@ import {
   readMeetingSummaryLanguage,
   readCachedDetectedSummaryLanguage,
 } from '@/lib/summary-language-preferences';
-import { type MeetingSpeaker, speakerDisplayName, summaryLine } from '@/lib/speakers';
-import type { SpeakerLabel } from '@/types';
-
-type SpeakerNameResolver = (label: SpeakerLabel | null | undefined) => string | null;
-
-/** Names as the transcript shows them; without them the summary still runs, just unattributed. */
-async function loadSpeakerNames(meetingId: string): Promise<SpeakerNameResolver> {
-  try {
-    const [speakers, selfName] = await Promise.all([
-      invokeTauri<MeetingSpeaker[]>('get_meeting_speakers', { meetingId }),
-      invokeTauri<string | null>('get_self_speaker_name'),
-    ]);
-    return (label) => speakerDisplayName(label, speakers, selfName);
-  } catch (error) {
-    console.warn('Summarizing without speaker names:', error);
-    return () => null;
-  }
-}
 
 async function resolveSummaryLanguage(
   meetingId: string,
@@ -451,7 +433,7 @@ export function useSummaryGeneration({
     }
   }, []);
 
-  const buildSummaryTranscriptPayload = useCallback((allTranscripts: Transcript[], nameOf: SpeakerNameResolver) => {
+  const buildSummaryTranscriptPayload = useCallback((allTranscripts: Transcript[]) => {
     const formatTime = (seconds: number | undefined, fallbackTimestamp: string): string => {
       if (seconds === undefined) {
         return fallbackTimestamp;
@@ -464,7 +446,7 @@ export function useSummaryGeneration({
 
     return {
       transcriptText: allTranscripts
-        .map(t => summaryLine(formatTime(t.audio_start_time, t.timestamp), t.text, nameOf(t.speaker)))
+        .map(t => `${formatTime(t.audio_start_time, t.timestamp)} ${t.text}`)
         .join('\n'),
       transcriptTexts: allTranscripts.map(t => t.text),
     };
@@ -626,7 +608,7 @@ export function useSummaryGeneration({
       }
     }
 
-    const summaryPayload = buildSummaryTranscriptPayload(allTranscripts, await loadSpeakerNames(meeting.id));
+    const summaryPayload = buildSummaryTranscriptPayload(allTranscripts);
 
     await processSummary({
       ...summaryPayload,
@@ -645,7 +627,7 @@ export function useSummaryGeneration({
     }
 
     await processSummary({
-      ...buildSummaryTranscriptPayload(allTranscripts, await loadSpeakerNames(meeting.id)),
+      ...buildSummaryTranscriptPayload(allTranscripts),
       isRegeneration: true
     });
   }, [meeting.id, fetchAllTranscripts, buildSummaryTranscriptPayload, processSummary]);

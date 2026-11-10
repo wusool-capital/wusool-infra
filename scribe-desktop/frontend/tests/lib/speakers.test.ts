@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MeetingSpeaker, diarizedIndex, formatTalkTime, mergeTarget, separationProgress, speakerDisplayName, summaryLine } from '../../src/lib/speakers';
+import { MeetingSpeaker, diarizedIndex, formatTalkTime, mergeTarget, separationProgress, speakerDisplayName } from '../../src/lib/speakers';
 
 const speakers: MeetingSpeaker[] = [
   { label: 'speaker_0', profile_id: 'p-1', name: 'Alice' },
@@ -82,20 +82,5 @@ describe('mergeTarget case folding', () => {
     const speakers: MeetingSpeaker[] = [{ label: 'speaker_0', profile_id: 'p-1', name: 'Émile' }];
     expect(mergeTarget('speaker_1', 'émile', speakers)).toBeNull();
     expect(mergeTarget('speaker_1', 'ÉMILE', speakers)).toBe('Émile');
-  });
-});
-
-describe('summaryLine', () => {
-  const speakers: MeetingSpeaker[] = [{ label: 'speaker_0', profile_id: 'p-1', name: 'Saleeq' }];
-  const nameOf = (label: Parameters<typeof speakerDisplayName>[0]) => speakerDisplayName(label, speakers, 'Sinan');
-
-  test('puts the speaker between the time and the words', () => {
-    expect(summaryLine('[01:05]', "I'll ship it Friday.", nameOf('speaker_0'))).toBe("[01:05] Saleeq: I'll ship it Friday.");
-    expect(summaryLine('[01:07]', 'Sounds good.', nameOf('me'))).toBe('[01:07] Sinan: Sounds good.');
-  });
-
-  test('unnamed voices read as Speaker N, and lines without a speaker stay as they were', () => {
-    expect(summaryLine('[02:00]', 'Agreed.', nameOf('speaker_2'))).toBe('[02:00] Speaker 3: Agreed.');
-    expect(summaryLine('[02:01]', 'Hello.', nameOf(null))).toBe('[02:01] Hello.');
   });
 });
