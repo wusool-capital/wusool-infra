@@ -21,7 +21,8 @@ export function SpeakerChip({ label, speakers }: SpeakerChipProps) {
 
   // Only diarized voices can be named; "me" comes from settings and "others" is not one person.
   const renameable = speakers.rename !== undefined && diarizedIndex(label) !== null;
-  const chipClass = 'text-xs font-medium text-foreground';
+  // A step under the line text and above the timestamp: the name is what readers scan for.
+  const chipClass = 'text-sm font-semibold text-foreground';
 
   if (!name) return null;
   if (!renameable) return <span className={chipClass}>{name}</span>;
