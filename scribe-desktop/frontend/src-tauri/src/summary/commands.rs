@@ -1,6 +1,5 @@
 use crate::database::repositories::{
-    meeting::MeetingsRepository,
-    summary::SummaryProcessesRepository, transcript_chunk::TranscriptChunksRepository,
+    meeting::MeetingsRepository, summary::SummaryProcessesRepository,
 };
 use crate::state::AppState;
 use crate::summary::metadata::{
@@ -10,7 +9,6 @@ use crate::summary::metadata::{
 use crate::summary::language_detection::{
     detect_summary_language, SummaryLanguageDetection,
 };
-use crate::summary::service::SummaryService;
 use log::{error as log_error, info as log_info, warn as log_warn};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -26,12 +24,6 @@ pub struct SummaryResponse {
     pub end: Option<String>,
     pub data: Option<serde_json::Value>,
     pub error: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ProcessTranscriptResponse {
-    pub message: String,
-    pub process_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -316,144 +308,5 @@ pub async fn api_get_summary<R: Runtime>(
             log_error!("Error retrieving summary for {}: {}", meeting_id, e);
             Err(format!("Failed to retrieve summary: {}", e))
         }
-    }
-}
-
-/// Processes transcript and generates summary (Native SQLx implementation)
-///
-/// Spawns a background task and returns immediately with process_id
-///
-/// Disabled: see the early return at the top of the body. The rest of
-/// the function is left in place (behind unreachable code) rather than
-/// deleted, so re-enabling local summarization later is a one-line revert.
-#[allow(unreachable_code, unused_variables)]
-#[tauri::command]
-pub async fn api_process_transcript<R: Runtime>(
-    app: AppHandle<R>,
-    state: tauri::State<'_, AppState>,
-    text: String,
-    model: String,
-    model_name: String,
-    meeting_id: Option<String>,
-    _chunk_size: Option<i32>,
-    _overlap: Option<i32>,
-    custom_prompt: Option<String>,
-    template_id: Option<String>,
-    summary_language: Option<String>,
-    _auth_token: Option<String>,
-) -> Result<ProcessTranscriptResponse, String> {
-    use uuid::Uuid;
-
-    // Local summarization is disabled: summaries are now generated
-    // server-side by the Scribe backend once a meeting is pushed (see
-    // crate::push). This is the sole entry point that invokes an LLM
-    // provider (ollama/openai/anthropic/groq/openrouter/builtin-ai), so
-    // disabling here covers all of them without touching call sites.
-    return Err(
-        "Local summarization is disabled. Push this meeting to Scribe to generate a summary."
-            .to_string(),
-    );
-
-    let m_id = meeting_id.unwrap_or_else(|| format!("meeting-{}", Uuid::new_v4()));
-    log_info!(
-        "api_process_transcript (native) called for meeting_id: {}, model: {}",
-        &m_id,
-        &model
-    );
-
-    let pool = state.db_manager.pool().clone();
-    let final_prompt = custom_prompt.unwrap_or_else(|| "".to_string());
-    let final_template_id = template_id.unwrap_or_else(|| "daily_standup".to_string());
-
-    // Normalise empty / whitespace-only to None so "" and null behave identically
-    let summary_language = summary_language.and_then(|s| {
-        let t = s.trim();
-        if t.is_empty() { None } else { Some(t.to_string()) }
-    });
-
-    // Create or reset the process entry in the database
-    SummaryProcessesRepository::create_or_reset_process(&pool, &m_id)
-        .await
-        .map_err(|e| format!("Failed to initialize process: {}", e))?;
-
-    log_info!("✓ Summary process initialized for meeting_id: {}", &m_id);
-
-    // Save transcript chunks data (matching Python backend behavior)
-    let chunk_size = _chunk_size.unwrap_or(40000);
-    let overlap = _overlap.unwrap_or(1000);
-
-    TranscriptChunksRepository::save_transcript_data(
-        &pool,
-        &m_id,
-        &text,
-        &model,
-        &model_name,
-        chunk_size,
-        overlap,
-    )
-    .await
-    .map_err(|e| format!("Failed to save transcript data: {}", e))?;
-
-    log_info!("✓ Transcript chunks saved for meeting_id: {}", &m_id);
-
-    // Spawn background task for actual processing
-    let meeting_id_clone = m_id.clone();
-    tauri::async_runtime::spawn(async move {
-        SummaryService::process_transcript_background(
-            app,
-            pool,
-            meeting_id_clone.clone(),
-            text,
-            model,
-            model_name,
-            final_prompt,
-            final_template_id,
-            summary_language,
-        )
-        .await;
-    });
-
-    log_info!("🚀 Background task spawned for meeting_id: {}", &m_id);
-
-    Ok(ProcessTranscriptResponse {
-        message: "Summary generation started".to_string(),
-        process_id: m_id,
-    })
-}
-
-/// Cancels an ongoing summary generation process
-///
-/// This command triggers the cancellation token for the specified meeting,
-/// stopping the summary generation gracefully.
-#[tauri::command]
-pub async fn api_cancel_summary<R: Runtime>(
-    _app: AppHandle<R>,
-    state: tauri::State<'_, AppState>,
-    meeting_id: String,
-) -> Result<serde_json::Value, String> {
-    log_info!("api_cancel_summary called for meeting_id: {}", meeting_id);
-
-    // Trigger cancellation via the service
-    let cancelled = SummaryService::cancel_summary(&meeting_id);
-
-    if cancelled {
-        // Update database status to cancelled
-        let pool = state.db_manager.pool();
-        if let Err(e) = SummaryProcessesRepository::update_process_cancelled(pool, &meeting_id).await {
-            log_error!("Failed to update DB status to cancelled for {}: {}", meeting_id, e);
-            return Err(format!("Failed to update cancellation status: {}", e));
-        }
-
-        log_info!("Successfully cancelled summary generation for meeting_id: {}", meeting_id);
-        Ok(serde_json::json!({
-            "message": "Summary generation cancelled successfully",
-            "meeting_id": meeting_id,
-        }))
-    } else {
-        log_warn!("No active summary generation found for meeting_id: {}", meeting_id);
-        Ok(serde_json::json!({
-            "message": "No active summary generation to cancel",
-            "meeting_id": meeting_id,
-        }))
     }
 }
