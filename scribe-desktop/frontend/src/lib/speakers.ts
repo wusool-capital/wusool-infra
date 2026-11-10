@@ -94,6 +94,8 @@ export interface SpeakerMerge {
   merged_embedding: number[];
   merged_profile_id: string | null;
   merged_auto_named: boolean;
+  merged_sample_start: number | null;
+  merged_sample_end: number | null;
   segment_ids: string[];
 }
 

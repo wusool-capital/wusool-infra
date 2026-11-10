@@ -39,6 +39,8 @@ pub struct DiarizedVoice {
     pub label: SpeakerLabel,
     pub profile_id: Option<String>,
     pub embedding: Vec<f32>,
+    /// The voice's longest turn (start, end) in seconds, played as its sample.
+    pub sample: Option<(f64, f64)>,
 }
 
 /// A transcript segment of meeting audio that diarization can attribute.
@@ -91,6 +93,8 @@ struct StoredVoiceRow {
     name: Option<String>,
     embedding: Vec<u8>,
     auto_named: bool,
+    sample_start: Option<f64>,
+    sample_end: Option<f64>,
 }
 
 /// Where the user moves transcript lines: a voice already in the meeting (or "me"), or a new one.
@@ -124,6 +128,8 @@ pub struct SpeakerMerge {
     /// The person the merged voice was linked to before it was named, if any.
     pub merged_profile_id: Option<String>,
     pub merged_auto_named: bool,
+    pub merged_sample_start: Option<f64>,
+    pub merged_sample_end: Option<f64>,
     pub segment_ids: Vec<String>,
 }
 
@@ -140,6 +146,8 @@ struct VoiceBefore {
     embedding: Vec<u8>,
     profile_id: Option<String>,
     auto_named: bool,
+    sample_start: Option<f64>,
+    sample_end: Option<f64>,
 }
 
 // Each voice's longest line: the most speech from one person, so the clip that best represents the voice.
@@ -219,7 +227,7 @@ impl SpeakerRepository {
     /// Every diarized voice in a meeting with its talk time and a sample line.
     pub async fn voice_overview(pool: &SqlitePool, meeting_id: &str) -> Result<Vec<VoiceOverviewRow>, sqlx::Error> {
         let voices: Vec<StoredVoiceRow> = sqlx::query_as(
-            "SELECT ms.label, ms.profile_id, sp.name, ms.embedding, ms.auto_named
+            "SELECT ms.label, ms.profile_id, sp.name, ms.embedding, ms.auto_named, ms.sample_start, ms.sample_end
              FROM meeting_speakers ms
              LEFT JOIN speaker_profiles sp ON sp.id = ms.profile_id
              WHERE ms.meeting_id = ?",
@@ -243,31 +251,46 @@ impl SpeakerRepository {
         .fetch_all(pool)
         .await?;
 
-        // A voice whose lines were all deleted or reassigned no longer needs a name.
-        Ok(voices
-            .into_iter()
-            .filter_map(|voice| {
-                let stat = stats.iter().find(|s| s.label == voice.label)?;
-                Some(VoiceOverviewRow {
-                    label: voice.label,
-                    profile_id: voice.profile_id,
-                    name: voice.name,
-                    embedding: decode_embedding(&voice.embedding),
-                    auto_named: voice.auto_named,
-                    line_count: stat.line_count,
-                    talk_seconds: stat.talk_seconds,
-                    sample: samples.iter().find(|s| s.label == voice.label).map(|s| s.sample.clone()),
-                })
-            })
-            .collect())
+        let mut rows = Vec::with_capacity(voices.len());
+        for voice in voices {
+            // A voice whose lines were all deleted or reassigned no longer needs a name.
+            let Some(stat) = stats.iter().find(|s| s.label == voice.label) else { continue };
+            let longest_line = samples.iter().find(|s| s.label == voice.label).map(|s| s.sample.clone());
+            let sample = match (voice.sample_start, voice.sample_end) {
+                (Some(start), Some(end)) => turn_sample(pool, meeting_id, voice.label, start, end).await?.or(longest_line),
+                _ => longest_line,
+            };
+            rows.push(VoiceOverviewRow {
+                label: voice.label,
+                profile_id: voice.profile_id,
+                name: voice.name,
+                embedding: decode_embedding(&voice.embedding),
+                auto_named: voice.auto_named,
+                line_count: stat.line_count,
+                talk_seconds: stat.talk_seconds,
+                sample,
+            });
+        }
+        Ok(rows)
     }
 
-    /// One voice's sample line, for cutting its playback clip.
+    /// One voice's sample, for cutting its playback clip.
     pub async fn voice_sample(
         pool: &SqlitePool,
         meeting_id: &str,
         label: SpeakerLabel,
     ) -> Result<Option<VoiceSample>, sqlx::Error> {
+        let span: Option<(Option<f64>, Option<f64>)> =
+            sqlx::query_as("SELECT sample_start, sample_end FROM meeting_speakers WHERE meeting_id = ? AND label = ?")
+                .bind(meeting_id)
+                .bind(label)
+                .fetch_optional(pool)
+                .await?;
+        if let Some((Some(start), Some(end))) = span {
+            if let Some(sample) = turn_sample(pool, meeting_id, label, start, end).await? {
+                return Ok(Some(sample));
+            }
+        }
         let row: Option<VoiceSampleRow> =
             sqlx::query_as(&format!("{VOICE_SAMPLES_SQL} SELECT * FROM samples WHERE label = ?"))
                 .bind(meeting_id)
@@ -382,14 +405,16 @@ impl SpeakerRepository {
             .await?;
         for voice in voices {
             sqlx::query(
-                "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named)
-                 VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named, sample_start, sample_end)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)",
             )
             .bind(meeting_id)
             .bind(voice.label)
             .bind(&voice.profile_id)
             .bind(encode_embedding(&voice.embedding))
             .bind(voice.profile_id.is_some())
+            .bind(voice.sample.map(|(start, _)| start))
+            .bind(voice.sample.map(|(_, end)| end))
             .execute(&mut *tx)
             .await?;
         }
@@ -424,15 +449,24 @@ impl SpeakerRepository {
         let mut conn = pool.acquire().await?;
         let mut tx = conn.begin().await?;
 
-        let voice: Option<(Vec<u8>, Option<String>, bool)> = sqlx::query_as(
-            "SELECT embedding, profile_id, auto_named FROM meeting_speakers WHERE meeting_id = ? AND label = ?",
+        let voice: Option<(Vec<u8>, Option<String>, bool, Option<f64>, Option<f64>)> = sqlx::query_as(
+            "SELECT embedding, profile_id, auto_named, sample_start, sample_end
+             FROM meeting_speakers WHERE meeting_id = ? AND label = ?",
         )
         .bind(meeting_id)
         .bind(label)
         .fetch_optional(&mut *tx)
         .await?;
-        let (voice_blob, previous_profile, auto_named) = voice.ok_or(SpeakerRepositoryError::UnknownLabel(label))?;
-        let before = VoiceBefore { label, embedding: voice_blob.clone(), profile_id: previous_profile.clone(), auto_named };
+        let (voice_blob, previous_profile, auto_named, sample_start, sample_end) =
+            voice.ok_or(SpeakerRepositoryError::UnknownLabel(label))?;
+        let before = VoiceBefore {
+            label,
+            embedding: voice_blob.clone(),
+            profile_id: previous_profile.clone(),
+            auto_named,
+            sample_start,
+            sample_end,
+        };
 
         let existing: Option<(String,)> =
             sqlx::query_as("SELECT id FROM speaker_profiles WHERE name = ? COLLATE NOCASE")
@@ -524,13 +558,16 @@ impl SpeakerRepository {
             .execute(&mut *tx)
             .await?;
         sqlx::query(
-            "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named) VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named, sample_start, sample_end)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(meeting_id)
         .bind(merge.merged)
         .bind(&merge.merged_profile_id)
         .bind(encode_embedding(&merge.merged_embedding))
         .bind(merge.merged_auto_named)
+        .bind(merge.merged_sample_start)
+        .bind(merge.merged_sample_end)
         .execute(&mut *tx)
         .await?;
         // Only lines still on the kept voice: one the user has since moved elsewhere stays where they put it.
@@ -552,6 +589,31 @@ impl SpeakerRepository {
         tx.commit().await?;
         Ok(())
     }
+}
+
+/// The clip span stored at diarization, with the line it falls in, so the quote shown matches what plays.
+async fn turn_sample(
+    pool: &SqlitePool,
+    meeting_id: &str,
+    label: SpeakerLabel,
+    start: f64,
+    end: f64,
+) -> Result<Option<VoiceSample>, sqlx::Error> {
+    let line: Option<(String, String)> = sqlx::query_as(
+        "SELECT id, transcript FROM transcripts
+         WHERE meeting_id = ? AND audio_start_time < ? AND audio_end_time > ?
+         ORDER BY speaker = ? DESC, MIN(audio_end_time, ?) - MAX(audio_start_time, ?) DESC
+         LIMIT 1",
+    )
+    .bind(meeting_id)
+    .bind(end)
+    .bind(start)
+    .bind(label)
+    .bind(end)
+    .bind(start)
+    .fetch_optional(pool)
+    .await?;
+    Ok(line.map(|(segment_id, text)| VoiceSample { segment_id, text, start, end }))
 }
 
 fn named(label: SpeakerLabel, merge: Option<SpeakerMerge>) -> NamedSpeaker {
@@ -595,6 +657,8 @@ async fn merge_into_same_person(
         merged_embedding: decode_embedding(&before.embedding),
         merged_profile_id: before.profile_id.clone(),
         merged_auto_named: before.auto_named,
+        merged_sample_start: before.sample_start,
+        merged_sample_end: before.sample_end,
         segment_ids: moved.into_iter().map(|(id,)| id).collect(),
     };
 
@@ -705,7 +769,7 @@ mod tests {
     }
 
     fn voice(label: u32, embedding: Vec<f32>) -> DiarizedVoice {
-        DiarizedVoice { label: SpeakerLabel::Speaker(label), profile_id: None, embedding }
+        DiarizedVoice { label: SpeakerLabel::Speaker(label), profile_id: None, embedding, sample: None }
     }
 
     #[tokio::test]
@@ -973,6 +1037,28 @@ mod tests {
         let result = SpeakerRepository::undo_merge(&pool, MEETING, &first.merge.unwrap()).await;
         assert!(matches!(result, Err(SpeakerRepositoryError::MergeChanged)));
         assert_eq!(SpeakerRepository::profile_embeddings(&pool).await.unwrap()[0].embedding, print_before, "the later merge is kept");
+    }
+
+    #[tokio::test]
+    async fn a_stored_turn_is_the_sample_and_survives_merge_and_undo() {
+        let pool = pool_with_meeting().await;
+        let labels = [("t-1".to_string(), SpeakerLabel::Speaker(0)), ("t-2".to_string(), SpeakerLabel::Speaker(1))];
+        let with_turn = DiarizedVoice { sample: Some((5.2, 5.8)), ..voice(1, vec![0.0, 1.0]) };
+        SpeakerRepository::save_diarization(&pool, MEETING, &[voice(0, vec![1.0, 0.0]), with_turn], &labels)
+            .await
+            .unwrap();
+
+        let sample = SpeakerRepository::voice_sample(&pool, MEETING, SpeakerLabel::Speaker(1)).await.unwrap().unwrap();
+        assert_eq!((sample.segment_id.as_str(), sample.start, sample.end), ("t-2", 5.2, 5.8));
+        // No stored turn: the longest line, as before.
+        let fallback = SpeakerRepository::voice_sample(&pool, MEETING, SpeakerLabel::Speaker(0)).await.unwrap().unwrap();
+        assert_eq!(fallback.segment_id, "t-1");
+
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(0), "Saleeq").await.unwrap();
+        let named = SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(1), "Saleeq").await.unwrap();
+        SpeakerRepository::undo_merge(&pool, MEETING, &named.merge.unwrap()).await.unwrap();
+        let restored = SpeakerRepository::voice_sample(&pool, MEETING, SpeakerLabel::Speaker(1)).await.unwrap().unwrap();
+        assert_eq!((restored.start, restored.end), (5.2, 5.8));
     }
 
     #[tokio::test]

@@ -121,7 +121,12 @@ export function TranscriptPanel({
     () => convertedSegments.some((segment) => segment.speaker === 'others'),
     [convertedSegments],
   );
-  const showSeparateBanner = Boolean(editable && speakers.separate && speakers.voiceCount === 0 && hasUnseparatedLines);
+  // Also while a re-run is going or has failed, so its progress or error is never hidden behind existing voices.
+  const showSeparateBanner = Boolean(
+    editable &&
+      speakers.separate &&
+      ((speakers.voiceCount === 0 && hasUnseparatedLines) || speakers.separation.status !== 'idle'),
+  );
 
   // Loaded only while the banner shows, so opening a meeting costs nothing extra.
   const coreMl = useCoreMlModels(showSeparateBanner);
@@ -142,6 +147,7 @@ export function TranscriptPanel({
 
   // Fixes that change a name are the ones most likely to be wrong, so Accept All shows them first.
   const [pendingNameChanges, setPendingNameChanges] = useState<NameChange[] | null>(null);
+  const [confirmingRerun, setConfirmingRerun] = useState(false);
   const requestAcceptAll = () => {
     if (!editor) return;
     const changes = nameChanges(editor.suggestions.values());
@@ -210,6 +216,7 @@ export function TranscriptPanel({
           meetingId={meetingId}
           speakers={speakers}
           onShowLine={(segmentId) => setFocusRequest({ segmentId, nonce: Date.now() })}
+          onSeparateAgain={speakers.separation.status === 'running' ? undefined : () => setConfirmingRerun(true)}
         />
       )}
 
@@ -250,6 +257,29 @@ export function TranscriptPanel({
           </div>
         </div>
       )}
+
+      <AlertDialog open={confirmingRerun} onOpenChange={setConfirmingRerun}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Separate Speakers Again?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Scribe works out who said what in this meeting from scratch. Names you gave here and lines you moved are
+              replaced. People Scribe already knows are recognised again, and you can name the rest in Who Spoke?.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Current Speakers</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingRerun(false);
+                separateSpeakers();
+              }}
+            >
+              Separate Again
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={pendingNameChanges !== null} onOpenChange={(open) => !open && setPendingNameChanges(null)}>
         <AlertDialogContent>

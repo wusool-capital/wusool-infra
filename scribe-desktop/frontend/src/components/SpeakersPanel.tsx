@@ -15,12 +15,14 @@ interface SpeakersPanelProps {
   speakers: SpeakerNames;
   /** Scrolls the transcript to a line, loading more of it if needed. */
   onShowLine: (segmentId: string) => void;
+  /** Asks to separate this meeting's speakers from scratch; absent while a run is going. */
+  onSeparateAgain?: () => void;
 }
 
 const MAX_OPTIONS = 5;
 
 /** Names every separated voice in one place, so nobody has to scroll the transcript to find them. */
-export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanelProps) {
+export function SpeakersPanel({ meetingId, speakers, onShowLine, onSeparateAgain }: SpeakersPanelProps) {
   const voices = speakers.overview;
   const unnamed = voices.filter((v) => v.name === null);
   // Set once voices load: open if anyone is unnamed. Naming the last voice keeps it open.
@@ -69,10 +71,15 @@ export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanel
         <span className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
           {status}
         </span>
+        {onSeparateAgain && (
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={onSeparateAgain}>
+            Separate Again
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
-          className="ml-auto"
+          className={onSeparateAgain ? undefined : 'ml-auto'}
           aria-expanded={expanded}
           aria-controls="who-spoke-list"
           onClick={() => setExpanded(!expanded)}

@@ -80,6 +80,15 @@ pub fn attribute_segments(segments: &[(f64, f64)], turns: &[SpeakerTurn]) -> Att
     Attribution { segment_labels, label_clusters }
 }
 
+/// A cluster's longest turn: speech that is certainly theirs alone, to play as their voice sample.
+pub fn longest_turn(turns: &[SpeakerTurn], cluster: u32) -> Option<(f64, f64)> {
+    turns
+        .iter()
+        .filter(|t| t.speaker == cluster && t.end > t.start)
+        .max_by(|a, b| (a.end - a.start).total_cmp(&(b.end - b.start)))
+        .map(|t| (t.start, t.end))
+}
+
 /// The matching saved profile per voice, one-to-one, strongest pairs first, so two voices never share a name.
 /// A voice whose best score beats its second-best person by less than `margin` gets none.
 pub fn match_profiles(
@@ -147,6 +156,18 @@ pub fn mean_embedding(samples: &[Vec<f32>]) -> Option<Vec<f32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_sample_is_the_clusters_longest_turn() {
+        let turns = [
+            SpeakerTurn { start: 0.0, end: 30.0, speaker: 0 },
+            SpeakerTurn { start: 30.0, end: 34.0, speaker: 1 },
+            SpeakerTurn { start: 40.0, end: 52.0, speaker: 1 },
+        ];
+        // Speaker 1's long line would start inside speaker 0's turn; its own turn never does.
+        assert_eq!(longest_turn(&turns, 1), Some((40.0, 52.0)));
+        assert_eq!(longest_turn(&turns, 2), None);
+    }
 
     fn turn(start: f64, end: f64, speaker: u32) -> SpeakerTurn {
         SpeakerTurn { start, end, speaker }
