@@ -219,7 +219,7 @@ pub async fn name_meeting_speaker(
     meeting_id: String,
     label: SpeakerLabel,
     name: String,
-) -> Result<(), String> {
+) -> Result<SpeakerLabel, String> {
     let name = name.trim();
     if name.is_empty() {
         return Err("Speaker name cannot be empty".to_string());

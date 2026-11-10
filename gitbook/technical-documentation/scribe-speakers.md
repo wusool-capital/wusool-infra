@@ -40,6 +40,10 @@ renaming a speaker changes one row.
   The bar stops at 95% until the run finishes.
 - **Voice library:** naming a voice saves its embedding to
   `speaker_profiles`.
+- **Merging:** naming a voice after a person another voice in the meeting
+  already has merges them. Its lines move to that voice, the two embeddings
+  are averaged into it, and its `meeting_speakers` row is deleted.
+  `name_meeting_speaker` returns the label the voice ends up under.
 - **Auto-naming:** a later meeting names a voice only on a clear match. Its
   cosine similarity must be at least 0.7 and lead the next-closest person by
   0.1. Two voices never get the same person. A close call stays unnamed

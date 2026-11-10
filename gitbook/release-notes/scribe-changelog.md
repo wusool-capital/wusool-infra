@@ -8,6 +8,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 
 * **Import Audio** now separates speakers too. Every voice in the file, including yours, appears in **Who Spoke?** to name.
 * **Separate Speakers Automatically** in **Settings → General → Speakers** can be turned off, so speakers are separated only when you press **Separate Speakers**.
+* Giving two voices in **Who Spoke?** the same name merges them into one row, for when Scribe splits one person in two.
 * Separating speakers shows an estimated time left and a progress bar. The estimate gets more accurate as Scribe learns how fast your Mac separates.
 * **Change Speaker** fixes lines given to the wrong person. Right-click a line, or a selection of lines, and pick a speaker, yourself, or **New Speaker** for someone Scribe didn't separate.
 

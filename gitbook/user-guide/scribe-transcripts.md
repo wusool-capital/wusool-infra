@@ -19,8 +19,9 @@ Scribe labels each speaker's turn in the transcript:
   separation runs, the meeting shows **Separating speakers…** with an
   estimated time left, even if you open it partway through.
 - **Same person, two voices.** Scribe sometimes splits one person into two
-  voices. Give both the same name. They stay two rows in this meeting, but
-  both voice samples go to that person, so Scribe recognises them better.
+  voices. Give the second one the same name and Scribe merges them into one
+  row with all their lines. Both voice samples go to that person, so Scribe
+  recognises them better.
 - **Faster separation.** **Faster Speaker Separation (CoreML)** is on by
   default: about 40 seconds for a one-hour meeting, using up to 2.7 GB of
   memory. Its models (about 300 MB) download only when you ask. The first

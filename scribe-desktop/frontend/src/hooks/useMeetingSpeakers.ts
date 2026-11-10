@@ -98,10 +98,12 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
 
   const rename = useCallback(
     async (label: SpeakerLabel, name: string) => {
-      await invoke('name_meeting_speaker', { meetingId, label, name });
+      const kept = await invoke<SpeakerLabel>('name_meeting_speaker', { meetingId, label, name });
       await load();
+      // Naming a voice after someone already in the meeting merges it, moving its lines.
+      if (kept !== label) onLabelsChanged?.();
     },
-    [meetingId, load],
+    [meetingId, load, onLabelsChanged],
   );
 
   const reassign = useCallback(
