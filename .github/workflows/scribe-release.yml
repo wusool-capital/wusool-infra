@@ -155,12 +155,6 @@ jobs:
           cd frontend
           pnpm install
 
-      - name: Build llama-helper sidecar (Metal)
-        run: |
-          cargo build --release -p llama-helper --features metal
-          mkdir -p frontend/src-tauri/binaries
-          cp target/release/llama-helper frontend/src-tauri/binaries/llama-helper-aarch64-apple-darwin
-
       - name: Cache FFmpeg binary
         uses: actions/cache@v4
         with:
