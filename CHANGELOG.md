@@ -8,6 +8,22 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-10
+
+### Fixed
+
+- Meeting summaries work out relative dates such as "this weekend" from the
+  meeting date, so the gist, notes and next steps give the same date. The
+  first mention shows the date in brackets.
+
+## 2026-11-09
+
+### Fixed
+
+- Session replay on the lead tools now hides name, email, phone and LinkedIn
+  fields. It also hides the report's "code sent to" line and the readiness
+  "Prepared for" line. Company and revenue stay visible.
+
 ## 2026-11-08
 
 ### Added
