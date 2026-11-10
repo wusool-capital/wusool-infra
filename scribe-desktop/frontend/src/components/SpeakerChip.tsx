@@ -21,7 +21,8 @@ export function SpeakerChip({ label, speakers }: SpeakerChipProps) {
 
   // Only diarized voices can be named; "me" comes from settings and "others" is not one person.
   const renameable = speakers.rename !== undefined && diarizedIndex(label) !== null;
-  const chipClass = 'text-xs font-medium text-foreground';
+  // A step under the line text and above the timestamp: the name is what readers scan for.
+  const chipClass = 'text-sm font-semibold text-foreground';
 
   if (!name) return null;
   if (!renameable) return <span className={chipClass}>{name}</span>;
@@ -83,7 +84,11 @@ export function SpeakerChip({ label, speakers }: SpeakerChipProps) {
                 {/* Existing people first, so Enter picks a match instead of creating a near-duplicate. */}
                 {matches.map((known) => (
                   <CommandItem key={known} value={known} onSelect={() => save(known)}>
-                    {known}
+                    <span className="min-w-0 flex-1 truncate">{known}</span>
+                    {/* Another voice here already has this name: picking it combines them, with Undo. */}
+                    {speakers.mergeTargetFor(label, known) && (
+                      <span className="shrink-0 text-xs text-muted-foreground">Combines lines</span>
+                    )}
                   </CommandItem>
                 ))}
                 {typed && !typedIsKnown && (

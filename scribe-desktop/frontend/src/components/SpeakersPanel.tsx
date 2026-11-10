@@ -15,12 +15,14 @@ interface SpeakersPanelProps {
   speakers: SpeakerNames;
   /** Scrolls the transcript to a line, loading more of it if needed. */
   onShowLine: (segmentId: string) => void;
+  /** Asks to separate this meeting's speakers from scratch; absent while a run is going. */
+  onSeparateAgain?: () => void;
 }
 
 const MAX_OPTIONS = 5;
 
 /** Names every separated voice in one place, so nobody has to scroll the transcript to find them. */
-export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanelProps) {
+export function SpeakersPanel({ meetingId, speakers, onShowLine, onSeparateAgain }: SpeakersPanelProps) {
   const voices = speakers.overview;
   const unnamed = voices.filter((v) => v.name === null);
   // Set once voices load: open if anyone is unnamed. Naming the last voice keeps it open.
@@ -55,7 +57,6 @@ export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanel
     }
   };
 
-  const takenNames = new Set(voices.map((v) => v.name?.toLowerCase()).filter(Boolean));
   const toConfirm = voices.filter((v) => v.auto_named && v.name !== null).length;
   const status =
     (unnamed.length === 0 ? `All ${voices.length} named` : `${unnamed.length} of ${voices.length} to name`) +
@@ -70,10 +71,15 @@ export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanel
         <span className="text-sm text-muted-foreground tabular-nums" aria-live="polite">
           {status}
         </span>
+        {onSeparateAgain && (
+          <Button variant="ghost" size="sm" className="ml-auto" onClick={onSeparateAgain}>
+            Separate Again
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="sm"
-          className="ml-auto"
+          className={onSeparateAgain ? undefined : 'ml-auto'}
           aria-expanded={expanded}
           aria-controls="who-spoke-list"
           onClick={() => setExpanded(!expanded)}
@@ -89,7 +95,9 @@ export function SpeakersPanel({ meetingId, speakers, onShowLine }: SpeakersPanel
               key={voice.label}
               voice={voice}
               displayName={speakers.resolveName(voice.label) ?? voice.label}
-              options={speakers.knownNames.filter((n) => !takenNames.has(n.toLowerCase()))}
+              // Names already in this meeting stay listed: picking one combines the two voices, with Undo.
+              options={speakers.knownNames.filter((n) => n.toLowerCase() !== voice.name?.toLowerCase())}
+              mergeTargetFor={(name) => speakers.mergeTargetFor(voice.label, name)}
               suggestion={voice.suggestion && !dismissed.has(voice.label) ? voice.suggestion.name : null}
               isEditing={voice.name === null || editing === voice.label}
               clip={clip}
@@ -126,6 +134,7 @@ interface VoiceRowProps {
   voice: SpeakerOverview;
   displayName: string;
   options: string[];
+  mergeTargetFor: (name: string) => string | null;
   suggestion: string | null;
   isEditing: boolean;
   clip: ReturnType<typeof useVoiceClip>;
@@ -141,6 +150,7 @@ function VoiceRow({
   voice,
   displayName,
   options,
+  mergeTargetFor,
   suggestion,
   isEditing,
   clip,
@@ -223,6 +233,7 @@ function VoiceRow({
             displayName={displayName}
             initial={voice.name ?? ''}
             options={options}
+            mergeTargetFor={mergeTargetFor}
             inputRef={inputRef}
             onSave={onSave}
             onCancel={voice.name !== null ? onCancelEdit : undefined}
@@ -238,13 +249,14 @@ interface NameFieldProps {
   displayName: string;
   initial: string;
   options: string[];
+  mergeTargetFor: (name: string) => string | null;
   inputRef: (el: HTMLInputElement | null) => void;
   onSave: (name: string) => Promise<void>;
   onCancel?: () => void;
 }
 
 /** A name box that offers people already in the voice library as you type. */
-function NameField({ label, displayName, initial, options, inputRef, onSave, onCancel }: NameFieldProps) {
+function NameField({ label, displayName, initial, options, mergeTargetFor, inputRef, onSave, onCancel }: NameFieldProps) {
   const [value, setValue] = useState(initial);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
@@ -252,6 +264,8 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
   // Enter or a picked suggestion moves focus on, so its blur must not save a second time; Escape must not save at all.
   const settledRef = useRef(false);
   const listId = useId();
+  const hintId = useId();
+  const combinesWith = value.trim() !== initial.trim() ? mergeTargetFor(value) : null;
 
   const typed = value.trim().toLowerCase();
   const matches = (typed ? options.filter((o) => o.toLowerCase().includes(typed)) : options)
@@ -293,6 +307,7 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
         aria-controls={listId}
         aria-autocomplete="list"
         aria-activedescendant={showList && active >= 0 ? `${listId}-${active}` : undefined}
+        aria-describedby={hintId}
         placeholder="Name…"
         className="h-8"
         value={value}
@@ -330,6 +345,10 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
         }}
       />
       {saving && <Spinner className="absolute right-2 top-2 h-4 w-4" />}
+      {/* Always mounted so screen readers announce the note when it appears. */}
+      <p id={hintId} aria-live="polite" className={combinesWith ? 'mt-1 text-xs text-muted-foreground' : 'sr-only'}>
+        {combinesWith && `Saving combines this voice with ${combinesWith}.`}
+      </p>
       {showList && (
         <ul
           id={listId}
@@ -349,7 +368,10 @@ function NameField({ label, displayName, initial, options, inputRef, onSave, onC
                 void commit(option);
               }}
             >
-              {option}
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate">{option}</span>
+                {mergeTargetFor(option) && <span className="shrink-0 text-xs text-muted-foreground">Combines lines</span>}
+              </span>
             </li>
           ))}
         </ul>

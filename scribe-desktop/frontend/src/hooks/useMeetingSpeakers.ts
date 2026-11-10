@@ -1,18 +1,26 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { toast } from 'sonner';
 import type { SpeakerLabel } from '@/types';
 import {
   DiarizationOutcome,
+  DiarizationRun,
   DiarizationUpdatedEvent,
   MeetingSpeaker,
+  NamedSpeaker,
   SeparationState,
+  SpeakerMerge,
   SpeakerOverview,
   SpeakerProfileSummary,
   SpeakerTarget,
   diarizedIndex,
+  mergeTarget,
   speakerDisplayName,
 } from '@/lib/speakers';
+
+// Long enough to read the toast and reach Undo after noticing a mistake.
+const UNDO_WINDOW_MS = 10_000;
 
 export interface SpeakerNames {
   resolveName: (label: SpeakerLabel | null | undefined) => string | null;
@@ -20,6 +28,8 @@ export interface SpeakerNames {
   isNamed: (label: SpeakerLabel) => boolean;
   /** Present only for saved meetings, where diarized voices can be named. */
   rename?: (label: SpeakerLabel, name: string) => Promise<void>;
+  /** The other voice in this meeting that naming `label` as `name` would combine it with, if any. */
+  mergeTargetFor: (label: SpeakerLabel, name: string) => string | null;
   /** People already in the voice library, offered as suggestions when naming. */
   knownNames: string[];
   /** Voices separated for this meeting; zero means diarization has not produced any yet. */
@@ -52,11 +62,17 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     try {
       setSelfName(await invoke<string | null>('get_self_speaker_name'));
       if (!meetingId) return;
-      const [meetingSpeakers, library, voices] = await Promise.all([
+      const [meetingSpeakers, library, voices, run] = await Promise.all([
         invoke<MeetingSpeaker[]>('get_meeting_speakers', { meetingId }),
         invoke<SpeakerProfileSummary[]>('list_speaker_profiles'),
         invoke<SpeakerOverview[]>('get_speaker_overview', { meetingId }),
+        invoke<DiarizationRun | null>('get_diarization_status', { meetingId }),
       ]);
+      // A run started before this meeting opened announced itself before we were listening;
+      // one that has since ended must clear, or the bar would wait forever.
+      setSeparation((current) =>
+        run ? { status: 'running', run } : current.status === 'running' ? { status: 'idle' } : current,
+      );
       setSpeakers(meetingSpeakers);
       setProfiles(library);
       setOverview(voices);
@@ -75,7 +91,10 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
       const payload = event.payload;
       if (payload.meeting_id !== meetingId) return;
       if (payload.status === 'running') {
-        setSeparation({ status: 'running' });
+        setSeparation({
+          status: 'running',
+          run: { started_at_ms: payload.started_at_ms, estimated_seconds: payload.estimated_seconds },
+        });
         return;
       }
       setSeparation(payload.status === 'failed' ? { status: 'failed', error: payload.error } : { status: 'idle' });
@@ -89,12 +108,49 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     };
   }, [meetingId, load, onLabelsChanged]);
 
+  // Undo can be pressed after moving to another meeting, so it refreshes whichever one is open now.
+  const latest = useRef({ load, onLabelsChanged });
+  latest.current = { load, onLabelsChanged };
+
+  const undoMerge = useCallback(
+    async (mergedMeetingId: string, merge: SpeakerMerge) => {
+      try {
+        await invoke('undo_speaker_merge', { meetingId: mergedMeetingId, merge });
+        await latest.current.load();
+        latest.current.onLabelsChanged?.();
+        toast.success('Voices separated again');
+      } catch (error) {
+        toast.error("Couldn't separate these voices", {
+          description: `${String(error)}. Move their lines with Change Speaker instead.`,
+        });
+      }
+    },
+    [],
+  );
+
   const rename = useCallback(
     async (label: SpeakerLabel, name: string) => {
-      await invoke('name_meeting_speaker', { meetingId, label, name });
+      const person = mergeTarget(label, name, speakers) ?? name.trim();
+      const named = await invoke<NamedSpeaker>('name_meeting_speaker', { meetingId, label, name });
       await load();
+      if (!named.merge) return;
+      // Naming a voice after someone already in the meeting merges it, moving its lines.
+      onLabelsChanged?.();
+      const merge = named.merge;
+      const mergedMeetingId = meetingId;
+      if (!mergedMeetingId) return;
+      toast(`Combined with ${person}`, {
+        description: 'Their lines are now under one name.',
+        duration: UNDO_WINDOW_MS,
+        action: { label: 'Undo', onClick: () => void undoMerge(mergedMeetingId, merge) },
+      });
     },
-    [meetingId, load],
+    [meetingId, load, onLabelsChanged, speakers, undoMerge],
+  );
+
+  const mergeTargetFor = useCallback(
+    (label: SpeakerLabel, name: string) => mergeTarget(label, name, speakers),
+    [speakers],
   );
 
   const reassign = useCallback(
@@ -125,7 +181,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
   );
 
   const separate = useCallback(async () => {
-    setSeparation({ status: 'running' });
+    setSeparation({ status: 'running', run: { started_at_ms: null, estimated_seconds: null } });
     try {
       const outcome = await invoke<DiarizationOutcome>('diarize_meeting', { meetingId });
       // A run already in flight reports through its own event; everything else settles here.
@@ -142,6 +198,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     resolveName,
     isNamed,
     rename: meetingId ? rename : undefined,
+    mergeTargetFor,
     knownNames,
     voiceCount: speakers.length,
     voices,

@@ -71,7 +71,8 @@ transcript text when chosen.
 ## Speaker separation
 
 Scribe labels your microphone with your name and separates other voices on
-the Mac after the meeting. See [speaker separation](scribe-speakers.md).
+the Mac after the meeting, or only on request when automatic separation is
+off. See [speaker separation](scribe-speakers.md).
 
 ## After a push
 

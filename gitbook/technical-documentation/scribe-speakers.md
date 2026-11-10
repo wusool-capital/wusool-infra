@@ -1,8 +1,8 @@
 # WusoolScribe speaker separation
 
 How Scribe labels who said what. Your own microphone carries your name.
-Other voices are separated on the Mac after the meeting and matched against a
-local voice library. See [WusoolScribe](scribe.md) for the rest of the app.
+Other voices are separated on the Mac after the meeting, or on request when
+automatic separation is off. They're matched against a local voice library. See [WusoolScribe](scribe.md) for the rest of the app.
 
 ## How it works
 
@@ -27,18 +27,51 @@ renaming a speaker changes one row.
   prompt on **Separate Speakers**, whose **Use Slower Model** button switches
   the setting to CPU. Until then, automatic separation after a
   recording runs on CPU, so it never downloads 272 MB in the background.
+- **Worker process:** separation runs in a child copy of the app, started
+  with `--diarize-worker`, which prints its result as JSON. The app kills
+  it if it runs past four times its estimate, or three minutes if longer.
+  A CoreML run that fails or overruns retries once on CPU. The worker exits
+  when its stdin closes, which the OS does however the app ends, including
+  a force quit. So a stuck run never outlives Scribe, and killing it frees
+  all its memory.
+- **Automatic runs:** the `auto_separate` key in `diarization.json` (default
+  on) controls whether separation starts after a recording is saved or an
+  import finishes. Off, it runs only from **Separate Speakers**.
+- **Progress:** speakrs reports no progress, so Scribe estimates it: 5
+  seconds plus the audio length times the backend's rate. Rates start at
+  0.065 (CPU) and 0.01 (CoreML) seconds per audio second. Each
+  clean run of a minute or more blends its measured rate in at half weight,
+  stored under `speed`. The `diarization-updated` running event carries
+  `started_at_ms` and `estimated_seconds` once the run leaves the queue.
+  `get_diarization_status` returns the same for a meeting opened mid-run.
+  The bar stops at 95% until the run finishes.
 - **Voice library:** naming a voice saves its embedding to
   `speaker_profiles`.
+- **Merging:** naming a voice after a person another voice in the meeting
+  already has merges them. Its lines move to that voice, the two embeddings
+  are averaged into it, and its `meeting_speakers` row is deleted.
+  `name_meeting_speaker` returns the label the voice ends up under and a
+  snapshot of what the merge changed. `undo_speaker_merge` restores that
+  snapshot: the row, its embedding, earlier name and `auto_named`, and its
+  lines. It refuses when the meeting changed since, for example after
+  separating speakers again or merging another voice into the same one.
 - **Auto-naming:** a later meeting names a voice only on a clear match. Its
   cosine similarity must be at least 0.7 and lead the next-closest person by
   0.1. Two voices never get the same person. A close call stays unnamed
   and gets a one-click suggestion. `meeting_speakers.auto_named` marks
   auto-named voices until the user confirms or changes them.
 - **Naming panel:** `get_speaker_overview` returns each voice's line
-  count, talk time and a sample line (its longest line).
+  count, talk time and a sample. The sample is the voice's longest line
+  of 2 to 15 seconds that it speaks at least 90% alone. So the quote
+  shown is exactly what plays. Transcript lines can hold several people,
+  so a clip cut from any line could play someone else. Without such a
+  line, it's the first 15 seconds of the voice's longest turn. The span is
+  stored in `meeting_speakers.sample_start` and `sample_end` when
+  separation runs. Voices added by hand, or separated before 0.8.6, fall
+  back to their longest line.
   Unnamed voices scoring 0.5 or more against a profile not already in the
-  meeting get a one-click suggestion. `speaker_voice_clip` cuts up to six
-  seconds of the sample line from `system.mp4` with ffmpeg and returns it
+  meeting get a one-click suggestion. `speaker_voice_clip` cuts up to 15
+  seconds of the sample from `system.mp4` with ffmpeg and returns it
   as WAV bytes. The app decodes and plays them with the Web Audio API; the
   macOS webview can't play `blob:` URLs in an `<audio>` element.
 - **Manual fixes:** `reassign_transcript_speaker` moves lines to a voice

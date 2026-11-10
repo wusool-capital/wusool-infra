@@ -12,7 +12,19 @@ Scribe labels each speaker's turn in the transcript:
   **Settings → General → Speakers → Your name**.
 - **Other people** show as **Others** while you record. When you stop,
   Scribe separates their voices on your Mac and relabels them **Speaker 1**,
-  **Speaker 2**, and so on.
+  **Speaker 2**, and so on, unless you've turned that off.
+- **Turn off automatic separation.** **Separate Speakers Automatically**
+  under **Settings → General → Speakers** is on by default. Turn it off to
+  separate only when you press **Separate Speakers** in a meeting. While
+  separation runs, the meeting shows **Separating speakers…** with an
+  estimated time left, even if you open it partway through.
+- **Same person, two voices.** Scribe sometimes splits one person into two
+  voices. Give the second one the same name: names already in the meeting
+  say **Combines lines**, and Scribe warns you before it saves. Both voices
+  become one row with all their lines, and both voice samples go to that
+  person, so Scribe recognises them better. Combined the wrong person?
+  Press **Undo** on the message that appears, within 10 seconds. After
+  that, move their lines back with **Change Speaker**.
 - **Faster separation.** **Faster Speaker Separation (CoreML)** is on by
   default: about 40 seconds for a one-hour meeting, using up to 2.7 GB of
   memory. Its models (about 300 MB) download only when you ask. The first
@@ -23,7 +35,7 @@ Scribe labels each speaker's turn in the transcript:
   any time under **Settings → General → Speakers**.
 - **Name everyone in one place.** Above the transcript, **Who Spoke?**
   lists every separated voice, most talk time first, with one of their
-  lines. Press ▶ to hear a few seconds of their voice and type a name. It
+  lines. Press ▶ to hear them say the quoted line, then type a name. It
   saves when you press Enter, which moves on to the next person, or when
   you click away. Every line they spoke in that meeting is renamed, and
   Scribe recognises their voice in later meetings. Click a quoted line to
@@ -36,8 +48,11 @@ Scribe labels each speaker's turn in the transcript:
 - You can still click a speaker's name on any line to rename them.
 - **Fix a wrong speaker.** Right-click a line, or a selection of lines, and
   choose **Change Speaker**. Pick another voice, yourself, or **New
-  Speaker** for someone Scribe didn't separate, then name them. Pressing
-  **Separate Speakers** again replaces these changes.
+  Speaker** for someone Scribe didn't separate, then name them.
+- **Start over.** **Separate Again** in **Who Spoke?** works out who said
+  what from scratch, after asking you first. It replaces names you gave in
+  that meeting and lines you moved; people Scribe already knows are
+  recognised again. Use it if you combined two different people.
 
 Voice fingerprints are stored only on your Mac. To make Scribe forget
 someone, delete them under **Settings → General → Speakers**.

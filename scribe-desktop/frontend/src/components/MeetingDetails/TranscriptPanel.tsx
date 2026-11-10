@@ -11,6 +11,8 @@ import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { SpeakersPanel } from '@/components/SpeakersPanel';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
+import { Progress } from '@/components/ui/progress';
+import { separationProgress, type DiarizationRun } from '@/lib/speakers';
 import { nameChanges, nextSuggestionId, proofreadCoverageWarning, type NameChange } from '@/lib/transcriptEditor';
 import {
   AlertDialog,
@@ -119,7 +121,12 @@ export function TranscriptPanel({
     () => convertedSegments.some((segment) => segment.speaker === 'others'),
     [convertedSegments],
   );
-  const showSeparateBanner = Boolean(editable && speakers.separate && speakers.voiceCount === 0 && hasUnseparatedLines);
+  // Also while a re-run is going or has failed, so its progress or error is never hidden behind existing voices.
+  const showSeparateBanner = Boolean(
+    editable &&
+      speakers.separate &&
+      ((speakers.voiceCount === 0 && hasUnseparatedLines) || speakers.separation.status !== 'idle'),
+  );
 
   // Loaded only while the banner shows, so opening a meeting costs nothing extra.
   const coreMl = useCoreMlModels(showSeparateBanner);
@@ -140,6 +147,7 @@ export function TranscriptPanel({
 
   // Fixes that change a name are the ones most likely to be wrong, so Accept All shows them first.
   const [pendingNameChanges, setPendingNameChanges] = useState<NameChange[] | null>(null);
+  const [confirmingRerun, setConfirmingRerun] = useState(false);
   const requestAcceptAll = () => {
     if (!editor) return;
     const changes = nameChanges(editor.suggestions.values());
@@ -180,7 +188,7 @@ export function TranscriptPanel({
         <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
           <span className="min-w-0 text-sm text-foreground" aria-live="polite">
             {speakers.separation.status === 'running'
-              ? 'Separating speakers…'
+              ? <SeparatingStatus run={speakers.separation.run} />
               : speakers.separation.status === 'failed'
                 ? `Couldn't separate speakers: ${speakers.separation.error}`
                 : "Other speakers haven't been separated yet."}
@@ -208,6 +216,7 @@ export function TranscriptPanel({
           meetingId={meetingId}
           speakers={speakers}
           onShowLine={(segmentId) => setFocusRequest({ segmentId, nonce: Date.now() })}
+          onSeparateAgain={speakers.separation.status === 'running' ? undefined : () => setConfirmingRerun(true)}
         />
       )}
 
@@ -248,6 +257,29 @@ export function TranscriptPanel({
           </div>
         </div>
       )}
+
+      <AlertDialog open={confirmingRerun} onOpenChange={setConfirmingRerun}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Separate Speakers Again?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Scribe works out who said what in this meeting from scratch. Names you gave here and lines you moved are
+              replaced. People Scribe already knows are recognised again, and you can name the rest in Who Spoke?.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Current Speakers</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingRerun(false);
+                separateSpeakers();
+              }}
+            >
+              Separate Again
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={pendingNameChanges !== null} onOpenChange={(open) => !open && setPendingNameChanges(null)}>
         <AlertDialogContent>
@@ -307,5 +339,28 @@ export function TranscriptPanel({
 
       {editable && editor && <TranscriptSelectionBar editor={editor} />}
     </div>
+  );
+}
+
+function timeLeft(seconds: number): string {
+  if (seconds <= 0) return 'almost done';
+  if (seconds < 60) return 'under a minute left';
+  return `about ${Math.ceil(seconds / 60)} min left`;
+}
+
+/** "Separating speakers…" with an estimated bar, re-rendered each second while the run lasts. */
+function SeparatingStatus({ run }: { run: DiarizationRun }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const progress = separationProgress(run, now);
+  if (!progress) return <>Separating speakers…</>;
+  return (
+    <span className="flex items-center gap-3">
+      <span>Separating speakers… {timeLeft(progress.secondsLeft)}</span>
+      <Progress value={progress.percent} className="h-1.5 w-32" aria-label="Estimated separation progress" />
+    </span>
   );
 }

@@ -3,7 +3,7 @@
 // Pure attribution logic, free of I/O so it tests directly: segments to voices, voices to people.
 
 /// A span of meeting audio attributed to one diarized voice, in seconds.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct SpeakerTurn {
     pub start: f64,
     pub end: f64,
@@ -80,6 +80,40 @@ pub fn attribute_segments(segments: &[(f64, f64)], turns: &[SpeakerTurn]) -> Att
     Attribution { segment_labels, label_clusters }
 }
 
+/// Longest voice sample played in full: enough to recognise someone without waiting.
+pub const VOICE_CLIP_MAX_SECS: f64 = 15.0;
+// Shorter lines are often a word or two, too little to recognise a voice by.
+const SAMPLE_MIN_SECS: f64 = 2.0;
+// Share of a line the voice must speak alone, so the quote shown is what you hear them say.
+const SAMPLE_PURITY: f64 = 0.9;
+
+/// The span to play as a voice's sample: its longest line it speaks alone that fits the clip,
+/// so the line shown is exactly what plays; failing that, the start of its longest turn.
+pub fn sample_span(segments: &[(f64, f64)], turns: &[SpeakerTurn], cluster: u32) -> Option<(f64, f64)> {
+    let own = |start: f64, end: f64| -> f64 {
+        turns
+            .iter()
+            .filter(|t| t.speaker == cluster)
+            .map(|t| (end.min(t.end) - start.max(t.start)).max(0.0))
+            .sum()
+    };
+    let pure_line = segments
+        .iter()
+        .copied()
+        .filter(|&(start, end)| {
+            let length = end - start;
+            (SAMPLE_MIN_SECS..=VOICE_CLIP_MAX_SECS).contains(&length) && own(start, end) >= SAMPLE_PURITY * length
+        })
+        .max_by(|a, b| (a.1 - a.0).total_cmp(&(b.1 - b.0)));
+    pure_line.or_else(|| {
+        turns
+            .iter()
+            .filter(|t| t.speaker == cluster && t.end > t.start)
+            .max_by(|a, b| (a.end - a.start).total_cmp(&(b.end - b.start)))
+            .map(|t| (t.start, t.end.min(t.start + VOICE_CLIP_MAX_SECS)))
+    })
+}
+
 /// The matching saved profile per voice, one-to-one, strongest pairs first, so two voices never share a name.
 /// A voice whose best score beats its second-best person by less than `margin` gets none.
 pub fn match_profiles(
@@ -147,6 +181,26 @@ pub fn mean_embedding(samples: &[Vec<f32>]) -> Option<Vec<f32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_sample_is_the_longest_line_the_voice_speaks_alone() {
+        let turns = [
+            SpeakerTurn { start: 0.0, end: 30.0, speaker: 0 },
+            SpeakerTurn { start: 30.0, end: 34.0, speaker: 1 },
+            SpeakerTurn { start: 40.0, end: 75.0, speaker: 1 },
+        ];
+        // A long mixed line, a short pure one, and a pure one too long to play in full.
+        let lines = [(20.0, 34.0), (40.0, 48.0), (50.0, 75.0)];
+        assert_eq!(sample_span(&lines, &turns, 1), Some((40.0, 48.0)));
+    }
+
+    #[test]
+    fn without_a_pure_line_the_sample_is_the_start_of_the_longest_turn() {
+        let turns = [SpeakerTurn { start: 0.0, end: 3.0, speaker: 0 }, SpeakerTurn { start: 3.0, end: 40.0, speaker: 1 }];
+        let mixed = [(0.0, 10.0)];
+        assert_eq!(sample_span(&mixed, &turns, 1), Some((3.0, 3.0 + VOICE_CLIP_MAX_SECS)));
+        assert_eq!(sample_span(&mixed, &turns, 2), None);
+    }
 
     fn turn(start: f64, end: f64, speaker: u32) -> SpeakerTurn {
         SpeakerTurn { start, end, speaker }

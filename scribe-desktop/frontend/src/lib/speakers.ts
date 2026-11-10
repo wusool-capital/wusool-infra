@@ -44,8 +44,14 @@ export function formatTalkTime(seconds: number): string {
 }
 
 // Mirrors the Rust `DiarizationStarted` / `DiarizationEvent` payloads.
+// Mirrors the Rust `DiarizationRun`: both null while the run waits in the queue.
+export interface DiarizationRun {
+  started_at_ms: number | null;
+  estimated_seconds: number | null;
+}
+
 export type DiarizationUpdatedEvent =
-  | { meeting_id: string; status: 'running' }
+  | ({ meeting_id: string; status: 'running' } & DiarizationRun)
   | { meeting_id: string; status: 'completed'; speakers: number; auto_named: number }
   | { meeting_id: string; status: 'skipped'; reason: string }
   | { meeting_id: string; status: 'failed'; error: string };
@@ -59,8 +65,57 @@ export type DiarizationOutcome =
 
 export type SeparationState =
   | { status: 'idle' }
-  | { status: 'running' }
+  | { status: 'running'; run: DiarizationRun }
   | { status: 'failed'; error: string };
+
+// An estimate can only be wrong, so the bar waits short of full until the run really ends.
+const MAX_ESTIMATED_PERCENT = 95;
+
+/** Estimated progress of a run, or null while it has no estimate yet. */
+export function separationProgress(
+  run: DiarizationRun,
+  nowMs: number,
+): { percent: number; secondsLeft: number } | null {
+  if (run.started_at_ms === null || run.estimated_seconds === null || run.estimated_seconds <= 0) return null;
+  const elapsed = Math.max(0, (nowMs - run.started_at_ms) / 1000);
+  return {
+    percent: Math.min(MAX_ESTIMATED_PERCENT, (elapsed / run.estimated_seconds) * 100),
+    secondsLeft: Math.max(0, Math.ceil(run.estimated_seconds - elapsed)),
+  };
+}
+
+// Mirrors the Rust `SpeakerMerge`: what a merge changed, handed back to undo it.
+export interface SpeakerMerge {
+  kept: SpeakerLabel;
+  kept_embedding: number[];
+  kept_embedding_after: number[];
+  kept_auto_named: boolean;
+  merged: SpeakerLabel;
+  merged_embedding: number[];
+  merged_profile_id: string | null;
+  merged_auto_named: boolean;
+  merged_sample_start: number | null;
+  merged_sample_end: number | null;
+  segment_ids: string[];
+}
+
+// Mirrors the Rust `NamedSpeaker` returned by name_meeting_speaker.
+export interface NamedSpeaker {
+  label: SpeakerLabel;
+  merge: SpeakerMerge | null;
+}
+
+// SQLite's NOCASE, which decides who is "the same person", folds only A-Z.
+function foldLikeSqlite(name: string): string {
+  return name.trim().replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
+/** The name of another voice in this meeting that naming `label` as `name` would combine it with. */
+export function mergeTarget(label: SpeakerLabel, name: string, speakers: MeetingSpeaker[]): string | null {
+  const typed = foldLikeSqlite(name);
+  if (!typed) return null;
+  return speakers.find((s) => s.label !== label && s.name !== null && foldLikeSqlite(s.name) === typed)?.name ?? null;
+}
 
 // Mirrors the Rust `SpeakerTarget` taken by reassign_transcript_speaker.
 export type SpeakerTarget = { kind: 'existing'; label: SpeakerLabel } | { kind: 'new' };

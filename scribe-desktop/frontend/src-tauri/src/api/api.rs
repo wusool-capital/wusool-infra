@@ -1214,9 +1214,11 @@ pub async fn api_save_transcript<R: Runtime>(
         Ok(meeting_id) => {
             // Runs in the background so saving never waits on minutes of diarization.
             let (diarize_app, diarize_pool, diarize_id) = (app.clone(), pool.clone(), meeting_id.clone());
-            tauri::async_runtime::spawn(async move {
-                crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
-            });
+            if crate::diarization::commands::load_auto_separate(&diarize_app) {
+                tauri::async_runtime::spawn(async move {
+                    crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
+                });
+            }
 
             log_info!(
                 "Successfully saved transcript and created meeting with id: {}",
