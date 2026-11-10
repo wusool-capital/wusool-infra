@@ -21,7 +21,11 @@ transcript's word count:
 The budget is a ceiling: a long meeting with little substance still gets a
 short summary. Decisions, action items and claims to verify are never cut to
 fit it. The prompt also sets the writing style: British spelling, sentences
-of 25 words or fewer, outcome first. It trusts speaker names a user
+of 25 words or fewer, outcome first. Relative dates such as "this weekend"
+are worked out from the meeting date, and every field uses the same date.
+The first mention carries the date in brackets, such as "this weekend
+(14–15 Nov 2026)".
+It trusts speaker names a user
 assigned, but not placeholders such as "Speaker 2", "Others" or "Me".
 
 `render_summary_text` writes the plain text stored in `meetings.summary`,
