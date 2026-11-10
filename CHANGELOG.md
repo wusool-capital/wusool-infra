@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-10
+
+### Fixed
+
+- Meeting summaries work out relative dates such as "this weekend" from the
+  meeting date, so the gist, notes and next steps give the same date. The
+  first mention shows the date in brackets.
+
 ## 2026-11-09
 
 ### Fixed
