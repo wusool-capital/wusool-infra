@@ -54,7 +54,7 @@ renaming a speaker changes one row.
   snapshot of what the merge changed. `undo_speaker_merge` restores that
   snapshot: the row, its embedding, earlier name and `auto_named`, and its
   lines. It refuses when the meeting changed since, for example after
-  separating speakers again.
+  separating speakers again or merging another voice into the same one.
 - **Auto-naming:** a later meeting names a voice only on a clear match. Its
   cosine similarity must be at least 0.7 and lead the next-closest person by
   0.1. Two voices never get the same person. A close call stays unnamed

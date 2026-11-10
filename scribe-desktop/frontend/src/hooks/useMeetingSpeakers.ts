@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'sonner';
@@ -68,8 +68,11 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
         invoke<SpeakerOverview[]>('get_speaker_overview', { meetingId }),
         invoke<DiarizationRun | null>('get_diarization_status', { meetingId }),
       ]);
-      // A run started before this meeting opened announced itself before we were listening.
-      if (run) setSeparation({ status: 'running', run });
+      // A run started before this meeting opened announced itself before we were listening;
+      // one that has since ended must clear, or the bar would wait forever.
+      setSeparation((current) =>
+        run ? { status: 'running', run } : current.status === 'running' ? { status: 'idle' } : current,
+      );
       setSpeakers(meetingSpeakers);
       setProfiles(library);
       setOverview(voices);
@@ -105,12 +108,16 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     };
   }, [meetingId, load, onLabelsChanged]);
 
+  // Undo can be pressed after moving to another meeting, so it refreshes whichever one is open now.
+  const latest = useRef({ load, onLabelsChanged });
+  latest.current = { load, onLabelsChanged };
+
   const undoMerge = useCallback(
-    async (merge: SpeakerMerge) => {
+    async (mergedMeetingId: string, merge: SpeakerMerge) => {
       try {
-        await invoke('undo_speaker_merge', { meetingId, merge });
-        await load();
-        onLabelsChanged?.();
+        await invoke('undo_speaker_merge', { meetingId: mergedMeetingId, merge });
+        await latest.current.load();
+        latest.current.onLabelsChanged?.();
         toast.success('Voices separated again');
       } catch (error) {
         toast.error("Couldn't separate these voices", {
@@ -118,7 +125,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
         });
       }
     },
-    [meetingId, load, onLabelsChanged],
+    [],
   );
 
   const rename = useCallback(
@@ -130,10 +137,12 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
       // Naming a voice after someone already in the meeting merges it, moving its lines.
       onLabelsChanged?.();
       const merge = named.merge;
+      const mergedMeetingId = meetingId;
+      if (!mergedMeetingId) return;
       toast(`Combined with ${person}`, {
         description: 'Their lines are now under one name.',
         duration: UNDO_WINDOW_MS,
-        action: { label: 'Undo', onClick: () => void undoMerge(merge) },
+        action: { label: 'Undo', onClick: () => void undoMerge(mergedMeetingId, merge) },
       });
     },
     [meetingId, load, onLabelsChanged, speakers, undoMerge],

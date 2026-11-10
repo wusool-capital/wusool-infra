@@ -88,6 +88,7 @@ export function separationProgress(
 export interface SpeakerMerge {
   kept: SpeakerLabel;
   kept_embedding: number[];
+  kept_embedding_after: number[];
   kept_auto_named: boolean;
   merged: SpeakerLabel;
   merged_embedding: number[];
@@ -102,11 +103,16 @@ export interface NamedSpeaker {
   merge: SpeakerMerge | null;
 }
 
+// SQLite's NOCASE, which decides who is "the same person", folds only A-Z.
+function foldLikeSqlite(name: string): string {
+  return name.trim().replace(/[A-Z]/g, (c) => c.toLowerCase());
+}
+
 /** The name of another voice in this meeting that naming `label` as `name` would combine it with. */
 export function mergeTarget(label: SpeakerLabel, name: string, speakers: MeetingSpeaker[]): string | null {
-  const typed = name.trim().toLowerCase();
+  const typed = foldLikeSqlite(name);
   if (!typed) return null;
-  return speakers.find((s) => s.label !== label && s.name?.toLowerCase() === typed)?.name ?? null;
+  return speakers.find((s) => s.label !== label && s.name !== null && foldLikeSqlite(s.name) === typed)?.name ?? null;
 }
 
 // Mirrors the Rust `SpeakerTarget` taken by reassign_transcript_speaker.

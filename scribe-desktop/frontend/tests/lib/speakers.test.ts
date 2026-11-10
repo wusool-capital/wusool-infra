@@ -76,3 +76,11 @@ describe('mergeTarget', () => {
     expect(mergeTarget('speaker_1', '   ', speakers)).toBeNull();
   });
 });
+
+describe('mergeTarget case folding', () => {
+  test('folds only A-Z, like SQLite NOCASE, so it never promises a merge the database will not make', () => {
+    const speakers: MeetingSpeaker[] = [{ label: 'speaker_0', profile_id: 'p-1', name: 'Émile' }];
+    expect(mergeTarget('speaker_1', 'émile', speakers)).toBeNull();
+    expect(mergeTarget('speaker_1', 'ÉMILE', speakers)).toBe('Émile');
+  });
+});

@@ -47,8 +47,7 @@ pub fn run_from_args(args: &[String]) -> i32 {
     }
 }
 
-/// The app holds our stdin open and never writes to it. The OS closes it however the app ends,
-/// even on force quit, so end-of-file means nobody is waiting for this run.
+/// The OS closes our stdin however the app ends, even on force quit, so end-of-file means quit.
 fn exit_when_app_gone() {
     std::thread::spawn(|| {
         let mut stdin = std::io::stdin();

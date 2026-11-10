@@ -90,7 +90,7 @@ impl Drop for InFlight {
 
 /// Runs diarization and reports the outcome to the frontend. Never errors, so callers can fire and forget.
 pub async fn diarize_and_notify<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meeting_id: &str) -> DiarizationOutcome {
-    let Some(_claim) = InFlight::claim(meeting_id) else {
+    let Some(claim) = InFlight::claim(meeting_id) else {
         return DiarizationOutcome::AlreadyRunning;
     };
     let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running", run: DiarizationRun::default() });
@@ -103,6 +103,8 @@ pub async fn diarize_and_notify<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePoo
         }
     };
     info!("Diarization for {}: {:?}", meeting_id, outcome);
+    // Released first: the UI re-reads the status on this event and must not see the run still in flight.
+    drop(claim);
     let _ = app.emit(DIARIZATION_EVENT, DiarizationEvent { meeting_id, outcome: &outcome });
     outcome
 }
@@ -203,9 +205,15 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
                 *entry = retry;
             }
             let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running", run: retry });
-            worker::diarize_in_worker(&system_track, &models_dir, cpu, worker::time_limit(estimate))
+            let retry_started = Instant::now();
+            let diarization = worker::diarize_in_worker(&system_track, &models_dir, cpu, worker::time_limit(estimate))
                 .await
-                .context("separating speakers on CPU after CoreML failed")?
+                .context("separating speakers on CPU after CoreML failed")?;
+            // Learned too, so the CPU estimate and time limit adapt on machines that keep falling back.
+            if let Err(e) = super::commands::save_speed(app, speed.learn(cpu, audio_secs, retry_started.elapsed().as_secs_f64())) {
+                warn!("Could not save separation speed: {}", e);
+            }
+            diarization
         }
         Err(e) => return Err(e.context("separating speakers")),
     };

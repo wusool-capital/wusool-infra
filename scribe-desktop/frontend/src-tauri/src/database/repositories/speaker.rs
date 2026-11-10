@@ -116,6 +116,8 @@ pub enum SpeakerRepositoryError {
 pub struct SpeakerMerge {
     pub kept: SpeakerLabel,
     pub kept_embedding: Vec<f32>,
+    /// The kept voice's print right after this merge; any other value means a later change.
+    pub kept_embedding_after: Vec<f32>,
     pub kept_auto_named: bool,
     pub merged: SpeakerLabel,
     pub merged_embedding: Vec<f32>,
@@ -446,7 +448,7 @@ impl SpeakerRepository {
                     .bind(label)
                     .execute(&mut *tx)
                     .await?;
-                // Still merges, so meetings named before merging existed can be tidied by renaming.
+                // Still merges, so older duplicate voices are tidied by renaming them, one per rename.
                 let merge = merge_into_same_person(&mut tx, meeting_id, &before, &id).await?;
                 tx.commit().await?;
                 return Ok(named(label, merge));
@@ -478,7 +480,10 @@ impl SpeakerRepository {
             .await?;
 
         let merge = merge_into_same_person(&mut tx, meeting_id, &before, &profile_id).await?;
-        recompute_profile(&mut tx, &profile_id).await?;
+        // A merge has already recomputed this profile.
+        if merge.is_none() {
+            recompute_profile(&mut tx, &profile_id).await?;
+        }
         if let Some(previous) = previous_profile {
             recompute_profile(&mut tx, &previous).await?;
         }
@@ -492,8 +497,8 @@ impl SpeakerRepository {
         let mut conn = pool.acquire().await?;
         let mut tx = conn.begin().await?;
 
-        let kept: Option<(Option<String>,)> =
-            sqlx::query_as("SELECT profile_id FROM meeting_speakers WHERE meeting_id = ? AND label = ?")
+        let kept: Option<(Option<String>, Vec<u8>)> =
+            sqlx::query_as("SELECT profile_id, embedding FROM meeting_speakers WHERE meeting_id = ? AND label = ?")
                 .bind(meeting_id)
                 .bind(merge.kept)
                 .fetch_optional(&mut *tx)
@@ -504,9 +509,12 @@ impl SpeakerRepository {
             .fetch_optional(&mut *tx)
             .await?;
         // A re-run separation or another merge since makes the snapshot stale; restoring it would scramble voices.
-        let (Some((kept_profile,)), None) = (kept, merged_back) else {
+        let (Some((kept_profile, kept_blob)), None) = (kept, merged_back) else {
             return Err(SpeakerRepositoryError::MergeChanged);
         };
+        if decode_embedding(&kept_blob) != merge.kept_embedding_after {
+            return Err(SpeakerRepositoryError::MergeChanged);
+        }
 
         sqlx::query("UPDATE meeting_speakers SET embedding = ?, auto_named = ? WHERE meeting_id = ? AND label = ?")
             .bind(encode_embedding(&merge.kept_embedding))
@@ -576,9 +584,12 @@ async fn merge_into_same_person(
         .bind(label)
         .fetch_all(&mut **tx)
         .await?;
+    // Both halves' voice prints stay in the kept voice, so the person's profile still learns from each.
+    let combined = mean_embedding(&[decode_embedding(&keep_blob), decode_embedding(&before.embedding)]);
     let snapshot = SpeakerMerge {
         kept: keep,
         kept_embedding: decode_embedding(&keep_blob),
+        kept_embedding_after: combined.clone().unwrap_or_else(|| decode_embedding(&keep_blob)),
         kept_auto_named: keep_auto_named,
         merged: label,
         merged_embedding: decode_embedding(&before.embedding),
@@ -587,8 +598,7 @@ async fn merge_into_same_person(
         segment_ids: moved.into_iter().map(|(id,)| id).collect(),
     };
 
-    // Both halves' voice prints stay in the kept voice, so the person's profile still learns from each.
-    if let Some(mean) = mean_embedding(&[decode_embedding(&keep_blob), decode_embedding(&before.embedding)]) {
+    if let Some(mean) = combined {
         sqlx::query("UPDATE meeting_speakers SET embedding = ? WHERE meeting_id = ? AND label = ?")
             .bind(encode_embedding(&mean))
             .bind(meeting_id)
@@ -944,6 +954,25 @@ mod tests {
         let result = SpeakerRepository::undo_merge(&pool, MEETING, &named.merge.unwrap()).await;
         assert!(matches!(result, Err(SpeakerRepositoryError::MergeChanged)));
         assert_eq!(SpeakerRepository::meeting_speakers(&pool, MEETING).await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn undoing_an_earlier_merge_after_a_later_one_is_refused() {
+        let pool = pool_with_meeting().await;
+        two_voices_one_named_saleeq(&pool).await;
+        sqlx::query("INSERT INTO meeting_speakers (meeting_id, label, profile_id, embedding, auto_named) VALUES (?, 'speaker_2', NULL, ?, 0)")
+            .bind(MEETING)
+            .bind(encode_embedding(&[1.0, 1.0]))
+            .execute(&pool)
+            .await
+            .unwrap();
+        let first = SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(1), "Saleeq").await.unwrap();
+        SpeakerRepository::name_meeting_speaker(&pool, MEETING, SpeakerLabel::Speaker(2), "Saleeq").await.unwrap();
+        let print_before = SpeakerRepository::profile_embeddings(&pool).await.unwrap()[0].embedding.clone();
+
+        let result = SpeakerRepository::undo_merge(&pool, MEETING, &first.merge.unwrap()).await;
+        assert!(matches!(result, Err(SpeakerRepositoryError::MergeChanged)));
+        assert_eq!(SpeakerRepository::profile_embeddings(&pool).await.unwrap()[0].embedding, print_before, "the later merge is kept");
     }
 
     #[tokio::test]
