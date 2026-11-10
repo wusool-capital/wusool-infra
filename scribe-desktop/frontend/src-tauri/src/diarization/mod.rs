@@ -9,5 +9,6 @@ pub mod engine;
 pub mod label;
 pub mod overview;
 pub mod service;
+pub mod speed;
 
 pub use label::SpeakerLabel;

@@ -2,9 +2,10 @@
 //
 // Diarizes a saved meeting's audio, attributes its "others" lines, and auto-names voices the library knows.
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result};
 use log::{info, warn};
@@ -39,29 +40,50 @@ struct DiarizationEvent<'a> {
     outcome: &'a DiarizationOutcome,
 }
 
+/// A run in progress; `estimated_seconds` arrives once the run leaves the queue and its backend is known.
+#[derive(Debug, Clone, Copy, Default, Serialize)]
+pub struct DiarizationRun {
+    pub started_at_ms: Option<u64>,
+    pub estimated_seconds: Option<f64>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct DiarizationStarted<'a> {
     meeting_id: &'a str,
     status: &'static str,
+    #[serde(flatten)]
+    run: DiarizationRun,
 }
 
 // One pipeline at a time: a CoreML run alone can peak near 2.7 GB.
 static PIPELINE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
-static IN_FLIGHT: LazyLock<Mutex<HashSet<String>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
+static IN_FLIGHT: LazyLock<Mutex<HashMap<String, DiarizationRun>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+fn in_flight() -> std::sync::MutexGuard<'static, HashMap<String, DiarizationRun>> {
+    IN_FLIGHT.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+pub fn running_status(meeting_id: &str) -> Option<DiarizationRun> {
+    in_flight().get(meeting_id).copied()
+}
 
 /// Marks a meeting as being diarized until dropped.
 struct InFlight(String);
 
 impl InFlight {
     fn claim(meeting_id: &str) -> Option<Self> {
-        let mut running = IN_FLIGHT.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-        running.insert(meeting_id.to_string()).then(|| Self(meeting_id.to_string()))
+        let mut running = in_flight();
+        if running.contains_key(meeting_id) {
+            return None;
+        }
+        running.insert(meeting_id.to_string(), DiarizationRun::default());
+        Some(Self(meeting_id.to_string()))
     }
 }
 
 impl Drop for InFlight {
     fn drop(&mut self) {
-        IN_FLIGHT.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).remove(&self.0);
+        in_flight().remove(&self.0);
     }
 }
 
@@ -70,7 +92,7 @@ pub async fn diarize_and_notify<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePoo
     let Some(_claim) = InFlight::claim(meeting_id) else {
         return DiarizationOutcome::AlreadyRunning;
     };
-    let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running" });
+    let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running", run: DiarizationRun::default() });
 
     let outcome = match diarize_meeting(app, pool, meeting_id).await {
         Ok(outcome) => outcome,
@@ -147,18 +169,38 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
     }
 
     let _pipeline = PIPELINE.acquire().await.context("diarization queue closed")?;
-    let diarization = tokio::task::spawn_blocking(move || -> Result<engine::Diarization> {
+    // The last line's end stands in for the audio length, which is unknown until decoded.
+    let audio_secs = segments.iter().map(|s| s.audio_end_time).fold(0.0, f64::max);
+    let speed = super::commands::load_speed(app);
+    let run = DiarizationRun {
+        started_at_ms: Some(epoch_ms()),
+        estimated_seconds: Some(speed.estimate_secs(backend, audio_secs)),
+    };
+    if let Some(entry) = in_flight().get_mut(meeting_id) {
+        *entry = run;
+    }
+    let _ = app.emit(DIARIZATION_EVENT, DiarizationStarted { meeting_id, status: "running", run });
+
+    let started = Instant::now();
+    let (diarization, ran_on) = tokio::task::spawn_blocking(move || -> Result<(engine::Diarization, DiarizationBackend)> {
         let audio = super::audio::decode_16k_mono(&system_track)?;
         match engine::diarize(&models_dir, backend, &audio) {
             // CPU files always download with CoreML ones, so this retry has its models.
             Err(e) if backend == DiarizationBackend::CoreMl => {
                 warn!("CoreML diarization failed, retrying on CPU: {:#}", e);
-                engine::diarize(&models_dir, DiarizationBackend::Cpu, &audio)
+                engine::diarize(&models_dir, DiarizationBackend::Cpu, &audio).map(|d| (d, DiarizationBackend::Cpu))
             }
-            result => result,
+            result => result.map(|d| (d, backend)),
         }
     })
     .await??;
+    // A fallback run mixes two backends' timings, so only a clean run teaches the estimate.
+    if ran_on == backend {
+        let learned = speed.learn(backend, audio_secs, started.elapsed().as_secs_f64());
+        if let Err(e) = super::commands::save_speed(app, learned) {
+            warn!("Could not save separation speed: {}", e);
+        }
+    }
 
     // A voice without a usable embedding could never be recognised or enrolled, so its turns are dropped.
     let has_voiceprint = |cluster: u32| diarization.centroids.get(cluster as usize).is_some_and(|c| !c.is_empty());
@@ -199,6 +241,10 @@ async fn diarize_meeting<R: Runtime>(app: &AppHandle<R>, pool: &SqlitePool, meet
 
     SpeakerRepository::save_diarization(pool, meeting_id, &voices, &segment_labels).await?;
     Ok(DiarizationOutcome::Completed { speakers: voices.len(), auto_named })
+}
+
+fn epoch_ms() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
 }
 
 fn skipped(reason: &str) -> DiarizationOutcome {

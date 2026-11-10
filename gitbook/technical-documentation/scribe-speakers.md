@@ -27,6 +27,17 @@ renaming a speaker changes one row.
   prompt on **Separate Speakers**, whose **Use Slower Model** button switches
   the setting to CPU. Until then, automatic separation after a
   recording runs on CPU, so it never downloads 272 MB in the background.
+- **Automatic runs:** the `auto_separate` key in `diarization.json` (default
+  on) controls whether separation starts after a recording is saved or an
+  import finishes. Off, it runs only from **Separate Speakers**.
+- **Progress:** speakrs reports no progress, so Scribe estimates it: 5
+  seconds plus the audio length times the backend's rate. Rates start at
+  0.065 (CPU) and 0.01 (CoreML) seconds per audio second. Each
+  clean run of a minute or more blends its measured rate in at half weight,
+  stored under `speed`. The `diarization-updated` running event carries
+  `started_at_ms` and `estimated_seconds` once the run leaves the queue.
+  `get_diarization_status` returns the same for a meeting opened mid-run.
+  The bar stops at 95% until the run finishes.
 - **Voice library:** naming a voice saves its embedding to
   `speaker_profiles`.
 - **Auto-naming:** a later meeting names a voice only on a clear match. Its

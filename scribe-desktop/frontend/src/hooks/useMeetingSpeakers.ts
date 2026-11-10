@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 import type { SpeakerLabel } from '@/types';
 import {
   DiarizationOutcome,
+  DiarizationRun,
   DiarizationUpdatedEvent,
   MeetingSpeaker,
   SeparationState,
@@ -52,11 +53,14 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
     try {
       setSelfName(await invoke<string | null>('get_self_speaker_name'));
       if (!meetingId) return;
-      const [meetingSpeakers, library, voices] = await Promise.all([
+      const [meetingSpeakers, library, voices, run] = await Promise.all([
         invoke<MeetingSpeaker[]>('get_meeting_speakers', { meetingId }),
         invoke<SpeakerProfileSummary[]>('list_speaker_profiles'),
         invoke<SpeakerOverview[]>('get_speaker_overview', { meetingId }),
+        invoke<DiarizationRun | null>('get_diarization_status', { meetingId }),
       ]);
+      // A run started before this meeting opened announced itself before we were listening.
+      if (run) setSeparation({ status: 'running', run });
       setSpeakers(meetingSpeakers);
       setProfiles(library);
       setOverview(voices);
@@ -75,7 +79,10 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
       const payload = event.payload;
       if (payload.meeting_id !== meetingId) return;
       if (payload.status === 'running') {
-        setSeparation({ status: 'running' });
+        setSeparation({
+          status: 'running',
+          run: { started_at_ms: payload.started_at_ms, estimated_seconds: payload.estimated_seconds },
+        });
         return;
       }
       setSeparation(payload.status === 'failed' ? { status: 'failed', error: payload.error } : { status: 'idle' });
@@ -125,7 +132,7 @@ export function useMeetingSpeakers(meetingId?: string, onLabelsChanged?: () => v
   );
 
   const separate = useCallback(async () => {
-    setSeparation({ status: 'running' });
+    setSeparation({ status: 'running', run: { started_at_ms: null, estimated_seconds: null } });
     try {
       const outcome = await invoke<DiarizationOutcome>('diarize_meeting', { meetingId });
       // A run already in flight reports through its own event; everything else settles here.

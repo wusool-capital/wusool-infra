@@ -31,6 +31,7 @@ export function SpeakerSettings() {
   const models = coreMl.models
   const [confirmingOff, setConfirmingOff] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoSeparate, setAutoSeparate] = useState(true)
 
   const loadProfiles = async () => setProfiles(await invoke<SpeakerProfileSummary[]>("list_speaker_profiles"))
 
@@ -40,6 +41,7 @@ export function SpeakerSettings() {
         const name = (await invoke<string | null>("get_self_speaker_name")) ?? ""
         setSelfName(name)
         setSavedSelfName(name)
+        setAutoSeparate(await invoke<boolean>("get_auto_separate"))
         await loadProfiles()
       } catch (e) {
         setError(String(e))
@@ -57,6 +59,17 @@ export function SpeakerSettings() {
       setTimeout(() => setJustSaved(false), 2000)
       setError(null)
     } catch (e) {
+      setError(String(e))
+    }
+  }
+
+  const toggleAutoSeparate = async (enabled: boolean) => {
+    setError(null)
+    setAutoSeparate(enabled)
+    try {
+      await invoke("set_auto_separate", { enabled })
+    } catch (e) {
+      setAutoSeparate(!enabled)
       setError(String(e))
     }
   }
@@ -103,7 +116,7 @@ export function SpeakerSettings() {
   return (
     <SettingsSection
       title="Speakers"
-      description="Scribe labels your microphone with your name and separates other voices after each meeting. Voice fingerprints stay on this device."
+      description="Scribe labels your microphone with your name and separates other voices in each meeting. Voice fingerprints stay on this device."
     >
       <SettingsRow
         title="Your Name"
@@ -122,6 +135,22 @@ export function SpeakerSettings() {
           placeholder="Me"
         />
       </SettingsRow>
+
+      <SettingsRow
+        title="Separate Speakers Automatically"
+        description={
+          autoSeparate
+            ? "Runs after every recording and import."
+            : "Off. Use Separate Speakers in a meeting's transcript when you want it."
+        }
+        control={
+          <Switch
+            aria-label="Separate speakers automatically"
+            checked={autoSeparate}
+            onCheckedChange={toggleAutoSeparate}
+          />
+        }
+      />
 
       {backend?.coreml_available && (
         <SettingsRow

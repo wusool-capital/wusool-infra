@@ -13,6 +13,14 @@ Scribe labels each speaker's turn in the transcript:
 - **Other people** show as **Others** while you record. When you stop,
   Scribe separates their voices on your Mac and relabels them **Speaker 1**,
   **Speaker 2**, and so on.
+- **Turn off automatic separation.** **Separate Speakers Automatically**
+  under **Settings → General → Speakers** is on by default. Turn it off to
+  separate only when you press **Separate Speakers** in a meeting. While
+  separation runs, the meeting shows **Separating speakers…** with an
+  estimated time left, even if you open it partway through.
+- **Same person, two voices.** Scribe sometimes splits one person into two
+  voices. Give both the same name. They stay two rows in this meeting, but
+  both voice samples go to that person, so Scribe recognises them better.
 - **Faster separation.** **Faster Speaker Separation (CoreML)** is on by
   default: about 40 seconds for a one-hour meeting, using up to 2.7 GB of
   memory. Its models (about 300 MB) download only when you ask. The first

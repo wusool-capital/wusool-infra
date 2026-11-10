@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MeetingSpeaker, diarizedIndex, formatTalkTime, speakerDisplayName } from '../../src/lib/speakers';
+import { MeetingSpeaker, diarizedIndex, formatTalkTime, separationProgress, speakerDisplayName } from '../../src/lib/speakers';
 
 const speakers: MeetingSpeaker[] = [
   { label: 'speaker_0', profile_id: 'p-1', name: 'Alice' },
@@ -41,5 +41,21 @@ describe('formatTalkTime', () => {
     expect(formatTalkTime(840)).toBe('14 min');
     expect(formatTalkTime(3600)).toBe('1 h');
     expect(formatTalkTime(3900)).toBe('1 h 5 min');
+  });
+});
+
+describe('separationProgress', () => {
+  const run = { started_at_ms: 1_000_000, estimated_seconds: 100 };
+
+  test('has no estimate while queued', () => {
+    expect(separationProgress({ started_at_ms: null, estimated_seconds: null }, 1_000_000)).toBeNull();
+  });
+
+  test('tracks elapsed time against the estimate', () => {
+    expect(separationProgress(run, 1_000_000 + 25_000)).toEqual({ percent: 25, secondsLeft: 75 });
+  });
+
+  test('holds short of full when the run outlasts its estimate', () => {
+    expect(separationProgress(run, 1_000_000 + 500_000)).toEqual({ percent: 95, secondsLeft: 0 });
   });
 });

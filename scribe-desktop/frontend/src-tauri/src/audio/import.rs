@@ -668,9 +668,11 @@ async fn run_import<R: Runtime>(
 
     // After metadata.json, which is how separation finds the imported audio.
     let (diarize_app, diarize_pool, diarize_id) = (app.clone(), app_state.db_manager.pool().clone(), meeting_id.clone());
-    tauri::async_runtime::spawn(async move {
-        crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
-    });
+    if crate::diarization::commands::load_auto_separate(&diarize_app) {
+        tauri::async_runtime::spawn(async move {
+            crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
+        });
+    }
 
     Ok(ImportResult {
         meeting_id,

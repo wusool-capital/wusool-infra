@@ -12,7 +12,8 @@ use tauri_plugin_store::StoreExt;
 
 use super::engine::{self, DiarizationBackend, DownloadProgress};
 use super::overview::{build_overview, SpeakerOverview};
-use super::service::{diarize_and_notify, meeting_audio_track, DiarizationOutcome};
+use super::service::{diarize_and_notify, meeting_audio_track, running_status, DiarizationOutcome, DiarizationRun};
+use super::speed::SeparationSpeed;
 use super::SpeakerLabel;
 use crate::database::repositories::speaker::{MeetingSpeaker, SpeakerProfileSummary, SpeakerRepository, SpeakerTarget};
 use crate::state::AppState;
@@ -20,6 +21,49 @@ use crate::state::AppState;
 const SETTINGS_STORE: &str = "diarization.json";
 const SELF_NAME_KEY: &str = "self_name";
 const BACKEND_KEY: &str = "backend";
+const AUTO_SEPARATE_KEY: &str = "auto_separate";
+const SPEED_KEY: &str = "speed";
+
+/// Whether meetings are separated as soon as they are saved or imported; off leaves it to the button.
+pub fn load_auto_separate<R: Runtime>(app: &AppHandle<R>) -> bool {
+    app.store(SETTINGS_STORE)
+        .ok()
+        .and_then(|store| store.get(AUTO_SEPARATE_KEY))
+        .and_then(|value| value.as_bool())
+        .unwrap_or(true)
+}
+
+#[tauri::command]
+pub async fn get_auto_separate<R: Runtime>(app: AppHandle<R>) -> Result<bool, String> {
+    Ok(load_auto_separate(&app))
+}
+
+#[tauri::command]
+pub async fn set_auto_separate<R: Runtime>(app: AppHandle<R>, enabled: bool) -> Result<(), String> {
+    let store = app.store(SETTINGS_STORE).map_err(|e| e.to_string())?;
+    store.set(AUTO_SEPARATE_KEY, enabled);
+    store.save().map_err(|e| e.to_string())
+}
+
+pub fn load_speed<R: Runtime>(app: &AppHandle<R>) -> SeparationSpeed {
+    app.store(SETTINGS_STORE)
+        .ok()
+        .and_then(|store| store.get(SPEED_KEY))
+        .and_then(|value| serde_json::from_value(value).ok())
+        .unwrap_or_default()
+}
+
+pub fn save_speed<R: Runtime>(app: &AppHandle<R>, speed: SeparationSpeed) -> Result<(), String> {
+    let store = app.store(SETTINGS_STORE).map_err(|e| e.to_string())?;
+    store.set(SPEED_KEY, serde_json::to_value(speed).map_err(|e| e.to_string())?);
+    store.save().map_err(|e| e.to_string())
+}
+
+/// Lets a meeting opened mid-run show progress it missed the start event for.
+#[tauri::command]
+pub async fn get_diarization_status(meeting_id: String) -> Result<Option<DiarizationRun>, String> {
+    Ok(running_status(&meeting_id))
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DiarizationBackendSettings {
