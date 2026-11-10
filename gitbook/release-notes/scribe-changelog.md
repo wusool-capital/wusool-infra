@@ -8,6 +8,7 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 
 * **Separate Speakers Automatically** in **Settings → General → Speakers** can be turned off, so speakers are separated only when you press **Separate Speakers**.
 * Giving two voices in **Who Spoke?** the same name merges them into one row, for when Scribe splits one person in two. Scribe warns you before it saves, and **Undo** separates them again.
+* Summaries know who said what. Each line goes to Summarize with its speaker's name, so decisions and action items name the person. Unnamed voices go as **Speaker 1** and so on.
 * **Separate Again** in **Who Spoke?** redoes a meeting's speakers from scratch, for example after combining two different people.
 * Separating speakers shows an estimated time left and a progress bar. The estimate gets more accurate as Scribe learns how fast your Mac separates.
 

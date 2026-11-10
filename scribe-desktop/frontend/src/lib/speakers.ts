@@ -84,6 +84,11 @@ export function separationProgress(
   };
 }
 
+/** A transcript line as the summary model reads it, so decisions and actions keep their owner. */
+export function summaryLine(time: string, text: string, speaker: string | null): string {
+  return speaker ? `${time} ${speaker}: ${text}` : `${time} ${text}`;
+}
+
 // Mirrors the Rust `SpeakerMerge`: what a merge changed, handed back to undo it.
 export interface SpeakerMerge {
   kept: SpeakerLabel;

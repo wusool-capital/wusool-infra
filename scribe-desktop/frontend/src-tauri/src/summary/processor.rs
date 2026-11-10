@@ -15,6 +15,9 @@ static THINKING_TAG_REGEX: Lazy<Regex> = Lazy::new(|| {
 const ENGLISH_BASE_SUMMARY_INSTRUCTION: &str =
     "**Write the summary/report in English regardless of transcript language; non-English prose is invalid.**";
 
+// Transcript lines carry "Name:" so owners of decisions and actions survive into the summary.
+const SPEAKER_ATTRIBUTION_INSTRUCTION: &str = "Transcript lines may start with the speaker's name and a colon; use it to say who decided, proposed or will do what. \"Speaker N\" and \"Others\" are voices not yet identified: call them that, never invent a name.";
+
 fn resolve_cached_english<'a>(
     cached: Option<&'a str>,
     summary_language: Option<&str>,
@@ -136,7 +139,7 @@ fn translation_system_prompt(target_language: &str) -> String {
 
 fn build_chunk_summary_user_prompt(chunk: &str) -> String {
     format!(
-        "{ENGLISH_BASE_SUMMARY_INSTRUCTION}\n\nProvide a concise but comprehensive summary of the following transcript chunk. Capture all key points, decisions, action items, and mentioned individuals.\n\n<transcript_chunk>\n{chunk}\n</transcript_chunk>"
+        "{ENGLISH_BASE_SUMMARY_INSTRUCTION}\n{SPEAKER_ATTRIBUTION_INSTRUCTION}\n\nProvide a concise but comprehensive summary of the following transcript chunk. Capture all key points, decisions, action items, and mentioned individuals.\n\n<transcript_chunk>\n{chunk}\n</transcript_chunk>"
     )
 }
 
@@ -161,6 +164,7 @@ fn build_final_report_system_prompt(
 5. If a section has no relevant info, write "None noted in this section."
 6. Output **only** the completed Markdown report.
 7. If unsure about something, omit it.
+8. {SPEAKER_ATTRIBUTION_INSTRUCTION}
 
 **SECTION-SPECIFIC INSTRUCTIONS:**
 {section_instructions}
@@ -715,6 +719,12 @@ mod tests {
 
         assert!(prompt.contains(ENGLISH_BASE_SUMMARY_INSTRUCTION));
         assert!(prompt.contains("<transcript_chunk>"));
+    }
+
+    #[test]
+    fn transcript_prompts_ask_for_speaker_attribution() {
+        assert!(build_chunk_summary_user_prompt("Saleeq: I'll ship it").contains(SPEAKER_ATTRIBUTION_INSTRUCTION));
+        assert!(build_final_report_system_prompt("Fill", "# T").contains(SPEAKER_ATTRIBUTION_INSTRUCTION));
     }
 
     #[test]
