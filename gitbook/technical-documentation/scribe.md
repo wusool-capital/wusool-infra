@@ -57,16 +57,14 @@ microphone and system audio, or an imported file
   → local Whisper transcription, tagged "me" (mic) or "others" (system)
   → local speaker diarization of the meeting audio after saving
   → user edits the transcript and names speakers
-  → summary provider chosen in Settings
   → local SQLite meeting
   → optional push to the Toolkit server
   → server-side Bedrock summary and Attio note
 ```
 
-Audio and transcription stay on the Mac. Two summary providers run locally:
-Ollama and a built-in model. The online ones are OpenAI, Claude, Groq,
-OpenRouter, and a custom OpenAI-compatible endpoint. Remote providers receive the
-transcript text when chosen.
+Audio and transcription stay on the Mac. Scribe has no local summary model:
+the transcript leaves the Mac only when the user pushes it, and the Toolkit
+server writes the summary.
 
 ## Speaker separation
 

@@ -1,12 +1,10 @@
 # WusoolScribe
 
 WusoolScribe is a Mac app that records and transcribes meetings on your
-computer and can generate an editable summary. You can send a finished
-meeting to Attio as a note.
+computer. You can send a finished meeting to Attio as a note with a summary.
 
-Audio and transcription stay on your Mac. A cloud summary provider receives
-transcript text only when you choose one. Sending a meeting to Attio sends
-the transcript, its speaker names, and the summary, never the audio.
+Audio and transcription stay on your Mac. Sending a meeting to Attio sends
+the transcript and its speaker names, never the audio.
 
 ## Install and set up
 
@@ -66,17 +64,16 @@ Name speakers, fix lines, proofread, and re-transcribe in
 
 ## Summarize a meeting
 
-Generate a summary with the provider chosen in **Settings**. The built-in
-model and Ollama run on your Mac; Claude, Groq, OpenRouter, OpenAI, and a
-custom OpenAI-compatible service are online. Cloud providers receive the transcript text under their own
-data-handling terms.
+Press **Summarize** on the meeting, then **Push**. Scribe sends the
+transcript to the Toolkit server, which writes the summary. Scribe doesn't
+summarize on your Mac, and Settings has no summary provider to choose.
 
 Treat every summary as a draft. Check names, figures, decisions, and actions
 before sharing or sending it.
 
 ## Send a meeting to Attio
 
-1. Open the meeting and review its transcript and summary.
+1. Open the meeting and review its transcript.
 2. If it concerns a company, search for and select that organization.
 3. Press **Push**.
 

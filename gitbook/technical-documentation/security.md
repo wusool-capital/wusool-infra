@@ -83,7 +83,7 @@ geography terms to Google Places and the Geocoding API.
 ### WusoolScribe
 
 Recording and transcription run on the Mac. Content leaves it when the user
-picks a remote summary provider or pushes a meeting. The server keeps pushed
+pushes a meeting or asks for spelling corrections. The server keeps pushed
 meetings and notes, and creates an Attio note. Transcript lines sent for
 spelling corrections go to Bedrock and aren't stored. Feedback is stored in
 `feedback_submissions`.
