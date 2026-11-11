@@ -7,6 +7,7 @@ modals) immediately reads ORM attributes and eager-loaded
 framework-free representation.
 """
 
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Protocol, TypedDict, Unpack
 
@@ -54,12 +55,21 @@ class OrganizationFields(TypedDict, total=False):
     raw_attio: JsonObject
 
 
+@dataclass(frozen=True)
+class OrganizationDomains:
+    """One live Organization and every domain it lists, as stored."""
+
+    attio_id: str
+    domains: tuple[str, ...]
+
+
 class OrganizationRepositoryPort(Protocol):
     async def get_by_id(self, attio_id: str) -> Organization | None: ...
     async def get_by_id_with_roles(self, attio_id: str) -> Organization | None: ...
     async def search_by_name(self, term: str, limit: int = 10) -> list[Organization]: ...
     async def find_by_place_id(self, place_id: str) -> Organization | None: ...
     async def find_by_domains(self, hosts: list[str]) -> Organization | None: ...
+    async def list_live_domains(self) -> list[OrganizationDomains]: ...
     async def create(
         self, attio_id: str, name: str, **fields: Unpack[OrganizationFields]
     ) -> Organization: ...
