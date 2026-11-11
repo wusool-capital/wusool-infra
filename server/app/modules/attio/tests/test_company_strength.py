@@ -34,7 +34,10 @@ class _FakeClient:
 
 
 def _company(record: str, domain: str, strength: str | None, user: str | None) -> dict:
-    values: dict[str, list[dict]] = {"domains": [{"domain": domain, "active_until": None}]}
+    domains = domain.split(",")
+    values: dict[str, list[dict]] = {
+        "domains": [{"domain": d, "active_until": None} for d in domains]
+    }
     if strength:
         values["strongest_connection_strength"] = [
             {"option": {"title": strength}, "active_until": None}
@@ -90,3 +93,11 @@ async def test_workspace_members_map_an_id_to_an_email() -> None:
     (member,) = await list_workspace_members(client)
 
     assert (member.member_id, member.email) == ("m1", "tech@wusoolcapital.com")
+
+
+async def test_every_domain_a_company_lists_is_read_and_a_repeated_record_counts_once() -> None:
+    client = _FakeClient([{"data": [_company("c1", "acme.com,acme.io", "Good", None)] * 2}])
+
+    (company,) = await list_company_strengths(client)
+
+    assert company.domains == ("acme.com", "acme.io")

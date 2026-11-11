@@ -21,8 +21,9 @@ _LEVELS = list(StrengthLabel)
 
 
 class Bucket(StrEnum):
-    COMPARED = "compared"
     NO_ATTIO_LABEL = "Attio has no label"
+    UNKNOWN_LABEL = "Attio label not recognised"
+    NO_USER = "Attio names no strongest user, or one we can't identify"
     TECH_USER = "Attio's strongest user is tech@"
     UNREAD_MAILBOX = "Attio's strongest user is a mailbox we don't read"
     NO_ORGANIZATION = "no Organization has the Company's domain"
@@ -35,6 +36,8 @@ class CompanyInput:
     record_id: str
     domains: tuple[str, ...]
     attio_label: StrengthLabel | None
+    # What Attio sent, so an unrecognised label is told apart from none.
+    raw_label: str | None
     # Attio's strongest user as an address; None when Attio names nobody.
     strongest_user: str | None
 
@@ -90,7 +93,7 @@ def calibrate(
     for company in companies:
         attio_label = company.attio_label
         if attio_label is None:
-            excluded[Bucket.NO_ATTIO_LABEL] += 1
+            excluded[Bucket.UNKNOWN_LABEL if company.raw_label else Bucket.NO_ATTIO_LABEL] += 1
             continue
         org_id, ambiguous = matched[company.record_id]
         bucket = _exclusion(
@@ -154,7 +157,9 @@ def _exclusion(
     )
     if user == team_member_of(TECH_ADDRESS, internal_domains):
         return Bucket.TECH_USER
-    if user is None or user not in read_mailboxes:
+    if user is None:
+        return Bucket.NO_USER
+    if user not in read_mailboxes:
         return Bucket.UNREAD_MAILBOX
     if ambiguous or (org_id is not None and organizations[org_id] > 1):
         return Bucket.AMBIGUOUS

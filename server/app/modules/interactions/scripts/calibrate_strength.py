@@ -44,9 +44,7 @@ def render(report: CalibrationReport) -> str:
     lines += ["", "Rows are Attio's label, columns ours:", "  " + " | ".join(labels)]
     lines += [f"  {label}: {list(row)}" for label, row in zip(labels, report.matrix, strict=True)]
     lines += ["", "Left out of the comparison:"]
-    for bucket in Bucket:
-        if bucket is not Bucket.COMPARED:
-            lines.append(f"  {report.excluded.get(bucket, 0):>5}  {bucket.value}")
+    lines += [f"  {report.excluded.get(bucket, 0):>5}  {bucket.value}" for bucket in Bucket]
     return "\n".join(lines)
 
 

@@ -27,6 +27,7 @@ class AttioStrengthSource:
                 record_id=company.record_id,
                 domains=company.domains,
                 attio_label=parse_label(company.strength),
+                raw_label=company.strength,
                 strongest_user=address_of.get(company.strongest_user_id or ""),
             )
             for company in await list_company_strengths(self._client)

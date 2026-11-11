@@ -3,6 +3,7 @@
 import uuid
 from collections import defaultdict
 from collections.abc import Mapping
+from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -54,9 +55,8 @@ class SqlAlchemyTouchReader:
             participants[row.id].append(
                 StoredParticipant(row.email, Role(row.role), row.organization_attio_id)
             )
-            heads.setdefault(
-                row.id,
-                StoredItem(
+            if row.id not in heads:
+                heads[row.id] = StoredItem(
                     mailbox=row.mailbox,
                     dedupe_key=row.dedupe_key,
                     channel=Channel(row.channel),
@@ -64,18 +64,9 @@ class SqlAlchemyTouchReader:
                     occurred_at=row.occurred_at,
                     subject=row.subject,
                     participants=(),
-                ),
-            )
+                )
         items = [
-            StoredItem(
-                head.mailbox,
-                head.dedupe_key,
-                head.channel,
-                head.direction,
-                head.occurred_at,
-                head.subject,
-                tuple(participants[item_id]),
-            )
+            replace(head, participants=tuple(participants[item_id]))
             for item_id, head in heads.items()
         ]
         return touches_by_organization(items, self._internal_domains)

@@ -1,5 +1,6 @@
 """One calibration run: our labels against Attio's, computed in memory and written nowhere."""
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -26,15 +27,17 @@ async def run_calibration(
     config: CalibrationConfig,
     now: datetime,
 ) -> CalibrationReport:
-    companies = await source.companies()
-    touches = await reader.touches_by_organization()
+    # Independent reads, and the Attio one is slow, so they run together.
+    companies, touches, loaded = await asyncio.gather(
+        source.companies(), reader.touches_by_organization(), directory.load()
+    )
     ours: dict[str, StrengthLabel | None] = {
         org_id: summarize(org_touches, now, config.rules).connection_strength
         for org_id, org_touches in touches.items()
     }
     return calibrate(
         companies,
-        await directory.load(),
+        loaded,
         ours,
         config.read_mailboxes,
         config.internal_domains,

@@ -53,8 +53,8 @@ def _meetings(count: int) -> tuple[Touch, ...]:
 
 async def test_our_label_comes_from_the_touches_and_is_compared_with_attios() -> None:
     companies = [
-        CompanyInput("c1", ("acme.com",), StrengthLabel.GOOD, JULES),
-        CompanyInput("c2", ("beta.io",), StrengthLabel.STRONG, JULES),
+        CompanyInput("c1", ("acme.com",), StrengthLabel.GOOD, "Good", JULES),
+        CompanyInput("c2", ("beta.io",), StrengthLabel.STRONG, "Strong", JULES),
     ]
     # Two meetings score about 8, Strong; no touches at all leaves o2 uncompared.
     report = await run_calibration(

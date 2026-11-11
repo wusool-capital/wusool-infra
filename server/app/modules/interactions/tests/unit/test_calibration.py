@@ -27,7 +27,7 @@ def _company(
     label: L | None = L.STRONG,
     user: str | None = "jules@dopaminecap.com",
 ) -> CompanyInput:
-    return CompanyInput(record, (domain,), label, user)
+    return CompanyInput(record, (domain,), label, label.value if label else None, user)
 
 
 def _run(companies: list[CompanyInput], ours: dict[str, L | None]):
@@ -83,7 +83,8 @@ def test_every_excluded_case_lands_in_its_own_bucket() -> None:
     assert report.excluded == {
         Bucket.NO_ATTIO_LABEL: 1,
         Bucket.TECH_USER: 1,
-        Bucket.UNREAD_MAILBOX: 2,
+        Bucket.NO_USER: 1,
+        Bucket.UNREAD_MAILBOX: 1,
         Bucket.NO_ORGANIZATION: 1,
         Bucket.AMBIGUOUS: 1,
         Bucket.NO_TOUCHES: 1,
@@ -97,7 +98,9 @@ def test_two_companies_pointing_at_one_organization_are_both_ambiguous() -> None
 
 
 def test_a_company_whose_domains_reach_two_organizations_is_ambiguous() -> None:
-    company = CompanyInput("c1", ("acme.com", "beta.io"), L.STRONG, "jules@wusoolcapital.com")
+    company = CompanyInput(
+        "c1", ("acme.com", "beta.io"), L.STRONG, "Strong", "jules@wusoolcapital.com"
+    )
 
     report = _run([company], {"o-acme": L.STRONG, "o-beta": L.STRONG})
 
@@ -123,3 +126,11 @@ def test_an_unknown_attio_label_reads_as_no_label() -> None:
     assert parse_label("Medium") is None
     assert parse_label(None) is None
     assert parse_label("Very strong") is L.VERY_STRONG
+
+
+def test_a_label_attio_sent_that_we_do_not_know_is_its_own_bucket() -> None:
+    company = CompanyInput("c1", ("acme.com",), None, "Medium", "jules@wusoolcapital.com")
+
+    report = _run([company], {"o-acme": L.STRONG})
+
+    assert report.excluded == {Bucket.UNKNOWN_LABEL: 1}

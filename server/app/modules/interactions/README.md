@@ -41,7 +41,8 @@ laptop against the dev or prod database. Add `--mismatches PATH` to save record 
 
 A Company is matched to an Organization by domain, the same way linking does. It is compared
 only when Attio's label is a fair reference. Everything else is counted in a named bucket:
-no Attio label, strongest user is `tech@`, strongest user is a mailbox we don't read, no
+no Attio label, a label we don't recognise, no identifiable strongest user, strongest user
+is `tech@`, strongest user is a mailbox we don't read, no
 Organization for the domain, a domain or Organization shared by several records, and no
 interactions on our side. Each percentage prints its denominator.
 
