@@ -145,7 +145,7 @@ def _exclusion(
     company: CompanyInput,
     org_id: str | None,
     ambiguous: bool,
-    organizations: Counter[str | None],
+    organizations: Counter[str],
     read_mailboxes: frozenset[str],
     internal_domains: tuple[str, ...],
 ) -> Bucket | None:
