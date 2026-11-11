@@ -14,7 +14,7 @@ _New to this codebase's layering? See [the modular monolith guide](../../../../d
 
 ```
 organizations/
-  __init__.py                                   # __all__: OrganizationRepository, OrganizationRepositoryPort
+  __init__.py                                   # __all__: OrganizationDomains, OrganizationRepository, OrganizationRepositoryPort
   application/ports/organizations.py            # OrganizationRepositoryPort Protocol
   persistence/repositories/organizations_repository.py
 ```
@@ -24,7 +24,9 @@ organizations/
 `OrganizationRepositoryPort`: `get_by_id`, `get_by_id_with_roles`,
 `search_by_name` (the shared trigram query, `ix_organizations_name_trgm`,
 excludes `removed_at` orgs), `create`, `update` — all return
-`app.models.Organization` or `None` — plus `lock`, which returns nothing.
+`app.models.Organization` or `None` — plus `lock`, which returns nothing, and `list_live_domains`, which returns an
+`OrganizationDomains` (id and every stored domain) for each live org. `interactions`
+uses it to see a domain that two organizations share.
 
 `lock(attio_id)` takes a `SELECT ... FOR UPDATE` row lock on the
 organization for the rest of the caller's transaction. It exists because
@@ -39,7 +41,7 @@ organization". The lock belongs here rather than in `ddl_commands` because
 `persistence/` would be a boundary violation.
 
 Consumers import only `from app.modules.organizations import
-OrganizationRepository, OrganizationRepositoryPort` (the `__all__`).
+OrganizationDomains, OrganizationRepository, OrganizationRepositoryPort` (the `__all__`).
 `ddl_commands/bootstrap.py` constructs the concrete repository per-session;
 `ddl_commands`'s own Unit-of-Work also exposes an `organizations` slot
 backed by it, since buyer/seller writes touch both a role repository and
