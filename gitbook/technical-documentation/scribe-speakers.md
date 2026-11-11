@@ -69,7 +69,7 @@ renaming a speaker changes one row.
   stored in `meeting_speakers.sample_start` and `sample_end` when
   separation runs. Voices added by hand, or separated before 0.8.6, fall
   back to their longest line.
-  Unnamed voices scoring 0.5 or more against a profile not already in the
+- **Suggestions and playback:** Unnamed voices scoring 0.5 or more against a profile not already in the
   meeting get a one-click suggestion. `speaker_voice_clip` cuts up to 15
   seconds of the sample from `system.mp4` with ffmpeg and returns it
   as WAV bytes. The app decodes and plays them with the Web Audio API; the
