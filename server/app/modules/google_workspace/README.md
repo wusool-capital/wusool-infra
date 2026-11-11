@@ -96,13 +96,23 @@ every reply is parsed into a Pydantic model before it leaves `providers/`.
   fetches to 250 a minute per mailbox. A 12-month backfill of a large mailbox is
   therefore slow by design: 20,000 messages take about 80 minutes.
 
+## Confirmed on a live mailbox (11 Nov 2026)
+
+A one-mailbox dry run against the real Workspace tenant, with a primary address:
+
+- The delegated token, both scopes, and the Gmail and Calendar clients all worked.
+- **A first Calendar request with both `timeMin` and `timeMax` does return a sync
+  token**, and the next poll accepted it. No fallback was needed.
+- A one-month backfill of about 1,200 emails and 190 meetings took about 5.6 minutes,
+  limited by the 250-fetches-a-minute pace. A second poll took under 2 seconds and
+  wrote nothing new.
+
 ## Still not documented
 
 - Whether `sub` may be an alias address. Google describes it as "the email address
-  of the user". Use primary addresses.
-- Whether a first request with `timeMax` as well as `timeMin` still returns a sync
-  token. `CalendarPage.next_sync_token` is `None` when it doesn't. The documented
-  fallback is `updatedMin`, which answers 410 `updatedMinTooLongAgo` when too old.
+  of the user". Use primary addresses. Only a primary address has been tried live.
+- The `updatedMin` fallback, which answers 410 `updatedMinTooLongAgo` when too old,
+  stays in place in case Google ever issues no token.
 
 ## Worth knowing when you consume it
 
