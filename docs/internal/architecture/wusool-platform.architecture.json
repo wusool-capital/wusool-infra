@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "66bf7095f6ad2edd2bb339ae1e105e89eec486a8"
+      "revision": "4c9411e189f821c9cdff9bac77b36c8e46abb523"
     },
     "viewBox": [
       1240,
@@ -191,7 +191,7 @@
       "id": "research",
       "type": "external",
       "label": "Research providers",
-      "sublabel": "Firecrawl \u00b7 Diffbot \u00b7 PDL \u00b7 Apify \u00b7 Places",
+      "sublabel": "Firecrawl · Diffbot · PDL · Apify · Places",
       "pos": [
         940,
         650
@@ -215,7 +215,7 @@
       "id": "github",
       "type": "cloud",
       "label": "GitHub Actions",
-      "sublabel": "OIDC \u00b7 build \u00b7 OpenTofu \u00b7 SSM",
+      "sublabel": "OIDC · build · OpenTofu · SSM",
       "pos": [
         920,
         20
@@ -239,7 +239,7 @@
       "id": "operations",
       "type": "security",
       "label": "AWS operations",
-      "sublabel": "SSM access \u00b7 logs \u00b7 Secrets",
+      "sublabel": "SSM access · logs · Secrets",
       "pos": [
         920,
         520
@@ -481,23 +481,7 @@
       "from": "website",
       "to": "posthog",
       "label": "browser events, after consent",
-      "variant": "dashed",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          440,
-          346
-        ],
-        [
-          440,
-          628
-        ]
-      ],
-      "labelAt": [
-        440,
-        534
-      ]
+      "variant": "dashed"
     },
     {
       "from": "attio",
