@@ -9,13 +9,9 @@ against the dev or prod database.
 
 import argparse
 import asyncio
-from datetime import UTC, datetime
 from pathlib import Path
 
-from app.modules.attio import get_attio_client
-from app.modules.interactions.application.calibration import CalibrationConfig, run_calibration
-from app.modules.interactions.config import get_settings
-from app.modules.interactions.domain.addresses import team_member_of
+from app.modules.interactions.bootstrap import run_strength_calibration
 from app.modules.interactions.domain.calibration import (
     EXACT_GATE,
     WITHIN_ONE_GATE,
@@ -23,10 +19,6 @@ from app.modules.interactions.domain.calibration import (
     CalibrationReport,
 )
 from app.modules.interactions.domain.model import StrengthLabel
-from app.modules.interactions.persistence.database import get_sessionmaker
-from app.modules.interactions.persistence.directory import SqlAlchemyRecordDirectory
-from app.modules.interactions.persistence.touch_reader import SqlAlchemyTouchReader
-from app.modules.interactions.providers.attio_companies import AttioStrengthSource
 
 
 def render(report: CalibrationReport) -> str:
@@ -53,22 +45,7 @@ def _pct(rate: float | None) -> str:
 
 
 async def main(mismatches: Path | None) -> None:
-    settings = get_settings()
-    sessionmaker = get_sessionmaker()
-    internal = settings.internal_domains
-    config = CalibrationConfig(
-        read_mailboxes=frozenset(team_member_of(m, internal) for m in settings.mailboxes),
-        internal_domains=internal,
-        rules=settings.scoring_rules(),
-    )
-    async with get_attio_client() as client:
-        report = await run_calibration(
-            AttioStrengthSource(client, internal),
-            SqlAlchemyTouchReader(sessionmaker, internal),
-            SqlAlchemyRecordDirectory(sessionmaker),
-            config,
-            datetime.now(UTC),
-        )
+    report = await run_strength_calibration()
     print(render(report))
     if mismatches is not None:
         # Record ids only, so the file holds no company names.
