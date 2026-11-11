@@ -11,7 +11,7 @@ Today it only reads and stores. It doesn't write to Attio yet.
 | Read Gmail and Calendar metadata into PostgreSQL | Built, off by default |
 | Match each address to a Person and an Organization | Built |
 | Interaction dates and connection strength | Built as code, not yet run on live data |
-| Shadow week: compare with Attio's own labels | Not started |
+| Shadow week: compare with Attio's own labels | Tool built, run after deploy |
 | Write the fields to Attio | Not started |
 | Create contacts from email, roll up to Deals, retire Companies and People | Not started |
 
@@ -76,6 +76,14 @@ Subjects can contain deal names, so treat these tables like other CRM data. Noth
 - Gmail allows 6,000 quota units a minute per user, and each message fetch costs 20. The engine fetches at most 250 messages a minute per mailbox.
 - A large backfill therefore takes hours. About 20,000 messages take about 80 minutes.
 - If Google issues no Calendar sync token, each pass re-reads the last seven days instead.
+
+## Shadow week
+
+A read-only command compares our connection-strength label for each Organization with Attio's label on the matching Company. It writes nothing to Attio or PostgreSQL. Run it inside the deployed container, once the backfill is done and a week of data has settled.
+
+The report prints the exact-match rate, the within-one-level rate, and a 5-by-5 table. Each rate names how many Companies it covers. Companies that aren't a fair comparison are counted separately. Examples are Attio's strongest user being `tech@` or a mailbox we don't read, and no Organization for the domain.
+
+Writing to Attio starts only if at least 80% match exactly and 95% are within one level.
 
 ## Where to look
 

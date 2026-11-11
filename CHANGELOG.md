@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-11
+
+### Added
+
+- A shadow-week report compares the interactions engine's connection strength
+  with Attio's own for each company (AZM-159). It only reads, and it prints
+  counts. It decides whether the engine may start writing to Attio.
+
 ## 2026-11-10
 
 ### Fixed

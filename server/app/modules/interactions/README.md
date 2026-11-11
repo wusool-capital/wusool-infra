@@ -13,7 +13,8 @@ _New to this codebase's layering? See
 Read-only and unfinished. The module reads and stores Gmail and Calendar
 metadata and links it to CRM records. `IngestService.run_pass()` does one pass,
 and `run_interactions_forever()` runs it on a timer, off by default. Nothing
-writes to Attio: that is a later PR, gated by the shadow-week calibration.
+writes to Attio: that is a later PR, gated by the shadow-week calibration, which
+`scripts/calibrate_strength.py` now runs.
 
 ## Structure
 
@@ -22,11 +23,31 @@ domain/         # Touch, scoring, summarize, ignore filter, linking rules, month
 application/
   ingest.py     # IngestService: backfill, polling, recovery, linking, retention
   mapping.py    # fetched Gmail and Calendar data -> rows to store (pure)
-  ports/        # InteractionStorePort, RecordDirectoryPort (Protocols) and the records they carry
-persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory, advisory lock
+  calibration.py  # run_calibration(): our labels against Attio's, in memory
+  ports/        # InteractionStorePort, RecordDirectoryPort, TouchReaderPort, StrengthSourcePort
+persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory, SqlAlchemyTouchReader, lock
+providers/      # AttioStrengthSource: Attio's Companies and their labels
+scripts/        # calibrate_strength.py: the shadow-week report
 bootstrap.py    # run_interactions_forever(): wires everything and runs the poll loop
 config.py       # InteractionsSettings: every tunable, prefixed interactions_
 ```
+
+## Shadow-week calibration
+
+`python -m app.modules.interactions.scripts.calibrate_strength` compares our label for each
+Organization with Attio's `strongest_connection_strength` on the matching Company. It reads
+only and writes nothing to Attio or Postgres. Run it in the deployed container, never from a
+laptop against the dev or prod database. Add `--mismatches PATH` to save record ids.
+
+A Company is matched to an Organization by domain, the same way linking does. It is compared
+only when Attio's label is a fair reference. Everything else is counted in a named bucket:
+no Attio label, strongest user is `tech@`, strongest user is a mailbox we don't read, no
+Organization for the domain, a domain or Organization shared by several records, and no
+interactions on our side. Each percentage prints its denominator.
+
+The go-live gate is 80% exact match and 95% within one level. Attio scores every team
+mailbox and we read only `INTERACTIONS_MAILBOXES`, hence the mailbox bucket. Cancelled
+meetings never count.
 
 ## Reading CRM records
 

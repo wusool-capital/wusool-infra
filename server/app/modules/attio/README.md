@@ -46,7 +46,9 @@ attio/
 ## Public contract
 
 `__all__`: `AttioClient`, `AttioClientProtocol`, `AttioError`,
-`WebhookEvent`, `WebhookEventId`, `get_attio_client`. Beyond that, callers
+`CompanyStrength`, `WebhookEvent`, `WebhookEventId`, `WorkspaceMember`, `get_attio_client`,
+`list_company_strengths`, `list_workspace_members`. The last two are read-only and feed the
+`interactions` calibration. Listing members needs the `user_management:read` scope. Beyond that, callers
 reach into `providers.attio.*`/`domain.*` directly (the full-access
 exception above) rather than everything being funneled through
 `AttioClientProtocol`.
