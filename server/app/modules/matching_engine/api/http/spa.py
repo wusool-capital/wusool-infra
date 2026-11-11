@@ -5,7 +5,7 @@ a route path falls back to `index.html`; a miss on a file path (an old hashed
 asset) stays a 404 rather than returning HTML where a script was expected.
 """
 
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePath
 
 from fastapi import FastAPI, Request
 from starlette.exceptions import HTTPException
@@ -24,10 +24,11 @@ class SpaStatic(StaticFiles):
         try:
             response = await super().get_response(path, scope)
         except HTTPException as exc:
-            if exc.status_code != 404 or PurePosixPath(path).suffix:
+            if exc.status_code != 404 or PurePath(path).suffix:
                 raise
             response = await super().get_response("index.html", scope)
-        is_asset = PurePosixPath(path).parts[:1] == ("assets",)
+        # Starlette passes OS-native separators, so PurePath, not PurePosixPath, splits on Windows.
+        is_asset = PurePath(path).parts[:1] == ("assets",)
         response.headers["Cache-Control"] = _IMMUTABLE if is_asset else _NO_CACHE
         response.headers["X-Content-Type-Options"] = "nosniff"
         return response

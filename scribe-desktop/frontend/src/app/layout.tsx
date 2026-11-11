@@ -15,7 +15,6 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { invoke } from '@tauri-apps/api/core'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { RecordingStateProvider } from '@/contexts/RecordingStateContext'
-import { OllamaDownloadProvider } from '@/contexts/OllamaDownloadContext'
 import { TranscriptProvider } from '@/contexts/TranscriptContext'
 import { ConfigProvider, useConfig } from '@/contexts/ConfigContext'
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext'
@@ -113,6 +112,21 @@ export default function RootLayout({
   const [showDropOverlay, setShowDropOverlay] = useState(false)
   const [showImportDialog, setShowImportDialog] = useState(false)
   const [importFilePath, setImportFilePath] = useState<string | null>(null)
+
+  // Like a native app, Cmd/Ctrl+A only selects inside a text field, never the whole window.
+  useEffect(() => {
+    const guardSelectAll = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 'a' || !(event.metaKey || event.ctrlKey)) return;
+      const target = document.activeElement;
+      const editable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (!editable) event.preventDefault();
+    };
+    window.addEventListener('keydown', guardSelectAll);
+    return () => window.removeEventListener('keydown', guardSelectAll);
+  }, []);
 
   useEffect(() => {
     // Check onboarding status first
@@ -289,40 +303,37 @@ export default function RootLayout({
           <RecordingStateProvider>
             <TranscriptProvider>
               <ConfigProvider>
-                <OllamaDownloadProvider>
-                  <OnboardingProvider>
-                    <UpdateCheckProvider>
-                      <SidebarProvider>
-                        <TooltipProvider>
-                          <RecordingPostProcessingProvider>
-                            <ImportDialogProvider onOpen={handleOpenImportDialog}>
-                              {/* Download progress toast provider - listens for background downloads */}
-                              <DownloadProgressToastProvider />
+                <OnboardingProvider>
+                  <UpdateCheckProvider>
+                    <SidebarProvider>
+                      <TooltipProvider>
+                        <RecordingPostProcessingProvider>
+                          <ImportDialogProvider onOpen={handleOpenImportDialog}>
+                            {/* Download progress toast provider - listens for background downloads */}
+                            <DownloadProgressToastProvider />
 
-                              {/* Show onboarding or main app */}
-                              {showOnboarding ? (
-                                <OnboardingFlow onComplete={handleOnboardingComplete} />
-                              ) : (
-                                <div className="flex h-screen">
-                                  <Sidebar />
-                                  <MainContent>{children}</MainContent>
-                                </div>
-                              )}
-                              {/* Import audio overlay and dialog */}
-                              <ImportDropOverlay visible={showDropOverlay} />
-                              <ConditionalImportDialog
-                                showImportDialog={showImportDialog}
-                                handleImportDialogClose={handleImportDialogClose}
-                                importFilePath={importFilePath}
-                              />
-                            </ImportDialogProvider>
-                          </RecordingPostProcessingProvider>
-                        </TooltipProvider>
-                      </SidebarProvider>
-                    </UpdateCheckProvider>
-                  </OnboardingProvider>
-
-                </OllamaDownloadProvider>
+                            {/* Show onboarding or main app */}
+                            {showOnboarding ? (
+                              <OnboardingFlow onComplete={handleOnboardingComplete} />
+                            ) : (
+                              <div className="flex h-screen">
+                                <Sidebar />
+                                <MainContent>{children}</MainContent>
+                              </div>
+                            )}
+                            {/* Import audio overlay and dialog */}
+                            <ImportDropOverlay visible={showDropOverlay} />
+                            <ConditionalImportDialog
+                              showImportDialog={showImportDialog}
+                              handleImportDialogClose={handleImportDialogClose}
+                              importFilePath={importFilePath}
+                            />
+                          </ImportDialogProvider>
+                        </RecordingPostProcessingProvider>
+                      </TooltipProvider>
+                    </SidebarProvider>
+                  </UpdateCheckProvider>
+                </OnboardingProvider>
               </ConfigProvider>
             </TranscriptProvider>
           </RecordingStateProvider>

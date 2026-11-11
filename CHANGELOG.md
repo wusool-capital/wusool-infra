@@ -8,6 +8,103 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-11
+
+### Added
+
+- A shadow-week report compares the interactions engine's connection strength
+  with Attio's own for each company (AZM-159). It only reads, and it prints
+  counts. It decides whether the engine may start writing to Attio.
+
+## 2026-11-10
+
+### Fixed
+
+- Meeting summaries work out relative dates such as "this weekend" from the
+  meeting date, so the gist, notes and next steps give the same date. The
+  first mention shows the date in brackets.
+
+## 2026-11-09
+
+### Fixed
+
+- Session replay on the lead tools now hides name, email, phone and LinkedIn
+  fields. It also hides the report's "code sent to" line and the readiness
+  "Prepared for" line. Company and revenue stay visible.
+
+## 2026-11-08
+
+### Added
+
+- Scribe 0.8.5 separates speakers in imported audio, using the imported file
+  as the meeting audio.
+- Scribe 0.8.5 adds **Change Speaker** to move transcript lines to another
+  voice, to the user, or to a new speaker the separation missed.
+
+### Fixed
+
+- Scribe 0.8.5 plays voice samples through the Web Audio API, since the
+  macOS webview can't play `blob:` audio. The sample is each voice's
+  longest line.
+- Scribe 0.8.5 voice samples play on the current output device after
+  headphones disconnect, instead of going silent.
+
+- Proofread no longer renames people to words from the user's vocabulary or
+  to speaker names. Every change must sound like the words it replaces, and
+  a batch's prompt only carries the names and words something in it sounds
+  like.
+- Scribe 0.8.4 auto-names a voice only on a clear match and marks it for the
+  user to confirm. Accept All lists name changes before applying them.
+
+### Changed
+
+- Meeting summaries lead with a 2–3 sentence gist. Next steps, decisions
+  and notes by topic follow, plus a deal signal for buyer, seller and
+  investor meetings. Notes grow with the meeting instead of a fixed 1,500-word cap.
+  The Attio note, Scribe and the matching engine all get the new order.
+- Proofread sends the meeting's speakers, title and the user's own
+  vocabulary, on top of a default list of deal, finance and GCC terms. The
+  server rejects rewrites and reports lines it couldn't check. A labelled
+  test set scores models: Sonnet 4.6 caught 18 of 19 errors, no false fixes.
+- Matching reads each meeting summary whole instead of cutting it at 3,000
+  characters. Each prompt holds up to 24,000 characters of meeting notes and
+  always includes the newest and oldest meetings.
+- Scribe 0.8.3 turns on faster speaker separation (CoreML) by default and
+  downloads its models on first use, with a slower no-download option.
+- Every Bedrock call in the server now runs through Pydantic AI agents:
+  meetings, matching, enrichment, discrepancies and the website lead tools.
+  Each validates its schema and returns typed results. Meeting summaries
+  also retry once when a gist or note breaks the length rules.
+
+## 2026-11-07
+
+### Added
+
+- Scribe shows who said each line. Your lines carry your name. Other
+  voices are separated on the Mac after the meeting. A person you name once
+  is recognised in later meetings. Voice fingerprints stay on the Mac, and
+  pushed meetings now send speaker names instead of "Participant".
+
+## 2026-11-06
+
+### Added
+
+- The interactions engine reads each team mailbox's Gmail and Calendar into
+  PostgreSQL (AZM-159). It stores headers, subjects, and event details for 12
+  months, never message bodies. It links addresses to Persons and
+  Organizations. It is off by default (`INTERACTIONS_ENABLED`) and writes
+  nothing to Attio yet.
+- Google access is its own module, `google_workspace`, so other features can
+  reuse it. It needs one service-account key, `GOOGLE_SERVICE_ACCOUNT_JSON`,
+  and a Workspace admin's read-only delegation. The Google access runbook
+  covers setup, rotation, and revocation.
+
+### Changed
+
+- The platform architecture diagram adds Google Workspace. Its page was
+  regenerated, so it also shows PostHog and the website's analytics link,
+  which the old page lacked.
+
 ## 2026-11-05
 
 ### Added

@@ -23,6 +23,8 @@ on:
 
 permissions:
   contents: read
+  # reviewdog reads the PR via the API when its diff exceeds 300 files.
+  pull-requests: read
 
 jobs:
   vale:

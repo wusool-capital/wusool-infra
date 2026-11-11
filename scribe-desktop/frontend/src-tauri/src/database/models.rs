@@ -2,6 +2,8 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
+use crate::diarization::SpeakerLabel;
+
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct MeetingModel {
     pub id: String,
@@ -51,6 +53,7 @@ pub struct Transcript {
     pub audio_start_time: Option<f64>,
     pub audio_end_time: Option<f64>,
     pub duration: Option<f64>,
+    pub speaker: Option<SpeakerLabel>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]

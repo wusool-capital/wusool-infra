@@ -44,6 +44,10 @@ ddl_commands/
   tests/
 ```
 
+`__init__.py` exports one read-only lookup for other modules: `list_live_person_emails`,
+which returns a `PersonEmails` (id, emails, organization) for each live Person. `interactions`
+uses it to match mail to People. This module writes the `person` mirror, so the read lives here.
+
 Organization persistence (search, CRUD) lives in the `app.modules.organizations`
 peer module, shared with `matching_engine`. Attio's vendor client, webhook
 types, and value-extraction helpers live in the `app.modules.attio` peer

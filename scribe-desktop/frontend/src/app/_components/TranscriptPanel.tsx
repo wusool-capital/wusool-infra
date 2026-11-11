@@ -11,7 +11,9 @@ import { usePermissionCheck } from '@/hooks/usePermissionCheck';
 import { ModalType } from '@/hooks/useModalState';
 import { useIsLinux } from '@/hooks/usePlatform';
 import { useMemo } from 'react';
+import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import Link from 'next/link';
 
 /**
  * TranscriptPanel Component
@@ -34,10 +36,17 @@ export function TranscriptPanel({
 }: TranscriptPanelProps) {
   // Contexts
   const { transcripts, transcriptContainerRef, copyTranscript } = useTranscripts();
-  const { transcriptModelConfig } = useConfig();
+  const { transcriptModelConfig, selectedDevices } = useConfig();
   const { isRecording, isPaused } = useRecordingState();
   const { checkPermissions, isChecking, hasSystemAudio, hasMicrophone } = usePermissionCheck();
   const isLinux = useIsLinux();
+  // Live transcripts only know "me" vs "others"; voices are separated after the meeting is saved.
+  const speakers = useMeetingSpeakers();
+
+  const showLanguage = transcriptModelConfig.provider === 'localWhisper';
+  // The toolbar row only exists when it has a button, so it never leaves an empty band.
+  const hasToolbar = transcripts.length > 0 || showLanguage;
+  const isIdle = !isRecording && transcripts.length === 0;
 
   // Convert transcripts to segments for virtualized view
   const segments = useMemo(() =>
@@ -47,6 +56,7 @@ export function TranscriptPanel({
       endTime: t.audio_end_time,
       text: t.text,
       confidence: t.confidence,
+      speaker: t.speaker,
     })),
     [transcripts]
   );
@@ -59,51 +69,35 @@ export function TranscriptPanel({
       viewportRef={transcriptContainerRef}
       className="w-full h-full border-r border-border bg-background min-h-0 [&>div>div]:!block"
     >
-      {/* Title area - Sticky header */}
-      <div className="sticky top-0 z-10 bg-background p-4 border-border">
-        <div className="flex flex-col space-y-3">
-          <div className="flex  flex-col space-y-2">
-            <div className="flex justify-center  items-center space-x-2">
-              <ButtonGroup>
-                {transcripts?.length > 0 && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={copyTranscript}
-                      >
-                        <Copy />
-                        <span className='hidden md:inline'>
-                          Copy
-                        </span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Copy transcript</TooltipContent>
-                  </Tooltip>
-                )}
-                {transcriptModelConfig.provider === "localWhisper" &&
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => showModal('languageSettings')}
-                      >
-                        <GlobeIcon />
-                        <span className='hidden md:inline'>
-                          Language
-                        </span>
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Language</TooltipContent>
-                  </Tooltip>
-                }
-              </ButtonGroup>
-            </div>
-          </div>
+      {hasToolbar ? (
+        <div className="sticky top-0 z-10 flex justify-center bg-background p-4">
+          <ButtonGroup>
+            {transcripts.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={copyTranscript} aria-label="Copy Transcript">
+                    <Copy />
+                    <span className="hidden md:inline">Copy</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Copy Transcript</TooltipContent>
+              </Tooltip>
+            )}
+            {showLanguage && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="outline" size="sm" onClick={() => showModal('languageSettings')} aria-label="Language">
+                    <GlobeIcon />
+                    <span className="hidden md:inline">Language</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Language</TooltipContent>
+              </Tooltip>
+            )}
+          </ButtonGroup>
         </div>
-      </div>
+      ) : null}
+      {!isIdle && <h1 className="sr-only">Live Transcript</h1>}
 
       {/* Permission Warning - Not needed on Linux */}
       {!isRecording && !isChecking && !isLinux && (
@@ -129,6 +123,35 @@ export function TranscriptPanel({
               isStopping={isStopping}
               enableStreaming={isRecording}
               showConfidence={true}
+              speakers={speakers}
+              emptyState={
+                <section className="mx-auto mt-16 max-w-md space-y-6">
+                  <div>
+                    <h1 className="text-2xl font-semibold text-foreground">Record a Meeting</h1>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Scribe transcribes on this Mac as people speak. Your lines carry your name, and other voices are
+                      separated when you stop.
+                    </p>
+                  </div>
+                  <dl className="divide-y divide-border rounded-lg border border-border bg-card text-sm">
+                    <div className="flex items-center justify-between gap-4 px-4 py-3">
+                      <dt className="text-muted-foreground">Microphone</dt>
+                      <dd className="min-w-0 truncate text-foreground">{selectedDevices.micDevice ?? 'System default'}</dd>
+                    </div>
+                    <div className="flex items-center justify-between gap-4 px-4 py-3">
+                      <dt className="text-muted-foreground">System Audio</dt>
+                      <dd className="min-w-0 truncate text-foreground">{selectedDevices.systemDevice ?? 'System default'}</dd>
+                    </div>
+                  </dl>
+                  <p className="text-sm text-muted-foreground">
+                    Change these in{' '}
+                    <Link href="/settings?tab=recording" className="text-foreground underline underline-offset-4">
+                      Recording Settings
+                    </Link>
+                    .
+                  </p>
+                </section>
+              }
             />
           </div>
         </div>

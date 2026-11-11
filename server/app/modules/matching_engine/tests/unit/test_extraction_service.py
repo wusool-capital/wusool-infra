@@ -293,7 +293,6 @@ async def test_prompt_includes_labeled_meeting_notes_section_when_present() -> N
                 occurred_at=datetime(2026, 8, 1, tzinfo=UTC),
                 title="Mandate call",
                 summary="Looking for platform plays in special education centers.",
-                truncated=False,
             )
         ],
     )

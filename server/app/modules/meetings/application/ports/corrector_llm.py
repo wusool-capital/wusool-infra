@@ -4,7 +4,7 @@ return already-validated domain objects, so no raw JSON crosses this Port.
 
 from typing import Protocol
 
-from app.modules.meetings.domain.corrections import CorrectionSuggestion
+from app.modules.meetings.domain.corrections import CorrectionEdit
 
 
 class CorrectorLLM(Protocol):
@@ -16,4 +16,4 @@ class CorrectorLLM(Protocol):
         system_prompt: str,
         max_tokens: int,
         temperature: float,
-    ) -> list[CorrectionSuggestion]: ...
+    ) -> list[CorrectionEdit]: ...

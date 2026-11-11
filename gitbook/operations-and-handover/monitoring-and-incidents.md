@@ -60,7 +60,8 @@ check: its database is a hand-seeded sandbox.
    resolution and follow-up owner.
 
 Use the matching runbook in `docs/runbooks/`: Toolkit outage,
-Attio sync failure, database and migration failure, or deployment failure.
+Attio sync failure, database and migration failure, deployment failure, or
+Google access for the interactions engine.
 After resolving an incident, write a postmortem following
 `docs/postmortems/README.md`.
 

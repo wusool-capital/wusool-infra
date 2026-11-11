@@ -216,14 +216,9 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
     };
 
     // Always ensure a meeting name is set so incremental saver initializes
-    let effective_meeting_name = meeting_name.clone().unwrap_or_else(|| {
-        // Example: Meeting 2025-10-03_08-25-23
-        let now = chrono::Local::now();
-        format!(
-            "Meeting {}",
-            now.format("%Y-%m-%d_%H-%M-%S")
-        )
-    });
+    let effective_meeting_name = meeting_name
+        .clone()
+        .unwrap_or_else(|| crate::meeting_title::default_meeting_title(&chrono::Local::now()));
     manager.set_meeting_name(Some(effective_meeting_name));
 
     // Set up error callback
@@ -275,6 +270,7 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
                     display_time: update.timestamp.clone(), // Use wall-clock timestamp for display
                     confidence: update.confidence,
                     sequence_id: update.sequence_id,
+                    speaker: Some(update.speaker),
                 };
 
                 // Save to recording manager
@@ -388,13 +384,9 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
     };
 
     // Always ensure a meeting name is set so incremental saver initializes
-    let effective_meeting_name = meeting_name.clone().unwrap_or_else(|| {
-        let now = chrono::Local::now();
-        format!(
-            "Meeting {}",
-            now.format("%Y-%m-%d_%H-%M-%S")
-        )
-    });
+    let effective_meeting_name = meeting_name
+        .clone()
+        .unwrap_or_else(|| crate::meeting_title::default_meeting_title(&chrono::Local::now()));
     manager.set_meeting_name(Some(effective_meeting_name));
 
     // Set up error callback
@@ -446,6 +438,7 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
                     display_time: update.timestamp.clone(), // Use wall-clock timestamp for display
                     confidence: update.confidence,
                     sequence_id: update.sequence_id,
+                    speaker: Some(update.speaker),
                 };
 
                 // Save to recording manager
@@ -898,6 +891,11 @@ pub async fn stop_recording<R: Runtime>(
 
 /// Check if recording is active
 pub async fn is_recording() -> bool {
+    is_recording_now()
+}
+
+/// Same as `is_recording`, for threads that cannot await.
+pub fn is_recording_now() -> bool {
     IS_RECORDING.load(Ordering::SeqCst)
 }
 

@@ -1,99 +1,55 @@
-"""Real AWS Bedrock implementation of `ExtractionClient`, using the Converse
-API. Mirrors `matching_engine.providers.bedrock.client.BedrockConverseClient`'s
-validate -> repair-prompt retry -> fail-closed policy, narrowed to this
-module's single extraction operation.
+"""Real AWS Bedrock implementation of `ExtractionClient`, built on a
+Pydantic AI agent over the Converse API.
 
-The `converse` request shape, response parsing, and transient-error set are
-shared with every other Bedrock caller via `utilities.domain.bedrock`, and
-the entire retry-with-logging wrapper via
-`utilities.providers.bedrock.retry.invoke_bedrock_with_retry` — same as
-`lead_magnets`' own client (`matching_engine`'s still hand-rolls its own
-loop, predating that helper's extraction; new callers should use the shared
-one, not mirror the older pattern). This file owns only what's genuinely
-its own: the schema and prompt it hands to `invoke_validated`.
+The agent's `output_type` is a `ToolOutput` with no text output allowed, so
+Bedrock is forced to call the output tool, and the agent validates the
+result into `ExtractedFields`. A schema failure gets one retry with the
+error sent back to the model in the same conversation; a second failure
+raises `BedrockInvocationError`.
+
+Transient-error retries, metadata-only logging and content-free errors
+come from the shared `utilities.providers.bedrock.agent.run_bedrock_agent`.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from pydantic_ai import Agent
+from pydantic_ai.models.bedrock import BedrockModelSettings
 
-from app.modules.enrichment.application.ports.llm import RepairPromptBuilder
+from app.modules.enrichment.domain.proposals import ExtractedField
 from app.modules.enrichment.providers.bedrock.boto_client import get_bedrock_runtime_client
 from app.modules.enrichment.providers.bedrock.schemas import ExtractedFields
-from app.modules.utilities.domain.bedrock import converse_kwargs
-from app.modules.utilities.domain.json_types import JsonObject
-from app.modules.utilities.providers.bedrock.retry import (
-    invoke_bedrock_with_retry,
-    invoke_validated,
+from app.modules.utilities.providers.bedrock.agent import (
+    bedrock_model,
+    run_bedrock_agent,
+    structured_agent,
 )
 
-if TYPE_CHECKING:
-    from mypy_boto3_bedrock_runtime.type_defs import ConverseResponseTypeDef
-
 _OPERATION = "enrichment_extraction"
+# One repair round, matching the old validate-repair-retry policy.
+_OUTPUT_RETRIES = 1
 
 
 class BedrockConverseClient:
     def __init__(self) -> None:
         self._client = get_bedrock_runtime_client()
+        self.agent: Agent[None, ExtractedFields] = structured_agent(
+            ExtractedFields, name="extracted_fields", output_retries=_OUTPUT_RETRIES
+        )
 
     async def extract_fields(
         self,
         *,
         model_id: str,
         prompt: str,
-        repair_prompt_builder: RepairPromptBuilder,
         temperature: float,
         max_tokens: int,
-    ) -> JsonObject:
-        output_schema = ExtractedFields.model_json_schema()
-
-        async def invoke(text: str) -> JsonObject:
-            return await self._invoke(model_id, text, temperature, max_tokens, output_schema)
-
-        validated = await invoke_validated(
-            schema=ExtractedFields,
-            invoke=invoke,
-            prompt=prompt,
+    ) -> tuple[ExtractedField, ...]:
+        model = bedrock_model(model_id, self._client)
+        settings = BedrockModelSettings(max_tokens=max_tokens, temperature=temperature)
+        output = await run_bedrock_agent(
+            lambda: self.agent.run(prompt, model=model, model_settings=settings),
+            model_id=model_id,
             operation=_OPERATION,
-            repair_prompt=repair_prompt_builder,
         )
-        return validated.model_dump()
-
-    async def _invoke(
-        self,
-        model_id: str,
-        prompt: str,
-        temperature: float,
-        max_tokens: int,
-        output_schema: JsonObject,
-    ) -> JsonObject:
-        """Bounded exponential-backoff retry on transient AWS errors only —
-        a separate concern from the validate-repair-retry policy above,
-        which retries on a *schema* failure with a different prompt.
-        """
-
-        def converse() -> ConverseResponseTypeDef:
-            return self._converse(model_id, prompt, temperature, max_tokens, output_schema)
-
-        return await invoke_bedrock_with_retry(
-            converse=converse, model_id=model_id, operation=_OPERATION
-        )
-
-    def _converse(
-        self,
-        model_id: str,
-        prompt: str,
-        temperature: float,
-        max_tokens: int,
-        output_schema: JsonObject,
-    ) -> ConverseResponseTypeDef:
-        return self._client.converse(
-            **converse_kwargs(
-                model_id=model_id,
-                prompt=prompt,
-                output_schema=output_schema,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-        )
+        return output.to_domain()

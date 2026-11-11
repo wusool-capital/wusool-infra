@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Analytics from "@/lib/analytics";
 import { invoke } from "@tauri-apps/api/core";
 import { LoaderIcon } from "lucide-react";
-import { useConfig } from "@/contexts/ConfigContext";
 import { usePaginatedTranscripts } from "@/hooks/usePaginatedTranscripts";
 
 interface MeetingDetailsResponse {
@@ -26,14 +25,11 @@ function MeetingDetailsContent() {
   const meetingId = searchParams.get('id');
   const source = searchParams.get('source'); // Check if navigated from recording
   const { setCurrentMeeting, refetchMeetings, stopSummaryPolling } = useSidebar();
-  const { isAutoSummary } = useConfig(); // Get auto-summary toggle state
   const router = useRouter();
   const [meetingDetails, setMeetingDetails] = useState<MeetingDetailsResponse | null>(null);
   const [meetingSummary, setMeetingSummary] = useState<Summary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [shouldAutoGenerate, setShouldAutoGenerate] = useState<boolean>(false);
-  const [hasCheckedAutoGen, setHasCheckedAutoGen] = useState<boolean>(false);
 
   // Use pagination hook for efficient transcript loading
   const {
@@ -48,29 +44,9 @@ function MeetingDetailsContent() {
     loadMore,
     refetch,
     reloadLoaded,
+    reloadMetadata,
     error: transcriptError,
   } = usePaginatedTranscripts({ meetingId: meetingId || '' });
-
-  // Check if gemma3:1b model is available in Ollama
-  const checkForGemmaModel = useCallback(async (): Promise<boolean> => {
-    try {
-      const models = await invoke('get_ollama_models', { endpoint: null }) as any[];
-      const hasGemma = models.some((m: any) => m.name === 'gemma3:1b');
-      console.log('🔍 Checked for gemma3:1b:', hasGemma);
-      return hasGemma;
-    } catch (error) {
-      console.error('❌ Failed to check Ollama models:', error);
-      return false;
-    }
-  }, []);
-
-  // Local summary generation is disabled entirely (summaries now come
-  // from Scribe after a push -- see PushMeetingButton), so this never
-  // sets shouldAutoGenerate; kept as a no-op rather than removed to
-  // avoid touching the surrounding recording-navigation plumbing.
-  const setupAutoGeneration = useCallback(async () => {
-    setHasCheckedAutoGen(true);
-  }, []);
 
   // Sync meeting metadata from pagination hook to meeting details state
   useEffect(() => {
@@ -113,10 +89,9 @@ function MeetingDetailsContent() {
       return;
     }
 
-    // The usePaginatedTranscripts hook automatically refetches when meetingId changes
-    // This function is kept for compatibility with onMeetingUpdated callback
-    console.log('fetchMeetingDetails called - pagination hook will handle refetch');
-  }, [meetingId]);
+    // Title, tag and pushed_at change after a push; the transcript itself doesn't.
+    await reloadMetadata();
+  }, [meetingId, reloadMetadata]);
 
   // Reset states when meetingId changes (prevent race conditions)
   useEffect(() => {
@@ -124,9 +99,6 @@ function MeetingDetailsContent() {
     setMeetingSummary(null);
     setError(null);
     setIsLoading(true);
-    // Reset auto-generation state to allow new meeting to be checked
-    setHasCheckedAutoGen(false);
-    setShouldAutoGenerate(false);
   }, [meetingId]);
 
   // Cleanup: Stop polling when navigating away from a meeting
@@ -270,29 +242,6 @@ function MeetingDetailsContent() {
     loadData();
   }, [meetingId]);
 
-  // Auto-generation check: runs when meeting is loaded with no summary
-  useEffect(() => {
-    const checkAutoGen = async () => {
-      // Only auto-generate if:
-      // 1. We have meeting details
-      // 2. No summary exists
-      // 3. Meeting has transcripts
-      // 4. Haven't checked yet
-      if (
-        meetingDetails &&
-        meetingSummary === null &&
-        meetingDetails.transcripts &&
-        meetingDetails.transcripts.length > 0 &&
-        !hasCheckedAutoGen
-      ) {
-        console.log('No summary found, checking for auto-generation...');
-        await setupAutoGeneration();
-      }
-    };
-
-    checkAutoGen();
-  }, [meetingDetails, meetingSummary, hasCheckedAutoGen, setupAutoGeneration]);
-
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -319,8 +268,6 @@ function MeetingDetailsContent() {
   return <PageContent
     meeting={meetingDetails}
     summaryData={meetingSummary}
-    shouldAutoGenerate={shouldAutoGenerate}
-    onAutoGenerateComplete={() => setShouldAutoGenerate(false)}
     onMeetingUpdated={async () => {
       // Refetch meeting details to get updated title from backend
       await fetchMeetingDetails();

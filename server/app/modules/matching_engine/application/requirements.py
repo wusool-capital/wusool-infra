@@ -7,10 +7,10 @@ them from prose — `human_confirmed: true` only applies to what's actually in
 (`source: advisor_context`). Never treats LLM-extracted values as
 CRM-verified — every requirement carries provenance.
 
-The Bedrock Port owns the validate-repair-retry-then-fail-closed policy
-(`application/ports/llm.py`) — this service only builds the prompt/repair
-prompt (business-content-aware) and converts the already-validated result
-dict into the domain `RequirementProfile`. No `pydantic` import here: the
+The Bedrock Port owns the validate-retry-then-fail-closed policy
+(`application/ports/llm.py`) — this service only builds the prompt
+(business-content-aware) and converts the already-validated
+`ExtractedRequirements` into the domain `RequirementProfile`. No `pydantic` import here: the
 vendor-response schema (`providers/bedrock/schemas.py`) never crosses this
 boundary.
 """
@@ -23,6 +23,7 @@ from app.modules.lead_magnets.domain.shared.sector_options import SECTOR_FOCUS_O
 from app.modules.matching_engine.application.errors import RequirementExtractionError
 from app.modules.matching_engine.application.ports.llm import (
     BedrockClient,
+    ExtractedRequirements,
     InferenceConfig,
 )
 from app.modules.matching_engine.domain.buyers import BuyerContext
@@ -41,8 +42,6 @@ from app.modules.matching_engine.domain.requirements import (
     RequirementSource,
     SoftPreference,
 )
-from app.modules.utilities.domain.json_types import JsonObject
-from app.modules.utilities.domain.money import parse_usd_amount
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
 logger = logging.getLogger(__name__)
@@ -67,21 +66,21 @@ _SELLER_VALUES = "; ".join(
 _AI_ALIASES = ("artificial intelligence", "machine learning", "genai", "llm")
 
 
-def _checked_value(item: JsonObject) -> str | None:
+def _checked_value(item: HardRequirement | SoftPreference) -> str | None:
     """Sectors from advisor/LLM and seller-field values must be real CRM options."""
-    value = item["value"]
+    value = item.value
     if value is None:
         return value
-    seller_options = _SELLER_OPTIONS_BY_LOWER.get(canonical_criterion(item["criterion"]) or "")
+    seller_options = _SELLER_OPTIONS_BY_LOWER.get(canonical_criterion(item.criterion) or "")
     if seller_options is not None:
         return seller_options.get(value.strip().lower())
-    if item["source"] == "crm_field" or not is_sector_criterion(item["criterion"]):
+    if item.source == "crm_field" or not is_sector_criterion(item.criterion):
         return value
     return _SECTOR_BY_LOWER.get(value.strip().lower())
 
 
-def _is_dropped(item: JsonObject) -> bool:
-    return item["value"] is not None and _checked_value(item) is None
+def _is_dropped(item: HardRequirement | SoftPreference) -> bool:
+    return item.value is not None and _checked_value(item) is None
 
 
 def _tokens(value: str) -> list[str]:
@@ -142,16 +141,16 @@ _TICKET_WORDS = re.compile(r"\b(tickets?|che(?:que|ck)s?|investment size)\b", re
 _EV_WORDS = re.compile(r"\b(ev|enterprise value|valuation|valued)\b", re.IGNORECASE)
 
 
-def _advisor_limits(extracted: JsonObject, advisor_context: str | None) -> AdvisorLimits:
+def _advisor_limits(extracted: ExtractedRequirements, advisor_context: str | None) -> AdvisorLimits:
     if not advisor_context:
         return AdvisorLimits()
-    limits = extracted.get("advisor_limits") or {}
+    limits = extracted.advisor_limits
     names_ticket = _TICKET_WORDS.search(advisor_context) is not None
     names_ev = _EV_WORDS.search(advisor_context) is not None
     return AdvisorLimits(
-        ticket_min=parse_usd_amount(limits.get("ticket_min")) if names_ticket else None,
-        ticket_max=parse_usd_amount(limits.get("ticket_max")) if names_ticket else None,
-        ev_ceiling=parse_usd_amount(limits.get("ev_ceiling")) if names_ev else None,
+        ticket_min=limits.ticket_min if names_ticket else None,
+        ticket_max=limits.ticket_max if names_ticket else None,
+        ev_ceiling=limits.ev_ceiling if names_ev else None,
     )
 
 
@@ -162,7 +161,7 @@ class BuyerRequirementExtractionService:
         *,
         model_id: str,
         inference_config: InferenceConfig,
-        meeting_notes_char_budget: int = 12000,
+        meeting_notes_char_budget: int = 24000,
     ) -> None:
         self._client = bedrock_client
         self._model_id = model_id
@@ -176,9 +175,6 @@ class BuyerRequirementExtractionService:
             extracted = await self._client.extract_requirements(
                 model_id=self._model_id,
                 prompt=self._build_prompt(buyer, advisor_context),
-                repair_prompt_builder=lambda invalid_raw, error: self._build_repair_prompt(
-                    buyer, advisor_context, invalid_raw, error
-                ),
                 inference_config=self._inference_config,
             )
         except BedrockInvocationError as exc:
@@ -400,24 +396,9 @@ class BuyerRequirementExtractionService:
             f"{advisor_context_block}"
         )
 
-    def _build_repair_prompt(
-        self,
-        buyer: BuyerContext,
-        advisor_context: str | None,
-        invalid_raw: JsonObject,
-        error: str | None,
-    ) -> str:
-        return (
-            f"{self._build_prompt(buyer, advisor_context)}\n\n"
-            f"Your previous response was: {invalid_raw}\n"
-            f"It failed schema validation with this specific error: {error}\n"
-            "Return only corrected, valid JSON that fixes exactly that problem — "
-            "no prose, no markdown fences."
-        )
-
     @staticmethod
     def _to_domain(
-        extracted: JsonObject,
+        extracted: ExtractedRequirements,
         version: int,
         model_id: str,
         *,
@@ -426,29 +407,29 @@ class BuyerRequirementExtractionService:
     ) -> RequirementProfile:
         has_advisor_context = bool(advisor_context)
 
-        def source_of(item: JsonObject) -> RequirementSource:
+        def source_of(item: HardRequirement | SoftPreference) -> RequirementSource:
             # Without typed context nothing can honestly be advisor-sourced; a
             # model claiming so would otherwise gain elimination power.
-            if item["source"] == "advisor_context" and not has_advisor_context:
+            if item.source == "advisor_context" and not has_advisor_context:
                 return "llm_extracted"
-            return item["source"]
+            return item.source
 
-        raw_items = [*extracted["hard_requirements"], *extracted["soft_preferences"]]
+        raw_items = [*extracted.hard_requirements, *extracted.soft_preferences]
         for item in raw_items:
             if _is_dropped(item):
-                logger.warning("extraction_sector_not_in_vocabulary value=%s", item["value"])
+                logger.warning("extraction_sector_not_in_vocabulary value=%s", item.value)
         # The model fills the phrase from CRM sectors when the advisor named only
         # a place or quality. A dropped advisor sector still counts: it is unmappable.
         named_business_type = any(
-            is_sector_criterion(i["criterion"])
-            and i["value"] is not None
+            is_sector_criterion(i.criterion)
+            and i.value is not None
             and source_of(i) == "advisor_context"
             for i in raw_items
         )
         places = [
-            h["value"]
-            for h in extracted["hard_requirements"]
-            if canonical_criterion(h["criterion"]) == "geography" and h["value"]
+            h.value
+            for h in extracted.hard_requirements
+            if canonical_criterion(h.criterion) == "geography" and h.value
         ]
         # Words of a stored sector the advisor never mentioned leak into the phrase too.
         stray = [
@@ -458,7 +439,7 @@ class BuyerRequirementExtractionService:
             for t in _tokens(v)
         ]
         search_phrase = (
-            _without_places(extracted.get("search_phrase"), [*places, *stray])
+            _without_places(extracted.search_phrase, [*places, *stray])
             if named_business_type
             else None
         )
@@ -466,30 +447,30 @@ class BuyerRequirementExtractionService:
         hard, soft = _demote_modifier_sectors(
             [
                 HardRequirement(
-                    criterion=h["criterion"],
+                    criterion=h.criterion,
                     value=_checked_value(h),
                     source=source_of(h),
-                    confidence=h["confidence"],
-                    human_confirmed=h["human_confirmed"] and source_of(h) == h["source"],
+                    confidence=h.confidence,
+                    human_confirmed=h.human_confirmed and source_of(h) == h.source,
                 )
-                for h in extracted["hard_requirements"]
+                for h in extracted.hard_requirements
                 if not _is_dropped(h)
             ],
             [
                 SoftPreference(
-                    criterion=s["criterion"],
+                    criterion=s.criterion,
                     value=_checked_value(s),
-                    weight=s["weight"],
+                    weight=s.weight,
                     source=source_of(s),
-                    confidence=s["confidence"],
+                    confidence=s.confidence,
                 )
-                for s in extracted["soft_preferences"]
+                for s in extracted.soft_preferences
                 if not _is_dropped(s)
                 # The model copies the stored vertical into soft rows the advisor never named.
                 and not (
-                    is_sector_criterion(s["criterion"])
-                    and (s["value"] or "").lower() in stored_sectors
-                    and not _is_grounded(s["value"], advisor_context or "")
+                    is_sector_criterion(s.criterion)
+                    and (s.value or "").lower() in stored_sectors
+                    and not _is_grounded(s.value or "", advisor_context or "")
                 )
             ],
             search_phrase or advisor_context,
@@ -497,10 +478,10 @@ class BuyerRequirementExtractionService:
         profile = RequirementProfile(
             hard_requirements=hard,
             soft_preferences=soft,
-            strategic_thesis=extracted["strategic_thesis"],
-            ideal_target_description=extracted["ideal_target_description"],
-            scoring_rubric=extracted["scoring_rubric"],
-            data_confidence=extracted["data_confidence"],
+            strategic_thesis=extracted.strategic_thesis,
+            ideal_target_description=extracted.ideal_target_description,
+            scoring_rubric=extracted.scoring_rubric,
+            data_confidence=extracted.data_confidence,
             generated_by_model=model_id,
             version=version,
             advisor_limits=_advisor_limits(extracted, advisor_context),

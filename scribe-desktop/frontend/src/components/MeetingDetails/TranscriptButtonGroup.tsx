@@ -3,13 +3,17 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { ButtonGroup } from '@/components/ui/button-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2 } from 'lucide-react';
+import { Copy, FolderOpen, Redo2, RefreshCw, Sparkles, Undo2, Wand2, WrapText } from 'lucide-react';
 import Analytics from '@/lib/analytics';
 import { RetranscribeDialog } from './RetranscribeDialog';
 import { useConfig } from '@/contexts/ConfigContext';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
 import { TranscriptFindReplace } from './TranscriptFindReplace';
+import { Spinner } from '@/components/ui/spinner';
+
+// One rule for every secondary button: icon only below lg, icon and label from lg up.
+// Hidden by the toolbar's own width (globals.css), not the window's: a wide sidebar narrows it too.
+const LABEL = 'toolbar-label';
 
 
 interface TranscriptButtonGroupProps {
@@ -46,106 +50,128 @@ export function TranscriptButtonGroup({
   }, [onRefetchTranscripts]);
 
   return (
-    <div className="flex items-center justify-between w-full gap-2">
-      <ButtonGroup>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            Analytics.trackButtonClick('copy_transcript', 'meeting_details');
-            onCopyTranscript();
-          }}
-          disabled={transcriptCount === 0}
-          title={transcriptCount === 0 ? 'No transcript available' : 'Copy Transcript'}
-        >
-          <Copy />
-          <span className="hidden lg:inline">Copy</span>
-        </Button>
+    <div className="toolbar flex w-full items-center justify-between gap-3">
+      {/* Editing tools sit on the left, next to the text they change. */}
+      <div className="flex items-center gap-2">
+        {editor && (
+          <>
+            <ButtonGroup>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!editor.canUndo}
+                onClick={() => void editor.undo()}
+                aria-label="Undo"
+                title="Undo (⌘Z)"
+              >
+                <Undo2 />
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!editor.canRedo}
+                onClick={() => void editor.redo()}
+                aria-label="Redo"
+                title="Redo (⌘⇧Z)"
+              >
+                <Redo2 />
+              </Button>
+            </ButtonGroup>
+            <TranscriptFindReplace editor={editor} />
+            <Button
+              size="sm"
+              variant="outline"
+              aria-label="Tidy Lines"
+              title="Join short fragments into full sentences"
+              onClick={() => {
+                Analytics.trackButtonClick('tidy_transcript', 'meeting_details');
+                void editor.tidyLines();
+              }}
+            >
+              <WrapText />
+              <span className={LABEL}>Tidy Lines</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={editor.isSuggesting}
+              aria-busy={editor.isSuggesting}
+              aria-label={editor.isSuggesting ? 'Proofreading…' : 'Proofread'}
+              title="Suggest fixes for misheard words"
+              onClick={() => {
+                Analytics.trackButtonClick('proofread_transcript', 'meeting_details');
+                void editor.requestSuggestions();
+              }}
+            >
+              {editor.isSuggesting ? <Spinner /> : <Wand2 />}
+              <span className={LABEL}>{editor.isSuggesting ? 'Proofreading…' : 'Proofread'}</span>
+            </Button>
+          </>
+        )}
+      </div>
 
-        <Button
-          size="sm"
-          variant="outline"
-          className="xl:px-4"
-          onClick={() => {
-            Analytics.trackButtonClick('open_recording_folder', 'meeting_details');
-            onOpenMeetingFolder();
-          }}
-          title="Open Recording Folder"
-        >
-          <FolderOpen className="xl:mr-2" size={18} />
-          <span className="hidden lg:inline">Recording</span>
-        </Button>
-
-        {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
+      <div className="flex items-center gap-2">
+        <ButtonGroup>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              Analytics.trackButtonClick('copy_transcript', 'meeting_details');
+              onCopyTranscript();
+            }}
+            disabled={transcriptCount === 0}
+            aria-label="Copy Transcript"
+            title={transcriptCount === 0 ? 'No transcript to copy' : 'Copy Transcript'}
+          >
+            <Copy />
+            <span className={LABEL}>Copy</span>
+          </Button>
           <Button
             size="sm"
             variant="outline"
-            className="bg-gradient-to-r from-primary/10 to-purple-50 dark:to-purple-950 hover:from-primary/15 hover:to-purple-100 dark:hover:to-purple-900 border-primary/30 text-foreground xl:px-4"
             onClick={() => {
-              Analytics.trackButtonClick('enhance_transcript', 'meeting_details');
-              setShowRetranscribeDialog(true);
+              Analytics.trackButtonClick('open_recording_folder', 'meeting_details');
+              onOpenMeetingFolder();
             }}
-            title="Retranscribe to enhance your recorded audio"
+            aria-label="Open Folder"
+            title="Open the meeting's folder"
           >
-            <RefreshCw className="xl:mr-2" size={18} />
-            <span className="hidden lg:inline">Enhance</span>
+            <FolderOpen />
+            <span className={LABEL}>Open Folder</span>
+          </Button>
+          {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                Analytics.trackButtonClick('enhance_transcript', 'meeting_details');
+                setShowRetranscribeDialog(true);
+              }}
+              aria-label="Enhance"
+              title="Re-transcribe the recording with another model or language"
+            >
+              <RefreshCw />
+              <span className={LABEL}>Enhance</span>
+            </Button>
+          )}
+        </ButtonGroup>
+
+        {onSummarize && (
+          // The screen's one primary action keeps its label at every width.
+          <Button
+            size="sm"
+            onClick={() => {
+              Analytics.trackButtonClick('open_summarize_dialog', 'meeting_details');
+              onSummarize();
+            }}
+            disabled={transcriptCount === 0}
+            title={transcriptCount === 0 ? 'No transcript to summarize' : 'Summarize meeting'}
+          >
+            <Sparkles />
+            Summarize
           </Button>
         )}
-      </ButtonGroup>
-
-      {editor && (
-        <div className="flex items-center gap-2">
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!editor.canUndo}
-              onClick={() => void editor.undo()}
-              title="Undo (Cmd+Z)"
-            >
-              <Undo2 size={16} />
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!editor.canRedo}
-              onClick={() => void editor.redo()}
-              title="Redo (Cmd+Shift+Z)"
-            >
-              <Redo2 size={16} />
-            </Button>
-          </ButtonGroup>
-          <TranscriptFindReplace editor={editor} />
-          {/* Shipped disabled until suggestion quality is validated on real transcripts. */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* A disabled button gets no hover events, so the tooltip hangs off this wrapper. */}
-              <span tabIndex={0} className="inline-flex cursor-not-allowed">
-                <Button size="sm" variant="outline" disabled className="[&_svg]:size-5">
-                  <Wand2 />
-                  Proofread
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
-
-      {onSummarize && (
-        <Button
-          size="sm"
-          onClick={() => {
-            Analytics.trackButtonClick('open_summarize_dialog', 'meeting_details');
-            onSummarize();
-          }}
-          disabled={transcriptCount === 0}
-          title={transcriptCount === 0 ? 'No transcript available' : 'Summarize meeting'}
-        >
-          <Sparkles size={16} />
-          <span className="hidden lg:inline">Summarize</span>
-        </Button>
-      )}
+      </div>
 
       {betaFeatures.importAndRetranscribe && meetingId && meetingFolderPath && (
         <RetranscribeDialog

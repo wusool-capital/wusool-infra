@@ -44,7 +44,7 @@ def _service(
 ) -> EnrichmentService:
     return EnrichmentService(
         research_client=FakeResearchClient(),
-        extraction_client=FakeExtractionClient({}),
+        extraction_client=FakeExtractionClient(),
         role_reader=FakeRoleReader(linkedin_targets=targets),
         review_port=FakeReviewPort(),
         model_id="test-model",
@@ -158,7 +158,7 @@ async def test_propose_passes_company_linkedin_url_but_propose_basic_does_not(
     fake = FakeCompanyDataClient()
     service = EnrichmentService(
         research_client=None,
-        extraction_client=FakeExtractionClient({}),
+        extraction_client=FakeExtractionClient(),
         role_reader=FakeRoleReader(
             context=CompanyContext(org_name="Acme Co", linkedin=_COMPANY_URL)
         ),
@@ -262,7 +262,7 @@ def _org_service(
     )
     service = EnrichmentService(
         research_client=FakeResearchClient(),
-        extraction_client=FakeExtractionClient({}),
+        extraction_client=FakeExtractionClient(),
         role_reader=reader,
         review_port=FakeReviewPort(),
         model_id="test-model",
@@ -447,7 +447,7 @@ async def test_a_database_error_loading_targets_is_a_failed_scan(
     history = FakeLinkedInHistoryStore()
     service = EnrichmentService(
         research_client=FakeResearchClient(),
-        extraction_client=FakeExtractionClient({}),
+        extraction_client=FakeExtractionClient(),
         role_reader=_BrokenReader(),
         review_port=FakeReviewPort(),
         model_id="test-model",

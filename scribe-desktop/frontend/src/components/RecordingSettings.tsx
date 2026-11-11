@@ -6,6 +6,9 @@ import { invoke } from '@tauri-apps/api/core';
 import { DeviceSelection, SelectedDevices } from '@/components/DeviceSelection';
 import Analytics from '@/lib/analytics';
 import { toast } from 'sonner';
+import { Button } from '@/components/ui/button';
+import { SettingsRow, SettingsSection } from '@/components/settings/SettingsSection';
+import { useConfig } from '@/contexts/ConfigContext';
 
 export interface RecordingPreferences {
   save_folder: string;
@@ -21,6 +24,7 @@ interface RecordingSettingsProps {
 }
 
 export function RecordingSettings({ onSave }: RecordingSettingsProps) {
+  const { setSelectedDevices } = useConfig();
   const [preferences, setPreferences] = useState<RecordingPreferences>({
     save_folder: '',
     auto_save: true,
@@ -173,6 +177,8 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
     try {
       await invoke('set_recording_preferences', { preferences: prefs });
       onSave?.(prefs);
+      // The app-wide selection drives the home screen and the next recording, so it follows the saved choice.
+      setSelectedDevices({ micDevice: prefs.preferred_mic_device, systemDevice: prefs.preferred_system_device });
 
       // Show success toast with device details
       const micDevice = prefs.preferred_mic_device || 'Default';
@@ -200,129 +206,96 @@ export function RecordingSettings({ onSave }: RecordingSettingsProps) {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Recording Settings</h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          Configure how your audio recordings are saved during meetings.
-        </p>
-      </div>
-
-      {/* Auto Save Toggle */}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div className="flex-1">
-          <div className="font-medium">Save Audio Recordings</div>
-          <div className="text-sm text-muted-foreground">
-            Automatically save audio files when recording stops
-          </div>
-        </div>
-        <Switch
-          checked={preferences.auto_save}
-          onCheckedChange={handleAutoSaveToggle}
-          disabled={saving}
-        />
-      </div>
-
-      {/* Folder Location - Only shown when auto_save is enabled */}
-      {preferences.auto_save && (
-        <div className="space-y-4">
-          <div className="p-4 border rounded-lg bg-muted">
-            <div className="font-medium mb-2">Save Location</div>
-            <div className="text-sm text-muted-foreground mb-3 break-all">
-              {preferences.save_folder || 'Default folder'}
-            </div>
-            <button
-              onClick={handleOpenFolder}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-accent/60 transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Open Folder
-            </button>
-          </div>
-
-          <div className="p-4 border rounded-lg bg-primary/10">
-            <div className="text-sm text-primary">
-              <strong>File Format:</strong> {preferences.file_format.toUpperCase()} files
-            </div>
-            <div className="text-xs text-primary mt-1">
-              Recordings are saved with timestamp: recording_YYYYMMDD_HHMMSS.{preferences.file_format}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Info when auto_save is disabled */}
-      {!preferences.auto_save && (
-        <div className="p-4 border rounded-lg bg-warning/10">
-          <div className="text-sm text-warning">
-            Audio recording is disabled. Enable "Save Audio Recordings" to automatically save your meeting audio.
-          </div>
-        </div>
-      )}
-
-      {/* Recording Notification Toggle */}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div className="flex-1">
-          <div className="font-medium">Recording Start Notification</div>
-          <div className="text-sm text-muted-foreground">
-            Show reminder to inform participants when recording starts
-          </div>
-        </div>
-        <Switch
-          checked={showRecordingNotification}
-          onCheckedChange={handleNotificationToggle}
-        />
-      </div>
-
-      {/* Auto-stop Toggle */}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div className="flex-1">
-          <div className="font-medium">Auto-stop When Meeting Ends</div>
-          <div className="text-sm text-muted-foreground">
-            Stop recording after a short countdown when your meeting app releases the microphone. When off, recording continues until you stop it from the tray menu or the app.
-          </div>
-        </div>
-        <Switch
-          checked={preferences.auto_stop_on_meeting_end}
-          onCheckedChange={handleAutoStopToggle}
-        />
-      </div>
-
-      {/* Open at login Toggle */}
-      <div className="flex items-center justify-between p-4 border rounded-lg">
-        <div className="flex-1">
-          <div className="font-medium">Open at Login</div>
-          <div className="text-sm text-muted-foreground">
-            Start Scribe in the background when you log in, so it is already running for your meetings. Find it in the menu bar.
-          </div>
-        </div>
-        <Switch
-          checked={openAtLogin ?? false}
-          disabled={openAtLogin === null}
-          onCheckedChange={handleOpenAtLoginToggle}
-        />
-      </div>
-
-      {/* Device Preferences */}
-      <div className="space-y-4">
-        <div className="border-t pt-6">
-          <h4 className="text-base font-medium text-foreground mb-4">Default Audio Devices</h4>
-          <p className="text-sm text-muted-foreground mb-4">
-            Set your preferred microphone and system audio devices for recording. These will be automatically selected when starting new recordings.
-          </p>
-
-          <div className="border rounded-lg p-4 bg-muted">
-            <DeviceSelection
-              selectedDevices={{
-                micDevice: preferences.preferred_mic_device,
-                systemDevice: preferences.preferred_system_device
-              }}
-              onDeviceChange={handleDeviceChange}
+    <div className="space-y-8">
+      <SettingsSection title="Recordings" description="How meetings are recorded and saved on this Mac.">
+        <SettingsRow
+          title="Save Audio Recordings"
+          description={
+            preferences.auto_save
+              ? "Keep each meeting's audio. Needed to separate speakers and to re-transcribe later."
+              : "Off: only the transcript is kept, and speakers are not separated."
+          }
+          control={
+            <Switch
+              aria-label="Save audio recordings"
+              checked={preferences.auto_save}
+              onCheckedChange={handleAutoSaveToggle}
               disabled={saving}
             />
-          </div>
+          }
+        />
+
+        {preferences.auto_save && (
+          <SettingsRow
+            title="Save Location"
+            description={
+              <>
+                <span className="break-all">{preferences.save_folder || 'Default folder'}</span>
+                <span className="block">Each meeting is saved in its own folder.</span>
+              </>
+            }
+            control={
+              <Button variant="outline" size="sm" onClick={handleOpenFolder}>
+                <FolderOpen className="w-4 h-4" />
+                Open Folder
+              </Button>
+            }
+          />
+        )}
+
+        <SettingsRow
+          title="Recording Start Notification"
+          description="Show a reminder to tell participants that the meeting is being recorded."
+          control={
+            <Switch
+              aria-label="Recording start notification"
+              checked={showRecordingNotification}
+              onCheckedChange={handleNotificationToggle}
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Auto-stop When Meeting Ends"
+          description="Stop recording after a short countdown when your meeting app releases the microphone. When off, recording continues until you stop it from the tray menu or the app."
+          control={
+            <Switch
+              aria-label="Auto-stop when meeting ends"
+              checked={preferences.auto_stop_on_meeting_end}
+              onCheckedChange={handleAutoStopToggle}
+            />
+          }
+        />
+
+        <SettingsRow
+          title="Open at Login"
+          description="Start Scribe in the background when you log in, so it is already running for your meetings. Find it in the menu bar."
+          control={
+            <Switch
+              aria-label="Open at login"
+              checked={openAtLogin ?? false}
+              disabled={openAtLogin === null}
+              onCheckedChange={handleOpenAtLoginToggle}
+            />
+          }
+        />
+      </SettingsSection>
+
+      <SettingsSection
+        title="Default Audio Devices"
+        description="Selected automatically when a new recording starts."
+      >
+        <div className="px-5 py-4">
+          <DeviceSelection
+            selectedDevices={{
+              micDevice: preferences.preferred_mic_device,
+              systemDevice: preferences.preferred_system_device
+            }}
+            onDeviceChange={handleDeviceChange}
+            disabled={saving}
+          />
         </div>
-      </div>
+      </SettingsSection>
     </div>
   );
 }

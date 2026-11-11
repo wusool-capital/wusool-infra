@@ -5,6 +5,7 @@
 use super::engine::TranscriptionEngine;
 use super::provider::TranscriptionError;
 use crate::audio::AudioChunk;
+use crate::diarization::SpeakerLabel;
 use log::{error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -28,6 +29,7 @@ pub struct TranscriptUpdate {
     pub text: String,
     pub timestamp: String, // Wall-clock time for reference (e.g., "14:30:05")
     pub source: String,
+    pub speaker: SpeakerLabel,
     pub sequence_id: u64,
     pub chunk_start_time: f64, // Legacy field, kept for compatibility
     pub is_partial: bool,
@@ -141,6 +143,7 @@ pub fn start_transcription_task<R: Runtime>(
                             }
 
                             let chunk_timestamp = chunk.timestamp;
+                            let speaker = SpeakerLabel::from_source(&chunk.device_type);
                             let chunk_duration = chunk.data.len() as f64 / chunk.sample_rate as f64;
 
                             // Transcribe with provider-agnostic approach
@@ -209,6 +212,7 @@ pub fn start_transcription_task<R: Runtime>(
                                             text: transcript,
                                             timestamp: format_current_timestamp(), // Wall-clock for reference
                                             source: "Audio".to_string(),
+                                            speaker,
                                             sequence_id,
                                             chunk_start_time: chunk_timestamp, // Legacy compatibility
                                             is_partial,

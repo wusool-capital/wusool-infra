@@ -30,7 +30,6 @@ Terms used across this guide, in plain words.
 | --- | --- |
 | **System audio** | The sound your Mac plays, such as the other people on a call. |
 | **Transcription model** | The speech-to-text engine Scribe downloads and runs on your Mac. |
-| **Summary provider** | The AI service that writes the summary. Ollama runs on your Mac; the others are online services. |
 | **Push** | Send a finished meeting to Attio as a note. |
 | **Scribe Push** | The Settings tab holding the server address and key your administrator gives you. |
 | **Install ID** | A code identifying your copy of Scribe. Support asks for it instead of your key. |

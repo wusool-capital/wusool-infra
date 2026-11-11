@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useRef, useReducer, startTransition, useEffect, useState, memo } from "react";
+import { useCallback, useRef, useReducer, startTransition, useEffect, useLayoutEffect, useState, memo } from "react";
+import { cn } from "@/lib/utils";
 import { Textarea } from "./ui/textarea";
 import { Spinner } from "./ui/spinner";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -8,9 +9,10 @@ import { useAutoScroll } from "@/hooks/useAutoScroll";
 import { useTranscriptStreaming } from "@/hooks/useTranscriptStreaming";
 import { ConfidenceIndicator } from "./ConfidenceIndicator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { RecordingStatusBar } from "./RecordingStatusBar";
-import { motion, AnimatePresence } from "framer-motion";
-import { TranscriptSegmentData } from "@/types";
+import { motion } from "framer-motion";
+import { SpeakerLabel, TranscriptSegmentData } from "@/types";
+import type { SpeakerNames } from "@/hooks/useMeetingSpeakers";
+import { SpeakerChip } from "./SpeakerChip";
 import { ScrollArea } from "./ui/scroll-area";
 import { Checkbox } from "./ui/checkbox";
 import { Button } from "./ui/button";
@@ -19,11 +21,16 @@ import {
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
+    ContextMenuSub,
+    ContextMenuSubContent,
+    ContextMenuSubTrigger,
     ContextMenuTrigger,
 } from "./ui/context-menu";
 import { Check, X } from "lucide-react";
-import { CorrectionSuggestion, SelectMode, diffSpan } from "@/lib/transcriptEditor";
+import { CORRECTION_CATEGORY_LABEL, CorrectionSuggestion, SelectMode, diffWords } from "@/lib/transcriptEditor";
 import type { TranscriptEditorApi } from "@/hooks/meeting-details/useTranscriptEditor";
+import type { SpeakerTarget } from "@/lib/speakers";
+import { toast } from "sonner";
 
 export interface VirtualizedTranscriptViewProps {
     /** Transcript segments to display */
@@ -56,33 +63,50 @@ export interface VirtualizedTranscriptViewProps {
     onEditSegment?: (id: string, text: string) => void | Promise<unknown>;
     /** Selection, bulk edit and suggestion actions; only used when `editable`. */
     editor?: TranscriptEditorApi;
+    /** Resolves and renames speakers; segments show no speaker without it. */
+    speakers?: SpeakerNames;
+    /** Shown when there are no lines and nothing is recording. */
+    emptyState?: React.ReactNode;
+    /** Scrolls to and briefly highlights a line; a new nonce repeats the jump. */
+    focusRequest?: { segmentId: string; nonce: number };
 }
 
 // Threshold for enabling virtualization (below this, use simple rendering)
 const VIRTUALIZATION_THRESHOLD = 10;
 
-// Helper function to format seconds as recording-relative time [MM:SS]
-function formatRecordingTime(seconds: number | undefined): string {
-    if (seconds === undefined) return '[--:--]';
-
-    const totalSeconds = Math.floor(seconds);
-    const minutes = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-
-    return `[${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}]`;
+/** Recording-relative time as m:ss (h:mm:ss past an hour), or null when unknown. */
+function formatRecordingTime(seconds: number | undefined): string | null {
+    if (seconds === undefined) return null;
+    const total = Math.floor(seconds);
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const secs = (total % 60).toString().padStart(2, '0');
+    return hours > 0 ? `${hours}:${minutes.toString().padStart(2, '0')}:${secs}` : `${minutes}:${secs}`;
 }
 
-// Helper function to remove filler words and repetitions
-function cleanStopWords(text: string): string {
-    const stopWords = ['uh', 'um', 'er', 'ah', 'hmm', 'hm', 'eh', 'oh'];
-
-    let cleanedText = text;
-    stopWords.forEach(word => {
-        const pattern = new RegExp(`\\b${word}\\b[,\\s]*`, 'gi');
-        cleanedText = cleanedText.replace(pattern, ' ');
-    });
-
-    return cleanedText.replace(/\s+/g, ' ').trim();
+/** Grows a textarea to fit its text, refitting when the column width changes. */
+function useAutosize(ref: React.RefObject<HTMLTextAreaElement>, value: string) {
+    useLayoutEffect(() => {
+        const el = ref.current;
+        if (!el) return;
+        const fit = () => {
+            el.style.height = 'auto';
+            // scrollHeight leaves out the borders, which border-box sizing counts in height.
+            const borders = el.offsetHeight - el.clientHeight;
+            el.style.height = `${el.scrollHeight + borders}px`;
+        };
+        fit();
+        // Watch width only: refitting on height changes would feed back into itself.
+        let lastWidth = el.clientWidth;
+        const observer = new ResizeObserver(() => {
+            if (el.clientWidth !== lastWidth) {
+                lastWidth = el.clientWidth;
+                fit();
+            }
+        });
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [ref, value]);
 }
 
 function SuggestionDiff({
@@ -94,22 +118,46 @@ function SuggestionDiff({
     onAccept: () => void;
     onDismiss: () => void;
 }) {
-    const { prefix, removed, added, suffix } = diffSpan(suggestion.original, suggestion.suggested);
+    const parts = diffWords(suggestion.original, suggestion.suggested);
+    const category = suggestion.category ? CORRECTION_CATEGORY_LABEL[suggestion.category] : null;
     return (
-        <div className="mt-1 ml-2 flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 px-2 py-1">
-            <div className="flex-1 text-sm leading-relaxed">
-                <span>{prefix}</span>
-                {removed && <del className="text-destructive/80">{removed}</del>}
-                {removed && added && ' '}
-                {added && <ins className="text-success no-underline font-medium">{added}</ins>}
-                <span>{suffix}</span>
-                <div className="text-xs text-muted-foreground">{suggestion.reason}</div>
+        <div className="mx-2 mt-1 flex items-start gap-3 rounded-md bg-muted px-3 py-2 text-sm">
+            <div className="min-w-0 flex-1">
+                {/* The corrected line, with each change marked where it sits. */}
+                <p className="break-words leading-relaxed text-foreground">
+                    <span className="sr-only">Suggested fix: </span>
+                    {parts.map((part, i) =>
+                        part.kind === 'same' ? (
+                            <span key={i}>{part.text}</span>
+                        ) : part.kind === 'removed' ? (
+                            <span key={i}>
+                                <del className="text-destructive">
+                                    <span className="sr-only">removed </span>
+                                    {part.text}
+                                </del>
+                                {parts[i + 1]?.kind === 'added' && ' '}
+                            </span>
+                        ) : (
+                            <ins key={i} className="font-semibold text-success no-underline">
+                                <span className="sr-only">added </span>
+                                {part.text}
+                            </ins>
+                        ),
+                    )}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                    {category && <span className="font-medium text-foreground">{category}</span>}
+                    {category && suggestion.reason && ' · '}
+                    {suggestion.reason}
+                </p>
             </div>
-            <Button size="icon" variant="ghost" className="h-6 w-6" title="Accept" onClick={onAccept}>
-                <Check size={14} />
+            <Button size="sm" variant="ghost" className="h-7 px-2" onClick={onAccept}>
+                <Check />
+                Accept
             </Button>
-            <Button size="icon" variant="ghost" className="h-6 w-6" title="Dismiss" onClick={onDismiss}>
-                <X size={14} />
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-muted-foreground" onClick={onDismiss}>
+                <X />
+                Dismiss
             </Button>
         </div>
     );
@@ -126,6 +174,7 @@ const TranscriptSegment = memo(function TranscriptSegment({
     editable,
     onEditSegment,
     selected,
+    selectionActive,
     onSelect,
     suggestion,
     onAcceptSuggestion,
@@ -133,6 +182,12 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onDeleteBefore,
     onMergeWithNext,
     onSplit,
+    onChangeSpeaker,
+    changeSpeakerCount,
+    speaker,
+    showSpeaker,
+    isFirst,
+    speakers,
 }: {
     id: string;
     timestamp: number;
@@ -143,6 +198,8 @@ const TranscriptSegment = memo(function TranscriptSegment({
     editable?: boolean;
     onEditSegment?: (id: string, text: string) => void | Promise<unknown>;
     selected?: boolean;
+    /** Any line is selected, so every checkbox stays visible. */
+    selectionActive?: boolean;
     onSelect?: (id: string, mode: SelectMode) => void;
     suggestion?: CorrectionSuggestion;
     onAcceptSuggestion?: (suggestion: CorrectionSuggestion) => void;
@@ -150,14 +207,30 @@ const TranscriptSegment = memo(function TranscriptSegment({
     onDeleteBefore?: (id: string) => void;
     onMergeWithNext?: (id: string) => void;
     onSplit?: (id: string, cursor: number) => void;
+    onChangeSpeaker?: (id: string, target: SpeakerTarget) => void;
+    /** Lines a speaker change applies to: the whole selection when this line is in it. */
+    changeSpeakerCount?: number;
+    speaker?: SpeakerLabel | null;
+    showSpeaker: boolean;
+    isFirst: boolean;
+    speakers?: SpeakerNames;
 }) {
-    const displayText = cleanStopWords(text) || (text.trim() === '' ? '[Silence]' : text);
     const [draft, setDraft] = useState(text);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    useAutosize(textareaRef, draft);
 
     // Keep the draft in sync if the underlying segment text changes from
     // outside this component (e.g. a fresh fetch after push).
     useEffect(() => setDraft(text), [text]);
+
+    const selectable = Boolean(editable && onSelect);
+    const time = formatRecordingTime(timestamp);
+    const speakerLabel = showSpeaker && speaker && speakers ? speaker : null;
+    const speakerName = speaker && speakers ? speakers.resolveName(speaker) : null;
+    // A new speaker's turn opens with more space than lines within one turn.
+    const spacing = isFirst ? '' : speakerLabel ? 'pt-4' : speaker ? 'pt-0.5' : 'pt-2';
+    // With a name on the first line the time and checkbox align to it; otherwise to the text.
+    const firstLine = speakerLabel ? 'leading-5' : 'mt-1 leading-[26px]';
 
     const selectMode = (e: React.MouseEvent): SelectMode =>
         e.shiftKey ? 'range' : e.metaKey || e.ctrlKey ? 'toggle' : 'single';
@@ -170,53 +243,83 @@ const TranscriptSegment = memo(function TranscriptSegment({
         onSplit?.(id, cursor);
     };
 
-    const row = (
-        <div
-            id={`segment-${id}`}
-            className={`mb-3 rounded-md ${selected ? 'bg-primary/10' : ''}`}
+    const timeLabel = time ?? '—';
+    const timeCell = selectable ? (
+        <button
+            type="button"
+            aria-label={`Select line at ${timeLabel}`}
+            className={cn(
+                'rounded-sm text-right text-xs text-muted-foreground tabular-nums hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                firstLine,
+            )}
+            onClick={(e) => onSelect?.(id, selectMode(e))}
         >
-            <div className="flex items-start gap-2">
-                {editable && onSelect && (
+            {timeLabel}
+        </button>
+    ) : (
+        <span className={cn('text-right text-xs text-muted-foreground tabular-nums', firstLine)}>{timeLabel}</span>
+    );
+
+    const row = (
+        <div id={`segment-${id}`} className={spacing}>
+            <div
+                className={cn(
+                    'group grid items-start gap-x-2 rounded-md',
+                    selectable ? 'grid-cols-[1rem_2.75rem_minmax(0,1fr)]' : 'grid-cols-[2.75rem_minmax(0,1fr)]',
+                    selected && 'bg-muted',
+                )}
+            >
+                {selectable && (
                     <Checkbox
                         checked={selected}
-                        aria-label="Select line"
-                        className="mt-1.5 select-none"
-                        onClick={(e) => onSelect(id, e.shiftKey ? 'range' : 'toggle')}
+                        aria-label={`Select line at ${timeLabel}`}
+                        className={cn(
+                            'select-none border-muted-foreground/60 shadow-none transition-opacity data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background',
+                            speakerLabel ? 'mt-0.5' : 'mt-[9px]',
+                            // Hidden until wanted: on hover, keyboard focus, or once a selection exists.
+                            selected || selectionActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
+                        )}
+                        onClick={(e) => onSelect?.(id, e.shiftKey ? 'range' : 'toggle')}
                     />
                 )}
-                <Tooltip>
-                    <TooltipTrigger>
-                        <span
-                            className={`text-xs text-muted-foreground mt-1 flex-shrink-0 min-w-[50px] ${editable && onSelect ? 'cursor-pointer select-none' : 'cursor-default'}`}
-                            onClick={(e) => editable && onSelect?.(id, selectMode(e))}
-                        >
-                            {formatRecordingTime(timestamp)}
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                        {confidence !== undefined && showConfidence && (
+                {confidence !== undefined && showConfidence ? (
+                    <Tooltip>
+                        <TooltipTrigger asChild>{timeCell}</TooltipTrigger>
+                        <TooltipContent>
                             <ConfidenceIndicator confidence={confidence} showIndicator={showConfidence} />
-                        )}
-                    </TooltipContent>
-                </Tooltip>
-                <div className="flex-1">
+                        </TooltipContent>
+                    </Tooltip>
+                ) : (
+                    timeCell
+                )}
+                <div className="min-w-0">
+                    {speakerLabel && speakers && (
+                        <div className="px-2 leading-5">
+                            <SpeakerChip label={speakerLabel} speakers={speakers} />
+                        </div>
+                    )}
                     {editable ? (
                         <Textarea
                             ref={textareaRef}
                             value={draft}
+                            rows={1}
+                            aria-label={`Line at ${timeLabel}${speakerName ? `, ${speakerName}` : ''}`}
+                            placeholder="No speech"
                             onChange={(e) => setDraft(e.target.value)}
                             onBlur={() => {
                                 if (draft !== text) onEditSegment?.(id, draft);
                             }}
-                            className="text-base leading-relaxed min-h-0 resize-none border-transparent bg-transparent px-2 py-1 hover:border-input focus-visible:border-input"
-                            rows={Math.max(1, Math.ceil(draft.length / 80))}
+                            className="min-h-0 resize-none overflow-hidden border-transparent bg-transparent px-2 py-1 text-base leading-relaxed shadow-none hover:border-border focus-visible:border-input focus-visible:ring-0 md:text-base"
                         />
-                    ) : isStreaming ? (
-                        <div className="bg-muted border border-border rounded-lg px-3 py-2">
-                            <p className="text-base text-foreground leading-relaxed">{displayText}</p>
-                        </div>
                     ) : (
-                        <p className="text-base text-foreground leading-relaxed">{displayText}</p>
+                        <p
+                            className={cn(
+                                'select-text px-2 py-1 text-base leading-relaxed break-words',
+                                isStreaming ? 'rounded-md bg-muted text-foreground' : 'text-foreground',
+                            )}
+                        >
+                            {text.trim() === '' ? <span className="text-muted-foreground">No speech</span> : text}
+                        </p>
                     )}
                     {editable && suggestion && (
                         <SuggestionDiff
@@ -230,18 +333,45 @@ const TranscriptSegment = memo(function TranscriptSegment({
         </div>
     );
 
-    if (!editable || !onSelect) return row;
+    if (!selectable) return row;
 
     return (
         <ContextMenu>
             <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
             <ContextMenuContent>
                 <ContextMenuItem onSelect={() => onDeleteBefore?.(id)}>
-                    Delete everything before this line
+                    Delete Everything Before This Line
                 </ContextMenuItem>
                 <ContextMenuSeparator />
-                <ContextMenuItem onSelect={() => onMergeWithNext?.(id)}>Merge with next line</ContextMenuItem>
-                <ContextMenuItem onSelect={handleSplit}>Split at cursor</ContextMenuItem>
+                <ContextMenuItem onSelect={() => onMergeWithNext?.(id)}>Merge With Next Line</ContextMenuItem>
+                <ContextMenuItem onSelect={handleSplit}>Split at Cursor</ContextMenuItem>
+                {onChangeSpeaker && speakers && (
+                    <>
+                        <ContextMenuSeparator />
+                        <ContextMenuSub>
+                            <ContextMenuSubTrigger>
+                                {changeSpeakerCount && changeSpeakerCount > 1
+                                    ? `Change Speaker for ${changeSpeakerCount} Lines`
+                                    : 'Change Speaker'}
+                            </ContextMenuSubTrigger>
+                            <ContextMenuSubContent>
+                                {(['me', ...speakers.voices] as SpeakerLabel[]).map((label) => (
+                                    <ContextMenuItem
+                                        key={label}
+                                        disabled={changeSpeakerCount === 1 && label === speaker}
+                                        onSelect={() => onChangeSpeaker(id, { kind: 'existing', label })}
+                                    >
+                                        {speakers.resolveName(label)}
+                                    </ContextMenuItem>
+                                ))}
+                                <ContextMenuSeparator />
+                                <ContextMenuItem onSelect={() => onChangeSpeaker(id, { kind: 'new' })}>
+                                    New Speaker
+                                </ContextMenuItem>
+                            </ContextMenuSubContent>
+                        </ContextMenuSub>
+                    </>
+                )}
             </ContextMenuContent>
         </ContextMenu>
     );
@@ -251,8 +381,6 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     segments,
     isRecording = false,
     isPaused = false,
-    isProcessing = false,
-    isStopping = false,
     enableStreaming = false,
     showConfidence = true,
     disableAutoScroll = false,
@@ -264,6 +392,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     editable = false,
     onEditSegment,
     editor,
+    speakers,
+    emptyState,
+    focusRequest,
 }) => {
     // Create scroll ref first - shared between virtualizer and auto-scroll hook
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -278,6 +409,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         count: segments.length,
         getScrollElement: () => scrollRef.current,
         estimateSize: () => 60, // Estimated height per segment
+        // Heights follow the line, not its position: Tidy Lines and deletes shift lines without resizing them.
+        getItemKey: (index) => segments[index].id,
         overscan: 10, // Render extra items above/below viewport
         onChange: () => {
             startTransition(() => {
@@ -304,9 +437,24 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
         enableStreaming
     );
 
-    const renderSegment = (segment: TranscriptSegmentData, isStreaming: boolean) => (
+    const changeSpeaker = useCallback(
+        (id: string, target: SpeakerTarget) => {
+            const ids = editor?.selectedIds.has(id) ? [...editor.selectedIds] : [id];
+            speakers?.reassign?.(ids, target).catch((error) => {
+                toast.error(`Couldn't change the speaker: ${error instanceof Error ? error.message : String(error)}`);
+            });
+        },
+        [editor, speakers],
+    );
+
+    const renderSegment = (segment: TranscriptSegmentData, isStreaming: boolean, index: number) => (
         <TranscriptSegment
             id={segment.id}
+            speaker={segment.speaker}
+            // Only label the first line of each speaker's turn, like a chat transcript.
+            showSpeaker={index === 0 || segments[index - 1]?.speaker !== segment.speaker}
+            isFirst={index === 0}
+            speakers={speakers}
             timestamp={segment.timestamp}
             text={getDisplayText(segment)}
             confidence={segment.confidence}
@@ -315,6 +463,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             editable={editable}
             onEditSegment={editor?.editText ?? onEditSegment}
             selected={editor?.selectedIds.has(segment.id)}
+            selectionActive={(editor?.selectedIds.size ?? 0) > 0}
             onSelect={editor?.select}
             suggestion={editor?.suggestions.get(segment.id)}
             onAcceptSuggestion={editor?.acceptSuggestion}
@@ -322,8 +471,39 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
             onDeleteBefore={editor?.deleteBefore}
             onMergeWithNext={editor?.mergeWithNext}
             onSplit={editor?.splitAt}
+            onChangeSpeaker={editor && speakers?.reassign ? changeSpeaker : undefined}
+            changeSpeakerCount={editor?.selectedIds.has(segment.id) ? editor.selectedIds.size : 1}
         />
     );
+
+    const [highlightedId, setHighlightedId] = useState<string | null>(null);
+    const handledFocusRef = useRef<number | null>(null);
+    const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>();
+    useEffect(() => {
+        if (!focusRequest || handledFocusRef.current === focusRequest.nonce) return;
+        const index = segments.findIndex((s) => s.id === focusRequest.segmentId);
+        if (index === -1) {
+            // Not loaded yet: fetch the next page, and this runs again when it arrives.
+            if (hasMore && !isLoadingMore) onLoadMore?.();
+            else if (!hasMore) handledFocusRef.current = focusRequest.nonce;
+            return;
+        }
+        handledFocusRef.current = focusRequest.nonce;
+        if (segments.length >= VIRTUALIZATION_THRESHOLD) {
+            virtualizer.scrollToIndex(index, { align: 'center' });
+        } else {
+            scrollRef.current
+                ?.querySelector(`[data-segment-id="${CSS.escape(focusRequest.segmentId)}"]`)
+                ?.scrollIntoView({ block: 'center' });
+        }
+        setHighlightedId(focusRequest.segmentId);
+        // A ref, not effect cleanup: new pages arriving must not cancel the fade.
+        clearTimeout(highlightTimerRef.current);
+        highlightTimerRef.current = setTimeout(() => setHighlightedId(null), 1600);
+    }, [focusRequest, segments, hasMore, isLoadingMore, onLoadMore, virtualizer]);
+    useEffect(() => () => clearTimeout(highlightTimerRef.current), []);
+    const highlightClass = (id: string) =>
+        cn('rounded-md transition-colors duration-500', highlightedId === id && 'bg-foreground/10');
 
     // Infinite scroll: IntersectionObserver to trigger loading more
     useEffect(() => {
@@ -384,47 +564,19 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
     // Use simple rendering for small lists, virtualization for large lists
     const useVirtualization = segments.length >= VIRTUALIZATION_THRESHOLD;
 
-    // See TranscriptPanel: display:block keeps the sticky status bar pinned.
     return (
         <ScrollArea viewportRef={scrollRef} className="h-full min-h-0 [&>div>div]:!block">
             <div className="flex flex-col px-4 py-2">
-            {/* Recording Status Bar - Sticky at top, always visible when recording */}
-            <AnimatePresence>
-                {isRecording && (
-                    <div className="sticky top-0 z-10 bg-card pb-2">
-                        <RecordingStatusBar isPaused={isPaused} />
-                    </div>
-                )}
-            </AnimatePresence>
-
-            {/* Content - add padding when recording to prevent overlap */}
-            <div className={isRecording ? 'pt-2' : ''}>
+            <div>
             {segments.length === 0 ? (
-                // Empty state
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center text-muted-foreground mt-8"
-                >
-                    {isRecording ? (
-                        <>
-                            <div className="flex items-center justify-center mb-3">
-                                <div className={`w-3 h-3 rounded-full ${isPaused ? 'bg-warning' : 'bg-primary animate-pulse'}`}></div>
-                            </div>
-                            <p className="text-sm text-muted-foreground ">
-                                {isPaused ? 'Recording paused' : 'Listening for speech...'}
-                            </p>
-                            <p className="text-xs mt-1 text-muted-foreground ">
-                                {isPaused ? 'Click resume to continue recording' : 'Speak to see live transcription'}
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <p className="text-lg font-semibold">Welcome to WusoolScribe!</p>
-                            <p className="text-xs mt-1">Start recording to see live transcription</p>
-                        </>
-                    )}
-                </motion.div>
+                // Recording status lives in the controls, so the empty list says one quiet thing.
+                isRecording ? (
+                    <p className="mt-8 text-center text-sm text-muted-foreground" aria-live="polite">
+                        {isPaused ? 'Paused. Resume to keep transcribing.' : 'Listening. Lines appear here as people speak.'}
+                    </p>
+                ) : (
+                    emptyState ?? <p className="mt-8 text-center text-sm text-muted-foreground">No transcript yet.</p>
+                )
             ) : useVirtualization ? (
                 // Virtualized rendering for large lists
                 <>
@@ -443,6 +595,8 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                 <div
                                     key={segment.id}
                                     data-index={virtualRow.index}
+                                    data-segment-id={segment.id}
+                                    className={highlightClass(segment.id)}
                                     ref={virtualizer.measureElement}
                                     style={{
                                         position: "absolute",
@@ -452,7 +606,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                                         transform: `translateY(${virtualRow.start}px)`,
                                     }}
                                 >
-                                    {renderSegment(segment, isStreaming)}
+                                    {renderSegment(segment, isStreaming, virtualRow.index)}
                                 </div>
                             );
                         })}
@@ -464,7 +618,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             {isLoadingMore ? (
                                 <div className="flex items-center gap-2 text-muted-foreground ">
                                     <Spinner className="w-4 h-4" />
-                                    <span className="text-sm">Loading more...</span>
+                                    <span className="text-sm">Loading more…</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
                                 <span className="text-sm text-muted-foreground ">
@@ -473,35 +627,24 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             ) : null}
                         </div>
                     )}
-
-                    {/* Listening indicator when recording */}
-                    {!isStopping && isRecording && !isPaused && !isProcessing && segments.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-muted-foreground "
-                        >
-                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                            <span className="text-sm">Listening...</span>
-                        </motion.div>
-                    )}
                 </>
             ) : (
                 // Simple rendering for small lists (better animations)
                 <>
                     <div className="space-y-1">
-                        {segments.map((segment) => {
+                        {segments.map((segment, index) => {
                             const isStreaming = streamingSegmentId === segment.id;
 
                             return (
                                 <motion.div
                                     key={segment.id}
+                                    data-segment-id={segment.id}
+                                    className={highlightClass(segment.id)}
                                     initial={{ opacity: 0, y: 5 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.15 }}
                                 >
-                                    {renderSegment(segment, isStreaming)}
+                                    {renderSegment(segment, isStreaming, index)}
                                 </motion.div>
                             );
                         })}
@@ -513,7 +656,7 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             {isLoadingMore ? (
                                 <div className="flex items-center gap-2 text-muted-foreground ">
                                     <Spinner className="w-4 h-4" />
-                                    <span className="text-sm">Loading more...</span>
+                                    <span className="text-sm">Loading more…</span>
                                 </div>
                             ) : hasMore && totalCount > 0 ? (
                                 <span className="text-sm text-muted-foreground ">
@@ -522,21 +665,9 @@ export const VirtualizedTranscriptView: React.FC<VirtualizedTranscriptViewProps>
                             ) : null}
                         </div>
                     )}
-
-                    {/* Listening indicator when recording */}
-                    {!isStopping && isRecording && !isPaused && !isProcessing && segments.length > 0 && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex items-center gap-2 mt-4 text-muted-foreground "
-                        >
-                            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                            <span className="text-sm">Listening...</span>
-                        </motion.div>
-                    )}
                 </>
             )}
+            {editable && <div aria-hidden className="h-20" />}
             </div>
             </div>
         </ScrollArea>

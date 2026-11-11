@@ -1,6 +1,6 @@
 """The one Bedrock call this module makes — reading the advisor's free-text
 note into a `ParsedContext`. The implementation owns its own
-validate-repair-retry-then-fail-closed policy and returns a domain value —
+validate-retry-then-fail-closed policy and returns a domain value —
 never the Pydantic schema, which must not cross this Port.
 """
 

@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "e6f9d9a904d04591163137005f0236fb9952f015"
+      "revision": "4c9411e189f821c9cdff9bac77b36c8e46abb523"
     },
     "viewBox": [
       1240,
@@ -167,7 +167,7 @@
       "id": "bedrock",
       "type": "cloud",
       "label": "AWS Bedrock",
-      "sublabel": "matching + summaries",
+      "sublabel": "all LLM calls, via Pydantic AI",
       "pos": [
         920,
         255
@@ -180,6 +180,10 @@
         {
           "path": "gitbook/technical-documentation/toolkit.md",
           "label": "AI dependency"
+        },
+        {
+          "path": "server/app/modules/utilities/providers/bedrock/agent.py",
+          "label": "Pydantic AI runner"
         }
       ]
     },
@@ -358,6 +362,30 @@
           "label": "Release workflow"
         }
       ]
+    },
+    {
+      "id": "google",
+      "type": "external",
+      "label": "Google Workspace",
+      "sublabel": "Gmail + Calendar, read-only",
+      "pos": [
+        720,
+        104
+      ],
+      "size": [
+        190,
+        56
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/google_workspace/README.md",
+          "label": "Google access"
+        },
+        {
+          "path": "gitbook/technical-documentation/interactions.md",
+          "label": "Interactions engine"
+        }
+      ]
     }
   ],
   "boundaries": [
@@ -408,7 +436,7 @@
       "label": "embed.js iframe",
       "variant": "emphasis",
       "labelAt": [
-        232,
+        300,
         388
       ]
     },
@@ -459,30 +487,19 @@
       "from": "attio",
       "to": "toolkit",
       "label": "signed POST /webhooks/attio",
-      "variant": "security",
-      "fromSide": "bottom",
-      "toSide": "top",
-      "labelDy": 70,
-      "labelDx": -82
+      "variant": "security"
     },
     {
       "from": "toolkit",
       "to": "attio",
       "label": "writes",
-      "variant": "dashed",
-      "fromSide": "top",
-      "toSide": "bottom",
-      "labelDx": 32,
-      "labelDy": -60
+      "variant": "dashed"
     },
     {
       "from": "github",
       "to": "toolkit",
       "label": "deploy + nightly resync via SSM",
-      "variant": "emphasis",
-      "fromSide": "left",
-      "toSide": "top",
-      "labelDy": 14
+      "variant": "emphasis"
     },
     {
       "from": "toolkit",
@@ -516,7 +533,10 @@
       "to": "ses",
       "label": "lead + code emails",
       "variant": "dashed",
-      "labelSegment": 2
+      "labelAt": [
+        883,
+        499
+      ]
     },
     {
       "from": "toolkit",
@@ -524,7 +544,17 @@
       "label": "enrichment + Places APIs",
       "variant": "dashed",
       "fromSide": "bottom",
-      "toSide": "top"
+      "toSide": "top",
+      "via": [
+        [
+          620,
+          592
+        ],
+        [
+          1065,
+          592
+        ]
+      ]
     },
     {
       "from": "website",
@@ -541,6 +571,12 @@
       "to": "sanity",
       "label": "rendered report + PDF",
       "variant": "dashed"
+    },
+    {
+      "from": "toolkit",
+      "to": "google",
+      "label": "mail + calendar metadata (delegated, read-only)",
+      "variant": "dashed"
     }
   ],
   "cards": [
@@ -549,7 +585,8 @@
       "title": "One Toolkit process",
       "items": [
         "Serves Slack, the web find-match app, Scribe, the lead tools, and Attio and Sanity webhooks",
-        "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards"
+        "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards",
+        "Optionally reads Gmail and Calendar metadata into PostgreSQL (the interactions loop, off by default)"
       ]
     },
     {
@@ -557,7 +594,8 @@
       "title": "Data ownership",
       "items": [
         "Attio is the CRM of record and is written first",
-        "PostgreSQL mirrors it via webhook and nightly resync"
+        "PostgreSQL mirrors it via webhook and nightly resync",
+        "Interaction metadata (headers and subjects, never bodies) is kept 12 months; nothing writes it to Attio yet"
       ]
     },
     {

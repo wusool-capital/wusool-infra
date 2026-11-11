@@ -44,6 +44,8 @@ Remove it from the secret once everyone signs in with Slack.
 
 The Toolkit's role can send SES email from any verified identity.
 
+The Google service-account key is a Secrets Manager value, `GOOGLE_SERVICE_ACCOUNT_JSON`. It can act as the configured mailboxes with two read-only scopes: Gmail and Calendar. A Workspace admin can revoke it at any time by deleting the delegation entry. Creating the key needs a project-scoped exception to the organization's key policy.
+
 ## Rendering editor content
 
 Reports are drawn in headless Chromium, which runs editor-supplied HTML and
@@ -83,10 +85,14 @@ geography terms to Google Places and the Geocoding API.
 ### WusoolScribe
 
 Recording and transcription run on the Mac. Content leaves it when the user
-picks a remote summary provider or pushes a meeting. The server keeps pushed
+pushes a meeting or asks for spelling corrections. The server keeps pushed
 meetings and notes, and creates an Attio note. Transcript lines sent for
 spelling corrections go to Bedrock and aren't stored. Feedback is stored in
 `feedback_submissions`.
+
+### Interactions engine
+
+Email headers, subjects, and calendar event details for the configured mailboxes are stored in PostgreSQL for 12 months. Message bodies and attachments are never requested. Subjects can contain deal names, so treat them like CRM data. Nothing is sent to a third party, and nothing is written to Attio yet.
 
 ### Website lead tools and reports
 

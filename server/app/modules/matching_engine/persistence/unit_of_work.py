@@ -32,11 +32,8 @@ class SqlAlchemyMatchingUnitOfWork:
     activities: SqlAlchemyActivityRecorder
     sellers: SellerRepository
 
-    def __init__(
-        self, sessionmaker: async_sessionmaker[AsyncSession], *, meeting_notes_max_chars: int = 3000
-    ) -> None:
+    def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self._sessionmaker = sessionmaker
-        self._meeting_notes_max_chars = meeting_notes_max_chars
         self._session: AsyncSession | None = None
 
     async def __aenter__(self) -> MatchingUnitOfWork:
@@ -44,7 +41,7 @@ class SqlAlchemyMatchingUnitOfWork:
         await self._session.__aenter__()
         self.match_results = MatchResultRepository(self._session)
         self.match_scores = MatchScoreRepository(self._session)
-        self.meetings = MeetingRepository(self._session, max_chars=self._meeting_notes_max_chars)
+        self.meetings = MeetingRepository(self._session)
         self.deals = DealRepository(self._session)
         self.activities = SqlAlchemyActivityRecorder(self._session)
         self.sellers = SellerRepository(self._session)

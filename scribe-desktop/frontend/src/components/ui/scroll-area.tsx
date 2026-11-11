@@ -18,10 +18,12 @@ const ScrollArea = React.forwardRef<
   >
     {/* max-h-[inherit] makes the viewport itself the scroller when the Root is
         bounded only by a max-height: h-full alone resolves to auto against an
-        auto-height Root, so the content would overflow and be clipped instead. */}
+        auto-height Root, so the content would overflow and be clipped instead.
+        [&>div]:!block overrides Radix's display:table wrapper, which grows to its
+        widest child and pushes content past the window instead of letting it wrap. */}
     <ScrollAreaPrimitive.Viewport
       ref={viewportRef}
-      className="h-full max-h-[inherit] w-full rounded-[inherit]"
+      className="h-full max-h-[inherit] w-full rounded-[inherit] [&>div]:!block"
     >
       {children}
     </ScrollAreaPrimitive.Viewport>

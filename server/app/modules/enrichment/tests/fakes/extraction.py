@@ -4,12 +4,16 @@ calling Bedrock.
 
 from collections.abc import Callable
 
-from app.modules.enrichment.application.ports.llm import ExtractionClient, RepairPromptBuilder
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.enrichment.application.ports.llm import ExtractionClient
+from app.modules.enrichment.domain.proposals import ExtractedField
+
+type ExtractionResponse = tuple[ExtractedField, ...]
 
 
 class FakeExtractionClient(ExtractionClient):
-    def __init__(self, response: JsonObject | Callable[[], JsonObject]) -> None:
+    def __init__(
+        self, response: ExtractionResponse | Callable[[], ExtractionResponse] = ()
+    ) -> None:
         self._response = response
         self.prompts: list[str] = []
 
@@ -18,9 +22,8 @@ class FakeExtractionClient(ExtractionClient):
         *,
         model_id: str,
         prompt: str,
-        repair_prompt_builder: RepairPromptBuilder,
         temperature: float,
         max_tokens: int,
-    ) -> JsonObject:
+    ) -> ExtractionResponse:
         self.prompts.append(prompt)
         return self._response() if callable(self._response) else self._response

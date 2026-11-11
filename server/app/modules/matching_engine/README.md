@@ -65,8 +65,7 @@ standard AWS credential provider chain), `LLM_TEMPERATURE`/`LLM_MAX_TOKENS`/
 `LLM_TOP_P`, `STAGE3_TOP_N`, `SCORING_WEIGHT_*`, `CONFIDENCE_*`,
 `WEB_FALLBACK_MIN_SCORE` (this module's own threshold decision — the
 Firecrawl lead search it triggers, and `FIRECRAWL_API_KEY`, belong to
-`discovery` now), `MEETING_NOTES_MAX_CHARS`/
-`MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`,
+`discovery` now), `MEETING_NOTES_MAX_TOTAL_CHARS`, `ENABLE_SELLER_MEETING_NOTES`,
 `WEB_API_KEY` (the Toolkit secret's `env` map; a fallback to Slack sign-in),
 `SLACK_CLIENT_ID`/`SLACK_CLIENT_SECRET`/`WEB_SESSION_SECRET`/`WEB_PUBLIC_URL`/
 `WEB_SESSION_DAYS` (Sign in with Slack; all four strings are needed to turn it on),
@@ -167,12 +166,11 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
 Meeting notes (`meetings` table) are folded into both Bedrock prompts as
 labeled, unverified context — always on for the buyer side, on by default
 for shortlisted sellers (`ENABLE_SELLER_MEETING_NOTES=false` to restrict to
-the buyer side only). Each summary is capped at `MEETING_NOTES_MAX_CHARS`
-(default 3,000): a longer one keeps its first two thirds and its last third,
-with a `[middle truncated]` marker between them, so next steps at the end
-survive. Each prompt gets at most `MEETING_NOTES_MAX_TOTAL_CHARS` (default
-12,000) of notes, newest first; the oldest note is always kept and the number
-of dropped older meetings is stated in the prompt.
+the buyer side only). Each summary goes in whole, never cut: gist, next
+steps, decisions, deal signal and notes by topic. Each prompt gets up to
+`MEETING_NOTES_MAX_TOTAL_CHARS` (default 24,000) of notes; the newest and the
+oldest meetings are always included, then the next most recent that fit, and
+the number of dropped older meetings is stated in the prompt.
 
 Not implemented, by design: pgvector/semantic retrieval, document
 ingestion, general-purpose web scraping beyond `discovery`'s lead search,

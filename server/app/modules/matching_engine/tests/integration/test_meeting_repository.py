@@ -3,7 +3,6 @@ from types import SimpleNamespace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.matching_engine.application.buyers import BuyersMixin
-from app.modules.matching_engine.domain.meetings import MIDDLE_TRUNCATED_MARKER
 from app.modules.matching_engine.persistence.repositories.buyers_repository import BuyerRepository
 from app.modules.matching_engine.persistence.repositories.meetings_repository import (
     MeetingRepository,
@@ -14,7 +13,7 @@ async def test_get_recent_by_org_returns_notes_ordered_by_occurred_at_desc(
     db_session: AsyncSession, org_with_meetings
 ) -> None:
     org, _meetings = org_with_meetings
-    repo = MeetingRepository(db_session, max_chars=600)
+    repo = MeetingRepository(db_session)
 
     notes = await repo.get_recent_by_org(org.attio_id)
 
@@ -22,22 +21,21 @@ async def test_get_recent_by_org_returns_notes_ordered_by_occurred_at_desc(
     assert [n.occurred_at.day for n in notes] == [28, 20, 10]
 
 
-async def test_get_recent_by_org_truncates_long_summaries(
+async def test_get_recent_by_org_returns_whole_summaries(
     db_session: AsyncSession, org_with_meetings
 ) -> None:
-    org, _meetings = org_with_meetings
-    repo = MeetingRepository(db_session, max_chars=10)
+    org, meetings = org_with_meetings
+    repo = MeetingRepository(db_session)
 
     notes = await repo.get_recent_by_org(org.attio_id)
 
-    assert all(note.truncated for note in notes)
-    assert all(MIDDLE_TRUNCATED_MARKER in note.summary for note in notes)
+    assert sorted(note.summary for note in notes) == sorted(m.summary for m in meetings)
 
 
 async def test_get_recent_by_org_returns_empty_list_for_org_with_no_meetings(
     db_session: AsyncSession,
 ) -> None:
-    repo = MeetingRepository(db_session, max_chars=600)
+    repo = MeetingRepository(db_session)
 
     notes = await repo.get_recent_by_org("no-such-org-id")
 
@@ -51,7 +49,7 @@ async def test_resolve_by_id_populates_buyer_context_meeting_notes(
     any_buyer_role.org_attio_id = org.attio_id
     await db_session.flush()
 
-    meetings = MeetingRepository(db_session, max_chars=600)
+    meetings = MeetingRepository(db_session)
     # Only resolve_buyer_by_id is exercised — the other ServiceBase
     # dependencies are unused by this mixin's methods.
     service = BuyersMixin(

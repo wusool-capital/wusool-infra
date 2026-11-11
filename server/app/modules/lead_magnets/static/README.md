@@ -404,7 +404,10 @@ across visits needs consent.
 
 Autocapture is off. Session replay runs only after the visitor accepts tracking,
 and only if the PostHog project has "Record user sessions" switched on. The
-recording shows the page as the visitor saw it, including the text they typed and
-the results. Network bodies, headers and console output are never recorded.
-To hide a screen or field later, add a `blockSelector` or `maskTextSelector` to
-`session_recording` in `analytics.js`.
+recording shows the page as the visitor saw it, including the results and the
+company and revenue they typed. Name, email, phone and LinkedIn fields, and the two
+places that echo them as text (`#code-email`, `#resDate`), are drawn as blocked
+boxes by `REPLAY_BLOCK` in `analytics.js`; `test_static_contract.py` fails if an
+email, phone or LinkedIn input is left out. Network bodies, headers and console
+output are never recorded. To hide another field, add it to `REPLAY_BLOCK` and
+bump the `analytics.js?v=` tag on every tool page.

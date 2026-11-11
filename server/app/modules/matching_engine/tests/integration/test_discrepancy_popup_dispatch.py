@@ -7,7 +7,7 @@ from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field
 
 import pytest
-from httpx import Response
+from starlette import testclient
 
 from app.modules.matching_engine.api.slack.handlers import actions as actions_module
 from app.modules.matching_engine.bootstrap import create_app
@@ -48,6 +48,10 @@ def _submission(
             "state": {"values": values},
         },
     }
+
+
+# Starlette's TestClient uses httpx2 when it's installed (Pydantic AI brings it), else httpx.
+Response = testclient.httpx.Response
 
 
 def _post(payload: dict[str, object]) -> Response:

@@ -6,7 +6,27 @@ import { VirtualizedTranscriptView } from '@/components/VirtualizedTranscriptVie
 import { TranscriptButtonGroup } from './TranscriptButtonGroup';
 import { TranscriptSelectionBar } from './TranscriptSelectionBar';
 import type { TranscriptEditorApi } from '@/hooks/meeting-details/useTranscriptEditor';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
+import { SpeakersPanel } from '@/components/SpeakersPanel';
+import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
+import { Progress } from '@/components/ui/progress';
+import { separationProgress, type DiarizationRun } from '@/lib/speakers';
+import { nameChanges, nextSuggestionId, proofreadCoverageWarning, type NameChange } from '@/lib/transcriptEditor';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
+import { useCoreMlModels } from '@/hooks/useCoreMlModels';
+import { CoreMlDownloadDialog } from '@/components/CoreMlDownloadDialog';
 
 interface TranscriptPanelProps {
   transcripts: Transcript[];
@@ -37,6 +57,8 @@ interface TranscriptPanelProps {
   // Hide the Copy/Recording/Enhance action bar entirely (e.g. inside a
   // read-only tab of an already-pushed meeting).
   showActions?: boolean;
+  /** Voices still waiting for a name, for the meeting header; editable meetings only. */
+  onUnnamedSpeakersChange?: (count: number) => void;
 }
 
 export function TranscriptPanel({
@@ -60,7 +82,11 @@ export function TranscriptPanel({
   editor,
   onSummarize,
   showActions = true,
+  onUnnamedSpeakersChange,
 }: TranscriptPanelProps) {
+  const speakers = useMeetingSpeakers(meetingId, onRefetchTranscripts);
+  const [focusRequest, setFocusRequest] = useState<{ segmentId: string; nonce: number }>();
+
   // Convert transcripts to segments if pagination is not used but we want virtualization
   const convertedSegments = useMemo(() => {
     if (usePagination && segments) {
@@ -73,12 +99,76 @@ export function TranscriptPanel({
       endTime: t.audio_end_time,
       text: t.text,
       confidence: t.confidence,
+      speaker: t.speaker,
     }));
   }, [transcripts, usePagination, segments]);
 
+  const unnamedCount = speakers.overview.filter((voice) => voice.name === null).length;
+  useEffect(() => {
+    if (editable) onUnnamedSpeakersChange?.(unnamedCount);
+  }, [editable, unnamedCount, onUnnamedSpeakersChange]);
+
+  // Edits, tidying and deletes change talk time and sample lines; a short delay batches a burst of edits.
+  const { refresh } = speakers;
+  const editRevision = editor?.revision ?? 0;
+  useEffect(() => {
+    if (!editable || editRevision === 0) return;
+    const timer = setTimeout(() => void refresh(), 400);
+    return () => clearTimeout(timer);
+  }, [editable, editRevision, refresh]);
+
+  const hasUnseparatedLines = useMemo(
+    () => convertedSegments.some((segment) => segment.speaker === 'others'),
+    [convertedSegments],
+  );
+  // Also while a re-run is going or has failed, so its progress or error is never hidden behind existing voices.
+  const showSeparateBanner = Boolean(
+    editable &&
+      speakers.separate &&
+      ((speakers.voiceCount === 0 && hasUnseparatedLines) || speakers.separation.status !== 'idle'),
+  );
+
+  // Loaded only while the banner shows, so opening a meeting costs nothing extra.
+  const coreMl = useCoreMlModels(showSeparateBanner);
+  // CoreML is the default, but its models download only when asked: offer that here first.
+  const separateSpeakers = () => {
+    if (coreMl.needsDownload) coreMl.ask();
+    else void speakers.separate?.();
+  };
+  // Choosing the slower model turns CoreML off, so this prompt doesn't come back.
+  const useSlowerModel = async () => {
+    try {
+      await coreMl.setBackend('cpu');
+    } catch (error) {
+      toast.error("Couldn't switch to the slower model", { description: String(error) });
+    }
+    await speakers.separate?.();
+  };
+
+  // Fixes that change a name are the ones most likely to be wrong, so Accept All shows them first.
+  const [pendingNameChanges, setPendingNameChanges] = useState<NameChange[] | null>(null);
+  const [confirmingRerun, setConfirmingRerun] = useState(false);
+  const requestAcceptAll = () => {
+    if (!editor) return;
+    const changes = nameChanges(editor.suggestions.values());
+    if (changes.length > 0) setPendingNameChanges(changes);
+    else void editor.acceptAllSuggestions();
+  };
+
+  // Steps through the suggested fixes in transcript order from the last one shown.
+  const lastFixRef = useRef<string | null>(null);
+  const segmentOrder = useMemo(() => convertedSegments.map((segment) => segment.id), [convertedSegments]);
+  const showNextFix = () => {
+    const ids = editor ? [...editor.suggestions.keys()] : [];
+    const segmentId = nextSuggestionId(ids, segmentOrder, lastFixRef.current);
+    if (!segmentId) return;
+    lastFixRef.current = segmentId;
+    setFocusRequest({ segmentId, nonce: Date.now() });
+  };
+
   return (
     <div className="flex w-full h-full min-w-0 bg-card flex-col relative">
-      {/* Title area */}
+      {/* Toolbar */}
       {showActions && (
         <div className="p-4 border-b border-border ">
           <TranscriptButtonGroup
@@ -93,6 +183,135 @@ export function TranscriptPanel({
           />
         </div>
       )}
+
+      {showSeparateBanner && (
+        <div className="flex items-center justify-between gap-3 border-b border-border bg-muted px-4 py-2">
+          <span className="min-w-0 text-sm text-foreground" aria-live="polite">
+            {speakers.separation.status === 'running'
+              ? <SeparatingStatus run={speakers.separation.run} />
+              : speakers.separation.status === 'failed'
+                ? `Couldn't separate speakers: ${speakers.separation.error}`
+                : "Other speakers haven't been separated yet."}
+          </span>
+          {speakers.separation.status === 'running' ? (
+            <Spinner className="h-4 w-4 shrink-0" />
+          ) : (
+            <Button size="sm" variant="outline" onClick={separateSpeakers}>
+              {speakers.separation.status === 'failed' ? 'Try Again' : 'Separate Speakers'}
+            </Button>
+          )}
+        </div>
+      )}
+
+      <CoreMlDownloadDialog
+        coreMl={coreMl}
+        description="Separate speakers about 6× faster with a one-time download of about 300 MB. Or use the slower model, which needs no download. You can switch back in Settings."
+        skipLabel="Use Slower Model (6× Slower)"
+        onSkip={() => void useSlowerModel()}
+        onDownloaded={() => void speakers.separate?.()}
+      />
+
+      {editable && meetingId && (
+        <SpeakersPanel
+          meetingId={meetingId}
+          speakers={speakers}
+          onShowLine={(segmentId) => setFocusRequest({ segmentId, nonce: Date.now() })}
+          onSeparateAgain={speakers.separation.status === 'running' ? undefined : () => setConfirmingRerun(true)}
+        />
+      )}
+
+      {editable && editor && (editor.suggestions.size > 0 || editor.uncheckedLines > 0) && (
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-border bg-muted px-4 py-2">
+          <p className="text-sm text-foreground tabular-nums" aria-live="polite">
+            {editor.suggestions.size > 0
+              ? `${editor.suggestions.size} suggested ${editor.suggestions.size === 1 ? 'fix' : 'fixes'}`
+              : 'No suggested fixes'}
+            {editor.uncheckedLines > 0 && (
+              <span className="text-muted-foreground"> · {proofreadCoverageWarning(editor.uncheckedLines)}</span>
+            )}
+          </p>
+          <div className="flex items-center gap-2">
+            {editor.uncheckedLines > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={editor.isSuggesting}
+                onClick={() => void editor.retryUnchecked()}
+              >
+                {editor.isSuggesting ? 'Proofreading…' : 'Try Again'}
+              </Button>
+            )}
+            {editor.suggestions.size > 1 && (
+              <Button size="sm" variant="ghost" onClick={showNextFix}>
+                Next Fix
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={editor.dismissAllSuggestions}>
+              Dismiss All
+            </Button>
+            {editor.suggestions.size > 0 && (
+              <Button size="sm" variant="outline" onClick={requestAcceptAll}>
+                Accept All
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      <AlertDialog open={confirmingRerun} onOpenChange={setConfirmingRerun}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Separate Speakers Again?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Scribe works out who said what in this meeting from scratch. Names you gave here and lines you moved are
+              replaced. People Scribe already knows are recognised again, and you can name the rest in Who Spoke?.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep Current Speakers</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setConfirmingRerun(false);
+                separateSpeakers();
+              }}
+            >
+              Separate Again
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pendingNameChanges !== null} onOpenChange={(open) => !open && setPendingNameChanges(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apply Name Changes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingNameChanges?.length === 1 ? 'One fix changes a name.' : `${pendingNameChanges?.length} fixes change names.`}{' '}
+              Check they are the same person before applying them all.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+            {pendingNameChanges?.map((change, i) => (
+              <li key={i}>
+                {change.from ? <del className="text-destructive">{change.from}</del> : <span className="text-muted-foreground">(added)</span>}
+                <span className="text-muted-foreground"> → </span>
+                <ins className="font-semibold text-success no-underline">{change.to}</ins>
+              </li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Review One by One</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setPendingNameChanges(null);
+                void editor?.acceptAllSuggestions();
+              }}
+            >
+              Apply All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Transcript content - use virtualized view for better performance */}
       <div className="flex-1 overflow-hidden pb-4">
@@ -113,10 +332,35 @@ export function TranscriptPanel({
           editable={editable}
           onEditSegment={onEditSegment}
           editor={editable ? editor : undefined}
+          speakers={speakers}
+          focusRequest={focusRequest}
         />
       </div>
 
       {editable && editor && <TranscriptSelectionBar editor={editor} />}
     </div>
+  );
+}
+
+function timeLeft(seconds: number): string {
+  if (seconds <= 0) return 'almost done';
+  if (seconds < 60) return 'under a minute left';
+  return `about ${Math.ceil(seconds / 60)} min left`;
+}
+
+/** "Separating speakers…" with an estimated bar, re-rendered each second while the run lasts. */
+function SeparatingStatus({ run }: { run: DiarizationRun }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const progress = separationProgress(run, now);
+  if (!progress) return <>Separating speakers…</>;
+  return (
+    <span className="flex items-center gap-3">
+      <span>Separating speakers… {timeLeft(progress.secondsLeft)}</span>
+      <Progress value={progress.percent} className="h-1.5 w-32" aria-label="Estimated separation progress" />
+    </span>
   );
 }

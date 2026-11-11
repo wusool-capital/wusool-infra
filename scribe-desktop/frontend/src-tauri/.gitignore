@@ -6,6 +6,6 @@
 Cargo.lock
 Cargo.toml.orig
 
-# Sidecar binaries (llama-helper, ffmpeg) -- built/fetched by
+# Sidecar binaries (ffmpeg) -- built/fetched by
 # build-gpu.sh per-platform, not source; see tauri.conf.json externalBin.
 /binaries/

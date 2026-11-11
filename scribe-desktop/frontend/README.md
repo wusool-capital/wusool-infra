@@ -7,7 +7,7 @@ A modern desktop application for recording, transcribing, and analyzing meetings
 - Real-time audio recording from both microphone and system audio
 - Live transcription using Whisper ASR (locally running)
 - Native desktop integration using Tauri
-- Speaker diarization support
+- Speaker diarization: on-device, with a local voice library for naming people
 - Rich text editor for note-taking
 - Privacy-focused: All processing happens locally
 

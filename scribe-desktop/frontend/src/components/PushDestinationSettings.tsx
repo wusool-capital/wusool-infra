@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Send } from 'lucide-react';
+import { SettingsRow, SettingsSection } from '@/components/settings/SettingsSection';
 
 interface PushConfig {
   server_url: string;
@@ -116,62 +116,70 @@ export function PushDestinationSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-semibold mb-4">Push Destination</h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          Where a pushed meeting is sent for server-side summarization. Summaries are
-          generated remotely and sent back here.
-        </p>
-      </div>
-
-      <div className="space-y-4 p-4 border rounded-lg">
-        <div>
-          <label htmlFor="server-url" className="block text-sm font-medium text-foreground/90 mb-1">
-            Server URL
-          </label>
+    <div className="space-y-8">
+      <SettingsSection
+        title="Scribe Push"
+        description="Where a pushed meeting is sent to be summarized. The summary comes back to this app."
+      >
+        <SettingsRow title="Server URL" htmlFor="server-url">
           <Input
             id="server-url"
-            placeholder="https://scribe.example.com"
+            name="server-url"
+            type="url"
+            autoComplete="off"
+            spellCheck={false}
+            placeholder="Server address from your admin"
             value={serverUrl}
             onChange={(e) => setServerUrl(e.target.value)}
             disabled={saving}
           />
-        </div>
-
-        <div>
-          <label htmlFor="api-key" className="block text-sm font-medium text-foreground/90 mb-1">
-            API Key
-          </label>
+        </SettingsRow>
+        <SettingsRow title="API Key" htmlFor="api-key" description="Ask your Scribe admin for this key.">
           <Input
             id="api-key"
+            name="api-key"
             type="password"
+            autoComplete="off"
             placeholder="Shared desktop API key"
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
             disabled={saving}
           />
-          <p className="text-xs text-muted-foreground mt-1">
-            Sent as <code>Authorization: Bearer &lt;key&gt;</code> on every push.
-          </p>
+        </SettingsRow>
+        <div className="flex justify-end px-5 py-3">
+          <Button onClick={handleSave} disabled={saving} size="sm">
+            {saving ? 'Verifying…' : 'Save'}
+          </Button>
         </div>
+      </SettingsSection>
 
-        <Button onClick={handleSave} disabled={saving} size="sm">
-          <Send className="w-4 h-4 mr-1" />
-          {saving ? 'Verifying...' : 'Save'}
-        </Button>
-      </div>
-
-      <div className="flex items-center justify-between gap-4 p-4 border rounded-lg">
-        <div>
-          <div className="text-sm font-medium text-foreground/90 mb-1">Don&apos;t store to Attio</div>
-          <p className="text-xs text-muted-foreground">
-            Developer only. Pushed meetings are still summarized, but no Attio note is created.
-            Requires the developer password to change.
-          </p>
+      <details className="group">
+        <summary className="cursor-pointer select-none text-sm font-medium text-muted-foreground hover:text-foreground">
+          Developer Options
+        </summary>
+        <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-card">
+          <SettingsRow
+            title="Don't Store to Attio"
+            description="Pushed meetings are still summarized, but no Attio note is created. Needs the developer password to change."
+            control={
+              <Switch
+                aria-label="Don't store to Attio"
+                checked={skipAttio}
+                onCheckedChange={(checked) => setPendingSkipAttio(checked)}
+              />
+            }
+          />
+          <SettingsRow
+            title="Install ID"
+            description={
+              <>
+                <span className="break-all text-foreground">{installId}</span>
+                <span className="block">Generated automatically; identifies this install to the server.</span>
+              </>
+            }
+          />
         </div>
-        <Switch checked={skipAttio} onCheckedChange={(checked) => setPendingSkipAttio(checked)} />
-      </div>
+      </details>
 
       <Dialog open={pendingSkipAttio !== null} onOpenChange={(open) => !open && closeSkipAttioDialog()}>
         <DialogContent className="sm:max-w-[400px]">
@@ -201,14 +209,6 @@ export function PushDestinationSettings() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <div className="p-4 border rounded-lg bg-muted">
-        <div className="text-sm font-medium text-foreground/90 mb-1">Install ID</div>
-        <div className="text-xs text-muted-foreground break-all">{installId}</div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Generated automatically; identifies this install to the backend.
-        </p>
-      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 {
     "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
     "productName": "WusoolScribe",
-    "version": "0.7.7",
+    "version": "0.8.6",
     "identifier": "com.wusool.scribe",
     "build": {
         "frontendDist": "../out",
@@ -15,6 +15,8 @@
                 "title": "WusoolScribe",
                 "width": 1100,
                 "height": 700,
+                "minWidth": 900,
+                "minHeight": 600,
                 "resizable": true,
                 "fullscreen": false,
                 "visible": false,
@@ -28,8 +30,9 @@
                 "default-src": "'self'",
                 "style-src": "'self' 'unsafe-inline'",
                 "img-src": "'self' asset: https://asset.localhost data:",
-                "connect-src": "'self' http://localhost:11434 http://localhost:5167 http://localhost:8178 https://api.ollama.ai"
+                "connect-src": "'self' http://localhost:5167 http://localhost:8178"
             },
+            "dangerousDisableAssetCspModification": ["style-src"],
             "assetProtocol": {
                 "enable": true,
                 "scope": [
@@ -129,11 +132,7 @@
             "icons/icon.icns",
             "icons/icon.ico"
         ],
-        "resources": [
-            "templates/*.json"
-        ],
         "externalBin": [
-            "binaries/llama-helper",
             "binaries/ffmpeg"
         ],
         "macOS": {

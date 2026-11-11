@@ -19,7 +19,8 @@ utilities/
                                   # (fastapi-dependent) to avoid pulling fastapi into domain/ consumers
   domain/
     errors.py                    # AppError, NotFoundError, ValidationFailedError
-    provider_errors.py             # BedrockInvocationError — shared by matching_engine/meetings
+    provider_errors.py             # BedrockInvocationError — raised by every Bedrock client
+    bedrock.py                     # TRANSIENT_ERROR_CODES — which AWS errors get another attempt
     money.py                       # Money — plain frozen dataclass, not pydantic (domain-purity)
     retry.py                         # retry_with_backoff
     logging.py                         # configure_logging, log_context
@@ -33,8 +34,10 @@ utilities/
     schema_check.py                    # find_schema_drift()
     idempotency.py                       # InMemoryIdempotencyStore + get_shared_idempotency_store()
     task_runner.py                         # InProcessTaskRunner + get_shared_task_runner()
-  providers/bedrock/retry.py    # invoke_bedrock_with_retry — reached directly, not via __all__
-                                   # (needs botocore; domain/bedrock.py stays framework-free)
+  providers/bedrock/agent.py    # structured_agent + run_bedrock_agent + bedrock_model — the Pydantic AI
+                                   # pieces every Bedrock client uses; reached directly, not via __all__
+  tests/bedrock_fakes.py        # ScriptedModel, offline_bedrock, bedrock_error — shared by every
+                                   # module's Bedrock client tests
   api/handlers.py               # register_exception_handlers — the one fastapi-dependent piece
   secrets_manager.py            # SecretsManagerSettings: base for every module Settings;
                                    # reads /wusool/<env>/toolkit once per process (root, not domain/)
@@ -63,12 +66,20 @@ collision risk. Prefer these over constructing `InMemoryIdempotencyStore()`/
 `InProcessTaskRunner()` directly — the raw classes stay exported for tests
 that want an isolated instance.
 
-`invoke_bedrock_with_retry` (`providers/bedrock/retry.py`) is deliberately
-**not** in `__all__` — same reasoning as `register_exception_handlers`: it
-needs `botocore.exceptions`/`mypy_boto3_bedrock_runtime` typing, which
-`domain/bedrock.py` stays free of by design, so a consumer reaches it via
-`app.modules.utilities.providers.bedrock.retry` directly instead of the root
-facade.
+`structured_agent`, `run_bedrock_agent` and `bedrock_model`
+(`providers/bedrock/agent.py`) are
+deliberately **not** in `__all__` — same reasoning as
+`register_exception_handlers`: they need `pydantic_ai` and `botocore`, which
+`domain/` consumers must not import, so a module's Bedrock client reaches
+them via `app.modules.utilities.providers.bedrock.agent` directly. Every
+Bedrock call in the server goes through `run_bedrock_agent`: each client
+builds its agents with `structured_agent`, whose only output is the schema
+as a tool, so Bedrock is forced to answer through the tool and the agent
+validates the result. The runner retries transient AWS errors
+(`TRANSIENT_ERROR_CODES`, connection failures, but not read timeouts, which
+already waited the client's full timeout) three times with backoff,
+logs metadata only, and re-raises Pydantic AI errors as content-free
+`BedrockInvocationError`s, since they can embed model output.
 
 `register_exception_handlers` is deliberately **not** in `__all__` — a
 `bootstrap.py`-level consumer (which already imports `fastapi` itself)

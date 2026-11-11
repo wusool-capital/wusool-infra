@@ -1,15 +1,16 @@
 """The provider-agnostic seam application services depend on. Callers import
-this Protocol, never `boto3` or `app.modules.meetings.providers.bedrock`
-directly — swapping providers later means writing a new implementation of
-this Protocol, not touching the application layer.
+this Protocol, never `boto3`, `pydantic_ai` or
+`app.modules.meetings.providers.bedrock` directly — swapping providers later
+means writing a new implementation of this Protocol, not touching the
+application layer.
 
-Returns a plain, already-validated `dict` — never a Pydantic schema, which
-must not cross this Port.
+Returns an already-validated domain `MeetingSummary`, so no raw JSON or
+Pydantic schema crosses this Port.
 """
 
 from typing import Protocol
 
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.meetings.domain.summary import MeetingSummary
 
 
 class SummarizerLLM(Protocol):
@@ -21,4 +22,5 @@ class SummarizerLLM(Protocol):
         system_prompt: str,
         max_tokens: int,
         temperature: float,
-    ) -> JsonObject: ...
+        check_limits: bool,
+    ) -> MeetingSummary: ...

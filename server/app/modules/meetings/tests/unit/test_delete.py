@@ -22,7 +22,7 @@ from app.modules.meetings.application.errors import MeetingStillProcessingError
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
 from app.modules.meetings.domain.meeting_record import MeetingRecord
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.meetings.domain.summary import MeetingSummary
 
 _MEETING_ID = uuid4()
 _NOTE_ID = uuid4()
@@ -77,8 +77,15 @@ def _meeting(**overrides: object) -> MeetingRecord:
 
 class _FakeSummarizerLLM:
     async def summarize(
-        self, *, model_id: str, prompt: str, system_prompt: str, max_tokens: int, temperature: float
-    ) -> JsonObject:
+        self,
+        *,
+        model_id: str,
+        prompt: str,
+        system_prompt: str,
+        max_tokens: int,
+        temperature: float,
+        check_limits: bool,
+    ) -> MeetingSummary:
         raise AssertionError("delete flow never summarizes")
 
 

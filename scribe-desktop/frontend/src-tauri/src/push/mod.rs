@@ -33,6 +33,8 @@ use uuid::Uuid;
 
 use crate::database::models::MeetingModel;
 use crate::database::repositories::meeting::MeetingsRepository;
+use crate::database::repositories::speaker::SpeakerRepository;
+use crate::diarization::SpeakerLabel;
 use crate::database::repositories::transcript::TranscriptsRepository;
 use crate::state::AppState;
 
@@ -326,11 +328,21 @@ pub async fn search_companies<R: Runtime>(
 struct CorrectionSegment {
     segment_id: String,
     text: String,
+    speaker: String,
+}
+
+/// What the meeting is about, so the server's proofread knows which names to expect.
+#[derive(Debug, Serialize)]
+struct CorrectionContext {
+    title: Option<String>,
+    names: Vec<String>,
+    vocabulary: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 struct CorrectionRequest {
     segments: Vec<CorrectionSegment>,
+    context: CorrectionContext,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -338,12 +350,71 @@ pub struct CorrectionSuggestion {
     pub segment_id: String,
     pub original: String,
     pub suggested: String,
+    /// name, term, number, word or punctuation; older servers send none.
+    #[serde(default)]
+    pub category: Option<String>,
     pub reason: String,
+}
+
+/// Suggestions plus which lines the server could not check.
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ProofreadResult {
+    pub suggestions: Vec<CorrectionSuggestion>,
+    #[serde(default)]
+    pub failed_segment_ids: Vec<String>,
+}
+
+const PROOFREAD_STORE: &str = "proofread.json";
+const PROOFREAD_VOCABULARY_KEY: &str = "vocabulary";
+/// Matches the server's caps, so a long list is trimmed here, not rejected there.
+const MAX_VOCABULARY_WORDS: usize = 200;
+const MAX_CONTEXT_ITEM_CHARS: usize = 80;
+const MAX_CONTEXT_NAMES: usize = 100;
+
+/// Trimmed, de-duplicated (ignoring case), each within the server's length cap.
+fn normalize_vocabulary(words: Vec<String>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    words
+        .into_iter()
+        .map(|w| w.split_whitespace().collect::<Vec<_>>().join(" "))
+        .map(|w| w.chars().take(MAX_CONTEXT_ITEM_CHARS).collect::<String>())
+        .filter(|w| !w.is_empty() && seen.insert(w.to_lowercase()))
+        .take(MAX_VOCABULARY_WORDS)
+        .collect()
+}
+
+fn load_proofread_vocabulary<R: Runtime>(app: &AppHandle<R>) -> Vec<String> {
+    app.store(PROOFREAD_STORE)
+        .ok()
+        .and_then(|store| store.get(PROOFREAD_VOCABULARY_KEY))
+        .and_then(|value| serde_json::from_value::<Vec<String>>(value).ok())
+        .map(normalize_vocabulary)
+        .unwrap_or_default()
+}
+
+/// The user's own words for proofread, on top of the server's default list.
+#[tauri::command]
+pub async fn get_proofread_vocabulary<R: Runtime>(app: AppHandle<R>) -> Result<Vec<String>, String> {
+    Ok(load_proofread_vocabulary(&app))
+}
+
+#[tauri::command]
+pub async fn set_proofread_vocabulary<R: Runtime>(
+    app: AppHandle<R>,
+    words: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let words = normalize_vocabulary(words);
+    let store = app.store(PROOFREAD_STORE).map_err(|e| e.to_string())?;
+    store.set(PROOFREAD_VOCABULARY_KEY, serde_json::json!(words));
+    store.save().map_err(|e| e.to_string())?;
+    Ok(words)
 }
 
 #[derive(Debug, Deserialize)]
 struct CorrectionResponse {
     suggestions: Vec<CorrectionSuggestion>,
+    #[serde(default)]
+    failed_segment_ids: Vec<String>,
 }
 
 /// Runs in Rust, not JS, so the push API key never reaches the webview.
@@ -352,25 +423,62 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, AppState>,
     meeting_id: String,
-) -> Result<Vec<CorrectionSuggestion>, String> {
+    // Only these lines, for retrying the part an earlier run couldn't check.
+    segment_ids: Option<Vec<String>>,
+) -> Result<ProofreadResult, String> {
     let config = load_push_config(&app);
     if config.server_url.trim().is_empty() {
         return Err("Push destination is not configured. Set it in Settings.".to_string());
     }
 
-    let rows = TranscriptsRepository::list_meeting_rows(state.db_manager.pool(), &meeting_id)
+    let pool = state.db_manager.pool();
+    let rows = TranscriptsRepository::list_meeting_rows(pool, &meeting_id)
         .await
         .map_err(|e| format!("Failed to load transcript: {}", e))?;
-    let body = CorrectionRequest {
-        segments: rows
-            .into_iter()
-            .filter(|r| !r.transcript.trim().is_empty())
-            .map(|r| CorrectionSegment { segment_id: r.id, text: r.transcript })
-            .collect(),
-    };
-    if body.segments.is_empty() {
-        return Ok(Vec::new());
+    let speaker_names: HashMap<SpeakerLabel, String> = SpeakerRepository::meeting_speakers(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load speakers for {}: {}", meeting_id, e))?
+        .into_iter()
+        .filter_map(|s| Some((s.label, s.name?)))
+        .collect();
+    let self_name = crate::diarization::commands::load_self_name(&app);
+    let title = MeetingsRepository::get_meeting_metadata(pool, &meeting_id)
+        .await
+        .ok()
+        .flatten()
+        .map(|m| m.title)
+        .filter(|t| !t.trim().is_empty() && !is_placeholder_title(t));
+
+    let only: Option<std::collections::HashSet<String>> = segment_ids.map(|ids| ids.into_iter().collect());
+    let segments: Vec<CorrectionSegment> = rows
+        .into_iter()
+        .filter(|r| !r.transcript.trim().is_empty())
+        .filter(|r| only.as_ref().is_none_or(|ids| ids.contains(&r.id)))
+        .map(|r| CorrectionSegment {
+            // The server rejects longer speakers, which would fail the whole request.
+            speaker: speaker_display_name(r.speaker, &speaker_names, self_name.as_deref())
+                .chars()
+                .take(MAX_CONTEXT_ITEM_CHARS)
+                .collect(),
+            segment_id: r.id,
+            text: r.transcript,
+        })
+        .collect();
+    if segments.is_empty() {
+        return Ok(ProofreadResult { suggestions: Vec::new(), failed_segment_ids: Vec::new() });
     }
+    let mut names: Vec<String> = self_name.into_iter().chain(speaker_names.into_values()).collect();
+    names.sort();
+    names.dedup();
+    let names = normalize_vocabulary(names).into_iter().take(MAX_CONTEXT_NAMES).collect();
+    let body = CorrectionRequest {
+        segments,
+        context: CorrectionContext {
+            title: title.map(|t| t.chars().take(200).collect()),
+            names,
+            vocabulary: load_proofread_vocabulary(&app),
+        },
+    };
 
     let url = format!("{}/desktop/transcripts/corrections", config.server_url.trim_end_matches('/'));
     // Long meetings are chunked server-side across several LLM calls, and the
@@ -396,7 +504,7 @@ pub async fn suggest_transcript_corrections<R: Runtime>(
     }
 
     serde_json::from_str::<CorrectionResponse>(&response_text)
-        .map(|r| r.suggestions)
+        .map(|r| ProofreadResult { suggestions: r.suggestions, failed_segment_ids: r.failed_segment_ids })
         .map_err(|e| format!("Server returned an unexpected response: {}", e))
 }
 
@@ -412,14 +520,30 @@ pub struct DesktopMeetingStatusResponse {
     pub meeting_id: String,
     pub status: String,
     pub summary: Option<serde_json::Value>,
+    /// The server's rendered summary, the same text filed as the Attio note.
+    #[serde(default)]
+    pub summary_text: Option<String>,
 }
 
-/// speaker isn't real per-person diarization in this build (see
-/// meetily/CLAUDE.md and app/audio/transcription — no pyannote
-/// integration is compiled in), so every turn gets a single generic
-/// label. The backend's SummarizeMeetingCommand only reads
-/// speaker+text and doesn't require it to be meaningful.
+/// Label for segments saved before speaker attribution existed.
 const GENERIC_SPEAKER_LABEL: &str = "Participant";
+
+/// The speaker name sent to the backend, so its summary can say who said what.
+fn speaker_display_name(
+    label: Option<SpeakerLabel>,
+    names: &HashMap<SpeakerLabel, String>,
+    self_name: Option<&str>,
+) -> String {
+    match label {
+        None => GENERIC_SPEAKER_LABEL.to_string(),
+        Some(SpeakerLabel::Me) => self_name.unwrap_or("Me").to_string(),
+        Some(SpeakerLabel::Others) => "Others".to_string(),
+        Some(label @ SpeakerLabel::Speaker(n)) => names
+            .get(&label)
+            .cloned()
+            .unwrap_or_else(|| format!("Speaker {}", n + 1)),
+    }
+}
 
 #[tauri::command]
 pub async fn push_meeting<R: Runtime>(
@@ -454,11 +578,19 @@ pub async fn push_meeting<R: Runtime>(
         return Err("This meeting has no transcript to push.".to_string());
     }
 
+    let speaker_names: HashMap<SpeakerLabel, String> = SpeakerRepository::meeting_speakers(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load speakers for {}: {}", meeting_id, e))?
+        .into_iter()
+        .filter_map(|s| Some((s.label, s.name?)))
+        .collect();
+    let self_name = crate::diarization::commands::load_self_name(&app);
+
     let turns: Vec<DesktopTranscriptTurn> = meeting
         .transcripts
         .iter()
         .map(|t| DesktopTranscriptTurn {
-            speaker: GENERIC_SPEAKER_LABEL.to_string(),
+            speaker: speaker_display_name(t.speaker, &speaker_names, self_name.as_deref()),
             start: t.audio_start_time.unwrap_or(0.0),
             end: t.audio_end_time.unwrap_or(0.0),
             text: t.text.clone(),
@@ -576,15 +708,11 @@ fn strip_role_bracket_prefix(title: &str) -> String {
     ROLE_BRACKET_PREFIX.replace(title, "").trim().to_string()
 }
 
-/// Matches only the auto-generated recording placeholder (see
-/// recording_commands.rs's "Meeting {timestamp}" default), never a real
-/// title -- so a title fill never clobbers a user's manual rename or an
-/// AI title a previous check/sync already applied.
-static PLACEHOLDER_TITLE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^Meeting \d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$").unwrap());
-
+/// Matches only the auto-generated recording name, never a real title -- so a
+/// title fill never clobbers a user's manual rename or an AI title a previous
+/// check/sync already applied.
 fn is_placeholder_title(title: &str) -> bool {
-    PLACEHOLDER_TITLE.is_match(title)
+    crate::meeting_title::is_default_meeting_title(title)
 }
 
 /// Applies the local, network-free fills a finished summary implies:
@@ -621,14 +749,19 @@ async fn apply_local_summary_fills(
 /// transcripts.json, and applies the local fills above. Every failure
 /// is warn-logged and non-fatal -- a summary that can't be filed this
 /// time is retried on the next check/sync, not lost.
-async fn store_summary_for_meeting(pool: &SqlitePool, meeting_id: &str, summary: &serde_json::Value) {
+async fn store_summary_for_meeting(
+    pool: &SqlitePool,
+    meeting_id: &str,
+    summary: &serde_json::Value,
+    summary_text: Option<&str>,
+) {
     match MeetingsRepository::get_meeting_metadata(pool, meeting_id).await {
         Ok(Some(meeting)) => {
             match &meeting.folder_path {
                 Some(folder_path) => {
                     let folder = std::path::PathBuf::from(folder_path);
                     if folder.exists() {
-                        if let Err(e) = write_summary_files(&folder, summary) {
+                        if let Err(e) = write_summary_files(&folder, summary, summary_text) {
                             warn!("Failed to write summary files to {}: {}", folder.display(), e);
                         } else {
                             info!("Saved summary to {}", folder.display());
@@ -715,7 +848,13 @@ pub async fn get_push_status<R: Runtime>(
     // live together -- the same folder the sidebar's tag grouping and
     // "Open Recording Folder" button both point at.
     if let Some(summary) = &parsed.summary {
-        store_summary_for_meeting(state.db_manager.pool(), &meeting_id, summary).await;
+        store_summary_for_meeting(
+            state.db_manager.pool(),
+            &meeting_id,
+            summary,
+            parsed.summary_text.as_deref(),
+        )
+        .await;
     }
 
     Ok(parsed)
@@ -730,10 +869,14 @@ pub async fn get_push_status<R: Runtime>(
 /// summary already exists -- if the process died between the two
 /// writes with json written first, the sentinel would be satisfied
 /// while summary.md never landed, and nothing would ever retry it.
-fn write_summary_files(folder: &std::path::Path, summary: &serde_json::Value) -> std::io::Result<()> {
+fn write_summary_files(
+    folder: &std::path::Path,
+    summary: &serde_json::Value,
+    summary_text: Option<&str>,
+) -> std::io::Result<()> {
     let md_path = folder.join("summary.md");
     let md_temp = folder.join(".summary.md.tmp");
-    std::fs::write(&md_temp, format_summary_markdown(summary))?;
+    std::fs::write(&md_temp, format_summary_markdown(summary, summary_text))?;
     std::fs::rename(&md_temp, &md_path)?;
 
     let json_path = folder.join("summary.json");
@@ -744,38 +887,20 @@ fn write_summary_files(folder: &std::path::Path, summary: &serde_json::Value) ->
     Ok(())
 }
 
-const SUMMARY_LIST_SECTIONS: &[(&str, &str)] = &[
-    ("discussion_topics", "Discussion Topics"),
-    ("action_items", "Action Items"),
-    ("decisions", "Decisions"),
-    ("open_questions", "Open Questions"),
-    ("risks", "Risks"),
-    ("keywords", "Keywords"),
-];
-
-/// Mirrors app.delivery.service._format_slack_text on the backend, so
-/// the on-disk summary reads the same way the Slack message does.
-fn format_summary_markdown(summary: &serde_json::Value) -> String {
-    let mut lines = vec!["# Meeting Summary".to_string()];
-    if let Some(exec) = summary.get("executive_summary").and_then(|v| v.as_str()) {
-        lines.push(String::new());
-        lines.push(exec.to_string());
+/// The server renders the summary once, for the Attio note and for this
+/// file, so the section order lives in one place
+/// (server/app/modules/meetings/domain/rendering.py). A server that predates
+/// `summary_text` gets the gist alone.
+fn format_summary_markdown(summary: &serde_json::Value, summary_text: Option<&str>) -> String {
+    let body = summary_text
+        .or_else(|| summary.get("executive_summary").and_then(|v| v.as_str()))
+        .map(str::trim)
+        .unwrap_or("");
+    if body.is_empty() {
+        "# Meeting Summary".to_string()
+    } else {
+        format!("# Meeting Summary\n\n{}", body)
     }
-    for (key, heading) in SUMMARY_LIST_SECTIONS {
-        if let Some(items) = summary.get(*key).and_then(|v| v.as_array()) {
-            if items.is_empty() {
-                continue;
-            }
-            lines.push(String::new());
-            lines.push(format!("## {}", heading));
-            for item in items {
-                if let Some(text) = item.as_str() {
-                    lines.push(format!("- {}", text));
-                }
-            }
-        }
-    }
-    lines.join("\n")
 }
 
 /// Reads back the summary.json written by get_push_status for a meeting
@@ -1119,7 +1244,13 @@ pub async fn sync_pushed_meetings<R: Runtime>(app: AppHandle<R>) -> Result<SyncR
                 match fetch_meeting_status(&client, &config, &item.meeting_id).await {
                     Ok(fetched) => {
                         if let Some(summary) = &fetched.summary {
-                            store_summary_for_meeting(pool, &meeting.id, summary).await;
+                            store_summary_for_meeting(
+                                pool,
+                                &meeting.id,
+                                summary,
+                                fetched.summary_text.as_deref(),
+                            )
+                            .await;
                             synced += 1;
                         }
                     }
@@ -1159,6 +1290,17 @@ mod sync_tests {
     #[test]
     fn plan_sync_fetches_when_missing_locally() {
         assert_eq!(plan_sync(true, true, false), SyncAction::FetchAndFill);
+    }
+
+    #[test]
+    fn speaker_display_name_prefers_known_names() {
+        let names = HashMap::from([(SpeakerLabel::Speaker(0), "Alice".to_string())]);
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Speaker(0)), &names, None), "Alice");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Speaker(1)), &names, None), "Speaker 2");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Me), &names, Some("Sam")), "Sam");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Me), &names, None), "Me");
+        assert_eq!(speaker_display_name(Some(SpeakerLabel::Others), &names, None), "Others");
+        assert_eq!(speaker_display_name(None, &names, None), GENERIC_SPEAKER_LABEL);
     }
 
     #[test]
@@ -1213,8 +1355,50 @@ mod sync_tests {
     fn write_summary_files_writes_markdown_before_json() {
         let dir = tempfile::tempdir().unwrap();
         let summary = serde_json::json!({"executive_summary": "done"});
-        write_summary_files(dir.path(), &summary).unwrap();
+        write_summary_files(dir.path(), &summary, Some("done")).unwrap();
         assert!(dir.path().join("summary.md").exists());
         assert!(dir.path().join("summary.json").exists());
+    }
+
+    #[test]
+    fn summary_markdown_uses_the_server_text() {
+        let summary = serde_json::json!({"executive_summary": "Gist."});
+        assert_eq!(
+            format_summary_markdown(&summary, Some("Gist.\n\nNext steps:\n- Sinan: do it\n")),
+            "# Meeting Summary\n\nGist.\n\nNext steps:\n- Sinan: do it"
+        );
+    }
+
+    #[test]
+    fn summary_markdown_falls_back_to_the_gist() {
+        let summary = serde_json::json!({"executive_summary": "Gist.", "action_items": ["x"]});
+        assert_eq!(format_summary_markdown(&summary, None), "# Meeting Summary\n\nGist.");
+        assert_eq!(format_summary_markdown(&serde_json::json!({}), None), "# Meeting Summary");
+    }
+
+    #[test]
+    fn proofread_vocabulary_is_trimmed_deduplicated_and_capped() {
+        let words = vec![
+            "  Project   Falcon ".to_string(),
+            "project falcon".to_string(),
+            "".to_string(),
+            "x".repeat(120),
+        ];
+        let normalized = normalize_vocabulary(words);
+        assert_eq!(normalized[0], "Project Falcon");
+        assert_eq!(normalized.len(), 2);
+        assert_eq!(normalized[1].chars().count(), MAX_CONTEXT_ITEM_CHARS);
+        let many: Vec<String> = (0..300).map(|i| format!("w{i}")).collect();
+        assert_eq!(normalize_vocabulary(many).len(), MAX_VOCABULARY_WORDS);
+    }
+
+    #[test]
+    fn older_server_response_still_parses() {
+        let parsed: CorrectionResponse = serde_json::from_str(
+            r#"{"suggestions":[{"segment_id":"a","original":"x","suggested":"y","reason":"r"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.suggestions[0].category, None);
+        assert!(parsed.failed_segment_ids.is_empty());
     }
 }

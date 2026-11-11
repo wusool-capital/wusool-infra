@@ -407,6 +407,40 @@ def test_replay_never_records_requests_or_console_output() -> None:
         assert setting in js, f"replay setting missing: {setting}"
 
 
+def _replay_block() -> list[str]:
+    js = _analytics_js()
+    assert "blockSelector: REPLAY_BLOCK" in js
+    parts = re.search(r"var REPLAY_BLOCK =(.*?);", js, re.DOTALL).group(1)
+    return [s.strip() for s in "".join(re.findall(r"'([^']*)'", parts)).split(",")]
+
+
+def _selector_pattern(selector: str) -> re.Pattern[str]:
+    """Markup that a REPLAY_BLOCK selector matches: `#id`, or `input[attr="v"]`."""
+    attr = re.fullmatch(r'input\[(\w+)="([^"]+)"\]', selector)
+    return re.compile(rf'{attr.group(1)}="{attr.group(2)}"' if attr else rf'id="{selector[1:]}"')
+
+
+def _page_sources(tool_dir: Path) -> str:
+    # Valuation renders its fields from React in sibling .js files, not index.html.
+    files = (*tool_dir.glob("*.js"), tool_dir / "index.html")
+    return "".join(p.read_text(encoding="utf-8") for p in files)
+
+
+def test_replay_blocks_the_contact_fields_the_privacy_policy_promises() -> None:
+    sources = "".join(_page_sources(d) for d in _tool_dirs())
+    for selector in _replay_block():
+        assert _selector_pattern(selector).search(sources), f"no page has {selector}"
+
+
+def test_replay_block_covers_every_email_phone_and_linkedin_input() -> None:
+    sensitive = re.compile(r'\b(?:id|name)="[^"]*(?:email|phone|tel|linkedin)[^"]*"', re.IGNORECASE)
+    patterns = [_selector_pattern(s) for s in _replay_block()]
+    for tool_dir in _tool_dirs():
+        for tag in re.findall(r"<input\b(?:[^>]|=>)*>", _page_sources(tool_dir)):
+            if sensitive.search(tag):
+                assert any(p.search(tag) for p in patterns), f"{tool_dir.name}: {tag[:80]}"
+
+
 def test_report_gate_asks_for_an_unticked_privacy_policy_checkbox() -> None:
     """The gate used to say "by continuing you agree"; now the reader must tick
     the same Privacy Policy line the lead tools use, and it starts unticked."""

@@ -101,7 +101,7 @@ export function DownloadProgressStep() {
     checkPlatform();
   }, []);
 
-  // Start the required transcription model immediately; summary readiness must not block it.
+  // Start the required transcription model immediately.
   useEffect(() => {
     if (parakeetDownloadStartedRef.current) return;
     parakeetDownloadStartedRef.current = true;
@@ -112,7 +112,6 @@ export function DownloadProgressStep() {
 
     startBackgroundDownloads({
       includeParakeet: true,
-      includeSummary: false,
     }).catch((error) => {
       console.error('Failed to start Parakeet download:', error);
       if (!parakeetDownloaded) {

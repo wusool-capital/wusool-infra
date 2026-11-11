@@ -12,7 +12,7 @@ from app.modules.meetings.api.schemas import (
     TranscriptCorrectionsRequest,
     TranscriptCorrectionsResponse,
 )
-from app.modules.meetings.domain.corrections import TranscriptSegment
+from app.modules.meetings.domain.corrections import CorrectionContext, TranscriptSegment
 
 router = APIRouter(
     prefix="/desktop", tags=["desktop"], dependencies=[Depends(require_desktop_api_key)]
@@ -23,8 +23,21 @@ router = APIRouter(
 async def suggest_transcript_corrections(
     body: TranscriptCorrectionsRequest, service: CorrectionServiceDep
 ) -> TranscriptCorrectionsResponse:
-    suggestions = await service.suggest(
-        [TranscriptSegment(segment_id=s.segment_id, text=s.text) for s in body.segments]
+    context = (
+        CorrectionContext(
+            title=body.context.title,
+            names=tuple(body.context.names),
+            vocabulary=tuple(body.context.vocabulary),
+        )
+        if body.context
+        else None
+    )
+    result = await service.suggest(
+        [
+            TranscriptSegment(segment_id=s.segment_id, text=s.text, speaker=s.speaker)
+            for s in body.segments
+        ],
+        context,
     )
     return TranscriptCorrectionsResponse(
         suggestions=[
@@ -32,8 +45,11 @@ async def suggest_transcript_corrections(
                 segment_id=s.segment_id,
                 original=s.original,
                 suggested=s.suggested,
+                category=s.category,
                 reason=s.reason,
             )
-            for s in suggestions
-        ]
+            for s in result.suggestions
+        ],
+        checked_segments=result.checked_segments,
+        failed_segment_ids=result.failed_segment_ids,
     )

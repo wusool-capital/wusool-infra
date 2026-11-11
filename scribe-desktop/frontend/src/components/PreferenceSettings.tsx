@@ -7,6 +7,10 @@ import { invoke } from "@tauri-apps/api/core"
 import Analytics from "@/lib/analytics"
 import { useConfig, NotificationSettings } from "@/contexts/ConfigContext"
 import { useTheme } from "@/contexts/ThemeContext"
+import { SpeakerSettings } from "./SpeakerSettings"
+import { ProofreadVocabularySettings } from "./ProofreadVocabularySettings"
+import { SettingsRow, SettingsSection } from "./settings/SettingsSection"
+import { Button } from "./ui/button"
 
 export function PreferenceSettings() {
   const {
@@ -148,92 +152,50 @@ export function PreferenceSettings() {
   const notificationsEnabledValue = notificationsEnabled ?? false;
 
   return (
-    <div className="space-y-6">
-      {/* Appearance Section */}
-      <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Appearance</h3>
-            <p className="text-sm text-muted-foreground ">Use dark mode throughout the app</p>
-          </div>
-          <Switch
-            checked={theme === 'dark'}
-            onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
-          />
-        </div>
-      </div>
+    <div className="space-y-8">
+      <SettingsSection title="General">
+        <SettingsRow
+          title="Dark Mode"
+          description="Use dark mode throughout the app."
+          control={
+            <Switch
+              aria-label="Dark mode"
+              checked={theme === 'dark'}
+              onCheckedChange={(checked) => setTheme(checked ? 'dark' : 'light')}
+            />
+          }
+        />
+        <SettingsRow
+          title="Notifications"
+          description="Notify me when a meeting recording starts and ends."
+          control={
+            <Switch
+              aria-label="Notifications"
+              checked={notificationsEnabledValue}
+              onCheckedChange={setNotificationsEnabled}
+            />
+          }
+        />
+      </SettingsSection>
 
-      {/* Notifications Section */}
-      <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Notifications</h3>
-            <p className="text-sm text-muted-foreground ">Enable or disable notifications of start and end of meeting</p>
-          </div>
-          <Switch checked={notificationsEnabledValue} onCheckedChange={setNotificationsEnabled} />
-        </div>
-      </div>
+      <SpeakerSettings />
 
-      {/* Data Storage Locations Section */}
-      <div className="bg-card rounded-lg border border-border p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-foreground mb-4">Data Storage Locations</h3>
-        <p className="text-sm text-muted-foreground mb-6">
-          View and access where WusoolScribe stores your data
-        </p>
+      <ProofreadVocabularySettings />
 
-        <div className="space-y-4">
-          {/* Database Location */}
-          {/* <div className="p-4 border rounded-lg bg-muted">
-            <div className="font-medium mb-2">Database</div>
-            <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
-              {storageLocations?.database || 'Loading...'}
-            </div>
-            <button
-              onClick={() => handleOpenFolder('database')}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
-            >
+      <SettingsSection title="Storage">
+        {/* Database and models locations were hidden before this layout; kept for reference.
+          storageLocations?.database / storageLocations?.models with handleOpenFolder('database' | 'models') */}
+        <SettingsRow
+          title="Meeting Recordings"
+          description={<span className="break-all">{storageLocations?.recordings || 'Loading…'}</span>}
+          control={
+            <Button variant="outline" size="sm" onClick={() => handleOpenFolder('recordings')}>
               <FolderOpen className="w-4 h-4" />
               Open Folder
-            </button>
-          </div> */}
-
-          {/* Models Location */}
-          {/* <div className="p-4 border rounded-lg bg-muted">
-            <div className="font-medium mb-2">Whisper Models</div>
-            <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
-              {storageLocations?.models || 'Loading...'}
-            </div>
-            <button
-              onClick={() => handleOpenFolder('models')}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Open Folder
-            </button>
-          </div> */}
-
-          {/* Recordings Location */}
-          <div className="p-4 border rounded-lg bg-muted ">
-            <div className="font-medium mb-2 text-foreground ">Meeting Recordings</div>
-            <div className="text-sm text-muted-foreground mb-3 break-all font-mono text-xs">
-              {storageLocations?.recordings || 'Loading...'}
-            </div>
-            <button
-              onClick={() => handleOpenFolder('recordings')}
-              className="flex items-center gap-2 px-3 py-2 text-sm border border-border rounded-md hover:bg-accent text-foreground transition-colors"
-            >
-              <FolderOpen className="w-4 h-4" />
-              Open Folder
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 p-3 bg-primary/10 rounded-md">
-          <p className="text-xs text-primary ">
-            <strong>Note:</strong> Database and models are stored together in your application data directory for unified management.
-          </p>
-        </div>
-      </div>
+            </Button>
+          }
+        />
+      </SettingsSection>
     </div>
   )
 }

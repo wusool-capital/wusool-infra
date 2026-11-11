@@ -4,6 +4,7 @@ use crate::api::TranscriptSegment;
 use crate::audio::decoder::{decode_audio_file, decode_audio_file_with_progress};
 use crate::audio::vad::get_speech_chunks_with_progress;
 use crate::config::{DEFAULT_WHISPER_MODEL, DEFAULT_PARAKEET_MODEL};
+use crate::diarization::SpeakerLabel;
 use crate::parakeet_engine::ParakeetEngine;
 use crate::state::AppState;
 use crate::whisper_engine::WhisperEngine;
@@ -52,7 +53,7 @@ impl Drop for ImportGuard {
 }
 
 /// VAD redemption time in milliseconds - bridges natural pauses in speech
-/// Batch processing needs longer redemption (2000ms) than live pipeline (400ms)
+/// Batch processing needs longer redemption (2000ms) than live pipeline (800ms)
 /// because the entire file is processed at once by VAD, and 400ms fragments
 /// speech at every natural sentence/topic pause (500ms-2s)
 const VAD_REDEMPTION_TIME_MS: u32 = 2000;
@@ -665,6 +666,14 @@ async fn run_import<R: Runtime>(
 
     emit_progress(&app, "complete", 100, "Import complete");
 
+    // After metadata.json, which is how separation finds the imported audio.
+    let (diarize_app, diarize_pool, diarize_id) = (app.clone(), app_state.db_manager.pool().clone(), meeting_id.clone());
+    if crate::diarization::commands::load_auto_separate(&diarize_app) {
+        tauri::async_runtime::spawn(async move {
+            crate::diarization::service::diarize_and_notify(&diarize_app, &diarize_pool, &diarize_id).await;
+        });
+    }
+
     Ok(ImportResult {
         meeting_id,
         title,
@@ -719,8 +728,8 @@ async fn create_meeting_with_transcripts(
     // Insert transcripts
     for segment in segments {
         sqlx::query(
-            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration)
-             VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO transcripts (id, meeting_id, transcript, timestamp, audio_start_time, audio_end_time, duration, speaker)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(&segment.id)
         .bind(&meeting_id)
@@ -729,6 +738,8 @@ async fn create_meeting_with_transcripts(
         .bind(segment.audio_start_time)
         .bind(segment.audio_end_time)
         .bind(segment.duration)
+        // An imported file is all meeting audio, so every line waits for speaker separation.
+        .bind(SpeakerLabel::Others)
         .execute(&mut *tx)
         .await
         .map_err(|e| anyhow!("Failed to insert transcript: {}", e))?;
@@ -1181,6 +1192,7 @@ mod tests {
                 audio_start_time: Some(0.0),
                 audio_end_time: Some(1.5),
                 duration: Some(1.5),
+                speaker: None,
             },
             TranscriptSegment {
                 id: "t-2".to_string(),
@@ -1189,6 +1201,7 @@ mod tests {
                 audio_start_time: Some(2.0),
                 audio_end_time: Some(3.5),
                 duration: Some(1.5),
+                speaker: None,
             },
         ];
 

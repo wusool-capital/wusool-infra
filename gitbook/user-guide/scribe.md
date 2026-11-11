@@ -1,12 +1,10 @@
 # WusoolScribe
 
 WusoolScribe is a Mac app that records and transcribes meetings on your
-computer and can generate an editable summary. You can send a finished
-meeting to Attio as a note.
+computer. You can send a finished meeting to Attio as a note with a summary.
 
-Audio and transcription stay on your Mac. A cloud summary provider receives
-transcript text only when you choose one. Sending a meeting to Attio sends
-the transcript and summary, never the audio.
+Audio and transcription stay on your Mac. Sending a meeting to Attio sends
+the transcript and its speaker names, never the audio.
 
 ## Install and set up
 
@@ -40,8 +38,12 @@ again. Allow it, or recordings will be silent.
 
 1. Check the microphone and system-audio devices. Set the defaults under
    **Settings → Recordings → Default Audio Devices**.
-2. Optionally name the meeting, then press **Record**.
-3. Check that transcript lines appear while people speak.
+2. Optionally name the meeting, then press **Start Recording** on the home
+   screen. The home screen shows which microphone and system audio will be
+   used.
+3. Check that the level meter beside the timer moves when you speak, and that
+   transcript lines appear while people speak. A flat meter means the
+   microphone hears nothing.
 4. Pause when needed, then press **Stop**.
 
 **Expected result:** the meeting opens as soon as it is saved, so you can
@@ -55,43 +57,44 @@ Auto-stop When Meeting Ends**.
 If only your voice is captured, or no speech appears, see
 [Troubleshooting](troubleshooting.md).
 
-## Edit a transcript
+## Work with the transcript
 
-Fix the transcript before you summarize or send it:
-
-- Tick lines (Shift-click for a range), then delete, merge, or split them.
-- Right-click a line to delete everything before it.
-- Use **Find & replace** (Cmd+F) to fix a misheard name everywhere.
-- Undo and redo with Cmd+Z and Cmd+Shift+Z.
-
-Deleted lines are not sent to Summarize.
+Name speakers, fix lines, proofread, and re-transcribe in
+[Work with Scribe transcripts](scribe-transcripts.md).
 
 ## Summarize a meeting
 
-Generate a summary with the provider chosen in **Settings**. The built-in
-model and Ollama run on your Mac; Claude, Groq, OpenRouter, OpenAI, and a
-custom OpenAI-compatible service are online. Cloud providers receive the transcript text under their own
-data-handling terms.
+Press **Summarize** on the meeting, then **Push**. Scribe sends the
+transcript to the Toolkit server, which writes the summary. Scribe doesn't
+summarize on your Mac, and Settings has no summary provider to choose.
 
 Treat every summary as a draft. Check names, figures, decisions, and actions
 before sharing or sending it.
 
-## Import or enhance existing audio
-
-**Import & Enhance is a beta feature.** Choose **Import**, select an audio
-file, and Scribe transcribes it on your Mac. For an existing meeting,
-**Enhance** re-transcribes it with another model or language. Keep the
-original audio until you have checked the result.
-
 ## Send a meeting to Attio
 
-1. Open the meeting and review its transcript and summary.
+1. Open the meeting and review its transcript.
 2. If it concerns a company, search for and select that organization.
 3. Press **Push**.
 
 **Expected result:** the meeting shows a processing status, then a completed
 status once the note reaches Attio. With an organization selected, the note
 links to its buyer or seller record; otherwise it becomes a general note.
+When the summary is ready, Scribe closes the popup and opens the meeting's
+**Summary** tab.
+
+The summary that comes back is built to scan. It shows, in this order:
+
+- a gist of 2–3 sentences: where the meeting landed and what it waits on;
+- **Next steps**, each starting with the owner's name;
+- **Decisions**, when something was agreed;
+- **Deal signal** for buyer, seller and investor meetings: momentum, claims to
+  verify before relying on them, and risks. Other meetings show **Risks**;
+- **Notes**, grouped by topic. A short call gets 1–2 topics; a 90-minute
+  meeting gets up to 8.
+
+The Attio note and `summary.md` in the meeting folder follow the same order.
+Meetings summarised before version 0.8.2 keep their longer opening.
 
 You can close the app while processing continues. Don't push again just
 because it takes a while. If it fails, see
@@ -115,7 +118,9 @@ material.
 ## Send feedback
 
 Click the bug icon at the top of the sidebar, choose a category, and describe
-what happened. The form needs **Scribe Push** set up first.
+what happened. The form needs **Scribe Push** set up first. If you gave your
+name under **Speakers** in Settings, it's already filled in; change or clear it
+as you like.
 
 ## Updates
 

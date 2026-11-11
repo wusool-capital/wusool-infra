@@ -28,6 +28,13 @@ Windows and Linux, but no builds are published for them.
   This is an accepted trade-off.
 - Update payloads are signed separately with minisign, and the app verifies
   that signature before installing.
+- The webview's Content Security Policy allows inline styles
+  (`'unsafe-inline'` in `style-src`), and `tauri.conf.json` sets
+  `dangerousDisableAssetCspModification: ["style-src"]`. Without it, Tauri
+  adds style hashes to the policy, WebKit then ignores `'unsafe-inline'`, and
+  every `style="…"` attribute in the pre-rendered pages is dropped. The
+  sidebar, for example, opened at the width of its content instead of the
+  saved width. Scripts keep Tauri's hashes.
 
 ## Releases and updates
 
@@ -46,19 +53,24 @@ currently reaches nobody.
 
 ```text
 microphone and system audio, or an imported file
-  → local recording
-  → local Whisper transcription
-  → user edits the transcript
-  → summary provider chosen in Settings
+  → local recording (mixed track, plus a meeting-audio-only track)
+  → local Whisper transcription, tagged "me" (mic) or "others" (system)
+  → local speaker diarization of the meeting audio after saving
+  → user edits the transcript and names speakers
   → local SQLite meeting
   → optional push to the Toolkit server
   → server-side Bedrock summary and Attio note
 ```
 
-Audio and transcription stay on the Mac. Two summary providers run locally:
-Ollama and a built-in model. The online ones are OpenAI, Claude, Groq,
-OpenRouter, and a custom OpenAI-compatible endpoint. Remote providers receive the
-transcript text when chosen.
+Audio and transcription stay on the Mac. Scribe has no local summary model:
+the transcript leaves the Mac only when the user pushes it, and the Toolkit
+server writes the summary.
+
+## Speaker separation
+
+Scribe labels your microphone with your name and separates other voices on
+the Mac after the meeting. When automatic separation is off, it separates only
+on request. See [speaker separation](scribe-speakers.md).
 
 ## After a push
 
@@ -73,10 +85,8 @@ transcript text when chosen.
    organizations.
 4. An Attio failure is logged; the meeting still completes on the server.
 
-A push for the same install and recording always returns 409, so pushing
-again doesn't recover a failed meeting. Instead, a meeting stalled for 10
-minutes is reset the next time its status is read, which re-runs the
-summary.
+The summary format and proofread are described in
+[summaries and proofread](scribe-summaries.md).
 
 ## Interfaces
 
@@ -87,11 +97,11 @@ compared in constant time.
 | --- | --- |
 | `GET /desktop/verify` | Checks the server address and key before Settings saves them. |
 | `POST /desktop/meetings` | Accepts a transcript. Over 1.5 million characters returns 422; a repeated install and recording returns 409. |
-| `GET /desktop/meetings/{meeting_id}` | One meeting's processing state and summary. |
+| `GET /desktop/meetings/{meeting_id}` | One meeting's processing state and summary. `summary_text` is the same rendered text filed as the Attio note; the app writes it to `summary.md`. |
 | `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
 | `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
 | `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |
-| `POST /desktop/transcripts/corrections` | Sends transcript lines to Bedrock for spelling suggestions. Nothing is stored. |
+| `POST /desktop/transcripts/corrections` | Sends transcript lines, with speaker names and optional `context` (title, names, the user's vocabulary), to Bedrock for spelling suggestions. Returns each fix with a category, plus `failed_segment_ids` for lines in batches that errored. Nothing is stored. |
 | `POST /desktop/feedback` | Records in-app feedback and emails the team. |
 
 Internal Tauri commands aren't a public integration API.
@@ -118,6 +128,8 @@ best-effort and is only sent when a sender and recipient are configured.
   a meeting.
 - Transcription failures stay local and can be retried.
 - A failed remote summary doesn't affect the local transcript.
+- If diarization fails or the meeting has no meeting-audio track, segments
+  keep the `others` label. The meeting is saved either way.
 - On the server, authentication, summarization, and Attio filing are
   separate stages; the app polls for the result.
 

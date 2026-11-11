@@ -18,6 +18,9 @@ pub mod ffmpeg_mixer;  // NEW: FFmpeg-style adaptive audio mixer
 // New simplified audio system
 pub mod recording_state;
 pub mod pipeline;
+pub mod bleed_gate;
+pub mod mic_level;
+pub mod segment_merger;
 pub mod stream;
 pub mod recording_manager;
 pub mod recording_commands;
@@ -28,7 +31,7 @@ pub mod meeting_end_tracker;
 pub mod recording_saver;
 pub mod incremental_saver;  // NEW: Incremental audio saving with checkpoints
 pub mod level_monitor;
-pub mod simple_level_monitor;
+pub mod mic_test;
 pub mod buffer_pool;
 pub mod post_processor;
 pub mod hardware_detector;

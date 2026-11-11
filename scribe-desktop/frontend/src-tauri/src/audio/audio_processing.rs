@@ -25,7 +25,7 @@ pub fn sanitize_filename(name: &str) -> String {
 }
 
 /// Create a meeting folder with timestamp and return the path
-/// Creates structure: base_path/MeetingName_YYYY-MM-DD_HH-MM/
+/// Creates structure: base_path/MeetingName_YYYY-MM-DD_HH-MM-SS/
 ///                    ├── .checkpoints/  (for incremental saves, optional)
 ///
 /// # Arguments
@@ -37,7 +37,8 @@ pub fn create_meeting_folder(
     meeting_name: &str,
     create_checkpoints_dir: bool,
 ) -> Result<PathBuf> {
-    let timestamp = Utc::now().format("%Y-%m-%d_%H-%M").to_string();
+    // Seconds keep two recordings started in the same minute out of one folder.
+    let timestamp = Utc::now().format("%Y-%m-%d_%H-%M-%S").to_string();
     let sanitized_name = sanitize_filename(meeting_name);
     let folder_name = format!("{}_{}", sanitized_name, timestamp);
     let meeting_folder = base_path.join(folder_name);

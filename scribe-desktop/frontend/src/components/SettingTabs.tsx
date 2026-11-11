@@ -1,14 +1,10 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ModelConfig } from "./ModelSettingsModal"
 import { TranscriptModelProps, TranscriptSettings } from "./TranscriptSettings"
 import { RecordingSettings, RecordingPreferences } from "./RecordingSettings"
 import { PushDestinationSettings } from "./PushDestinationSettings"
 import { About } from "./About";
 
 interface SettingTabsProps {
-    modelConfig: ModelConfig;
-    setModelConfig: (config: ModelConfig | ((prev: ModelConfig) => ModelConfig)) => void;
-    onSave: (config: ModelConfig) => void;
     transcriptModelConfig: TranscriptModelProps;
     setTranscriptModelConfig: (config: TranscriptModelProps) => void;
     onSaveTranscript: (config: TranscriptModelProps) => void;
@@ -17,9 +13,6 @@ interface SettingTabsProps {
 }
 
 export function SettingTabs({
-    modelConfig,
-    setModelConfig,
-    onSave,
     setSaveSuccess,
     defaultTab = "transcriptSettings",
     transcriptModelConfig,

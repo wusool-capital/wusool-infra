@@ -173,6 +173,8 @@ server/
 │       ├── meetings/              # /desktop/* — desktop-app transcript summarization
 │       ├── organizations/           # shared Organization persistence
 │       ├── activities/                # business-event history (activities index, vocabulary, recorder)
+│       ├── google_workspace/            # Gmail and Calendar access (service account, delegation)
+│       ├── interactions/                  # last interaction from Gmail and Calendar (read-only so far)
 │       ├── attio/                     # Attio vendor integration
 │       ├── notifications/               # cross-module Slack notifier Port
 │       └── utilities/                     # cross-cutting infra (logging, retry, Money, DB wiring)

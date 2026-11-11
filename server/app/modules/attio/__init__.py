@@ -17,17 +17,27 @@ from app.modules.attio.config import attio_is_test, attio_workspace_id, owns_rec
 from app.modules.attio.domain.scope import record_scope
 from app.modules.attio.domain.webhook import WebhookActor, WebhookEvent, WebhookEventId
 from app.modules.attio.providers.attio.client import AttioClient, AttioError, get_attio_client
+from app.modules.attio.providers.attio.company_strength import (
+    CompanyStrength,
+    WorkspaceMember,
+    list_company_strengths,
+    list_workspace_members,
+)
 
 __all__ = [
     "AttioClient",
     "AttioClientProtocol",
     "AttioError",
+    "CompanyStrength",
     "WebhookActor",
     "WebhookEvent",
     "WebhookEventId",
+    "WorkspaceMember",
     "attio_is_test",
     "attio_workspace_id",
     "get_attio_client",
+    "list_company_strengths",
+    "list_workspace_members",
     "owns_record",
     "record_scope",
 ]

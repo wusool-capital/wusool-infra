@@ -4,24 +4,24 @@ and `matching` import this Protocol, never `boto3` or
 providers later means writing a new implementation of this Protocol, not
 touching the application layer.
 
-Each method owns its own validate-repair-retry-then-fail-closed policy
-internally (validating against its own vendor-response schema, in
-`providers/bedrock/schemas.py`) and returns a plain, already-validated
-`dict` — never the Pydantic schema itself, which must not cross this Port.
-`repair_prompt_builder` is a callback (given the invalid raw response and
-the validation error) so the *content* of a repair prompt — which needs
-the original business context (buyer, profile, shortlist) — stays owned by
-the caller, while the *retry loop itself* (attempt count, when to call it,
-when to fail closed) is owned here, one layer down.
+Each method owns its own validate-retry-then-fail-closed policy internally
+(validating against its own vendor-response schema, in
+`providers/bedrock/schemas.py`) and returns framework-free values — never
+the Pydantic schema itself, which must not cross this Port. A failed check
+is retried once with the error appended to the same conversation, so the
+caller's prompt stays the whole business context; a second failure raises
+`BedrockInvocationError`.
 """
 
-from collections.abc import Callable
 from typing import Protocol
 
-from app.modules.matching_engine.application.ports.llm_types import InferenceConfig
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.matching_engine.application.ports.llm_types import (
+    ExtractedRequirements,
+    InferenceConfig,
+)
+from app.modules.matching_engine.domain.matching.entities import ReasoningOutcome
 
-RepairPromptBuilder = Callable[[JsonObject, str], str]
+__all__ = ["BedrockClient", "ExtractedRequirements", "InferenceConfig"]
 
 
 class BedrockClient(Protocol):
@@ -30,15 +30,13 @@ class BedrockClient(Protocol):
         *,
         model_id: str,
         prompt: str,
-        repair_prompt_builder: RepairPromptBuilder,
         inference_config: InferenceConfig,
-    ) -> JsonObject: ...
+    ) -> ExtractedRequirements: ...
 
     async def generate_reasoning(
         self,
         *,
         model_id: str,
         prompt: str,
-        repair_prompt_builder: RepairPromptBuilder,
         inference_config: InferenceConfig,
-    ) -> JsonObject: ...
+    ) -> ReasoningOutcome: ...
