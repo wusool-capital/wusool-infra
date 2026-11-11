@@ -68,6 +68,7 @@ integration() {
     app/modules/enrichment/tests/integration \
     app/modules/discovery/tests/integration \
     app/modules/discrepancies/tests/integration \
+    app/modules/interactions/tests/integration \
     tests/integration
 }
 

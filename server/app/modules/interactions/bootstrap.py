@@ -15,6 +15,7 @@ from typing import Protocol
 import httpx
 from pydantic import ValidationError
 
+from app.modules.attio import get_attio_client
 from app.modules.google_workspace import (
     CALENDAR_READONLY,
     GMAIL_READONLY,
@@ -23,12 +24,17 @@ from app.modules.google_workspace import (
     GmailClient,
 )
 from app.modules.google_workspace import get_settings as get_google_settings
+from app.modules.interactions.application.calibration import CalibrationConfig, run_calibration
 from app.modules.interactions.application.ingest import IngestConfig, IngestService, PassReport
 from app.modules.interactions.config import get_settings
+from app.modules.interactions.domain.addresses import team_member_of
+from app.modules.interactions.domain.calibration import CalibrationReport
 from app.modules.interactions.persistence.advisory_lock import try_advisory_lock
 from app.modules.interactions.persistence.database import get_engine, get_sessionmaker
 from app.modules.interactions.persistence.directory import SqlAlchemyRecordDirectory
 from app.modules.interactions.persistence.interaction_store import SqlAlchemyInteractionStore
+from app.modules.interactions.persistence.touch_reader import SqlAlchemyTouchReader
+from app.modules.interactions.providers.attio_companies import AttioStrengthSource
 
 logger = logging.getLogger(__name__)
 
@@ -149,4 +155,24 @@ async def _start() -> None:
             service,
             lambda: try_advisory_lock(engine, LOCK_KEY),
             settings.interactions_poll_interval_s,
+        )
+
+
+async def run_strength_calibration() -> CalibrationReport:
+    """One read-only comparison of our labels with Attio's. Writes nothing anywhere."""
+    settings = get_settings()
+    sessionmaker = get_sessionmaker()
+    internal = settings.internal_domains
+    config = CalibrationConfig(
+        read_mailboxes=frozenset(team_member_of(m, internal) for m in settings.mailboxes),
+        internal_domains=internal,
+        rules=settings.scoring_rules(),
+    )
+    async with get_attio_client() as client:
+        return await run_calibration(
+            AttioStrengthSource(client, internal),
+            SqlAlchemyTouchReader(sessionmaker, internal),
+            SqlAlchemyRecordDirectory(sessionmaker),
+            config,
+            _utc_now(),
         )
