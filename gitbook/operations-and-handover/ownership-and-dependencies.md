@@ -13,6 +13,7 @@ and keep them current in the client's operations register.
 | Toolkit application | Slack commands, matching, enrichment, discovery, lead tools, reports | Unassigned |
 | PostgreSQL and CRM sync | Schema, migrations, webhook and nightly reconciliation | Unassigned |
 | Attio | CRM structure, data quality, users, webhooks | Unassigned |
+| Google Workspace access | The service account, its delegation grant, the mailbox list, and the Google Cloud project | Unassigned |
 | Slack | Toolkit app, workspace access, alerts channel | Unassigned |
 | Sanity Reports & Insights Studio | Report and article content, editors, webhooks | Unassigned |
 | Webflow | The website and its CMS collections | Unassigned |
@@ -33,6 +34,7 @@ Billing owners and plans aren't recorded in the repository unless stated.
 | Webflow | Website and CMS | Unknown |
 | PostHog (EU Cloud) | Who requested, unlocked and read each report. Receives reader names and emails | Free tier, 1M events a month. Set a billing limit |
 | Google Cloud (Places, Geocoding) | Seller discovery | Unknown |
+| Google Workspace (Gmail and Calendar APIs) | Reading team mailbox and calendar metadata for the interactions engine | Unknown |
 | Firecrawl | Web search for enrichment and Valuation | Unknown |
 | Diffbot | Structured company data | Free tier, 10,000 credits a month |
 | People Data Labs | Structured company data | Free tier, 100 lookups a month |

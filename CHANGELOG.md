@@ -77,6 +77,26 @@ for current production evidence and open handover items.
   is recognised in later meetings. Voice fingerprints stay on the Mac, and
   pushed meetings now send speaker names instead of "Participant".
 
+## 2026-11-06
+
+### Added
+
+- The interactions engine reads each team mailbox's Gmail and Calendar into
+  PostgreSQL (AZM-159). It stores headers, subjects, and event details for 12
+  months, never message bodies. It links addresses to Persons and
+  Organizations. It is off by default (`INTERACTIONS_ENABLED`) and writes
+  nothing to Attio yet.
+- Google access is its own module, `google_workspace`, so other features can
+  reuse it. It needs one service-account key, `GOOGLE_SERVICE_ACCOUNT_JSON`,
+  and a Workspace admin's read-only delegation. The Google access runbook
+  covers setup, rotation, and revocation.
+
+### Changed
+
+- The platform architecture diagram adds Google Workspace. Its page was
+  regenerated, so it also shows PostHog and the website's analytics link,
+  which the old page lacked.
+
 ## 2026-11-05
 
 ### Added

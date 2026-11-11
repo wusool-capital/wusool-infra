@@ -45,6 +45,7 @@ repository. The diagram's source is
 | Slack matching, profile management, enrichment, and discovery | [Wusool Toolkit](toolkit.md) |
 | Desktop recording, transcription, summaries, and CRM push | [WusoolScribe](scribe.md) |
 | Attio ↔ PostgreSQL synchronization | [Attio and database sync](attio-sync.md) |
+| Gmail and Calendar interaction tracking | [Interactions engine](interactions.md) |
 | Valuation, Readiness, Benchmark, Buyer Network, Get Started, and gated reports | [Website lead tools](lead-tools.md) |
 | Trust boundaries, credentials, and data handling | [Security and data handling](security.md) |
 

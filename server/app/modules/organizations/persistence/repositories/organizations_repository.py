@@ -15,7 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Organization
-from app.modules.organizations.application.ports.organizations import OrganizationFields
+from app.modules.organizations.application.ports.organizations import (
+    OrganizationDomains,
+    OrganizationFields,
+)
 
 _TRIGRAM_SIMILARITY_THRESHOLD = 0.3
 
@@ -115,6 +118,15 @@ class OrganizationRepository:  # implements OrganizationRepositoryPort
         ).bindparams(bindparam("hosts", value=[h.lower() for h in hosts], type_=ARRAY(Text)))
         stmt = select(Organization).where(Organization.removed_at.is_(None), any_domain_matches)
         return (await self._session.execute(stmt)).scalars().first()
+
+    async def list_live_domains(self) -> list[OrganizationDomains]:
+        """Every non-removed org with its domains, so a caller can see a domain two orgs share."""
+        rows = await self._session.execute(
+            select(Organization.attio_id, Organization.domains).where(
+                Organization.removed_at.is_(None)
+            )
+        )
+        return [OrganizationDomains(attio_id, tuple(domains)) for attio_id, domains in rows]
 
     async def create(
         self, attio_id: str, name: str, **fields: Unpack[OrganizationFields]
