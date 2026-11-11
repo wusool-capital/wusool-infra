@@ -42,11 +42,11 @@ def resolve_link(address: str, directory: RecordDirectory) -> LinkResolution:
     if person is not None and person.organization_id is not None:
         return LinkResolution(person.attio_id, person.organization_id, None)
 
-    org_id, ambiguity = _organization_by_domain(domain_of(address), directory)
+    org_id, ambiguity = organization_by_domain(domain_of(address), directory)
     return LinkResolution(person.attio_id if person else None, org_id, ambiguity)
 
 
-def _organization_by_domain(
+def organization_by_domain(
     domain: str, directory: RecordDirectory
 ) -> tuple[str | None, Ambiguity | None]:
     for candidate in org_domain_candidates(domain):
