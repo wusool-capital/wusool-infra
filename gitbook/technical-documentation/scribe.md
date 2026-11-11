@@ -69,8 +69,8 @@ server writes the summary.
 ## Speaker separation
 
 Scribe labels your microphone with your name and separates other voices on
-the Mac after the meeting, or only on request when automatic separation is
-off. See [speaker separation](scribe-speakers.md).
+the Mac after the meeting. When automatic separation is off, it separates only
+on request. See [speaker separation](scribe-speakers.md).
 
 ## After a push
 
