@@ -33,5 +33,6 @@ async def try_advisory_lock(engine: AsyncEngine, key: int) -> AsyncIterator[bool
                 try:
                     await connection.execute(select(func.pg_advisory_unlock(key)))
                 except Exception:
-                    # A dead connection has already lost the lock; don't mask the block's error.
                     logger.warning("interactions_lock_release_failed")
+                    # Closing the session is what frees the lock; a pooled connection would keep it.
+                    await connection.invalidate()

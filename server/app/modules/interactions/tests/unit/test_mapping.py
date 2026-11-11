@@ -148,3 +148,20 @@ def test_a_meeting_without_a_start_or_ical_uid_cannot_be_stored() -> None:
 
     assert event_to_item(JULES, keyless, INTERNAL) is None
     assert event_to_item(JULES, startless, INTERNAL) is None
+
+
+def test_a_room_booked_for_two_team_members_does_not_make_the_meeting_external() -> None:
+    item = _meeting(
+        attendees=(
+            Attendee(JULES, "accepted", True),
+            Attendee("ramzy@dopaminecap.com", "accepted", False),
+            Attendee("c_1@resource.calendar.google.com", "accepted", False, resource=True),
+        ),
+        organizer=None,
+    )
+
+    assert item is None
+
+
+def test_a_mailing_with_a_list_unsubscribe_header_is_ignored() -> None:
+    assert _email(bulk=True) is None

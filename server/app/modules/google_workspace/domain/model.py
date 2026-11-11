@@ -27,6 +27,7 @@ class Attendee:
     address: str
     response_status: str | None
     is_self: bool
+    resource: bool = False
 
 
 @dataclass(frozen=True)

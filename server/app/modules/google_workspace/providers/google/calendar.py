@@ -101,7 +101,12 @@ def _to_attendee(item: CalendarAttendeeItem) -> Attendee | None:
     address = _address(item.email)
     if address is None:
         return None
-    return Attendee(address=address, response_status=item.response_status, is_self=item.is_self)
+    return Attendee(
+        address=address,
+        response_status=item.response_status,
+        is_self=item.is_self,
+        resource=item.resource,
+    )
 
 
 def _address(raw: str | None) -> str | None:

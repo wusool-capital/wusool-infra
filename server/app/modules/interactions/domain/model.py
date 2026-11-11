@@ -97,6 +97,8 @@ class RawItem:
     labels: frozenset[str] = frozenset()
     subject: str | None = None
     auto_submitted: str | None = None
+    # A List-Unsubscribe header marks a mailing, not a conversation.
+    bulk: bool = False
     all_day: bool = False
     cancelled: bool = False
     # The mailbox owner's own calendar response.

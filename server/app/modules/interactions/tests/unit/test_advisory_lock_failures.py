@@ -24,11 +24,15 @@ class _Connection:
 
     def __init__(self, *, wins: bool = True, unlock_fails: bool = False) -> None:
         self.statements = 0
+        self.invalidated = False
         self._wins = wins
         self._unlock_fails = unlock_fails
 
     async def execution_options(self, **options: str) -> "_Connection":
         return self
+
+    async def invalidate(self) -> None:
+        self.invalidated = True
 
     async def execute(self, statement: Select[tuple[bool]]) -> _Result:
         self.statements += 1
@@ -75,3 +79,21 @@ async def test_a_lock_that_was_not_won_is_never_released() -> None:
         assert not won
 
     assert connection.statements == 1
+
+
+async def test_a_failed_release_closes_the_connection_so_the_lock_cannot_leak() -> None:
+    connection = _Connection(unlock_fails=True)
+
+    async with try_advisory_lock(_Engine(connection), 1):  # type: ignore[arg-type]
+        pass
+
+    assert connection.invalidated
+
+
+async def test_a_clean_release_keeps_the_connection() -> None:
+    connection = _Connection()
+
+    async with try_advisory_lock(_Engine(connection), 1):  # type: ignore[arg-type]
+        pass
+
+    assert not connection.invalidated

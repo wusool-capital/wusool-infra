@@ -15,7 +15,7 @@ def is_ignored(item: RawItem, internal_domains: tuple[str, ...] = INTERNAL_DOMAI
         return True
     if item.channel is Channel.MEETING:
         return item.all_day or item.cancelled or item.team_declined
-    return bool(item.labels & _IGNORED_LABELS) or _is_notice_or_auto_reply(item)
+    return bool(item.labels & _IGNORED_LABELS) or item.bulk or _is_notice_or_auto_reply(item)
 
 
 def _is_notice_or_auto_reply(item: RawItem) -> bool:

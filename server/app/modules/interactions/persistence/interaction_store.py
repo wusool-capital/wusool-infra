@@ -3,9 +3,9 @@
 import uuid
 from collections.abc import Sequence
 from datetime import datetime
-from typing import cast
+from typing import TypedDict, cast
 
-from sqlalchemy import Table, Text, bindparam, delete, func, or_, select, update
+from sqlalchemy import Table, Text, bindparam, delete, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -80,9 +80,8 @@ class SqlAlchemyInteractionStore:
     async def set_links(self, links: Sequence[AddressLink]) -> int:
         if not links:
             return 0
-        # Core, not ORM: the ORM would demand primary keys for a bulk update, and we match by
-        # address. coalesce keeps a link that is already set, so a later pass never undoes one.
-        # SQLAlchemy types `__table__` as a bare FromClause; a mapped class always has a Table.
+        # Core, not ORM: a bulk ORM update needs primary keys, but we match by address.
+        # coalesce keeps links already set. `__table__` is typed FromClause, always a Table.
         table = cast(Table, InteractionParticipant.__table__)
         stmt = (
             update(table)
@@ -119,7 +118,9 @@ class SqlAlchemyInteractionStore:
             .returning(Interaction.id, Interaction.source_id)
         )
         ids = {source_id: row_id for row_id, source_id in (await session.execute(stmt)).all()}
-        await _add_participants(session, [i for i in items if i.source_id in ids], ids)
+        await _add_participants(
+            session, _participant_rows([i for i in items if i.source_id in ids], ids)
+        )
         return len(ids)
 
     async def _upsert_meetings(self, session: AsyncSession, items: list[NewInteraction]) -> int:
@@ -138,12 +139,19 @@ class SqlAlchemyInteractionStore:
             },
         ).returning(Interaction.id, Interaction.source_id)
         ids = {source_id: row_id for row_id, source_id in (await session.execute(stmt)).all()}
+        # Guests are diffed, not replaced, so the links already set on kept guests survive.
+        rows = _participant_rows(items, ids)
         await session.execute(
             delete(InteractionParticipant).where(
-                InteractionParticipant.interaction_id.in_(list(ids.values()))
+                InteractionParticipant.interaction_id.in_(list(ids.values())),
+                tuple_(
+                    InteractionParticipant.interaction_id,
+                    InteractionParticipant.email,
+                    InteractionParticipant.role,
+                ).not_in([(r["interaction_id"], r["email"], r["role"]) for r in rows]),
             )
         )
-        await _add_participants(session, items, ids)
+        await _add_participants(session, rows)
         return len(ids)
 
     async def _write_cursor(self, session: AsyncSession, cursor: SyncCursor) -> None:
@@ -169,7 +177,25 @@ class SqlAlchemyInteractionStore:
         )
 
 
-def _row(item: NewInteraction) -> dict[str, str | datetime | None]:
+class _InteractionRow(TypedDict):
+    mailbox: str
+    channel: str
+    source_id: str
+    dedupe_key: str
+    occurred_at: datetime
+    direction: str | None
+    thread_id: str | None
+    subject: str | None
+
+
+class _ParticipantRow(TypedDict):
+    interaction_id: uuid.UUID
+    email: str
+    domain: str
+    role: str
+
+
+def _row(item: NewInteraction) -> _InteractionRow:
     return {
         "mailbox": item.mailbox,
         "channel": item.channel.value,
@@ -182,10 +208,10 @@ def _row(item: NewInteraction) -> dict[str, str | datetime | None]:
     }
 
 
-async def _add_participants(
-    session: AsyncSession, items: list[NewInteraction], ids: dict[str, uuid.UUID]
-) -> None:
-    rows = [
+def _participant_rows(
+    items: list[NewInteraction], ids: dict[str, uuid.UUID]
+) -> list[_ParticipantRow]:
+    return [
         {
             "interaction_id": ids[item.source_id],
             "email": p.email,
@@ -195,5 +221,11 @@ async def _add_participants(
         for item in items
         for p in item.participants
     ]
+
+
+async def _add_participants(session: AsyncSession, rows: list[_ParticipantRow]) -> None:
     if rows:
-        await session.execute(insert(InteractionParticipant), rows)
+        stmt = insert(InteractionParticipant).on_conflict_do_nothing(
+            constraint="uq_interaction_participants_address"
+        )
+        await session.execute(stmt, rows)

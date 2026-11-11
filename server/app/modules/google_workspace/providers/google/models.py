@@ -74,6 +74,7 @@ class CalendarAttendeeItem(_Reply):
     email: str | None = None
     response_status: str | None = None
     is_self: bool = Field(default=False, alias="self")
+    resource: bool = False
 
 
 class CalendarItem(_Reply):

@@ -112,3 +112,54 @@ async def test_a_persistent_failure_gives_up_after_four_attempts() -> None:
 
     assert caught.value.status == 500
     assert sleeps.calls == [1.0, 2.0, 4.0]
+
+
+async def test_a_dropped_connection_is_retried_like_a_503() -> None:
+    sleeps = RecordedSleeps()
+    attempts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise httpx.ConnectTimeout("slow")
+        return httpx.Response(200, json={"name": "x"})
+
+    async with http_client(handler) as http:
+        thing = await get_model(
+            http, StaticTokenSource(), "jules@wusoolcapital.com", URL, [], Thing, sleeps
+        )
+
+    assert (thing, sleeps.calls) == (Thing(name="x"), [1.0])
+
+
+async def test_a_connection_that_keeps_dropping_raises_after_the_last_attempt() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("slow")
+
+    async with http_client(handler) as http:
+        with pytest.raises(httpx.ConnectTimeout):
+            await get_model(
+                http,
+                StaticTokenSource(),
+                "jules@wusoolcapital.com",
+                URL,
+                [],
+                Thing,
+                RecordedSleeps(),
+            )
+
+
+async def test_the_wait_google_asks_for_beats_the_default_backoff_but_is_capped() -> None:
+    sleeps = RecordedSleeps()
+
+    await _get(
+        responses=[
+            httpx.Response(429, headers={"Retry-After": "20"}),
+            httpx.Response(429, headers={"Retry-After": "9999"}),
+            httpx.Response(200, json={"name": "x"}),
+        ],
+        sleeps=sleeps,
+    )
+
+    assert sleeps.calls == [20.0, 60.0]

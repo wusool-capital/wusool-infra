@@ -310,3 +310,29 @@ async def test_purging_removes_old_interactions_and_their_participants_only(
     assert removed == 1
     assert [r.source_id for r in await _interactions(sessionmaker, mailbox)] == ["later", "recent"]
     assert len(await _participants(sessionmaker, mailbox)) == 3
+
+
+async def test_re_reading_a_meeting_keeps_the_links_on_guests_who_stay(
+    sessionmaker: async_sessionmaker[AsyncSession], mailbox: str, record_prefix: str
+) -> None:
+    store = SqlAlchemyInteractionStore(sessionmaker)
+    org_id, person_id = f"{record_prefix}o", f"{record_prefix}p"
+    async with sessionmaker() as session, session.begin():
+        session.add(Organization(attio_id=org_id, name="Acme", domains=["acme.com"]))
+        await session.flush()
+        session.add(Person(attio_id=person_id, name="Sara", email=[SARA], company_attio_id=org_id))
+    await store.save_page(_batch(mailbox, _meeting(mailbox, "e1"), source=Source.CALENDAR))
+    await store.set_links([AddressLink(SARA, person_id, org_id)])
+
+    await store.save_page(
+        _batch(
+            mailbox,
+            _meeting(mailbox, "e1", guests=(SARA, "bo@acme.com")),
+            source=Source.CALENDAR,
+        )
+    )
+
+    by_email = {p.email: p for p in await _participants(sessionmaker, mailbox)}
+    assert set(by_email) == {SARA, "bo@acme.com"}
+    assert by_email[SARA].person_attio_id == person_id
+    assert by_email["bo@acme.com"].person_attio_id is None

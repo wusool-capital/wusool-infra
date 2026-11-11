@@ -34,8 +34,7 @@ _METADATA_HEADERS = (
 _LIST_PAGE_SIZE = "100"
 _HISTORY_PAGE_SIZE = "500"
 _FETCH_CONCURRENCY = 10
-# A mailbox gets 6,000 quota units a minute and messages.get costs 20, so 300 fetches at most.
-# 250 leaves room for the list, history and profile calls.
+# 6,000 units a minute at 20 per messages.get allows 300; 250 leaves room for other calls.
 _GETS_PER_MINUTE = 250
 _GET_INTERVAL_S = 60.0 / _GETS_PER_MINUTE
 

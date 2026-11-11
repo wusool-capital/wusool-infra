@@ -179,6 +179,7 @@ def message(
     subject: str | None = "Hello",
     labels: frozenset[str] = frozenset({"INBOX"}),
     message_id: str | None = "default",
+    bulk: bool = False,
 ) -> MailMessage:
     return MailMessage(
         source_id=source_id,
@@ -191,7 +192,7 @@ def message(
         to_addresses=to,
         cc_addresses=cc,
         auto_submitted=None,
-        has_list_unsubscribe=False,
+        has_list_unsubscribe=bulk,
     )
 
 

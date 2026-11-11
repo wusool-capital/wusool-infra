@@ -30,6 +30,7 @@ def email_to_item(
         labels=message.labels,
         subject=message.subject,
         auto_submitted=message.auto_submitted,
+        bulk=message.has_list_unsubscribe,
     )
     if is_ignored(raw, internal_domains):
         return None
@@ -55,8 +56,10 @@ def event_to_item(
 ) -> NewInteraction | None:
     if event.starts_at is None or event.ical_uid is None:
         return None
-    # An attendee who declined never took part, so their address is not recorded.
-    attending = [a.address for a in event.attendees if a.response_status != "declined"]
+    # Declined guests never took part; rooms are not people.
+    attending = [
+        a.address for a in event.attendees if a.response_status != "declined" and not a.resource
+    ]
     listed = {a.address for a in event.attendees}
     # An organizer missing from the guest list took part; one who is listed and declined did not.
     if event.organizer and event.organizer not in listed:

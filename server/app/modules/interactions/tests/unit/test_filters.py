@@ -17,6 +17,7 @@ def _item(
     all_day: bool = False,
     cancelled: bool = False,
     team_declined: bool = False,
+    bulk: bool = False,
 ) -> RawItem:
     return RawItem(
         channel=channel,
@@ -27,6 +28,7 @@ def _item(
         all_day=all_day,
         cancelled=cancelled,
         team_declined=team_declined,
+        bulk=bulk,
     )
 
 
@@ -105,3 +107,7 @@ def test_meeting_flags_do_not_apply_to_email() -> None:
 
 def test_a_meeting_titled_like_a_notice_is_still_a_meeting() -> None:
     assert not is_ignored(_item(channel=Channel.MEETING, subject="Invitation: kickoff"))
+
+
+def test_bulk_mail_is_dropped_but_a_bulk_meeting_is_not_a_thing() -> None:
+    assert is_ignored(_item(bulk=True))
