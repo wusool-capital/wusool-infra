@@ -79,7 +79,8 @@ def test_every_excluded_case_lands_in_its_own_bucket() -> None:
         {"o-acme": L.STRONG, "o-beta": None},
     )
 
-    assert report.compared == 0
+    # The silent Company has a label but no interactions, so it is compared as Very weak.
+    assert (report.compared, report.no_interactions) == (1, 1)
     assert report.excluded == {
         Bucket.NO_ATTIO_LABEL: 1,
         Bucket.TECH_USER: 1,
@@ -87,7 +88,6 @@ def test_every_excluded_case_lands_in_its_own_bucket() -> None:
         Bucket.UNREAD_MAILBOX: 1,
         Bucket.NO_ORGANIZATION: 1,
         Bucket.AMBIGUOUS: 1,
-        Bucket.NO_TOUCHES: 1,
     }
 
 
