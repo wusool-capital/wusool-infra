@@ -61,13 +61,13 @@ async def test_our_label_comes_from_the_touches_and_is_compared_with_attios() ->
         CompanyInput("c1", ("acme.com",), StrengthLabel.GOOD, "Good", JULES),
         CompanyInput("c2", ("beta.io",), StrengthLabel.STRONG, "Strong", JULES),
     ]
-    # Two meetings score about 8, Strong; no touches at all leaves o2 uncompared.
+    # Two meetings score about 8, Strong; no touches at all counts o2 as Very weak.
     report = await run_calibration(
         _Source(companies), _Reader({"o1": _meetings(2)}), _Directory(), CONFIG, NOW
     )
 
-    assert (report.compared, report.exact, report.within_one) == (1, 0, 1)
-    assert report.excluded == {Bucket.NO_TOUCHES: 1}
+    assert (report.compared, report.exact, report.within_one) == (2, 0, 1)
+    assert (report.no_interactions, report.excluded) == (1, {})
 
 
 def test_the_report_names_the_denominator_and_every_left_out_bucket() -> None:
@@ -111,3 +111,16 @@ def test_the_scores_file_holds_ids_labels_and_numbers_and_a_blank_with_no_intera
     )
 
     assert scores_csv(report) == ("record_id,attio_label,our_score\nc1,Strong,9.0512\nc2,Weak,\n")
+
+
+def test_the_report_says_how_many_compared_companies_had_no_interactions() -> None:
+    report = CalibrationReport(
+        compared=5,
+        exact=4,
+        within_one=5,
+        matrix=tuple(tuple(0 for _ in range(5)) for _ in range(5)),
+        excluded={},
+        no_interactions=3,
+    )
+
+    assert "  of which no interactions, counted Very weak: 3" in render(report)

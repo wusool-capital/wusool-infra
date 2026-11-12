@@ -27,6 +27,8 @@ from app.modules.interactions.domain.model import StrengthLabel
 def render(report: CalibrationReport) -> str:
     """The report as text. Every percentage names its denominator."""
     lines = [f"Compared: {report.compared} Companies"]
+    if report.no_interactions:
+        lines.append(f"  of which no interactions, counted Very weak: {report.no_interactions}")
     if report.compared:
         lines += [
             f"Exact match:      {report.exact}/{report.compared} = {_pct(report.exact_rate)}"
