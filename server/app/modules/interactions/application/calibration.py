@@ -31,14 +31,16 @@ async def run_calibration(
     companies, touches, loaded = await asyncio.gather(
         source.companies(), reader.touches_by_organization(), directory.load()
     )
-    ours: dict[str, StrengthLabel | None] = {
-        org_id: summarize(org_touches, now, config.rules).connection_strength
-        for org_id, org_touches in touches.items()
+    summaries = {
+        org_id: summarize(org_touches, now, config.rules) for org_id, org_touches in touches.items()
     }
+    ours: dict[str, StrengthLabel | None] = {o: s.connection_strength for o, s in summaries.items()}
+    scores = {o: s.score for o, s in summaries.items()}
     return calibrate(
         companies,
         loaded,
         ours,
         config.read_mailboxes,
         config.internal_domains,
+        scores,
     )

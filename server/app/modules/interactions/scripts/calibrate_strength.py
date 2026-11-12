@@ -1,6 +1,6 @@
 """Compare our connection-strength labels with Attio's, for the shadow week (AZM-159 PR 3).
 
-    python -m app.modules.interactions.scripts.calibrate_strength [--mismatches PATH]
+    python -m app.modules.interactions.scripts.calibrate_strength \n        [--mismatches PATH] [--scores PATH]
 
 Read-only: it reads Attio and the interaction tables and writes nothing to either. It prints
 counts only, never names or subjects. Run it inside the deployed container, never from a laptop
@@ -9,6 +9,8 @@ against the dev or prod database.
 
 import argparse
 import asyncio
+import csv
+import io
 from pathlib import Path
 
 from app.modules.interactions.bootstrap import run_strength_calibration
@@ -40,20 +42,37 @@ def render(report: CalibrationReport) -> str:
     return "\n".join(lines)
 
 
+def scores_csv(report: CalibrationReport) -> str:
+    """Record id, Attio's label and our raw score; blank when we have no interactions."""
+    out = io.StringIO()
+    writer = csv.writer(out, lineterminator="\n")
+    writer.writerow(["record_id", "attio_label", "our_score"])
+    for row in report.scores:
+        score = "" if row.our_score is None else f"{row.our_score:.4f}"
+        writer.writerow([row.record_id, row.attio_label.value, score])
+    return out.getvalue()
+
+
 def _pct(rate: float | None) -> str:
     return "n/a" if rate is None else f"{rate:.1%}"
 
 
-async def main(mismatches: Path | None) -> None:
+async def main(mismatches: Path | None, scores: Path | None) -> None:
     report = await run_strength_calibration()
     print(render(report))
     if mismatches is not None:
         # Record ids only, so the file holds no company names.
         mismatches.write_text("\n".join(report.mismatch_ids) + "\n", encoding="utf-8")
         print(f"\nWrote {len(report.mismatch_ids)} record ids to {mismatches}")
+    if scores is not None:
+        # Ids, labels and numbers only: nothing that names a company or a person.
+        scores.write_text(scores_csv(report), encoding="utf-8")
+        print(f"\nWrote {len(report.scores)} score rows to {scores}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mismatches", type=Path, default=None)
-    asyncio.run(main(parser.parse_args().mismatches))
+    parser.add_argument("--scores", type=Path, default=None)
+    args = parser.parse_args()
+    asyncio.run(main(args.mismatches, args.scores))
