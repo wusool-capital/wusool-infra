@@ -1,6 +1,7 @@
 """Compare our connection-strength labels with Attio's, for the shadow week (AZM-159 PR 3).
 
-    python -m app.modules.interactions.scripts.calibrate_strength \n        [--mismatches PATH] [--scores PATH]
+    python -m app.modules.interactions.scripts.calibrate_strength
+        [--mismatches PATH] [--scores PATH]
 
 Read-only: it reads Attio and the interaction tables and writes nothing to either. It prints
 counts only, never names or subjects. Run it inside the deployed container, never from a laptop
