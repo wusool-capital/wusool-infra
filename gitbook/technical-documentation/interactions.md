@@ -83,6 +83,8 @@ A read-only command compares our connection-strength label for each Organization
 
 The report prints the exact-match rate, the within-one-level rate, and a 5-by-5 table. Each rate names how many Companies it covers. Companies that aren't a fair comparison are counted separately. Examples are Attio's strongest user being `tech@` or a mailbox we don't read, and no Organization for the domain.
 
+The report can also save a file of record ids, Attio's labels and our raw scores. It holds no names. It is used to tune the label cut-offs offline.
+
 Writing to Attio starts only if at least 80% match exactly and 95% are within one level.
 
 ## Where to look

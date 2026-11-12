@@ -4,10 +4,15 @@ from collections.abc import Mapping, Sequence
 from datetime import timedelta
 
 from app.modules.interactions.application.calibration import CalibrationConfig, run_calibration
-from app.modules.interactions.domain.calibration import Bucket, CalibrationReport, CompanyInput
+from app.modules.interactions.domain.calibration import (
+    Bucket,
+    CalibrationReport,
+    CompanyInput,
+    ScoreRow,
+)
 from app.modules.interactions.domain.linking import RecordDirectory
 from app.modules.interactions.domain.model import Channel, ScoringRules, StrengthLabel, Touch
-from app.modules.interactions.scripts.calibrate_strength import render
+from app.modules.interactions.scripts.calibrate_strength import render, scores_csv
 from app.modules.interactions.tests.fakes.touches import JULES, NOW, SARA
 
 RULES = ScoringRules(
@@ -90,3 +95,19 @@ def test_a_run_with_nothing_compared_prints_no_percentages() -> None:
 
     assert "Compared: 0 Companies" in text
     assert "Gate" not in text
+
+
+def test_the_scores_file_holds_ids_labels_and_numbers_and_a_blank_with_no_interactions() -> None:
+    report = CalibrationReport(
+        compared=1,
+        exact=1,
+        within_one=1,
+        matrix=tuple(tuple(0 for _ in range(5)) for _ in range(5)),
+        excluded={},
+        scores=(
+            ScoreRow("c1", StrengthLabel.STRONG, 9.0512),
+            ScoreRow("c2", StrengthLabel.WEAK, None),
+        ),
+    )
+
+    assert scores_csv(report) == ("record_id,attio_label,our_score\nc1,Strong,9.0512\nc2,Weak,\n")

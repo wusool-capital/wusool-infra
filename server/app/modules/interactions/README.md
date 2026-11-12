@@ -37,7 +37,9 @@ config.py       # InteractionsSettings: every tunable, prefixed interactions_
 `python -m app.modules.interactions.scripts.calibrate_strength` compares our label for each
 Organization with Attio's `strongest_connection_strength` on the matching Company. It reads
 only and writes nothing to Attio or Postgres. Run it in the deployed container, never from a
-laptop against the dev or prod database. Add `--mismatches PATH` to save record ids.
+laptop against the dev or prod database. Add `--mismatches PATH` to save record ids. Add
+`--scores PATH` to save a CSV of record id, Attio's label and our raw score, so label cutoffs
+can be tuned offline. It holds no names or subjects.
 
 A Company is matched to an Organization by domain, the same way linking does. It is compared
 only when Attio's label is a fair reference. Everything else is counted in a named bucket:

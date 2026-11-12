@@ -134,3 +134,18 @@ def test_a_label_attio_sent_that_we_do_not_know_is_its_own_bucket() -> None:
     report = _run([company], {"o-acme": L.STRONG})
 
     assert report.excluded == {Bucket.UNKNOWN_LABEL: 1}
+
+
+def test_score_rows_cover_compared_and_no_interaction_companies() -> None:
+    companies = [_company("c1", "acme.com", L.STRONG), _company("c2", "beta.io", L.WEAK)]
+
+    report = calibrate(
+        companies,
+        DIRECTORY,
+        {"o-acme": L.STRONG, "o-beta": None},
+        READ,
+        INTERNAL,
+        {"o-acme": 9.5},
+    )
+
+    assert [(r.record_id, r.our_score) for r in report.scores] == [("c1", 9.5), ("c2", None)]
