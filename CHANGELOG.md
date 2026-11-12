@@ -8,6 +8,14 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-12
+
+### Added
+
+- The shadow-week report can save each company's Attio label next to our raw
+  score (AZM-159). The file holds ids and numbers only. It is used to tune the
+  label cut-offs without guessing.
+
 ## 2026-11-11
 
 ### Added

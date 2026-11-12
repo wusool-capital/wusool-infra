@@ -43,6 +43,15 @@ class CompanyInput:
 
 
 @dataclass(frozen=True)
+class ScoreRow:
+    """One Company's Attio label next to our raw score; the score is None with no interactions."""
+
+    record_id: str
+    attio_label: StrengthLabel
+    our_score: float | None
+
+
+@dataclass(frozen=True)
 class CalibrationReport:
     compared: int
     exact: int
@@ -51,6 +60,7 @@ class CalibrationReport:
     matrix: tuple[tuple[int, ...], ...]
     excluded: Mapping[Bucket, int]
     mismatch_ids: tuple[str, ...] = field(default=())
+    scores: tuple[ScoreRow, ...] = field(default=())
 
     @property
     def exact_rate(self) -> float | None:
@@ -83,13 +93,17 @@ def calibrate(
     ours: Mapping[str, StrengthLabel | None],
     read_mailboxes: frozenset[str],
     internal_domains: tuple[str, ...],
+    scores: Mapping[str, float] | None = None,
 ) -> CalibrationReport:
-    """`ours` maps an Organization id to our label; a missing id or None means no interactions."""
+    """`ours` maps an Organization id to our label; a missing id or None means no interactions.
+    `scores` maps it to our raw score, for tuning the label cutoffs offline."""
     matched = {c.record_id: _match(c, directory) for c in companies}
     organizations = Counter(m[0] for m in matched.values() if m[0] is not None)
 
     excluded: Counter[Bucket] = Counter()
     pairs: list[tuple[str, StrengthLabel, StrengthLabel]] = []
+    score_rows: list[ScoreRow] = []
+    raw_scores = scores or {}
     for company in companies:
         attio_label = company.attio_label
         if attio_label is None:
@@ -105,8 +119,10 @@ def calibrate(
         our_label = ours.get(org_id) if org_id is not None else None
         if our_label is None:
             excluded[Bucket.NO_TOUCHES] += 1
+            score_rows.append(ScoreRow(company.record_id, attio_label, None))
             continue
         pairs.append((company.record_id, attio_label, our_label))
+        score_rows.append(ScoreRow(company.record_id, attio_label, raw_scores.get(org_id or "")))
 
     size = len(_LEVELS)
     matrix = [[0] * size for _ in range(size)]
@@ -126,6 +142,7 @@ def calibrate(
         matrix=tuple(tuple(row) for row in matrix),
         excluded=dict(excluded),
         mismatch_ids=tuple(mismatches),
+        scores=tuple(score_rows),
     )
 
 
