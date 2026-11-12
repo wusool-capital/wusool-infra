@@ -28,7 +28,6 @@ class Bucket(StrEnum):
     UNREAD_MAILBOX = "Attio's strongest user is a mailbox we don't read"
     NO_ORGANIZATION = "no Organization has the Company's domain"
     AMBIGUOUS = "domain or Organization shared by several records"
-    NO_TOUCHES = "Attio has a label, we have no interactions"
 
 
 @dataclass(frozen=True)
@@ -60,6 +59,8 @@ class CalibrationReport:
     matrix: tuple[tuple[int, ...], ...]
     excluded: Mapping[Bucket, int]
     mismatch_ids: tuple[str, ...] = field(default=())
+    # Compared Companies with no interactions on our side, counted as Very weak.
+    no_interactions: int = 0
     scores: tuple[ScoreRow, ...] = field(default=())
 
     @property
@@ -103,6 +104,7 @@ def calibrate(
     excluded: Counter[Bucket] = Counter()
     pairs: list[tuple[str, StrengthLabel, StrengthLabel]] = []
     score_rows: list[ScoreRow] = []
+    no_interactions = 0
     raw_scores = scores or {}
     for company in companies:
         attio_label = company.attio_label
@@ -118,11 +120,15 @@ def calibrate(
             continue
         our_label = ours.get(org_id) if org_id is not None else None
         if our_label is None:
-            excluded[Bucket.NO_TOUCHES] += 1
+            # Attio labels anything it has ever seen; no interactions here reads as Very weak.
+            our_label = StrengthLabel.VERY_WEAK
+            no_interactions += 1
             score_rows.append(ScoreRow(company.record_id, attio_label, None))
-            continue
+        else:
+            score_rows.append(
+                ScoreRow(company.record_id, attio_label, raw_scores.get(org_id or ""))
+            )
         pairs.append((company.record_id, attio_label, our_label))
-        score_rows.append(ScoreRow(company.record_id, attio_label, raw_scores.get(org_id or "")))
 
     size = len(_LEVELS)
     matrix = [[0] * size for _ in range(size)]
@@ -143,6 +149,7 @@ def calibrate(
         excluded=dict(excluded),
         mismatch_ids=tuple(mismatches),
         scores=tuple(score_rows),
+        no_interactions=no_interactions,
     )
 
 

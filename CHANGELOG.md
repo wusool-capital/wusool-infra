@@ -10,6 +10,12 @@ for current production evidence and open handover items.
 
 ## 2026-11-12
 
+### Changed
+
+- The shadow-week report now counts a company as Very weak when Attio has a
+  label but we have no interactions (AZM-159). Before, it left them out.
+  Attio labelled 87% of those Very weak.
+
 ### Added
 
 - The shadow-week report can save each company's Attio label next to our raw

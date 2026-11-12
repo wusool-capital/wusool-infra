@@ -45,8 +45,11 @@ A Company is matched to an Organization by domain, the same way linking does. It
 only when Attio's label is a fair reference. Everything else is counted in a named bucket:
 no Attio label, a label we don't recognise, no identifiable strongest user, strongest user
 is `tech@`, strongest user is a mailbox we don't read, no
-Organization for the domain, a domain or Organization shared by several records, and no
-interactions on our side. Each percentage prints its denominator.
+Organization for the domain, and a domain or Organization shared by several records. Each
+percentage prints its denominator.
+
+A Company with an Attio label but no interactions on our side is compared as Very weak, and
+the report counts them. On prod, Attio labelled 87% of those Very weak.
 
 The go-live gate is 80% exact match and 95% within one level. Attio scores every team
 mailbox and we read only `INTERACTIONS_MAILBOXES`, hence the mailbox bucket. Cancelled
