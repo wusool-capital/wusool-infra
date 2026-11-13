@@ -27,6 +27,28 @@ def test_deal_params_reads_the_prefixed_slugs() -> None:
     assert params["owner_attio_id"] == "user-1"
 
 
+def test_deal_params_reads_deal_status_option_title() -> None:
+    """`deal_status` is a select split out of `deal_stage` in AZM-169."""
+    data = {
+        "id": {"record_id": "deal-1"},
+        "values": {
+            "deal_stage": [_item(status={"title": "Qualified"})],
+            "deal_status": [_item(option={"title": "On hold"})],
+        },
+    }
+
+    params = _deal_params(data)
+
+    assert params["stage"] == "Qualified"
+    assert params["deal_status"] == "On hold"
+
+
+def test_deal_params_leaves_deal_status_null_when_unset() -> None:
+    data = {"id": {"record_id": "deal-1"}, "values": {}}
+
+    assert _deal_params(data)["deal_status"] is None
+
+
 def test_deal_params_ignores_the_unprefixed_slugs() -> None:
     """`name` is the legacy standard `deals` object's slug. That object is
     out of this sync's scope entirely -- it has no `is_test` attribute, so

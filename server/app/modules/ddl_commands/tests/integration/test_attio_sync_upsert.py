@@ -984,12 +984,16 @@ async def test_delete_role_entry_records_an_event_keyed_by_both_ids(
     assert [r.event_type for r in rows] == ["crm.record_created", "crm.record_deleted"]
 
 
-def _deal_client(attio_id: str, stage: str | None, changed_at: str | None = None) -> _FakeClient:
+def _deal_client(
+    attio_id: str, stage: str | None, changed_at: str | None = None, status: str | None = None
+) -> _FakeClient:
     values: dict[str, list[dict]] = {"deal_name": [_item(value="Deal X")]}
     if stage is not None:
         values["deal_stage"] = [_item(status={"title": stage})]
     if changed_at is not None:
         values["stage_changed_at"] = [_item(value=changed_at)]
+    if status is not None:
+        values["deal_status"] = [_item(option={"title": status})]
     return _FakeClient(
         {
             f"/objects/deal/records/{attio_id}": {
@@ -1046,3 +1050,26 @@ async def test_sync_deal_without_a_stage_records_no_stage_event(
     await upsert.sync_deal(_deal_client(attio_id, None), attio_id, _event())
 
     assert await _stage_events(db_sessionmaker, attio_id) == []
+
+
+async def test_sync_deal_mirrors_deal_status_without_a_stage_event(
+    monkeypatch, db_sessionmaker: async_sessionmaker[AsyncSession]
+) -> None:
+    """AZM-169: passing a deal changes `deal_status`, not the stage history."""
+    monkeypatch.setattr(upsert, "get_sessionmaker", lambda: db_sessionmaker)
+    attio_id = f"test-deal-{uuid.uuid4()}"
+
+    await upsert.sync_deal(
+        _deal_client(attio_id, "Qualified", status="Active"), attio_id, _event("record.created")
+    )
+    await upsert.sync_deal(_deal_client(attio_id, "Qualified", status="Passed"), attio_id, _event())
+
+    async with db_sessionmaker() as session:
+        row = (
+            await session.execute(
+                text("SELECT stage, deal_status FROM deals WHERE attio_id = :id"), {"id": attio_id}
+            )
+        ).one()
+    assert (row.stage, row.deal_status) == ("Qualified", "Passed")
+    events = await _stage_events(db_sessionmaker, attio_id)
+    assert [(e.from_stage, e.to_stage) for e in events] == [(None, "Qualified")]

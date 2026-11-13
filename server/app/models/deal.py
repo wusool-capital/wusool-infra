@@ -47,6 +47,8 @@ class Deal(Base):
     name: Mapped[str] = mapped_column(Text, nullable=False)
     stage: Mapped[str | None] = mapped_column(Text)
     stage_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Active / On hold / Passed / Lost; split out of `stage` in AZM-169.
+    deal_status: Mapped[str | None] = mapped_column(Text)
     buyer_organization_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("organizations.attio_id")
     )

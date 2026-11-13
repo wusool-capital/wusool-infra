@@ -538,7 +538,8 @@ async def delete_person(record_id: str, event: WebhookEvent) -> None:
 _DEAL_UPSERT = text(
     """
     INSERT INTO deals(
-        attio_id, name, stage, stage_changed_at, time_in_stage, buyer_organization_attio_id,
+        attio_id, name, stage, stage_changed_at, deal_status, time_in_stage,
+        buyer_organization_attio_id,
         buyer_person_attio_id, seller_organization_attio_id, owner_attio_id, value,
         teaser_status, nda_count, cim_ready, deal_memo_ready, contract_signed_date,
         exclusivity_date, data_room_substatus, nda_status,
@@ -548,7 +549,7 @@ _DEAL_UPSERT = text(
         mandate_start_date, mandate_expiry_date, retainer_amount,
         source_mandate_entry_id, raw_attio
     ) VALUES (
-        :attio_id, :name, :stage, :stage_changed_at, :time_in_stage,
+        :attio_id, :name, :stage, :stage_changed_at, :deal_status, :time_in_stage,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :buyer_id)
              THEN :buyer_id ELSE NULL END,
         CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :buyer_id)
@@ -568,7 +569,7 @@ _DEAL_UPSERT = text(
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, stage=excluded.stage, stage_changed_at=excluded.stage_changed_at,
-        time_in_stage=excluded.time_in_stage,
+        deal_status=excluded.deal_status, time_in_stage=excluded.time_in_stage,
         buyer_organization_attio_id=excluded.buyer_organization_attio_id,
         buyer_person_attio_id=excluded.buyer_person_attio_id,
         seller_organization_attio_id=excluded.seller_organization_attio_id,
@@ -616,6 +617,7 @@ def _deal_params(data: AttioRecord) -> DealParams:
         "name": v.first(values, "deal_name") or f"Unnamed Deal [{rid}]",
         "stage": v.first(values, "deal_stage"),
         "stage_changed_at": v.timestamp(values, "stage_changed_at"),
+        "deal_status": v.first(values, "deal_status"),
         # Attio's attribute is "Time In Stage (Days)", a plain number; the
         # Postgres column is an interval. Converting here rather than binding
         # the bare number, which Postgres would read as microseconds.
