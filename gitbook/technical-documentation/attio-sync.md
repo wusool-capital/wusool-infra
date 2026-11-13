@@ -47,6 +47,11 @@ names the Attio actor when Attio sends one. A deal's stage changes go to
 `deal_stage_events`, and each event is logged to `attio_raw_events` for 90
 days. Every other event is ignored.
 
+A deal's `deal_stage` (one of 10 stages) syncs to `deals.stage` and its
+`deal_status` (Active, On hold, Passed or Lost) to `deals.deal_status`, both
+as the option title. The two were split on 14 Nov 2026 (AZM-169).
+`deal_stage_events` rows from before then keep the old stage names.
+
 ## Deletions
 
 Records are deleted only in Attio. A `*.deleted` event sets the mirrored

@@ -112,6 +112,7 @@ class DealParams(TypedDict):
     name: str
     stage: str | None
     stage_changed_at: datetime | None
+    deal_status: str | None
     time_in_stage: timedelta | None
     buyer_id: str | None
     seller_id: str | None

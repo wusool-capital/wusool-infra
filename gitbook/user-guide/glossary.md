@@ -12,8 +12,10 @@ Terms used across this guide, in plain words.
 | **Vertical** | The sector a buyer role targets. An organization can hold one buyer role per vertical. |
 | **Ticket size** | How much a buyer is willing to invest in one deal. |
 | **Qualified Buy-side deal** | The Attio deal created when you approve a Toolkit match. |
-| **Inbound deal** | A deal at its earliest stage, before anyone has qualified it. |
-| **Promote** | Move an existing Inbound deal to Qualified, instead of creating a second deal. |
+| **Deal stage** | Where a deal is: Lead, Qualified, Engaged, Mandate signed, Preparation, Outreach, Non-binding offers, Due diligence, Closing or Closed. |
+| **Deal status** | Whether a deal is still alive: Active, On hold, Passed or Lost. A passed deal keeps the stage it reached. |
+| **Lead deal** | A deal at its earliest stage, before anyone has qualified it. Called Inbound before 14 Nov 2026. |
+| **Promote** | Move an existing Lead deal to Qualified, instead of creating a second deal. |
 
 ## Wusool Toolkit
 

@@ -804,6 +804,8 @@ $fields=@(
   [pscustomobject]@{Title="Exclusivity Date";Slug="exclusivity_date";Type="date";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Data Room Substatus";Slug="data_room_substatus";Type="select";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Deal Type";Slug="deal_type";Type="select";Config=@{};RenameFrom=$null;FixedOptions=@("Buy-side","Sell-side")},
+  # AZM-169: the outcome split out of deal_stage, so a stage says only where the deal is.
+  [pscustomobject]@{Title="Deal status";Slug="deal_status";Type="select";Config=@{};RenameFrom=$null;FixedOptions=@("Active","On hold","Passed","Lost")},
   [pscustomobject]@{Title="Universe Constructed";Slug="universe_constructed";Type="checkbox";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Universe Size";Slug="universe_size";Type="number";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Shortlist Approved";Slug="shortlist_approved";Type="checkbox";Config=@{};RenameFrom=$null},
@@ -894,33 +896,21 @@ foreach($field in @($fields|Where-Object{$_.Type-eq"select"-and$_.PSObject.Prope
   }
 }
 # The pipeline Status field on this custom object was created manually --
-# its slug isn't guaranteed to be "stage" the way SOURCE's native Deals
-# object's is, so it's discovered dynamically here (same technique
-# objects.ps1 uses). Ensures every SOURCE native Deals pipeline stage
-# exists as an option here too (read live, not hardcoded, so it tracks
-# SOURCE if that pipeline ever changes) plus the buy-side mandate stage
-# (used only by the mandate migration -- SOURCE has no such stage of its
-# own) -- so a regular Deal sync never hits "Missing deal stage option"
-# for a legitimate SOURCE stage.
+# its slug isn't guaranteed to be "stage", so it's discovered dynamically
+# here (same technique objects.ps1 uses).
 #
-# The mandate stage is "(Buyer) Mandate Active", the title this object
-# already carries. It used to be seeded as a bare "Mandate Active", which
-# created a second, semantically identical stage alongside it (2026-09-14)
-# -- the duplicate has been archived and must not be reintroduced. Keep
-# this in step with objects.ps1's $MandateActiveStageTitle.
+# AZM-169 (2026-11-14): the 10 stages are fixed, no longer copied from
+# SOURCE's native Deals pipeline. That copy re-seeded the 11 archived stages
+# (Passed, On Hold, NDA Signed, ...), which now live in deal_status or per
+# buyer. migrate-deal-stages.ps1 did the one-off rename and record move.
 $dealAttributesForStage=@((Request Get "/objects/deal/attributes" $null).data)
 $targetStageAttr=@($dealAttributesForStage|Where-Object{[string]$_.type-eq"status"}|Select-Object -First 1)
 if(-not$targetStageAttr){throw "The deal object has no Status-type attribute -- create the pipeline stage field first (see the Kanban setup notes)."}
 $stageSlug=[string]$targetStageAttr.api_slug
-$sourceStageTitles=[Collections.Generic.List[string]]::new()
-$dealStageAliases=@{}
-if($decisions.deal_stage_aliases){foreach($k in $decisions.deal_stage_aliases.PSObject.Properties){if($k.Name-ne"_note"){$dealStageAliases[[string]$k.Name]=[string]$k.Value}}}
-foreach($o in @((Request Get "/objects/deals/attributes/stage/statuses" $null).data|Where-Object{-not$_.is_archived})){
-  $t=[string]$o.title
-  if($dealStageAliases.ContainsKey($t)){$t=$dealStageAliases[$t]}
-  $sourceStageTitles.Add($t)
-}
-$sourceStageTitles.Add("(Buyer) Mandate Active")
+$sourceStageTitles=@(
+  "Lead","Qualified","Engaged","Mandate signed","Preparation","Outreach",
+  "Non-binding offers","Due diligence","Closing","Closed"
+)
 $existingStageTitles=@{}
 foreach($o in @((Request Get "/objects/deal/attributes/$stageSlug/statuses" $null).data|Where-Object{-not$_.is_archived})){$existingStageTitles[[string]$o.title.Trim().ToLowerInvariant()]=$true}
 foreach($title in $sourceStageTitles){

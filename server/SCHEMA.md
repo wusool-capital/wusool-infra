@@ -117,8 +117,9 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 |---|---|---|---|---|
 | attio_id | text | no | | PK |
 | name | text | no | | |
-| stage | text | yes | | indexed |
+| stage | text | yes | | indexed; one of 10 Attio stages since 2026-11-14 (AZM-169) |
 | stage_changed_at | timestamptz | yes | | indexed (DESC) |
+| deal_status | text | yes | | Active / On hold / Passed / Lost (AZM-169) |
 | buyer_organization_attio_id | text | yes | | FK → organizations, indexed |
 | buyer_person_attio_id | text | yes | | FK → person |
 | seller_organization_attio_id | text | yes | | FK → organizations, indexed |
@@ -567,6 +568,8 @@ Attio webhook (`sync_deal`, `source='attio_webhook'`, `ts` = Attio's
 `stage_changed_at`) and a match approval (`source='matching_engine'`). Both read
 the stored stage under a row lock and record only a real change. The nightly
 batch resync does not write it. Linked from `activities` (`ledger_type='deal_stage_event'`).
+Rows before 2026-11-14 keep the old 20-value stage titles. They are never
+rewritten.
 
 | Column | Type | Nullable | Default | Notes |
 |---|---|---|---|---|

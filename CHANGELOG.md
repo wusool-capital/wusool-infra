@@ -8,6 +8,24 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-14
+
+### Changed
+
+- Attio deals now have 10 stages instead of 20 (AZM-169): Lead, Qualified,
+  Engaged, Mandate signed, Preparation, Outreach, Non-binding offers, Due
+  diligence, Closing, Closed. A new `deal_status` field says whether the deal is
+  Active, On hold, Passed or Lost. All 124 deals were moved in Attio; a deal
+  that was On Hold, Passed, Lost or Failed went back to its last real stage.
+  Stage history is kept.
+- `ensure-schema.ps1` now seeds the 10 stages and `deal_status`, and no longer
+  copies the old stages from SOURCE's native pipeline.
+
+### Added
+
+- Postgres `deals.deal_status`, filled by the webhook and the nightly resync.
+- `migrate-deal-stages.ps1`, the one-off script that did the Attio migration.
+
 ## 2026-11-12
 
 ### Changed
