@@ -280,6 +280,7 @@ Type: object | API identifier: `deals`
 | `name` | `text` | attio | - |
 | `stage` | `enum` | attio | - |
 | `stage_changed_at` | `timestamp` | attio | - |
+| `deal_status` | `enum` (`Active` / `On hold` / `Passed` / `Lost`) | attio | - |
 | `time_in_stage` | `numeric` | attio | - |
 | `buyer_id` | `record-reference` | key | OrganizationOrPerson |
 | `seller_id` | `record-reference` | key | Organization |
@@ -309,11 +310,29 @@ Type: object | API identifier: `deals`
 | `source_mandate_entry_id` | `text` | key | Idempotency key for the one-time Mandate migration below — not a real business field. |
 
 | `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
-`stage` includes a `Mandate Active` status: a signed mandate still sourcing
-candidates, no specific counterparty locked in yet. Distinct from
-`Mandate Signed`, which already implies a specific counterparty and signed
-terms — the two "mandate" states were never the same thing (see the retired
-Mandate section below).
+Since 2026-11-14 (AZM-169) `stage` has 10 values, in order: Lead, Qualified,
+Engaged, Mandate signed, Preparation, Outreach, Non-binding offers, Due
+diligence, Closing, Closed. It says only where the deal is. Whether the deal is
+still alive is `deal_status`: Active, On hold, Passed or Lost.
+
+The old 20 values were mapped once by `migrate-deal-stages.ps1`:
+
+| Old `stage` | New `stage` | `deal_status` |
+|---|---|---|
+| Inbound | Lead | Active |
+| Qualified, Screened | Qualified | Active |
+| Engaged | Engaged | Active |
+| Mandate Signed, (Buyer) Mandate Active | Mandate signed (`deal_type` gives the side) | Active |
+| Teaser/Data Room In Progress | Preparation | Active |
+| Teaser Distributed, NDA Circulated, NDA Signed, CIM Distributed | Outreach (the detail moves to each buyer) | Active |
+| LOI Received | Non-binding offers | Active |
+| LOI signed/Due Diligence, Exclusivity | Due diligence | Active |
+| Offer Signed/ Legal Docs | Closing | Active |
+| Closed | Closed | Active |
+| On Hold / Passed / Lost, Failed | last real stage from history, Lead if none | On hold / Passed / Lost |
+
+The six 1:1 values were renamed in place, so they keep their Attio status IDs
+and stage history. The 11 values no longer used are archived in Attio.
 
 ### note
 
@@ -490,6 +509,7 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 | `name` | `text` | No | - | - | - |
 | `stage` | `text` | Yes | - | - | - |
 | `stage_changed_at` | `timestamptz` | Yes | - | - | - |
+| `deal_status` | `text` | Yes | - | - | - |
 | `buyer_organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
 | `buyer_person_attio_id` | `text` | Yes | - | `person.attio_id` | - |
 | `seller_organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
@@ -786,6 +806,8 @@ timed by Attio's `stage_changed_at`) and by a match approval
 (`source='matching_engine'`). Both record only a real stage change, so the
 webhook echo of an approval does not add a second row. The nightly batch
 resync does not write it. Linked from `activities` (`ledger_type='deal_stage_event'`).
+Rows before 2026-11-14 keep the old 20-value stage titles. They are never
+rewritten.
 
 | Column | Type | Nullable | Key | References | Default |
 |---|---|---:|---|---|---|
