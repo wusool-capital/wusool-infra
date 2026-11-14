@@ -17,6 +17,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from app.models import BuyerRole, SellerRole
 from app.modules.ddl_commands.api.bulk_columns import canonical_value, routes_for
 from app.modules.ddl_commands.api.bulk_store import (
     MAX_ROWS,
@@ -57,7 +58,7 @@ _ROW_KEYS = frozenset({"org_name", "domain"})
 
 _store: PreviewStore = InMemoryPreviewStore()
 # Held across a row's re-check and write, so two commits can't both create one new company.
-_write_lock = asyncio.Lock()
+write_lock = asyncio.Lock()
 
 
 class BulkUploadError(Exception):
@@ -113,7 +114,7 @@ class RejectedUpload(BaseModel):
 
 
 @dataclass(frozen=True)
-class _Match:
+class RowMatch:
     org_attio_id: str | None
     exists: bool
 
@@ -220,7 +221,7 @@ def _validate(
     invalid = 0
     seen: dict[tuple[str, str | None], int] = {}
     for number, raw in zip(numbers, rows, strict=True):
-        parsed = _parse(kind, number, raw)
+        parsed = parse_row(kind, number, raw)
         if isinstance(parsed, list):
             invalid += 1
             problems.extend(parsed)
@@ -258,7 +259,7 @@ async def _preview(
     existing_rows: list[int] = []
     for row in checked.valid:
         # shortcut: one lookup per row (indexed), fine at the 1,000-row cap; batch if it grows.
-        if (await _match(kind, row)).exists:
+        if (await match_row(kind, row)).exists:
             existing_rows.append(row.index)
         else:
             planned.append(row)
@@ -279,32 +280,31 @@ async def _preview(
     )
 
 
-def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[RowProblem]:
+@dataclass(frozen=True)
+class RoutedFields:
+    org_extracted: UploadRow
+    role_extracted: UploadRow
+    problems: tuple[RowProblem, ...]
+
+
+def _problem(
+    index: int, kind: ProblemKind, field: str, message: str, error_type: str | None = None
+) -> RowProblem:
+    return RowProblem(row=index, kind=kind, field=field, message=message, error_type=error_type)
+
+
+def route_fields(
+    kind: UploadKind, index: int, raw: UploadRow, *, own_keys: frozenset[str] = frozenset()
+) -> RoutedFields:
+    """Splits a flat row into organization and role values, checked as the Slack
+    forms check them. `own_keys` are the caller's, so not reported as unknown."""
     routes = routes_for(kind)
     fields = {key: route.spec for key, route in routes.items()}
-    problems: list[RowProblem] = []
-
-    def problem(
-        problem_kind: ProblemKind, field: str, message: str, error_type: str | None = None
-    ) -> RowProblem:
-        return RowProblem(
-            row=index, kind=problem_kind, field=field, message=message, error_type=error_type
-        )
-
-    org_name = raw.get("org_name")
-    if not isinstance(org_name, str) or not org_name.strip():
-        problems.append(problem("required", "org_name", "org_name is required"))
-    host = _host(raw.get("domain"))
-    if host is None:
-        message = "domain is required (a company website or domain)"
-        problems.append(problem("required", "domain", message))
-    if kind == "buyer" and not raw.get("target_vertical"):
-        problems.append(problem("required", "target_vertical", "target_vertical is required"))
-    problems.extend(
-        problem("unknown_field", k, f"unknown field '{k}'")
+    problems = [
+        _problem(index, "unknown_field", k, f"unknown field '{k}'")
         for k in sorted(raw)
-        if k not in fields and k not in _ROW_KEYS
-    )
+        if k not in fields and k not in own_keys
+    ]
 
     # The same spelling rules for a file's rows and for Claude's.
     given = {
@@ -313,7 +313,7 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[Ro
     normalized = normalize_prefill(given, fields, warn_on_drop=False)
     # A silently dropped value, or a trimmed list, would be lost data, so say so.
     problems.extend(
-        problem("not_allowed", k, _not_allowed(k, fields[k]))
+        _problem(index, "not_allowed", k, _not_allowed(k, fields[k]))
         for k, v in given.items()
         if k not in normalized or (isinstance(v, list) and normalized[k] != v)
     )
@@ -336,7 +336,25 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[Ro
             for e in exc.errors():
                 key = keys.get((target, str(e["loc"][0])), ".".join(map(str, e["loc"])))
                 message = f"invalid '{key}' ({e['type']})"
-                problems.append(problem("invalid", key, message, error_type=e["type"]))
+                problems.append(_problem(index, "invalid", key, message, error_type=e["type"]))
+    return RoutedFields(org_extracted, role_extracted, tuple(problems))
+
+
+def parse_row(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[RowProblem]:
+    problems: list[RowProblem] = []
+    org_name = raw.get("org_name")
+    if not isinstance(org_name, str) or not org_name.strip():
+        problems.append(_problem(index, "required", "org_name", "org_name is required"))
+    host = host_of(raw.get("domain"))
+    if host is None:
+        message = "domain is required (a company website or domain)"
+        problems.append(_problem(index, "required", "domain", message))
+    if kind == "buyer" and not raw.get("target_vertical"):
+        message = "target_vertical is required"
+        problems.append(_problem(index, "required", "target_vertical", message))
+    routed = route_fields(kind, index, raw, own_keys=_ROW_KEYS)
+    problems.extend(routed.problems)
+    org_extracted, role_extracted = routed.org_extracted, routed.role_extracted
 
     if problems or not isinstance(org_name, str) or host is None:
         return problems
@@ -354,7 +372,7 @@ def _not_allowed(key: str, spec: FieldSpec) -> str:
     return f"value not allowed for '{key}'. Allowed: {'; '.join(spec.options)}"
 
 
-def _host(value: PrefillValue | None) -> str | None:
+def host_of(value: PrefillValue | None) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
     url = value.strip()
@@ -367,28 +385,28 @@ def _vertical(row: PlannedRow) -> str | None:
     return vertical if isinstance(vertical, str) else None
 
 
-async def _match(kind: UploadKind, row: PlannedRow) -> _Match:
+async def match_row(kind: UploadKind, row: PlannedRow) -> RowMatch:
     org = await find_organization_by_domains([row.domain, f"www.{row.domain}"])
     if org is None:
-        return _Match(None, False)
+        return RowMatch(None, False)
     if kind == "buyer":
         exists = await ddl_commands_service().buyer_exists(org.attio_id, _vertical(row))
-        return _Match(org.attio_id, exists)
+        return RowMatch(org.attio_id, exists)
     # One active seller role per organization, whatever the sector.
     with_roles = await resolve_organization(org.attio_id)
     has_role = with_roles is not None and any(r.is_active for r in with_roles.seller_roles)
-    return _Match(org.attio_id, has_role)
+    return RowMatch(org.attio_id, has_role)
 
 
 async def _commit_row(
     kind: UploadKind, row: PlannedRow, requested_by: str | None, invoked_via: InvokedVia
 ) -> RowOutcome:
-    async with _write_lock:
+    async with write_lock:
         try:
-            match = await _match(kind, row)
+            match = await match_row(kind, row)
             if match.exists:
                 return RowOutcome(row=row.index, kind="skipped", reason="already in the CRM")
-            await _add(kind, row, match, requested_by, invoked_via)
+            await add_row(kind, row, match, requested_by, invoked_via)
         except (BuyerAlreadyExistsError, SellerAlreadyExistsError):
             return RowOutcome(row=row.index, kind="skipped", reason="already in the CRM")
         except PartialWriteError as exc:
@@ -401,18 +419,18 @@ async def _commit_row(
     return RowOutcome(row=row.index, kind="added")
 
 
-async def _add(
+async def add_row(
     kind: UploadKind,
     row: PlannedRow,
-    match: _Match,
+    match: RowMatch,
     requested_by: str | None,
     invoked_via: InvokedVia,
-) -> None:
+) -> BuyerRole | SellerRole:
     is_new_org = match.org_attio_id is None
     # An existing organization is left as it is: our data wins.
     org_extracted: UploadRow = {**row.org_extracted, "domains": [row.domain]} if is_new_org else {}
     if kind == "buyer":
-        await write_buyer_add(
+        return await write_buyer_add(
             is_new_org=is_new_org,
             org_attio_id=match.org_attio_id,
             org_name=row.org_name,
@@ -421,13 +439,12 @@ async def _add(
             requested_by=requested_by,
             invoked_via=invoked_via,
         )
-    else:
-        await write_seller_add(
-            is_new_org=is_new_org,
-            org_attio_id=match.org_attio_id,
-            org_name=row.org_name,
-            org_extracted=org_extracted,
-            role_extracted=row.role_extracted,
-            requested_by=requested_by,
-            invoked_via=invoked_via,
-        )
+    return await write_seller_add(
+        is_new_org=is_new_org,
+        org_attio_id=match.org_attio_id,
+        org_name=row.org_name,
+        org_extracted=org_extracted,
+        role_extracted=row.role_extracted,
+        requested_by=requested_by,
+        invoked_via=invoked_via,
+    )

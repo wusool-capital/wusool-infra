@@ -3,6 +3,8 @@ submission, kept out of the Slack handler so callers outside Slack (MCP) share
 one Attio-then-Postgres ordering and one `PartialWriteError` shape.
 """
 
+from typing import Literal
+
 from app.modules.attio import AttioError, attio_is_test, get_attio_client
 from app.modules.attio.providers.attio.entries import (
     RoleEntryNotFoundError,
@@ -37,10 +39,11 @@ async def write_buyer_edit(
     org_extracted: dict[str, PrefillValue | None],
     role_extracted: dict[str, PrefillValue | None],
     requested_by: str | None,
+    invoked_via: Literal["slack", "mcp"] = "slack",
 ) -> None:
     async with track_command(
         "edit_buyer",
-        invoked_via="slack",
+        invoked_via=invoked_via,
         requested_by=requested_by,
         org_attio_id=org_attio_id,
         buyer_role_id=uuid_or_none(buyer_role_id),
