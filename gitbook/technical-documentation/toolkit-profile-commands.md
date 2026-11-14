@@ -80,31 +80,7 @@ and deliberately reverted.
 
 ## Bulk upload
 
-Claude can upload a list of buyers or sellers, for example 140 rows from
-a research run. The person approves in Claude. Nothing is created before that.
-
-1. **Preview.** The list is checked and compared with the CRM, and nothing is
-   written. The result gives the number of new, existing and invalid rows, the
-   problem on each invalid row, and a preview id. A list holds 1 to 1,000 rows.
-2. **Commit.** After the person confirms, the new rows are added in the
-   background, one at a time. Each row is written like `/add-buyer` and
-   `/add-seller` write it: Attio first, then the database.
-3. **Status.** Shows how many rows were added, and which were skipped or failed,
-   with the reason.
-
-Each row needs a company name and a website or domain. Buyer rows also need a
-target vertical. A row with an unknown field, or a value outside a field's
-options, is marked invalid so no data is dropped silently.
-
-A row counts as existing when its domain matches an organization that already
-has the role. For buyers that means a role for the same vertical. For sellers it
-means any active role. Existing rows are skipped and never change the record. The domain must match
-exactly: `shop.acme.com` does not match `acme.com`. Each row is checked
-again just before it is added, so a rerun adds only the rows still missing.
-Added rows appear in the command log and the activity feed with source `mcp`.
-
-Previews are kept in memory for an hour. If the server restarts, upload the
-list again; rows already added are skipped.
+Adding many profiles from a file is covered in [Bulk upload](toolkit-bulk-upload.md).
 
 ## Code
 
