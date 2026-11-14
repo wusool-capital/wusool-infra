@@ -121,8 +121,9 @@ edge points `ddl_commands -> matching_engine`.
 `api/buyer_edit.py::write_buyer_edit` is the Attio-first buyer edit the
 `/edit-buyer` submission calls, kept out of the Slack handler so callers
 outside Slack (MCP v1) can call it, as `write_seller_edit` already can. It
-raises `BuyerNotFoundError`, `OrgRemovedError` or `PartialWriteError` with what
-already landed. The `/find-match` edit gate stays in the Slack handler.
+raises `BuyerNotFoundError`, `OrgRemovedError`, `OrgMismatchError` (the
+org id is not the buyer's own, checked before any Attio write) or
+`PartialWriteError` with what already landed. The `/find-match` edit gate stays in the Slack handler.
 
 ### Headless seller add (discovery)
 

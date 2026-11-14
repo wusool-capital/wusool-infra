@@ -31,6 +31,10 @@ from app.modules.ddl_commands.providers.attio.write_payload import (
 )
 
 
+class OrgMismatchError(Exception):
+    pass
+
+
 async def write_buyer_edit(
     *,
     buyer_role_id: str,
@@ -68,6 +72,9 @@ async def _buyer_edit(
         raise BuyerNotFoundError(buyer_role_id)
     if role.organization.removed_at is not None:
         raise OrgRemovedError(org_attio_id)
+    # Callers outside Slack pass both ids separately; never write to another buyer's org.
+    if role.organization.attio_id != org_attio_id:
+        raise OrgMismatchError(org_attio_id)
 
     landed: list[str] = []
     run.landed = landed
