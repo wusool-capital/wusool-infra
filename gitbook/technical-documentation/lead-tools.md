@@ -41,8 +41,8 @@ never lost to a later failure:
 3. **AI work**, where the tool has any. Valuation and Benchmark fall back to
    their own calculations; Readiness has no fallback by decision.
 4. **Write to Attio**, always with the test flag set: the organization, a
-   seller or buyer role, the person, and a deal at stage Lead, status Active. The person
-   and deal writes are best-effort: a failure is logged and not retried.
+   seller or buyer role, the person, and a Lead deal with status Active. The
+   person and deal writes are best-effort: a failure is logged and not retried.
    Report readers get only an organization and a person.
 5. **Email the visitor** a confirmation through Amazon SES, with a Book a
    Call link.
