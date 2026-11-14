@@ -43,7 +43,8 @@ mcp/
 
 A new tool is its models in `tools/schemas.py` plus a thin function calling
 `runner.run(name, permission, call, output=..., request_id=...)`. The runner
-handles the caller, the permission check, `request_id` replay, the per-person
+handles the caller, the permission check, `request_id` replay (a reused id with
+different arguments is refused, never replayed), the per-person
 rate limit, one log line (`mcp_tool_call tool=… user=… duration_ms=… result=…`,
 never record contents) and turning errors into sentences.
 

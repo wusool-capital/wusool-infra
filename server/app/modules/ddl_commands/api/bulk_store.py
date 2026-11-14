@@ -48,6 +48,8 @@ class StoredPreview(BaseModel):
     invoked_via: InvokedVia = "mcp"
     # Rows already in the CRM when the upload was checked: never stored, but counted as skipped.
     existing_rows: tuple[int, ...] = ()
+    # Who previewed it; when set, only they may confirm it or read its progress.
+    owner: str | None = None
 
     def progress(self, state: "CommitState") -> "CommitProgress":
         skipped = tuple(

@@ -1,6 +1,7 @@
 """find_*, add_* and edit_* for buyers and sellers. Both kinds share one shape,
 so each tool is registered from the same three functions."""
 
+import json
 import uuid
 from typing import Annotated, Literal
 
@@ -86,7 +87,12 @@ def _register_add_buyer(server: MCPServer, runner: ToolRunner) -> None:
             return AddResult.of(outcome)
 
         return await runner.run(
-            "add_buyer", "buyers.write", call, output=AddResult, request_id=request_id
+            "add_buyer",
+            "buyers.write",
+            call,
+            output=AddResult,
+            request_id=request_id,
+            request_args=buyer.model_dump_json(),
         )
 
     server.tool(
@@ -117,7 +123,12 @@ def _register_add_seller(server: MCPServer, runner: ToolRunner) -> None:
             return AddResult.of(outcome)
 
         return await runner.run(
-            "add_seller", "sellers.write", call, output=AddResult, request_id=request_id
+            "add_seller",
+            "sellers.write",
+            call,
+            output=AddResult,
+            request_id=request_id,
+            request_args=seller.model_dump_json(),
         )
 
     server.tool(
@@ -152,7 +163,12 @@ def _register_edit(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> N
             return EditResult(role_id=role_id, changed_fields=list(changed))
 
         return await runner.run(
-            name, _PERMISSIONS[kind, "write"], call, output=EditResult, request_id=request_id
+            name,
+            _PERMISSIONS[kind, "write"],
+            call,
+            output=EditResult,
+            request_id=request_id,
+            request_args=json.dumps([str(role_id), fields], sort_keys=True),
         )
 
     server.tool(

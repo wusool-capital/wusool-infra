@@ -92,7 +92,10 @@ async def add_one(
                 role = await add_row(kind, parsed, match, requested_by, invoked_via)
                 org_attio_id, status = role.org_attio_id, "added"
             except (BuyerAlreadyExistsError, SellerAlreadyExistsError):
-                org_attio_id = match.org_attio_id or ""
+                # Raised only for an organization that already exists, so the match found it.
+                if match.org_attio_id is None:
+                    raise
+                org_attio_id = match.org_attio_id
     ref = await _role_ref(kind, org_attio_id, vertical)
     if ref is None:
         raise LookupError(f"{kind} role for organization {org_attio_id} not found after add")
@@ -124,7 +127,8 @@ async def edit_one(
 
     if kind == "buyer":
         buyer = await resolve_buyer_by_id(str(role_id))
-        if buyer is None:
+        # An inactive row is a stale duplicate; Slack never offers one for editing either.
+        if buyer is None or not buyer.is_active:
             raise BuyerNotFoundError(str(role_id))
         await write_buyer_edit(
             buyer_role_id=str(role_id),
@@ -136,7 +140,7 @@ async def edit_one(
         )
     else:
         seller = await resolve_seller_by_id(str(role_id))
-        if seller is None:
+        if seller is None or not seller.is_active:
             raise SellerNotFoundError(str(role_id))
         await write_seller_edit(
             seller_role_id=str(role_id),
@@ -151,14 +155,14 @@ async def edit_one(
 
 async def find_records(kind: UploadKind, term: str) -> list[RecordRef]:
     """Active roles whose company domain matches `term` exactly, or else whose
-    company name is similar to it, most similar first."""
+    company name is similar to it, most similar first. A dotted name such as
+    "Booking.com" falls back to the name search when no domain matches."""
     host = host_of(term) if "." in term and " " not in term.strip() else None
     if host is not None:
         org = await find_organization_by_domains([host, f"www.{host}"])
-        if org is None:
-            return []
-        with_roles = await resolve_organization(org.attio_id)
-        return _refs(kind, with_roles) if with_roles is not None else []
+        with_roles = await resolve_organization(org.attio_id) if org is not None else None
+        if with_roles is not None:
+            return _refs(kind, with_roles)
     service = ddl_commands_service()
     if kind == "buyer":
         buyers = (await service.resolve_buyer(term)).candidates or []

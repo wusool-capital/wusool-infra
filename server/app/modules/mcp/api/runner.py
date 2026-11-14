@@ -3,6 +3,7 @@ this request before, are they over their limit. Then one log line, and errors
 turned into plain sentences for Claude (never a stack trace)."""
 
 import asyncio
+import hashlib
 import logging
 import time
 from collections.abc import Awaitable, Callable
@@ -105,7 +106,10 @@ class ToolRunner:
         *,
         output: type[ResultT],
         request_id: str | None = None,
+        request_args: str = "",
     ) -> ResultT:
+        """`request_args` is the call's arguments in a stable form: a retry must send
+        the same ones, so a reused id can never replay a different change."""
         started = time.monotonic()
         caller = self._caller_source()
         result_code = "ok"
@@ -119,14 +123,22 @@ class ToolRunner:
             if request_id is None:
                 return await call(caller)
             key = f"{caller.slack_user_id}:{tool}:{request_id}"
+            digest = hashlib.sha256(request_args.encode()).hexdigest()
             # Held across the call, so a retry sent while the first is running waits for it.
             async with self._locks.setdefault(key, asyncio.Lock()):
                 stored = self._results.get(key)
                 if stored is not None:
+                    stored_digest, _, stored_result = stored.partition("|")
+                    if stored_digest != digest:
+                        result_code = "request_id_reused"
+                        raise ToolError(
+                            "This request_id was already used for a different change. "
+                            "Send a new request_id."
+                        )
                     result_code = "replayed"
-                    return output.model_validate_json(stored)
+                    return output.model_validate_json(stored_result)
                 result = await call(caller)
-                self._results.put(key, result.model_dump_json())
+                self._results.put(key, f"{digest}|{result.model_dump_json()}")
                 return result
         except ToolError:
             if result_code == "ok":

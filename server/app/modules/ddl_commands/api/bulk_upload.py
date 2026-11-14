@@ -131,10 +131,12 @@ async def preview_buyers(
     *,
     row_numbers: Sequence[int] | None = None,
     invoked_via: InvokedVia = "mcp",
+    owner: str | None = None,
 ) -> PreviewResult | RejectedUpload:
     """All or nothing: any invalid row rejects the whole list. `row_numbers` are the
-    spreadsheet lines to report, for an uploaded file; otherwise rows count from 1."""
-    return await _preview("buyer", rows, row_numbers, invoked_via)
+    spreadsheet lines to report, for an uploaded file; otherwise rows count from 1.
+    With an `owner`, only that person may confirm the preview or read its progress."""
+    return await _preview("buyer", rows, row_numbers, invoked_via, owner)
 
 
 async def preview_sellers(
@@ -142,8 +144,9 @@ async def preview_sellers(
     *,
     row_numbers: Sequence[int] | None = None,
     invoked_via: InvokedVia = "mcp",
+    owner: str | None = None,
 ) -> PreviewResult | RejectedUpload:
-    return await _preview("seller", rows, row_numbers, invoked_via)
+    return await _preview("seller", rows, row_numbers, invoked_via, owner)
 
 
 def find_row_problems(
@@ -153,11 +156,16 @@ def find_row_problems(
     return _validate(kind, rows, row_numbers).problems
 
 
-def status(preview_id: uuid.UUID) -> CommitProgress:
-    progress = _store.progress(preview_id)
-    if progress is None:
+def status(preview_id: uuid.UUID, *, requested_by: str | None = None) -> CommitProgress:
+    preview, progress = _store.get(preview_id), _store.progress(preview_id)
+    if preview is None or progress is None or not _may_use(preview, requested_by):
         raise PreviewNotFoundError(str(preview_id))
     return progress
+
+
+def _may_use(preview: StoredPreview, requested_by: str | None) -> bool:
+    # Someone else's preview reads as missing, so its id reveals nothing.
+    return preview.owner is None or preview.owner == requested_by
 
 
 def commit(
@@ -169,9 +177,9 @@ def commit(
     so only rows still missing are added.
     """
     preview = _store.get(preview_id)
-    if preview is None:
+    if preview is None or not _may_use(preview, requested_by):
         raise PreviewNotFoundError(str(preview_id))
-    current = status(preview_id)
+    current = status(preview_id, requested_by=requested_by)
     if current.state == "running":
         return current
     started = preview.progress("running")
@@ -248,6 +256,7 @@ async def _preview(
     rows: Sequence[UploadRow],
     row_numbers: Sequence[int] | None,
     invoked_via: InvokedVia,
+    owner: str | None,
 ) -> PreviewResult | RejectedUpload:
     checked = _validate(kind, rows, row_numbers)
     if checked.invalid:
@@ -270,6 +279,7 @@ async def _preview(
         rows=tuple(planned),
         invoked_via=invoked_via,
         existing_rows=tuple(existing_rows),
+        owner=owner,
     )
     _store.save(preview)
     return PreviewResult(

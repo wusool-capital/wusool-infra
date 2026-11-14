@@ -83,12 +83,19 @@ def register(server: MCPServer, runner: ToolRunner) -> None:
             )
 
         return await runner.run(
-            "confirm_import", "imports.write", call, output=ImportProgress, request_id=request_id
+            "confirm_import",
+            "imports.write",
+            call,
+            output=ImportProgress,
+            request_id=request_id,
+            request_args=str(preview_id),
         )
 
     async def get_import(preview_id: PreviewId) -> ImportProgress:
-        async def call(_: Caller) -> ImportProgress:
-            return ImportProgress.of(preview_id, status(preview_id))
+        async def call(caller: Caller) -> ImportProgress:
+            return ImportProgress.of(
+                preview_id, status(preview_id, requested_by=caller.slack_user_id)
+            )
 
         return await runner.run("get_import", "imports.write", call, output=ImportProgress)
 
@@ -135,9 +142,11 @@ def register(server: MCPServer, runner: ToolRunner) -> None:
 async def _preview(
     runner: ToolRunner, tool: str, kind: UploadKind, rows: Sequence[BuyerRow | SellerRow]
 ) -> ImportPreview:
-    async def call(_: Caller) -> ImportPreview:
+    async def call(caller: Caller) -> ImportPreview:
         upload = [r.to_upload_row() for r in rows]
         preview = preview_buyers if kind == "buyer" else preview_sellers
-        return _preview_result(await preview(upload, invoked_via="mcp"))
+        # Owned by the caller, so only they can confirm it or follow its progress.
+        result = await preview(upload, invoked_via="mcp", owner=caller.slack_user_id)
+        return _preview_result(result)
 
     return await runner.run(tool, "imports.write", call, output=ImportPreview)

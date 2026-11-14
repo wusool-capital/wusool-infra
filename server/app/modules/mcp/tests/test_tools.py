@@ -187,9 +187,8 @@ async def test_bulk_preview_then_confirm_then_progress(monkeypatch: pytest.Monke
     monkeypatch.setattr(imports, "preview_sellers", preview)
     commit = Mock(return_value=CommitProgress(state="running", total=119))
     monkeypatch.setattr(imports, "commit", commit)
-    monkeypatch.setattr(
-        imports, "status", Mock(return_value=CommitProgress(state="done", total=119, added=119))
-    )
+    status = Mock(return_value=CommitProgress(state="done", total=119, added=119))
+    monkeypatch.setattr(imports, "status", status)
 
     async with Client(_server()) as client:
         previewed = await client.call_tool(
@@ -206,12 +205,13 @@ async def test_bulk_preview_then_confirm_then_progress(monkeypatch: pytest.Monke
         18,
     )
     assert preview.await_args is not None
-    assert preview.await_args.kwargs == {"invoked_via": "mcp"}
+    assert preview.await_args.kwargs == {"invoked_via": "mcp", "owner": "U_ALICE"}
     assert confirmed.structured_content is not None
     assert confirmed.structured_content["state"] == "running"
     commit.assert_called_once_with(preview_id, requested_by="U_ALICE")
     assert progress.structured_content is not None
     assert progress.structured_content["added"] == 119
+    status.assert_called_once_with(preview_id, requested_by="U_ALICE")
 
 
 async def test_a_caller_over_the_limit_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -229,3 +229,19 @@ async def test_a_caller_over_the_limit_is_refused(monkeypatch: pytest.MonkeyPatc
 def test_without_a_token_the_caller_is_refused() -> None:
     with pytest.raises(ToolError, match="Sign in"):
         caller_from_token()
+
+
+async def test_a_reused_request_id_for_a_different_change_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    add = AsyncMock(return_value=AddOutcome(status="added", record=_REF))
+    monkeypatch.setattr(records, "add_one", add)
+    other = {**_BUYER, "org_name": "Other", "domain": "other.com"}
+
+    async with Client(_server()) as client:
+        await client.call_tool("add_buyer", {"buyer": _BUYER, "request_id": "req-00007"})
+        reused = await client.call_tool("add_buyer", {"buyer": other, "request_id": "req-00007"})
+
+    assert reused.is_error
+    assert "already used for a different change" in _text(reused)
+    add.assert_awaited_once()

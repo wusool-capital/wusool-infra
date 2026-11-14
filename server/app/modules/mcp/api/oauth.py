@@ -207,6 +207,10 @@ class WusoolOAuthProvider:
         except SlackSignInError as exc:
             logger.warning("mcp_sign_in_failed reason=%s", exc)
             return self._refuse(state, "Slack sign-in failed")
+        except Exception:
+            # Slack's API or the network failed: Claude still gets a clear refusal, not a 500.
+            logger.exception("mcp_sign_in_slack_unreachable")
+            return self._refuse(state, "Couldn't reach Slack. Try again in a minute")
         if identity.team_id != allowed_team:
             return self._refuse(state, "Sign in with the Wusool Slack workspace")
         # Unlike a refresh, a first sign-in is refused when Slack can't confirm membership.

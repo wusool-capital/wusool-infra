@@ -142,7 +142,9 @@ writes nothing. `edit_one(kind, role_id, fields)` routes the flat keys to
 organization and role fields with `route_fields` and calls `write_buyer_edit` /
 `write_seller_edit`; `target_vertical` can't be edited, as in Slack.
 `find_records(kind, term)` matches an exact domain, or else a similar company
-name. Bad fields raise `InvalidFieldsError` with structured problems, and nothing
+name (a dotted name like `Booking.com` falls back to the name search). Edits
+refuse an inactive role. A preview made with an `owner` can be confirmed and
+read only by that person. Bad fields raise `InvalidFieldsError` with structured problems, and nothing
 is written. Both edits take `invoked_via` (`slack` by default, `mcp` here).
 
 ### Headless seller add (discovery)

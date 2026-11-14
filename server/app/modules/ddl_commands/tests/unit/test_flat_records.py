@@ -124,7 +124,7 @@ async def test_edit_routes_org_and_role_fields_and_sends_only_those(
     monkeypatch.setattr(
         flat_records,
         "resolve_buyer_by_id",
-        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1")),
+        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1", is_active=True)),
     )
     write = AsyncMock()
     monkeypatch.setattr(flat_records, "write_buyer_edit", write)
@@ -156,3 +156,33 @@ async def test_find_by_domain_lists_only_active_roles(
     found = await flat_records.find_records("buyer", "www.acme.com")
 
     assert [r.target_vertical for r in found] == [_VERTICAL]
+
+
+async def test_edit_of_an_inactive_buyer_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        flat_records, "resolve_buyer_by_id", AsyncMock(return_value=_buyer(active=False))
+    )
+    write = AsyncMock()
+    monkeypatch.setattr(flat_records, "write_buyer_edit", write)
+
+    with pytest.raises(BuyerNotFoundError):
+        await flat_records.edit_one(
+            "buyer", _ROLE_ID, {"notes": "hi"}, requested_by="U1", invoked_via="mcp"
+        )
+
+    write.assert_not_awaited()
+
+
+async def test_a_dotted_name_with_no_domain_match_falls_back_to_the_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(flat_records, "find_organization_by_domains", AsyncMock(return_value=None))
+    role = SimpleNamespace(id=_ROLE_ID, is_active=True, organization=_org())
+    resolve = AsyncMock(return_value=SimpleNamespace(candidates=[role], status="single"))
+    service = SimpleNamespace(resolve_buyer=resolve)
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+
+    found = await flat_records.find_records("buyer", "Booking.com")
+
+    resolve.assert_awaited_once_with("Booking.com")
+    assert [r.org_name for r in found] == ["Acme"]

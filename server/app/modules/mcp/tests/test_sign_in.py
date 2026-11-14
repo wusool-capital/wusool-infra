@@ -265,3 +265,24 @@ def test_an_expired_token_does_not_decode() -> None:
 
     assert codec.decode("access", token, AccessClaims, now=99) == claims
     assert codec.decode("access", token, AccessClaims, now=100) is None
+
+
+def test_a_slack_outage_at_sign_in_refuses_cleanly(client: TestClient, slack: Slack) -> None:
+    slack.identity.side_effect = ConnectionError("slack down")
+    registered = _register(client)
+    to_slack = client.get(
+        "/authorize",
+        params={
+            "response_type": "code",
+            "client_id": registered["client_id"],
+            "redirect_uri": _CLAUDE,
+            "code_challenge": "x" * 43,
+            "code_challenge_method": "S256",
+        },
+    )
+    state = parse_qs(urlsplit(to_slack.headers["location"]).query)["state"][0]
+
+    back = client.get("/mcp/oauth/callback", params={"code": "c", "state": state})
+
+    assert back.status_code == 302
+    assert parse_qs(urlsplit(back.headers["location"]).query)["error"] == ["access_denied"]
