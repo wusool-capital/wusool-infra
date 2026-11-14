@@ -80,8 +80,9 @@ notepad and the main window edits the notes at a time.
 The first push sends the notes as `user_notes` (markdown, at most 50,000
 characters). Later edits to a pushed meeting go to
 `PUT …/user-notes` a few seconds after typing stops. The 60-second
-background sync retries any that failed. A 404 stops the retries until the
-next edit.
+background sync retries any that failed. A 404 or 422 stops the retries
+until the next edit. The app refuses to save notes over the limit, so they
+can't block a push.
 
 ## Speaker separation
 
