@@ -56,8 +56,8 @@ microphone and system audio, or an imported file
   → local recording (mixed track, plus a meeting-audio-only track)
   → local Whisper transcription, tagged "me" (mic) or "others" (system)
   → local speaker diarization of the meeting audio after saving
-  → user edits the transcript and names speakers
-  → local SQLite meeting
+  → user edits the transcript and names speakers, and types notes
+  → local SQLite meeting and its notes
   → optional push to the Toolkit server
   → server-side Bedrock summary and Attio note
 ```
@@ -65,6 +65,23 @@ microphone and system audio, or an imported file
 Audio and transcription stay on the Mac. Scribe has no local summary model:
 the transcript leaves the Mac only when the user pushes it, and the Toolkit
 server writes the summary.
+
+## Meeting notes
+
+Notes typed while recording go to `notes.draft.json` in the recording
+folder, because the meeting has no ID until it is saved. Saving the meeting
+moves the draft into the local `meeting_notes` table. That covers the normal
+stop and the crash recovery path.
+
+The floating notepad is the shared overlay panel, so it floats over
+full-screen meeting apps and is kept out of screen shares. Only one of the
+notepad and the main window edits the notes at a time.
+
+The first push sends the notes as `user_notes` (markdown, at most 50,000
+characters). Later edits to a pushed meeting go to
+`PUT …/user-notes` a few seconds after typing stops. The 60-second
+background sync retries any that failed. A 404 stops the retries until the
+next edit.
 
 ## Speaker separation
 
@@ -76,8 +93,8 @@ on request. See [speaker separation](scribe-speakers.md).
 
 ![How a push reaches Attio](../.gitbook/assets/scribe-push.svg)
 
-1. `POST /desktop/meetings` stores the transcript and returns at once with
-   status `summarizing`.
+1. `POST /desktop/meetings` stores the transcript and the user's notes, then
+   returns at once with status `summarizing`.
 2. In the background, Bedrock writes a structured summary.
 3. The server **always** creates an Attio note, with or without an
    organization. The note links to the organization and, when the role has
@@ -101,6 +118,7 @@ compared in constant time.
 | `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
 | `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
 | `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |
+| `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes` | Replaces a pushed meeting's notes; returns 204. A missing or deleted meeting returns 404. Doesn't rerun the summary. |
 | `POST /desktop/transcripts/corrections` | Sends transcript lines, with speaker names and optional `context` (title, names, the user's vocabulary), to Bedrock for spelling suggestions. Returns each fix with a category, plus `failed_segment_ids` for lines in batches that errored. Nothing is stored. |
 | `POST /desktop/feedback` | Records in-app feedback and emails the team. |
 

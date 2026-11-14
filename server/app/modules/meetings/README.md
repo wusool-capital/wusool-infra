@@ -50,6 +50,13 @@ meeting is actively `summarizing` — a *stalled* `summarizing` row is deleted
 anyway, matching `application/status.py`'s own stall cutoff. See
 `application/delete.py`.
 
+`PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes` stores
+notes the user edits after the first push (`meetings.user_notes`, migration
+`b7e1c4d8a203`). The push itself carries the first copy as `user_notes`,
+which the summary prompts read as a delimited, untrusted block (see
+`domain/prompts.py`). Later edits are stored only; the summary isn't rerun.
+404 for a missing or soft-deleted meeting. See `application/user_notes.py`.
+
 `POST /desktop/transcripts/corrections` returns speech-to-text fix
 suggestions for the desktop transcript editor. Stateless (no DB writes):
 `CorrectionService` batches segments, asks Bedrock (forced tool call, via
