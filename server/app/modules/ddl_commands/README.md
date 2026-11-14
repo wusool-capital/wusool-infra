@@ -39,7 +39,10 @@ ddl_commands/
   providers/attio/   # write_payload.py — this module's own field-to-Attio-payload mapping
                        # (the vendor client/helpers themselves live in app.modules.attio)
   api/                # router.py (aggregates health.py + attio_sync.py's routers),
-                       # Slack handlers, dependencies.py
+                       # Slack handlers, dependencies.py, headless writes
+                       # (seller_write.py, buyer_write.py, *_edit.py) and bulk
+                       # upload (bulk_upload.py, bulk_store.py, bulk_file.py,
+                       # bulk_columns.py, bulk_report.py)
   scripts/            # attio_sync_full_resync.py — standalone nightly batch job
   tests/
 ```
@@ -144,6 +147,92 @@ A website-check card's `review_card_token` travels the same way. After a
 successful save, the add-seller handler passes it to
 `discovery.mark_review_card_added`, which marks the card as added. This is
 the one call from this module's Slack handlers into `discovery`.
+
+### Headless buyer add
+
+`api/buyer_write.py::write_buyer_add` is the Attio-first buyer write the
+`/add-buyer` submission calls, kept out of the Slack handler so MCP v1 and
+bulk upload can call it, shaped like `write_seller_add`. It returns the created
+`BuyerRole` and raises `BuyerAlreadyExistsError` or `PartialWriteError`. It keeps
+the per-(organization, vertical) lock, so two adds for one vertical create one
+Attio entry. `invoked_via` is `slack` or `mcp`.
+
+### Bulk upload (MCP v1 and Slack)
+
+`api/bulk_upload.py` adds a list of buyers or sellers in three steps. Nothing is
+created until the person confirms the preview, in Claude or in Slack.
+
+- `preview_buyers(rows)` / `preview_sellers(rows)` validate and dedupe, and
+  write nothing. They are all or nothing, for Claude and for a Slack file alike:
+  any invalid row returns a `RejectedUpload` with the exact problem on every bad
+  row, stores nothing and skips every database lookup, so the sender can fix the
+  rows and send the list again. A select field's problem names the allowed values.
+  Each problem is structured (`row`, `kind`, `field`, plus a plain `message`), so a
+  caller words it its own way without parsing the message; Slack does.
+  A clean list returns a `PreviewResult` with the new and existing counts and a
+  `preview_id`. One call takes 1 to 1,000 rows. `row_numbers` are the spreadsheet
+  lines to report for a file, and `invoked_via` is `mcp` or `slack`.
+- `commit(preview_id, requested_by=...)` adds the new rows in the background, one
+  at a time, through `write_buyer_add` / `write_seller_add` with the preview's
+  `invoked_via` (`mcp` by default, `slack` for a file). A second call while it
+  runs returns the current progress. `on_done` is called with the final progress.
+- `status(preview_id)` returns the state (`ready`, `running`, `done`,
+  `interrupted`) with the added count and the skipped and failed rows. Rows already
+  in the CRM when the list was checked count as skipped from the start, so the final
+  numbers add up: for 140 rows with 18 existing, 119 added and 18 skipped.
+
+A row is flat: `org_name`, `domain`, and any organization or role field the
+Slack add forms offer. Buyer rows also need `target_vertical`. `domain` is the
+company's website or domain; it becomes the organization's `domains`.
+A seller has `relationship_status` on both the role and the organization, so the
+plain key is the role's and `org_relationship_status` is the organization's.
+Unknown fields and values outside a select's options make a row invalid, so
+nothing is dropped silently. Dropdown values match ignoring case, for a file and
+for Claude alike, through one shared matcher (`bulk_columns.match_option`).
+
+A row is existing when its domain matches an organization that already holds
+the role: a buyer role for the same vertical, or any active seller role. A
+company that exists with a different vertical gets the new buyer role on its
+existing organization. Existing organizations are never changed (our data
+wins), and existing rows are skipped. The company name is not part of the match.
+The host must match exactly, so `shop.acme.com` is not `acme.com`.
+
+`commit` re-checks every row just before it writes, under one lock, so a row
+added in the meantime, or a rerun, is skipped instead of duplicated. Each added
+row leaves the usual `command_runs` and `activities` record with source `mcp`
+or `slack`.
+
+#### Slack: `/bulk-buyer` and `/bulk-seller`
+
+Slack can't attach a file to a slash command, so the command opens a form with a
+file input (`api/slack/handlers/bulk.py`, `api/slack/views/bulk_upload_form.py`).
+The submission is acknowledged with a "checking" view, then the file is downloaded
+(needs the `files:read` scope), read, and checked:
+
+- `api/bulk_file.py` reads a UTF-8 CSV or the first sheet of an `.xlsx` into rows
+  keyed by field name. A file that is not the template raises `TemplateError`
+  (wrong, missing or repeated headers, unreadable, over 5 MB or 1,000 rows) and is
+  refused whole with a link to the template. A bad cell becomes a `CellProblem`.
+- `api/bulk_columns.py` holds the human column labels and the conversion of one
+  cell to the value the Slack forms produce. Both are built from the `FieldSpec`s,
+  so a template can't drift from the fields. Lists split on `;`.
+- `api/bulk_report.py` turns problems into text by spreadsheet line and column
+  label, never repeating cell contents. The form shows 20; when more exist or
+  they don't fit, the full list is attached as a CSV (`files:write`).
+- A clean file shows a confirm view; Confirm calls `commit` for the person who
+  clicked, and `on_done` posts the result to them.
+
+The template files are generated by
+`scripts/generate_bulk_templates.py` into `bulk_templates/`, uploaded by
+`infrastructure/terraform/stacks/assets` to a public bucket (`templates/` only), and
+guarded by a unit test. Set `BULK_TEMPLATE_BASE_URL` to the stack's
+`templates_base_url` output.
+
+Previews and progress sit behind the `PreviewStore` Protocol
+(`api/bulk_store.py`). The in-memory adapter keeps them for an hour and forgets
+them on a restart; the row re-check is what makes a rerun safe. It is correct
+for one server per environment. A Postgres adapter can replace it without
+changing callers.
 
 ## Why Attio-first, not a Postgres-only write
 

@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "4c9411e189f821c9cdff9bac77b36c8e46abb523"
+      "revision": "7108ea28a89a5a9adf464b644591e632164a5560"
     },
     "viewBox": [
       1240,
@@ -364,6 +364,30 @@
       ]
     },
     {
+      "id": "assets",
+      "type": "cloud",
+      "label": "Public templates",
+      "sublabel": "S3, templates/ only",
+      "pos": [
+        270,
+        700
+      ],
+      "size": [
+        170,
+        56
+      ],
+      "sources": [
+        {
+          "path": "infrastructure/terraform/stacks/assets/main.tf",
+          "label": "Assets stack"
+        },
+        {
+          "path": "server/app/modules/ddl_commands/scripts/generate_bulk_templates.py",
+          "label": "Template generator"
+        }
+      ]
+    },
+    {
       "id": "google",
       "type": "external",
       "label": "Google Workspace",
@@ -460,6 +484,14 @@
       "label": "signed updates",
       "variant": "dashed",
       "labelDy": 24
+    },
+    {
+      "from": "toolkit",
+      "to": "assets",
+      "label": "bulk upload template link",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "right"
     },
     {
       "from": "toolkit",

@@ -11,6 +11,7 @@ hand work to each other. The sub-pages describe each module.
 | `/find-match` | `matching_engine` | [Matching engine](toolkit-matching.md) |
 | `/check-buyer` | `discrepancies` | [Discrepancy check](toolkit-discrepancies.md) |
 | `/add-buyer`, `/add-seller`, `/edit-buyer`, `/edit-seller` | `ddl_commands` | [Profile commands](toolkit-profile-commands.md) |
+| `/bulk-buyer`, `/bulk-seller` | `ddl_commands` | [Bulk upload](toolkit-bulk-upload.md) |
 | `/enrich-buyer`, `/enrich-seller` | `enrichment` | [Enrichment](toolkit-enrichment.md) |
 | none (triggered by matching) | `discovery` | [Seller discovery](toolkit-discovery.md) |
 | `/toolkit-status`, `/toolkit-help` | server | Health and usage help |

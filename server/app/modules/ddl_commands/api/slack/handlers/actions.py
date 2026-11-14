@@ -2,45 +2,28 @@
 sellers and buyers. Every write goes to SOURCE Attio *first*, then Postgres, in
 the same submission — if the Attio write fails, nothing is written to
 Postgres at all (see `write_seller_edit`/`write_buyer_edit` and
-`write_seller_add`/`_write_buyer_add`). Slack payload state is never
+`write_seller_add`/`write_buyer_add`). Slack payload state is never
 trusted on its own; the write targets (org record ID, role entry ID) are
 always re-resolved from the currently-loaded row, not from the payload.
 """
 
-import asyncio
 import json
 import logging
-from contextlib import nullcontext
-from typing import Any
-from weakref import WeakValueDictionary
 
 from pydantic import ValidationError
 from slack_bolt.async_app import AsyncApp
 from slack_bolt.context.ack.async_ack import AsyncAck
 from slack_sdk.web.async_client import AsyncWebClient
 
-from app.modules.attio import AttioError, attio_is_test, get_attio_client
-from app.modules.attio.providers.attio.entries import (
-    ScopeMismatchError,
-    assert_organization_in_scope,
-    create_organization,
-    create_role_entry,
-    patch_organization,
-)
-from app.modules.attio.providers.attio.options import OptionNotFoundError
 from app.modules.ddl_commands.api.buyer_edit import write_buyer_edit
+from app.modules.ddl_commands.api.buyer_write import write_buyer_add
 from app.modules.ddl_commands.api.buyers import (
     BUYER_FORM_FIELDS,
     BUYER_ROLE_FIELDS_BY_NAME,
     GATED_BUYER_ROLE_FIELDS,
     BuyerUpdate,
 )
-from app.modules.ddl_commands.api.command_tracking import (
-    CommandTracker,
-    track_command,
-)
 from app.modules.ddl_commands.api.dependencies import (
-    ddl_commands_service,
     edit_gate_port,
     resolve_buyer_by_id,
     resolve_organization,
@@ -102,10 +85,6 @@ from app.modules.ddl_commands.application.buyers import (
 from app.modules.ddl_commands.application.sellers import (
     SellerAlreadyExistsError,
     SellerNotFoundError,
-)
-from app.modules.ddl_commands.providers.attio.write_payload import (
-    build_attio_values,
-    build_postgres_values,
 )
 from app.modules.discovery import mark_review_card_added
 from app.modules.notifications import (
@@ -875,13 +854,14 @@ def register(app: AsyncApp) -> None:
 
         await ack()
         try:
-            await _write_buyer_add(
+            await write_buyer_add(
                 is_new_org=is_new_org,
                 org_attio_id=org_attio_id,
                 org_name=org_name,
                 org_extracted=org_extracted,
                 role_extracted=role_extracted,
                 requested_by=requested_by,
+                invoked_via="slack",
             )
         except BuyerAlreadyExistsError:
             await client.chat_postEphemeral(
@@ -900,151 +880,3 @@ def register(app: AsyncApp) -> None:
         await client.chat_postEphemeral(
             channel=channel_id, user=requested_by, text=f"*Added* buyer profile for *{org_name}*."
         )
-
-
-# One lock per (org, vertical) being added. Process-local, which is enough
-# while the toolkit runs as a single instance (ASG min=max=1); weakly held so
-# a lock disappears once no add is waiting on it.
-_buyer_add_locks: WeakValueDictionary[tuple[str, str | None], asyncio.Lock] = WeakValueDictionary()
-
-
-async def _write_buyer_add(
-    *,
-    is_new_org: bool,
-    org_attio_id: str | None,
-    org_name: str | None,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
-    requested_by: str | None,
-) -> None:
-    """Serializes the duplicate check with the Attio create, so a second
-    add for the same (org, vertical) sees the first one's role instead of
-    creating a second Attio entry that the reconcile would demote. A new
-    organization can't have a role yet, so it needs no lock.
-    """
-    guard = (
-        nullcontext()
-        if is_new_org
-        else _buyer_add_locks.setdefault(
-            (org_attio_id or "", role_extracted.get("target_vertical")), asyncio.Lock()
-        )
-    )
-    async with (
-        guard,
-        track_command(
-            "add_buyer",
-            invoked_via="slack",
-            requested_by=requested_by,
-            org_attio_id=None if is_new_org else org_attio_id,
-        ) as run,
-    ):
-        await _write_buyer_add_locked(
-            is_new_org=is_new_org,
-            org_attio_id=org_attio_id,
-            org_name=org_name,
-            org_extracted=org_extracted,
-            role_extracted=role_extracted,
-            run=run,
-        )
-
-
-async def _write_buyer_add_locked(
-    *,
-    is_new_org: bool,
-    org_attio_id: str | None,
-    org_name: str | None,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
-    run: CommandTracker,
-) -> None:
-    """Mirrors `_write_seller_add`, buyer-typed."""
-    if not is_new_org:
-        assert org_attio_id is not None  # caller supplies it when not creating one
-        # Before any Attio write: a duplicate entry would make Attio's
-        # newest-wins reconcile demote the existing role for this vertical.
-        if await ddl_commands_service().buyer_exists(
-            org_attio_id, role_extracted.get("target_vertical")
-        ):
-            raise BuyerAlreadyExistsError(org_attio_id)
-
-    landed: list[str] = []
-    run.landed = landed
-    attio_client = get_attio_client()
-    is_test = attio_is_test()
-
-    try:
-        if not is_new_org:
-            assert org_attio_id is not None  # caller supplies it when not creating one
-            await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
-        if is_new_org:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            org_attio_values["name"] = org_name
-            org_attio_values["is_active"] = True
-            org_attio_id, _ = await create_organization(
-                attio_client, org_attio_values, is_test=is_test
-            )
-            landed.append(f"organization '{org_name}' created in Attio (record_id={org_attio_id})")
-        elif org_extracted:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            if org_attio_values:
-                assert org_attio_id is not None  # not is_new_org: caller already supplied it
-                await patch_organization(attio_client, org_attio_id, org_attio_values)
-                landed.append("organization fields (Attio)")
-
-        assert org_attio_id is not None
-        role_attio_values = await build_attio_values(
-            attio_client,
-            target_kind="lists",
-            target_slug="buyer_role",
-            table="buyer_role",
-            fields=BUYER_ROLE_FIELDS_BY_NAME,
-            extracted=role_extracted,
-        )
-        entry_id = await create_role_entry(
-            attio_client, "buyer_role", org_attio_id, role_attio_values, is_test=is_test
-        )
-        landed.append("buyer role entry (Attio)")
-    except (AttioError, OptionNotFoundError, ScopeMismatchError) as exc:
-        raise PartialWriteError(landed, exc) from exc
-
-    org_postgres_fields = (
-        build_postgres_values(
-            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
-        )
-        if org_extracted
-        else None
-    )
-    role_postgres_fields = build_postgres_values(
-        table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
-    )
-    run.changed_fields = [*role_postgres_fields, *(org_postgres_fields or {})]
-    try:
-        role = await ddl_commands_service().create_buyer(
-            org_attio_id=org_attio_id,
-            entry_id=entry_id,
-            is_new_org=is_new_org,
-            context=run.context,
-            org_name=org_name if is_new_org else None,
-            org_fields=org_postgres_fields,
-            role_fields=role_postgres_fields,
-        )
-    except BuyerAlreadyExistsError:
-        raise
-    except Exception as exc:
-        raise PartialWriteError(landed, exc) from exc
-    run.org_attio_id = org_attio_id
-    run.buyer_role_id = role.id

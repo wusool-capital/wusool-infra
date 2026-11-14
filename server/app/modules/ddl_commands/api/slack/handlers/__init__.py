@@ -6,9 +6,10 @@ construction time.
 
 from slack_bolt.async_app import AsyncApp
 
-from app.modules.ddl_commands.api.slack.handlers import actions, commands
+from app.modules.ddl_commands.api.slack.handlers import actions, bulk, commands
 
 
 def register_handlers(app: AsyncApp) -> None:
     commands.register(app)
     actions.register(app)
+    bulk.register(app)

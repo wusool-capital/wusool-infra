@@ -1,8 +1,9 @@
 """End-to-end Slack command dispatch through the **merged** app (`main.py`)
 — proves the actual thing this merge exists to fix: one process, one
-`AsyncApp`, all 10 commands (matching-engine's `/find-match`,
+`AsyncApp`, all 12 commands (matching-engine's `/find-match`,
 discrepancies' `/check-buyer`, ddl-commands'
-`/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`, enrichment's
+`/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`/`/bulk-seller`/`/bulk-buyer`,
+enrichment's
 `/enrich-seller`/`/enrich-buyer`, and `main.py`'s own
 `/toolkit-help`/`/toolkit-status`) correctly registered and dispatching, with no
 cross-package collision.
@@ -17,10 +18,12 @@ monkeypatched — no network calls leave the process.
 """
 
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
 
+import app.modules.ddl_commands.api.slack.handlers.bulk as bulk_handler
 import main
 from app.modules.ddl_commands.api.slack.views.buyer_role_selection import OrgRolesPayload
 from app.modules.ddl_commands.api.slack.views.buyer_vertical_selection import RoleRef
@@ -86,6 +89,44 @@ def test_every_command_dispatches_off_the_one_shared_app(
     assert len(_mock_slack_web_client) == 1
     assert "Usage" in _mock_slack_web_client[0]["text"]
     assert command in _mock_slack_web_client[0]["text"]
+
+
+@pytest.mark.parametrize("command", ["/bulk-buyer", "/bulk-seller"])
+def test_bulk_commands_open_the_upload_form_off_the_one_shared_app(
+    command: str, monkeypatch
+) -> None:
+    opened: list[dict] = []
+
+    async def views_open(self, **kwargs):
+        opened.append(kwargs)
+        return {"view": {"id": "V1"}}
+
+    monkeypatch.setattr("slack_sdk.web.async_client.AsyncWebClient.views_open", views_open)
+    # This file never configures ddl_commands' own settings (no Attio webhook secret).
+    monkeypatch.setattr(
+        bulk_handler, "get_settings", lambda: SimpleNamespace(bulk_template_base_url="")
+    )
+
+    response = _post_command(command)
+
+    assert response.status_code == 200
+    assert opened[0]["view"].callback_id == "bulk_upload_modal"
+
+
+def test_bulk_upload_submission_routes_to_ddl_commands() -> None:
+    metadata = {"kind": "buyer", "requested_by": "U_TEST", "channel_id": "C_TEST"}
+
+    response = _post_view_submission_raw(
+        {
+            "type": "modal",
+            "id": "V1",
+            "callback_id": "bulk_upload_modal",
+            "private_metadata": json.dumps(metadata),
+            "state": {"values": {"bulk_file": {"file": {"type": "file_input", "files": []}}}},
+        }
+    )
+
+    assert response.json()["response_action"] == "errors"
 
 
 def _view_state_with_selected_buyer(buyer_role_id: str) -> dict:
