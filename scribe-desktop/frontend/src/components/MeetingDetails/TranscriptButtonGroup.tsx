@@ -50,7 +50,7 @@ export function TranscriptButtonGroup({
   }, [onRefetchTranscripts]);
 
   return (
-    <div className="toolbar flex w-full items-center justify-between gap-3">
+    <div className="toolbar flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2">
       {/* Editing tools sit on the left, next to the text they change. */}
       <div className="flex items-center gap-2">
         {editor && (
@@ -110,7 +110,8 @@ export function TranscriptButtonGroup({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* In a narrow pane this group wraps to its own row, still right-aligned. */}
+      <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
         <ButtonGroup>
           <Button
             variant="outline"

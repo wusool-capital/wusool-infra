@@ -63,7 +63,7 @@ While you record, the screen splits into the transcript and your notes. Type
 in **Notes** as the meeting goes. Notes save as you type.
 
 - Drag the line between the two sides to give either more room. Double-click
-  it to go back to half and half.
+  it to reset the split.
 - To take notes over another app, click the notepad button beside **Notes**,
   or choose **Open Notepad** from the menu-bar icon. The notepad stays on top
   of other windows and is hidden from screen shares. Click **Return to app**

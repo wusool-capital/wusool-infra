@@ -218,8 +218,9 @@ export default function RootLayout({
 
     const setupListeners = async () => {
       // Drag enter/over - show overlay only if beta feature is enabled
-      const unlistenDragEnter = await listen('tauri://drag-enter', () => {
-        if (loadBetaFeatures().importAndRetranscribe) {
+      // In-app drags (e.g. moving a notes block) carry no file paths.
+      const unlistenDragEnter = await listen<{ paths: string[] }>('tauri://drag-enter', (event) => {
+        if (event.payload.paths.length > 0 && loadBetaFeatures().importAndRetranscribe) {
           setShowDropOverlay(true);
         }
       });
@@ -243,7 +244,7 @@ export default function RootLayout({
       // Drop - process files
       const unlistenDrop = await listen<{ paths: string[] }>('tauri://drag-drop', (event) => {
         setShowDropOverlay(false);
-        handleFileDrop(event.payload.paths);
+        if (event.payload.paths.length > 0) handleFileDrop(event.payload.paths);
       });
       if (cleanedUpRef.current) {
         unlistenDrop();

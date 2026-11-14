@@ -165,6 +165,8 @@ export default function PageContent({
         ) : (
           <ResizableSplit
             storageKey="wusoolscribe-meeting-notes-split"
+            // Before a push the transcript is the work surface; notes ride alongside.
+            defaultRatio={0.6}
             leftLabel="Transcript"
             rightLabel="Notes"
             left={
