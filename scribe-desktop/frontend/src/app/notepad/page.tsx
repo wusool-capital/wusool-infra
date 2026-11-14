@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { emit, listen } from '@tauri-apps/api/event';
+import { X } from 'lucide-react';
 import { LiveNotesEditor } from '@/components/notes/LiveNotesEditor';
 import { NotesSaveStatus } from '@/components/notes/NotesSaveStatus';
 import { NOTEPAD_FLUSH_REQUEST, NOTEPAD_FLUSHED } from '@/lib/liveNotesFlush';
@@ -66,9 +67,13 @@ export default function NotepadPage() {
     return () => clearInterval(id);
   }, [visible]);
 
-  const returnToApp = async () => {
+  const saveAndClose = async () => {
     await flushRef.current?.();
     await invoke('close_notepad');
+  };
+
+  const returnToApp = async () => {
+    await saveAndClose();
     await invoke('focus_main_window_command').catch(() => {});
   };
 
@@ -96,6 +101,23 @@ export default function NotepadPage() {
         >
           Return to app
         </button>
+        {/* Popup windows have no TooltipProvider, so the hover label is plain CSS. */}
+        <div className="group relative">
+          <button
+            type="button"
+            onClick={() => void saveAndClose()}
+            aria-label="Save and close"
+            className="flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors duration-150 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <X className="size-4" aria-hidden />
+          </button>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute right-0 top-full z-10 mt-1 whitespace-nowrap rounded-md bg-foreground px-2 py-1 text-xs text-background opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            Save and close
+          </span>
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
