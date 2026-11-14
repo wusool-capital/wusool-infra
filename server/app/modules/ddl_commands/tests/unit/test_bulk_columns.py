@@ -163,13 +163,15 @@ def test_a_multi_select_splits_on_semicolons_and_returns_canonical_options() -> 
     assert coerce_cell(sector, f"{first};") == [first]
 
 
-def test_a_multi_select_names_every_unknown_item() -> None:
+def test_a_multi_select_points_at_every_unknown_item_without_repeating_it() -> None:
     sector = spec("buyer", "sector_focus")
 
     with pytest.raises(CellError) as raised:
         coerce_cell(sector, f"{sector.options[0]};Nope;Also nope")
 
-    assert "Nope; Also nope" in str(raised.value)
+    message = str(raised.value)
+    assert "item 2, 3" in message
+    assert "Nope" not in message  # the problem list can be posted to a channel
 
 
 def test_a_free_text_multi_select_is_joined_the_way_the_slack_form_joins_it() -> None:

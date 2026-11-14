@@ -162,10 +162,13 @@ def _option(spec: FieldSpec, text: str) -> str:
 
 def _options(spec: FieldSpec, items: list[str]) -> list[str]:
     by_lower = {option.lower(): option for option in spec.options}
-    unknown = [item for item in items if item.lower() not in by_lower]
+    # By position, not by text: the message is also posted to a channel.
+    unknown = [n for n, item in enumerate(items, start=1) if item.lower() not in by_lower]
     if unknown:
+        which = ", ".join(str(n) for n in unknown)
         raise CellError(
-            f"not an allowed value: {'; '.join(unknown)}. Allowed: {_shown_options(spec)}"
+            f"not an allowed value in item {which} (items are separated by ;). "
+            f"Allowed: {_shown_options(spec)}"
         )
     return [by_lower[item.lower()] for item in items]
 
