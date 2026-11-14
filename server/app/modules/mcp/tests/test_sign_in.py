@@ -14,8 +14,8 @@ from starlette.testclient import TestClient
 
 from app.modules.auth import SlackIdentity
 from app.modules.mcp.api import oauth
-from app.modules.mcp.api.server import build_server
 from app.modules.mcp.api.tokens import AccessClaims, TokenCodec
+from app.modules.mcp.bootstrap import build_server
 from app.modules.mcp.domain.signing import sign, unsign
 
 _BASE = "https://tools.example"

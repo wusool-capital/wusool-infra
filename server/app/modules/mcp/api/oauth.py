@@ -51,7 +51,7 @@ from app.modules.mcp.api.tokens import (
     TokenCodec,
     client_fingerprint,
 )
-from app.modules.mcp.application.ports import IdempotencyStore
+from app.modules.mcp.application.ports.stores import IdempotencyStore
 from app.modules.mcp.domain.access import CRM_SCOPE
 from app.modules.mcp.domain.signing import derive
 

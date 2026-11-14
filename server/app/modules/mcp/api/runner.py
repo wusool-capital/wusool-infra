@@ -24,7 +24,7 @@ from app.modules.ddl_commands import (
     RowProblem,
     SellerNotFoundError,
 )
-from app.modules.mcp.application.ports import IdempotencyStore, PermissionChecker
+from app.modules.mcp.application.ports.stores import IdempotencyStore, PermissionChecker
 from app.modules.mcp.domain.access import Caller, Permission
 from app.modules.utilities import FixedWindowRateLimiter
 from app.modules.utilities.domain.safe_errors import describe_error

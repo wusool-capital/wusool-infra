@@ -30,15 +30,15 @@ field names: add, never rename or change a meaning. A breaking change is a new t
 ```
 mcp/
   config.py          # McpSettings: MCP_PUBLIC_URL, MCP_TOKEN_SECRET, MCP_CALLS_PER_HOUR
+  bootstrap.py       # composition root: wires adapters into the server; routes for main.py
   domain/            # signing.py (HMAC with a purpose), access.py (Caller, Permission, scope)
-  application/       # ports.py: PermissionChecker, IdempotencyStore
+  application/       # ports/stores.py: PermissionChecker, IdempotencyStore
   persistence/       # adapters.py: allow-all permissions, in-memory idempotency
   api/
     oauth.py         # the OAuth 2.1 authorization server and the Slack callback
     tokens.py        # what each signed client id, code and token carries
     runner.py        # the one wrapper every tool call goes through
     tools/           # records.py (find/add/edit), imports.py (bulk), schemas.py (contract)
-    server.py        # builds the MCPServer and the routes main.py adds
 ```
 
 A new tool is its models in `tools/schemas.py` plus a thin function calling

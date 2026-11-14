@@ -20,8 +20,8 @@ from app.modules.ddl_commands import (
     RowProblem,
 )
 from app.modules.mcp.api.runner import caller_from_token
-from app.modules.mcp.api.server import build_server
 from app.modules.mcp.api.tools import imports, records
+from app.modules.mcp.bootstrap import build_server
 from app.modules.mcp.domain.access import Caller
 
 _CALLER = Caller(slack_user_id="U_ALICE", team_id="T1", name="Alice", scopes=("crm",))

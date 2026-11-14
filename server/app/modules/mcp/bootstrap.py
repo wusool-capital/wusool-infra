@@ -1,4 +1,5 @@
-"""Builds the Wusool MCP server and the routes `main.py` adds to the FastAPI app."""
+"""Composition root: builds the Wusool MCP server, wiring adapters into the tools,
+and the routes `main.py` adds to the FastAPI app."""
 
 from dataclasses import dataclass
 from urllib.parse import urlsplit
