@@ -461,9 +461,9 @@ The order is the whole point; it is what makes a lost lead impossible.
    one `seller_role` entry (with its `sector`) or one `buyer_role` entry
    **per ticked sector** (`target_vertical`, found again by vertical on a
    resubmission; the form's sectors no longer land on the organisation),
-   one `person`, and one `deal` at
-   stage **Lead** with status **Active** so the lead lands in the pipeline rather than waiting
-   for someone to key it in by hand.
+   one `person`, and one `deal` at stage **Lead** with status **Active** so
+   the lead lands in the pipeline rather than waiting for someone to key it in
+   by hand.
 5. **Email the visitor** a confirmation, via SES (`domain/<tool>/email.py`
    builds the HTML, `notifications.EmailSenderPort` sends it).
 6. **Email the internal team** a notice, with links back to the Attio

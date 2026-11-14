@@ -20,7 +20,6 @@ for current production evidence and open handover items.
   Stage history is kept.
 - `ensure-schema.ps1` now seeds the 10 stages and `deal_status`, and no longer
   copies the old stages from SOURCE's native pipeline.
-
 - Lead magnets now create their Attio deal at stage Lead with status Active
   (AZM-172). They wrote the old Inbound stage, so new lead-magnet deals failed
   to save after the stage change.
