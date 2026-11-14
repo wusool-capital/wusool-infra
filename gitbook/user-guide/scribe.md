@@ -71,10 +71,11 @@ in **Notes** as the meeting goes. Notes save as you type.
 
 **Expected result:** when you stop, your notes open beside the transcript of
 the saved meeting. When you push, Scribe sends your notes with the
-transcript, and the summary gives weight to what you noted. You can keep
+transcript, and the summary gives weight to what you noted. The Attio note
+shows your notes under **Advisor notes**, after the summary. You can keep
 editing notes after a push: open the meeting's **Notes** tab, and Scribe
-sends the changes to the server. Editing notes after a push doesn't rewrite
-the summary.
+updates the Attio note. Editing notes after a push doesn't rewrite the
+summary.
 
 ## Work with the transcript
 

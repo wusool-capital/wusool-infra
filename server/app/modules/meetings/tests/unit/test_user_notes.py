@@ -25,6 +25,7 @@ from app.modules.meetings.domain.prompts import (
     build_merge_prompt,
     build_single_pass_summary_prompt,
 )
+from app.modules.meetings.domain.rendering import render_note_content
 from app.modules.meetings.domain.summary import MeetingSummary
 
 _BUDGET = SummaryBudget(min_topics=1, max_topics=2, max_words=120)
@@ -133,6 +134,7 @@ class _FakeMeetingsRepository:
     meeting: MeetingRecord | None
     updated: bool = True
     update_calls: list[tuple[UUID, str | None]] = field(default_factory=list)
+    log: list[str] = field(default_factory=list)
 
     async def get_by_install_and_recording(
         self, install_id: str, local_recording_id: str
@@ -141,17 +143,43 @@ class _FakeMeetingsRepository:
 
     async def update_user_notes(self, meeting_id: UUID, *, user_notes: str | None) -> bool:
         self.update_calls.append((meeting_id, user_notes))
+        self.log.append("meetings")
         return self.updated
 
 
-def _service(repo: _FakeMeetingsRepository) -> MeetingsService:
+@dataclass
+class _FakeNoteWriter:
+    log: list[str]
+    contents: list[tuple[UUID, str]] = field(default_factory=list)
+
+    async def update_note_content(self, record_id: UUID, content: str) -> bool:
+        self.contents.append((record_id, content))
+        self.log.append("attio")
+        return True
+
+
+@dataclass
+class _FakeNotesRepository:
+    log: list[str]
+    contents: list[tuple[UUID, str]] = field(default_factory=list)
+
+    async def update_content(self, note_id: UUID, content: str) -> None:
+        self.contents.append((note_id, content))
+        self.log.append("postgres_note")
+
+
+def _service(
+    repo: _FakeMeetingsRepository,
+    note_writer: _FakeNoteWriter | None = None,
+    notes_repo: _FakeNotesRepository | None = None,
+) -> MeetingsService:
     return MeetingsService(
         meetings_repository=repo,  # type: ignore[arg-type]
-        notes_repository=None,  # type: ignore[arg-type]
+        notes_repository=notes_repo,  # type: ignore[arg-type]
         organization_lookup=None,  # type: ignore[arg-type]
         role_lookup=None,  # type: ignore[arg-type]
         summarization_service=None,  # type: ignore[arg-type]
-        note_writer=None,  # type: ignore[arg-type]
+        note_writer=note_writer,  # type: ignore[arg-type]
         summary_semaphore=asyncio.Semaphore(1),
         activity_recorder=None,  # type: ignore[arg-type]
     )
@@ -186,3 +214,61 @@ async def test_update_user_notes_missing_or_removed_is_404(meeting: MeetingRecor
         await _service(repo).update_user_notes("install-1", "rec-1", "notes")
 
     assert repo.update_calls == []
+
+
+_NOTE_ID = uuid4()
+
+
+async def test_published_meeting_rewrites_the_note_attio_first() -> None:
+    meeting = replace(_MEETING, note_id=_NOTE_ID, summary="The gist.")
+    repo = _FakeMeetingsRepository(meeting=meeting)
+    writer = _FakeNoteWriter(log=repo.log)
+    notes_repo = _FakeNotesRepository(log=repo.log)
+
+    await _service(repo, writer, notes_repo).update_user_notes("install-1", "rec-1", "- SOC2")
+
+    expected = "The gist.\n\nAdvisor notes:\n- SOC2"
+    assert writer.contents == [(_NOTE_ID, expected)]
+    assert notes_repo.contents == [(_NOTE_ID, expected)]
+    assert repo.log == ["attio", "postgres_note", "meetings"]
+
+
+async def test_cleared_notes_drop_the_advisor_section() -> None:
+    meeting = replace(_MEETING, note_id=_NOTE_ID, summary="The gist.")
+    repo = _FakeMeetingsRepository(meeting=meeting)
+    writer = _FakeNoteWriter(log=repo.log)
+
+    await _service(repo, writer, _FakeNotesRepository(log=repo.log)).update_user_notes(
+        "install-1", "rec-1", None
+    )
+
+    assert writer.contents == [(_NOTE_ID, "The gist.")]
+
+
+async def test_skip_attio_meeting_updates_only_postgres() -> None:
+    meeting = replace(
+        _MEETING, note_id=_NOTE_ID, summary="The gist.", metadata={"skip_attio": True}
+    )
+    repo = _FakeMeetingsRepository(meeting=meeting)
+    writer = _FakeNoteWriter(log=repo.log)
+
+    await _service(repo, writer, _FakeNotesRepository(log=repo.log)).update_user_notes(
+        "install-1", "rec-1", "x"
+    )
+
+    assert repo.log == ["postgres_note", "meetings"]
+
+
+async def test_still_summarizing_meeting_stores_notes_only() -> None:
+    repo = _FakeMeetingsRepository(meeting=replace(_MEETING, status="summarizing"))
+    writer = _FakeNoteWriter(log=repo.log)
+
+    await _service(repo, writer, _FakeNotesRepository(log=repo.log)).update_user_notes(
+        "install-1", "rec-1", "x"
+    )
+
+    assert repo.log == ["meetings"]
+
+
+def test_note_content_without_notes_is_the_summary() -> None:
+    assert render_note_content("The gist.", None) == "The gist."

@@ -16,7 +16,7 @@ for current production evidence and open handover items.
   the transcript and a notes editor, with a draggable divider. A floating
   notepad, opened from the app or the menu bar, stays on top of other apps.
   Notes are saved per meeting and sent with the push, and the summary prompt
-  gives weight to them. Notes stay editable after a push and sync through
+  gives weight to them. The Attio note shows them under "Advisor notes". Notes stay editable after a push and sync through
   `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes`.
   Migration `b7e1c4d8a203` adds `meetings.user_notes`.
 - The buyer add behind `/add-buyer` now lives in `ddl_commands/api/buyer_write.py`

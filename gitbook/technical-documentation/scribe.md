@@ -78,7 +78,9 @@ full-screen meeting apps and is kept out of screen shares. Only one of the
 notepad and the main window edits the notes at a time.
 
 The first push sends the notes as `user_notes` (markdown, at most 50,000
-characters). Later edits to a pushed meeting go to
+characters). The server stores them in `meetings.user_notes` and appends
+them to the CRM note, in Attio and in `notes.content`, under an
+**Advisor notes** heading. `meetings.summary` stays the summary alone. Later edits to a pushed meeting go to
 `PUT …/user-notes` a few seconds after typing stops. The 60-second
 background sync retries any that failed. A 404 or 422 stops the retries
 until the next edit. The app refuses to save notes over the limit, so they
@@ -119,7 +121,7 @@ compared in constant time.
 | `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
 | `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
 | `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |
-| `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes` | Replaces a pushed meeting's notes; returns 204. A missing or deleted meeting returns 404. Doesn't rerun the summary. |
+| `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes` | Replaces a pushed meeting's notes and rewrites the **Advisor notes** section of its note, Attio first; returns 204. A missing or deleted meeting returns 404. Doesn't rerun the summary. |
 | `POST /desktop/transcripts/corrections` | Sends transcript lines, with speaker names and optional `context` (title, names, the user's vocabulary), to Bedrock for spelling suggestions. Returns each fix with a category, plus `failed_segment_ids` for lines in batches that errored. Nothing is stored. |
 | `POST /desktop/feedback` | Records in-app feedback and emails the team. |
 

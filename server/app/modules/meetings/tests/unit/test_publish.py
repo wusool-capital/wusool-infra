@@ -201,6 +201,7 @@ class _FakeNoteWriter:
     ) -> UUID | None:
         self.calls.append(
             {
+                "content": content,
                 "organization_attio_id": organization_attio_id,
                 "primary_role": primary_role,
                 "buyer_role_entry_id": buyer_role_entry_id,
@@ -437,6 +438,19 @@ async def test_meeting_deleted_mid_summarization_creates_no_note() -> None:
     assert note_writer.calls == []
     assert notes_repo.calls == []
     assert meetings_repo.set_note_id_calls == []
+
+
+async def test_note_carries_advisor_notes_under_the_summary() -> None:
+    meeting = _meeting(org_id=None, user_notes="- SOC2 report pending")
+    service, meetings_repo, _, note_writer, _ = _service(meeting=meeting)
+
+    await service.summarize_and_publish(_MEETING_ID)
+
+    summary_text = meetings_repo.mark_completed_calls[0]["summary_text"]
+    assert note_writer.calls[0]["content"] == (
+        f"{summary_text}\n\nAdvisor notes:\n- SOC2 report pending"
+    )
+    assert "Advisor notes" not in str(summary_text)
 
 
 async def test_skip_attio_meeting_files_postgres_note_without_attio() -> None:
