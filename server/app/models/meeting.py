@@ -101,3 +101,5 @@ class Meeting(Base):
     note_id: Mapped[UUID | None] = mapped_column(ForeignKey("notes.id"))
     # Desktop-initiated soft delete (AZM-126), mirroring `notes.removed_at`.
     removed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    # Markdown notes the user typed in the desktop app (AZM-173); editable after push.
+    user_notes: Mapped[str | None] = mapped_column(Text)

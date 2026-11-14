@@ -9,6 +9,7 @@ import { useRecordingState, RecordingStatus } from '@/contexts/RecordingStateCon
 import { storageService } from '@/services/storageService';
 import { transcriptService } from '@/services/transcriptService';
 import Analytics from '@/lib/analytics';
+import { flushLiveNotes } from '@/lib/liveNotesFlush';
 import {
   applyPinnedSummaryLanguageToMeeting,
   detectAndCacheSummaryLanguage,
@@ -237,6 +238,8 @@ export function useRecordingStop(
       if (isCallApi && transcriptionComplete == true) {
 
         setStatus(RecordingStatus.SAVING, 'Saving meeting to database...');
+        // Pending notes must reach the draft before the save attaches it.
+        await flushLiveNotes().catch((error) => console.warn('Failed to flush live notes:', error));
 
         // Get fresh transcript state (ALL transcripts including late ones)
         const freshTranscripts = [...transcriptsRef.current];

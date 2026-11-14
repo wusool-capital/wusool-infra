@@ -1,7 +1,8 @@
 import type { Block } from "@blocknote/core";
 
-interface MarkdownCapableEditor {
-  blocksToMarkdownLossy: (blocks: Block[]) => Promise<string>;
+// Generic so editors with a custom block schema (the notes editor) fit too.
+interface MarkdownCapableEditor<B = Block> {
+  blocksToMarkdownLossy: (blocks: B[]) => Promise<string>;
 }
 
 interface MarkdownConversionOptions {
@@ -14,9 +15,9 @@ interface MarkdownConversionResult {
   ok: boolean;
 }
 
-export async function blocksToMarkdownSafely(
-  editor: MarkdownCapableEditor,
-  blocks: Block[],
+export async function blocksToMarkdownSafely<B = Block>(
+  editor: MarkdownCapableEditor<B>,
+  blocks: B[],
   options: MarkdownConversionOptions,
 ): Promise<MarkdownConversionResult> {
   try {

@@ -58,6 +58,9 @@ class NotesRepository:
             await self._session.flush()
         return note.id
 
+    async def update_content(self, note_id: UUID, content: str) -> None:
+        await self._session.execute(update(Note).where(Note.id == note_id).values(content=content))
+
     async def soft_delete(self, note_id: UUID) -> None:
         """Sets `removed_at`, mirroring the `ddl_commands` webhook's own
         `delete_note` (`persistence/attio_sync.py`), which will set the same
