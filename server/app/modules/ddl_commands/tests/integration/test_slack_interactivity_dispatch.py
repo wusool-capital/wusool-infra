@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.modules.ddl_commands.api.buyer_edit as buyer_edit_module
+import app.modules.ddl_commands.api.buyer_write as buyer_write_module
 import app.modules.ddl_commands.api.command_tracking as command_tracking_module
 import app.modules.ddl_commands.api.seller_edit as seller_edit_module
 import app.modules.ddl_commands.api.seller_write as seller_write_module
@@ -1361,12 +1362,12 @@ def test_buyer_add_form_existing_org_writes_attio_before_postgres(
         call_order.append(f"buyer_exists:{org_attio_id}:{target_vertical}")
         return False
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(buyer_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(buyer_write_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(buyer_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(buyer_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        buyer_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(create_buyer=fake_execute, buyer_exists=fake_buyer_exists),
     )
@@ -1417,10 +1418,10 @@ def test_buyer_add_form_duplicate_vertical_is_rejected_before_attio(
 
     # Attio's newest-wins reconcile would demote the existing role if a
     # second entry for the same (org, vertical) were ever created there.
-    monkeypatch.setattr(actions_module, "create_role_entry", _raises_if_called)
-    monkeypatch.setattr(actions_module, "get_attio_client", _raises_if_called)
+    monkeypatch.setattr(buyer_write_module, "create_role_entry", _raises_if_called)
+    monkeypatch.setattr(buyer_write_module, "get_attio_client", _raises_if_called)
     monkeypatch.setattr(
-        actions_module,
+        buyer_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(buyer_exists=fake_buyer_exists),
     )
@@ -1476,24 +1477,25 @@ async def test_concurrent_buyer_adds_for_one_vertical_create_one_attio_entry(mon
     async def fake_build_attio_values(*_args, **_kwargs):
         return {}
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(buyer_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(buyer_write_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(buyer_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(buyer_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        buyer_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(buyer_exists=fake_buyer_exists, create_buyer=fake_create_buyer),
     )
 
     def add():
-        return actions_module._write_buyer_add(
+        return buyer_write_module.write_buyer_add(
             is_new_org=False,
             org_attio_id="org-attio-race",
             org_name=None,
             org_extracted={},
             role_extracted={"target_vertical": "Fintech"},
             requested_by="U_TEST",
+            invoked_via="slack",
         )
 
     results = await asyncio.gather(add(), add(), return_exceptions=True)
@@ -1517,27 +1519,28 @@ async def test_buyer_add_lock_is_released_once_no_add_is_waiting(monkeypatch) ->
     async def fake_build_attio_values(*_args, **_kwargs):
         return {}
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "create_role_entry", fake_create_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(buyer_write_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(buyer_write_module, "create_role_entry", fake_create_role_entry)
+    monkeypatch.setattr(buyer_write_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(buyer_write_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        buyer_write_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(buyer_exists=fake_buyer_exists, create_buyer=fake_create_buyer),
     )
 
-    await actions_module._write_buyer_add(
+    await buyer_write_module.write_buyer_add(
         is_new_org=False,
         org_attio_id="org-attio-lock",
         org_name=None,
         org_extracted={},
         role_extracted={"target_vertical": "Fintech"},
         requested_by="U_TEST",
+        invoked_via="slack",
     )
     gc.collect()
 
-    assert len(actions_module._buyer_add_locks) == 0
+    assert len(buyer_write_module._buyer_add_locks) == 0
 
 
 @pytest.mark.parametrize(

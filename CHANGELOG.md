@@ -12,6 +12,33 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Scribe meeting notes (AZM-173). While recording, the screen splits into
+  the transcript and a notes editor, with a draggable divider. A floating
+  notepad, opened from the app or the menu bar, stays on top of other apps.
+  Notes are saved per meeting and sent with the push, and the summary prompt
+  gives weight to them. The Attio note shows them under "Advisor notes". Notes stay editable after a push and sync through
+  `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes`.
+  Migration `b7e1c4d8a203` adds `meetings.user_notes`.
+- The buyer add behind `/add-buyer` now lives in `ddl_commands/api/buyer_write.py`
+  (`write_buyer_add`), so MCP v1 can call it without Slack (AZM-167).
+  `/add-buyer` behaves as before.
+- Bulk upload of buyers and sellers (AZM-167). `preview_buyers` and
+  `preview_sellers` check a list of up to 1,000 rows and write nothing. If any
+  row is invalid, the whole list is rejected. Each bad row gets its exact
+  problem, so Claude can fix it and send it again. Otherwise `commit` adds the
+  new rows in the background, and `status` reports added, skipped and failed.
+  Rows already in the CRM are counted as skipped, and a rerun adds nothing twice.
+  The MCP tools that call these come with AZM-168.
+- `/bulk-buyer` and `/bulk-seller` add many profiles from a CSV or Excel file
+  uploaded in Slack (AZM-167). The bot checks the whole file first. If any row
+  is invalid, nothing is added and every problem is listed by line and column.
+  A valid file shows a confirm step, and the bot posts the result when the rows
+  are added. The Slack app needs the `files:read` and `files:write` scopes, the
+  two commands, and a reinstall.
+- A new Terraform stack, `stacks/assets`, creates a public bucket that holds the
+  two template files, under `templates/` only. Apply it out of band, then set
+  `BULK_TEMPLATE_BASE_URL` to its `templates_base_url` output. The templates
+  are built from the field definitions, and a test fails when they drift.
 - The buyer edit behind `/edit-buyer` now lives in
   `ddl_commands/api/buyer_edit.py` (`write_buyer_edit`), so MCP v1 can call it
   without Slack (AZM-171). `/edit-buyer` behaves as before.

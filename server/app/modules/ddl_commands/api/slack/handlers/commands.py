@@ -19,6 +19,7 @@ from app.modules.ddl_commands.api.dependencies import (
     resolve_seller,
     search_organizations,
 )
+from app.modules.ddl_commands.api.slack.handlers.bulk import open_bulk_upload_modal
 from app.modules.ddl_commands.api.slack.views.buyer_role_selection import (
     build_buyer_selection_modal,
 )
@@ -126,6 +127,24 @@ def register(app: AsyncApp) -> None:
     ) -> None:
         await ack()
         await _run("add_buyer", command, client, _handle_add_command(command, client, kind="buyer"))
+
+    @app.command("/bulk-buyer")
+    async def handle_bulk_buyer(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        await _run(
+            "bulk_buyer", command, client, open_bulk_upload_modal(command, client, kind="buyer")
+        )
+
+    @app.command("/bulk-seller")
+    async def handle_bulk_seller(
+        ack: AsyncAck, command: SlackCommandPayload, client: AsyncWebClient
+    ) -> None:
+        await ack()
+        await _run(
+            "bulk_seller", command, client, open_bulk_upload_modal(command, client, kind="seller")
+        )
 
 
 async def _handle_seller_command(

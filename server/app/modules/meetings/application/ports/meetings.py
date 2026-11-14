@@ -39,6 +39,7 @@ class MeetingsRepositoryPort(Protocol):
         local_recording_id: str | None,
         status: MeetingStatus,
         metadata_: JsonObject | None,
+        user_notes: str | None,
     ) -> MeetingRecord: ...
 
     async def mark_completed(
@@ -59,6 +60,8 @@ class MeetingsRepositoryPort(Protocol):
     async def get_by_id(self, meeting_id: UUID) -> MeetingRecord | None: ...
 
     async def soft_delete(self, meeting_id: UUID) -> bool: ...
+
+    async def update_user_notes(self, meeting_id: UUID, *, user_notes: str | None) -> bool: ...
 
     async def list_by_install_id(
         self, install_id: str, *, limit: int

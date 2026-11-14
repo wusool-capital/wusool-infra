@@ -24,7 +24,12 @@ from dataclasses import dataclass
 
 from app.modules.meetings.domain.summary import MeetingSummary
 
-__all__ = ["TranscriptTurn", "render_summary_text", "render_transcript_text"]
+__all__ = [
+    "TranscriptTurn",
+    "render_note_content",
+    "render_summary_text",
+    "render_transcript_text",
+]
 
 # Transcript turns are joined with a blank line rather than a single
 # newline, matching how SummarizeMeetingCommand reconstructs the transcript
@@ -82,6 +87,17 @@ def render_summary_text(summary: MeetingSummary) -> str:
         parts.extend(_bullet_section(note.topic, note.points) for note in notes)
 
     return "\n\n".join(parts)
+
+
+def render_note_content(summary_text: str, user_notes: str | None) -> str:
+    """The CRM note body: the summary, then the advisor's own notes.
+
+    Only the note carries them; `meetings.summary` stays the summary alone,
+    since matching_engine reads it as the meeting's AI-written context.
+    """
+    if not user_notes:
+        return summary_text
+    return f"{summary_text}{_TURN_SEPARATOR}Advisor notes:\n{user_notes}"
 
 
 def _bullet_section(heading: str, values: list[str]) -> str:

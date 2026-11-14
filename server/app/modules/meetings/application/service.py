@@ -10,9 +10,10 @@ from app.modules.meetings.application.delete import DeleteMixin
 from app.modules.meetings.application.ingest import IngestMixin
 from app.modules.meetings.application.publish import PublishMixin
 from app.modules.meetings.application.status import StatusMixin
+from app.modules.meetings.application.user_notes import UserNotesMixin
 
 
-class MeetingsService(IngestMixin, StatusMixin, PublishMixin, DeleteMixin):
+class MeetingsService(IngestMixin, StatusMixin, PublishMixin, DeleteMixin, UserNotesMixin):
     """No business logic of its own — combines every concern mixin above
     into one composed class. Add a new use-case area as its own
     `ServiceBase` mixin and list it here, rather than growing this class or

@@ -33,6 +33,9 @@ class Settings(SecretsManagerSettings):
     # retrievable again after that. See `ddl_commands/shared/attio/signature.py`.
     attio_webhook_secret: str
 
+    # Empty hides the template link in the wrong-template message.
+    bulk_template_base_url: str = ""
+
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:

@@ -16,6 +16,7 @@ Its scores and research are decision support; always check the result.
 | `/check-buyer <buyer name>` | Checks the buyer's profile for conflicts or missing details |
 | `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
 | `/add-seller <organization>` / `/add-buyer <organization>` | Add a role |
+| `/bulk-seller` / `/bulk-buyer` | Add many roles from a CSV or Excel file |
 | `/enrich-seller <name>` / `/enrich-buyer <name>` | Propose missing values |
 | `/toolkit-status` | Checks the bot is healthy |
 | `/toolkit-help` | Command help |

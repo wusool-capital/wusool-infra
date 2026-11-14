@@ -1,10 +1,10 @@
 # Slack App Setup: Wusool Toolkit Bot
 
 Manual, one-time setup at [api.slack.com/apps](https://api.slack.com/apps) for
-**one** Slack bot serving all 10 commands — `/find-match` (matching-engine),
+**one** Slack bot serving all 12 commands — `/find-match` (matching-engine),
 `/check-buyer` (discrepancies), `/enrich-seller`, `/enrich-buyer`
-(enrichment), `/edit-seller`, `/edit-buyer`, `/add-seller`, `/add-buyer`
-(ddl-commands), and `/toolkit-help`/`/toolkit-status` (answered directly in
+(enrichment), `/edit-seller`, `/edit-buyer`, `/add-seller`, `/add-buyer`,
+`/bulk-seller`, `/bulk-buyer` (ddl-commands), and `/toolkit-help`/`/toolkit-status` (answered directly in
 `server/main.py` — neither is owned by any one module). There is no bare
 `/enrich` — every enrichment command is kind-scoped on purpose, see below.
 `matching_engine`, `discrepancies`, `enrichment`, `discovery`, and
@@ -29,7 +29,7 @@ New app at api.slack.com/apps → **From scratch** → name it (e.g.
 
 ## 2. Slash Commands
 
-**Features → Slash Commands → Create New Command**, one per row (all 10
+**Features → Slash Commands → Create New Command**, one per row (all 12
 point at the same URL — Bolt routes internally by command name):
 
 | Command | Request URL | Short Description | Usage Hint |
@@ -42,6 +42,8 @@ point at the same URL — Bolt routes internally by command name):
 | `/edit-buyer` | `https://<bot-host>/slack/events` | Edit a buyer profile | `<buyer org name>` |
 | `/add-seller` | `https://<bot-host>/slack/events` | Add a new seller | `<organization name>` |
 | `/add-buyer` | `https://<bot-host>/slack/events` | Add a new buyer | `<organization name>` |
+| `/bulk-seller` | `https://<bot-host>/slack/events` | Add many sellers from a CSV or Excel file | *(none)* |
+| `/bulk-buyer` | `https://<bot-host>/slack/events` | Add many buyers from a CSV or Excel file | *(none)* |
 | `/toolkit-status` | `https://<bot-host>/slack/events` | Show uptime, database, and Attio mode | *(none)* |
 | `/toolkit-help` | `https://<bot-host>/slack/events` | List every command and how to use it | *(none)* |
 
@@ -73,12 +75,14 @@ among those.
 `https://<bot-host>/slack/events`.
 
 This is the one URL for the whole app — every modal submission and button
-click from the 7 interactive commands routes through it (`/edit-seller`/
+click from the 9 interactive commands routes through it (`/edit-seller`/
 `/edit-buyer` are a 3-step modal flow: disambiguation → field picker →
 edit form, with `/edit-buyer` gaining a vertical step after disambiguation;
 `/add-seller`/`/add-buyer` are a 2- or 3-step flow: organization selection
 (skipped if the search found nothing) → add form, with `/add-buyer` gaining
 a vertical step before the form;
+`/bulk-seller`/`/bulk-buyer` open a file upload form, then a confirm
+modal (see section 7);
 `/enrich-seller`/`/enrich-buyer` post a research proposal as a message
 with a single "Review & Save" button, not a modal, since research + LLM
 extraction routinely runs past Slack's 3-second modal-open budget).
@@ -92,10 +96,22 @@ interactivity URL.
 
 **Features → OAuth & Permissions → Bot Token Scopes**, add:
 
-- `commands` — receive all 10 slash commands.
+- `commands` — receive all 12 slash commands.
 - `chat:write` — `chat.postEphemeral` (usage messages, confirmation
   prompts, error messages) and the `response_url` webhook used to replace
   messages after button clicks.
+- `files:read` — `/bulk-seller`/`/bulk-buyer` download the file a person
+  uploads in the form (`files.info`, then the private download URL with the
+  bot token). Without it Slack answers with a sign-in page and the bot says it
+  couldn't read the file.
+- `files:write` — `/bulk-seller`/`/bulk-buyer` attach the full list of problems
+  as a CSV when a rejected file has more than the form can show.
+
+Adding a scope or a command makes Slack ask a workspace admin to approve the
+app again: **Install App → Reinstall to Workspace**. Do this after adding the
+two scopes and the two commands. Afterwards check whether the **Bot User OAuth
+Token** changed. If it did, update `slack_bot_token` in the secret. Nothing is
+deployed for this change.
 
 **Install App to Workspace** → copy the **Bot User OAuth Token** (`xoxb-...`)
 into the `slack_bot_token` key of the Secrets Manager secret (`/wusool/<env>/toolkit`; one shared value). The app reads it at startup — there is no `.env` for it.
@@ -123,6 +139,22 @@ a real key and forgets this flag would write test records indistinguishable
 from real CRM data, so set it explicitly (export `ATTIO_IS_TEST=true`). There is one SOURCE key across both
 environments — `ATTIO_IS_TEST` is the only thing separating them.
 
+## 7. Bulk upload template link (for `/bulk-*` only)
+
+`/bulk-seller`/`/bulk-buyer` show a download link for the template file. The
+files live in a public bucket created by `infrastructure/terraform/stacks/assets`
+(apply it out of band, like `stacks/scribe-updates`; only `templates/` is
+public). Set `env.BULK_TEMPLATE_BASE_URL` in the Secrets Manager secret to that
+stack's `templates_base_url` output, with no trailing slash. Left empty, the
+form and the "wrong template" message work but show no link. Restart the app
+after changing it; the setting is read once.
+
+The template files are generated from the field definitions. After changing a
+field, run
+`uv run python -m app.modules.ddl_commands.scripts.generate_bulk_templates`
+from `server/`, commit the result, and apply the stack again. A unit test fails
+when the committed files are out of date.
+
 ## Before enabling for real users
 
 1. **Confirm the bot is actually deployed and reachable** — Terraform's
@@ -132,7 +164,8 @@ environments — `ATTIO_IS_TEST` is the only thing separating them.
    has been applied before, or a first `apply` if it hasn't.
 2. **First real invocation of each command is the first real test against
    prod Attio + Postgres** — no canary org, no dry-run mode. This matters
-   most for `/add-seller`/`/add-buyer`: their Attio *create* calls
+   most for `/add-seller`/`/add-buyer` (and `/bulk-*`, which uses the same
+   writes): their Attio *create* calls
    (`POST .../records`, `POST .../entries`) have never been exercised
    against live Attio by this bot, only matched against the exact shapes
    `crm-sync`'s own PowerShell scripts already use live. Whoever runs any

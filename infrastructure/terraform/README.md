@@ -38,6 +38,7 @@ out of sync with each other without it.
 | `postgres` | The RDS instance, seeded from a snapshot if `snapshot_identifier` is set | Yes |
 | `peering` | The dev↔prod VPC peering connection and its routes | **No** — spans both environments |
 | `scribe-updates` | S3 + CloudFront update feed for the WusoolScribe desktop app, and the GitHub OIDC role that publishes to it | **No** — one public feed, not per-environment (see [`docs/internal/dev/SCRIBE_UPDATE_FEED.md`](../../docs/internal/dev/SCRIBE_UPDATE_FEED.md)) |
+| `assets` | Public S3 bucket for download files; today the two `/bulk-buyer` and `/bulk-seller` template CSVs, under `templates/` only | **No** — one shared bucket, not per-environment; applied out of band like `scribe-updates` |
 
 Every per-environment stack reads `stacks/base`'s network/alarm outputs via
 `terraform_remote_state`; `postgres` also reads `toolkit`'s security

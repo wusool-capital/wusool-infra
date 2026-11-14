@@ -78,6 +78,10 @@ and deliberately reverted.
   duplicate entry in Attio, which the next sync demotes.
 - Anyone in the channel can run these commands; there is no allowlist.
 
+## Bulk upload
+
+Adding many profiles from a file is covered in [Bulk upload](toolkit-bulk-upload.md).
+
 ## Code
 
 `server/app/modules/ddl_commands` and its README. The nightly full resync job
