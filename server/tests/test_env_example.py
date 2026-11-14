@@ -19,6 +19,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 from app.modules.attio.config import AttioSettings
+from app.modules.auth.config import AuthSettings
 from app.modules.ddl_commands.config import Settings as DdlCommandsSettings
 from app.modules.discovery.config import Settings as DiscoverySettings
 from app.modules.discrepancies.config import Settings as DiscrepanciesSettings
@@ -35,6 +36,7 @@ _SETTINGS_CLASSES = (
     MatchingEngineSettings,
     DdlCommandsSettings,
     AttioSettings,
+    AuthSettings,
     MeetingsSettings,
     EnrichmentSettings,
     DiscoverySettings,

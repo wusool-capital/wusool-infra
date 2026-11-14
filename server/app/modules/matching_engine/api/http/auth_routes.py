@@ -11,6 +11,12 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 
+from app.modules.auth import (
+    SlackSignInError,
+    authorize_url,
+    identity_from_code,
+    workspace_team_id,
+)
 from app.modules.matching_engine.api.http.auth import (
     CurrentUser,
     api_error,
@@ -25,12 +31,6 @@ from app.modules.matching_engine.api.http.schemas import (
     MeResponse,
 )
 from app.modules.matching_engine.api.http.session import SESSION_COOKIE, WebSession
-from app.modules.matching_engine.api.http.slack_identity import (
-    SlackSignInError,
-    authorize_url,
-    identity_from_code,
-    workspace_team_id,
-)
 from app.modules.matching_engine.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -46,6 +46,11 @@ router = APIRouter(
 )
 
 SignInError = Literal["denied", "expired", "wrong_workspace", "failed"]
+
+
+def _callback_url() -> str:
+    base = (get_settings().web_public_url or "").rstrip("/")
+    return f"{base}/api/auth/slack/callback"
 
 
 def _safe_next(path: str | None) -> str:
@@ -97,7 +102,9 @@ async def slack_login(next_path: str | None = Query(default=None, alias="next"))
     except Exception:
         logger.warning("slack_workspace_lookup_failed")
         team_id = None
-    response = RedirectResponse(authorize_url(state=state, team_id=team_id))
+    response = RedirectResponse(
+        authorize_url(state=state, team_id=team_id, redirect_uri=_callback_url())
+    )
     # Lax: Slack's redirect back is a top-level GET, which still carries it.
     response.set_cookie(
         _STATE_COOKIE,
@@ -124,7 +131,7 @@ async def slack_callback(
     if not code or not state or not expected or not secrets.compare_digest(state, expected):
         return _fail("expired")
     try:
-        identity = await identity_from_code(code)
+        identity = await identity_from_code(code, redirect_uri=_callback_url())
         allowed_team = await workspace_team_id()
     except SlackSignInError as exc:
         logger.warning("slack_sign_in_failed reason=%s", exc)

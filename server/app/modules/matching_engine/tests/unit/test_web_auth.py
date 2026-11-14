@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
+from app.modules.auth import SlackIdentity
 from app.modules.matching_engine.api.http import auth, auth_routes, routes
 from app.modules.matching_engine.api.http.session import (
     SESSION_COOKIE,
@@ -19,7 +20,6 @@ from app.modules.matching_engine.api.http.session import (
     decode_session,
     encode_session,
 )
-from app.modules.matching_engine.api.http.slack_identity import SlackIdentity
 
 _SECRET = "session-secret"
 _TEAM = "T_WUSOOL"
@@ -66,7 +66,7 @@ def web(monkeypatch):
     for module in (auth, auth_routes, routes):
         monkeypatch.setattr(module, "get_settings", lambda: state.settings)
     monkeypatch.setattr(
-        "app.modules.matching_engine.api.http.slack_identity.get_settings",
+        "app.modules.auth.providers.slack_identity.get_settings",
         lambda: state.settings,
     )
     monkeypatch.setattr(routes, "open_matching_engine_service", _service)
