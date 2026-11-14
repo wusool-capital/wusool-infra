@@ -41,7 +41,7 @@ never lost to a later failure:
 3. **AI work**, where the tool has any. Valuation and Benchmark fall back to
    their own calculations; Readiness has no fallback by decision.
 4. **Write to Attio**, always with the test flag set: the organization, a
-   seller or buyer role, the person, and a deal at stage Inbound. The person
+   seller or buyer role, the person, and a deal at stage Lead, status Active. The person
    and deal writes are best-effort: a failure is logged and not retried.
    Report readers get only an organization and a person.
 5. **Email the visitor** a confirmation through Amazon SES, with a Book a
@@ -88,7 +88,7 @@ merged:
   name is never overwritten.
 - **Deal:** one per organization per deal type, Sell-side or Buy-side. A
   matched deal is left untouched, so a new lead never moves a Qualified deal
-  back to Inbound. If Attio rejects the deal for its owner, it is retried
+  back to Lead. If Attio rejects the deal for its owner, it is retried
   once with a fallback owner.
 
 ## Rules that fail silently if broken

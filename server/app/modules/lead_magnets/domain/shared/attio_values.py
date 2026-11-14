@@ -343,12 +343,13 @@ def person_values(
     return values
 
 
-# Attio's `deal.deal_type` option titles, and the pipeline stage every
-# lead-magnet deal lands in. Both are live option titles on the custom
-# `deal` object (verified 2026-09-14); `deal_stage` is `is_required` there,
-# so a create that omits it is rejected outright.
+# Attio's `deal.deal_type` option titles, and the pipeline stage and status
+# every lead-magnet deal lands in. All are live option titles on the custom
+# `deal` object (stage renamed Inbound -> Lead in AZM-169); `deal_stage` is
+# `is_required` there, so a create that omits it is rejected outright.
 DealType = Literal["Buy-side", "Sell-side"]
-INBOUND_STAGE = "Inbound"
+LEAD_STAGE = "Lead"
+ACTIVE_STATUS = "Active"
 
 # Which reference attribute the submitting organisation goes in. A seller
 # tool's visitor is the company that might sell; a buyer-network applicant
@@ -373,7 +374,8 @@ def deal_values(
     """
     return {
         "deal_name": name,
-        "deal_stage": INBOUND_STAGE,
+        "deal_stage": LEAD_STAGE,
+        "deal_status": ACTIVE_STATUS,
         "deal_type": deal_type,
         "deal_owner": ActorReferenceValue(
             referenced_actor_type="workspace-member", referenced_actor_id=owner_id

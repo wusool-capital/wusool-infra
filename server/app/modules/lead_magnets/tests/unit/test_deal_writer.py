@@ -99,7 +99,7 @@ async def test_no_organisation_skips_the_write_entirely() -> None:
     assert client.create_calls == []
 
 
-async def test_no_match_creates_an_inbound_sell_side_deal() -> None:
+async def test_no_match_creates_a_lead_sell_side_deal() -> None:
     client = _FakeClient(records=[])
 
     result = await _writer(client).write(
@@ -110,7 +110,8 @@ async def test_no_match_creates_an_inbound_sell_side_deal() -> None:
     assert client.create_calls == [
         {
             "deal_name": "Acme",
-            "deal_stage": "Inbound",
+            "deal_stage": "Lead",
+            "deal_status": "Active",
             "deal_type": "Sell-side",
             "seller_id": [{"target_object": "organizations", "target_record_id": "org-1"}],
             "deal_owner": _owner(_RAMZY),
@@ -136,7 +137,7 @@ async def test_buyer_network_writes_buy_side_against_buyer_id() -> None:
 
 async def test_existing_deal_is_reused_untouched() -> None:
     """A second tool from the same company must not add a second card, and
-    must not drag a deal a human has already advanced back to `Inbound`. A
+    must not drag a deal a human has already advanced back to `Lead`. A
     decoy deal on a different organisation proves the match is real, not
     just "whatever the fake returned"."""
     client = _FakeClient(
