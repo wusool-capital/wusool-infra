@@ -422,7 +422,7 @@ async def find_deals_by_party(
     same object — client-side is the same trade `resolve_role_entry_id`
     makes above, and for the same reason: a wrong guess at the filter body
     either 400s or silently matches nothing, and either failure mode here
-    means a duplicate `Inbound` deal per submission, which is the one thing
+    means a duplicate `Lead` deal per submission, which is the one thing
     this write exists to prevent. `is_test` is filtered client-side for the
     usual reason (no "is empty" operator, absent reads as production).
     """

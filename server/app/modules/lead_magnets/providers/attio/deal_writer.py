@@ -1,4 +1,4 @@
-"""Writes a submission's Attio `deal` record, at stage `Inbound`.
+"""Writes a submission's Attio `deal` record, at stage `Lead`.
 
 Same shape as `person_writer.py` — a thin class over `entries.py`'s
 low-level helpers, query-then-create — and the same reason for it: neither
@@ -9,7 +9,7 @@ One deal per organisation, not per submission. A company that runs the
 valuation tool and then the benchmark is one inbound lead, not two, and the
 second run must not drop a duplicate card into the pipeline. A matched deal
 is returned untouched: its stage is a human's working state, and a later
-lead magnet must never drag a `Qualified` deal back to `Inbound`.
+lead magnet must never drag a `Qualified` deal back to `Lead`.
 
 `owner_id` is mandatory in practice even though Attio does not mark
 `deal_owner` required: every deal in the live workspace has one, so an

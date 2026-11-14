@@ -8,7 +8,7 @@ from app.modules.matching_engine.domain.matching.deals import QualifiedDealDraft
 from app.modules.matching_engine.providers.attio.deal_gateway import AttioDealGateway
 
 
-def _record(record_id: str, seller: str, stage: str = "Inbound") -> dict:
+def _record(record_id: str, seller: str, stage: str = "Lead") -> dict:
     return {
         "id": {"record_id": record_id},
         "web_url": f"https://attio/{record_id}",
@@ -47,7 +47,7 @@ async def test_find_pair_deals_filters_by_seller() -> None:
     )
 
     assert [d.attio_id for d in found] == ["d1"]
-    assert found[0].stage == "Inbound"
+    assert found[0].stage == "Lead"
 
 
 @pytest.mark.asyncio
@@ -61,6 +61,7 @@ async def test_create_qualified_payload() -> None:
     values = client.post.await_args.args[1]["data"]["values"]
     assert deal.attio_id == "new-1"
     assert values["deal_stage"] == "Qualified"
+    assert values["deal_status"] == "Active"
     assert values["deal_type"] == "Buy-side"
     assert values["is_test"] is True
     assert values["buyer_id"][0]["target_record_id"] == "buyer-1"
@@ -92,8 +93,8 @@ async def test_attio_errors_become_gateway_errors() -> None:
 
 @pytest.mark.asyncio
 async def test_create_payload_uses_only_slugs_and_options_of_the_prod_deal_object() -> None:
-    # Pinned to the prod `deal` object: attributes deal_name/deal_stage/deal_type/
-    # deal_owner/buyer_id/seller_id/is_test, stage option "Qualified", type "Buy-side".
+    # Pinned to the prod `deal` object: attributes deal_name/deal_stage/deal_status/
+    # deal_type/deal_owner/buyer_id/seller_id/is_test, stage "Qualified", status "Active".
     client = _Client()
 
     await _gateway(client).create_qualified(
@@ -105,6 +106,7 @@ async def test_create_payload_uses_only_slugs_and_options_of_the_prod_deal_objec
     assert set(body["data"]["values"]) == {
         "deal_name",
         "deal_stage",
+        "deal_status",
         "deal_type",
         "deal_owner",
         "buyer_id",

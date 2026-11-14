@@ -16,7 +16,7 @@ const existingDeals = {
       {
         attio_id: "deal-1",
         name: "Gulf Dental - Najd",
-        stage: "Inbound",
+        stage: "Lead",
         web_url: null,
       },
     ],
@@ -167,7 +167,7 @@ describe("CandidateDetail", () => {
     const deals = [1, 2, 3, 4].map((n) => ({
       attio_id: `deal-${String(n)}`,
       name: `Deal ${String(n)}`,
-      stage: "Inbound",
+      stage: "Lead",
       web_url: `https://app.attio.com/deal-${String(n)}`,
     }));
     setup(

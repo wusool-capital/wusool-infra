@@ -12,6 +12,11 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The buyer edit behind `/edit-buyer` now lives in
+  `ddl_commands/api/buyer_edit.py` (`write_buyer_edit`), so MCP v1 can call it
+  without Slack (AZM-171). `/edit-buyer` behaves as before.
+- `command_runs.invoked_via` accepts `mcp`, and activities have an `mcp`
+  source (AZM-171).
 - Attio deals now have 10 stages instead of 20 (AZM-169): Lead, Qualified,
   Engaged, Mandate signed, Preparation, Outreach, Non-binding offers, Due
   diligence, Closing, Closed. A new `deal_status` field says whether the deal is
@@ -20,6 +25,12 @@ for current production evidence and open handover items.
   Stage history is kept.
 - `ensure-schema.ps1` now seeds the 10 stages and `deal_status`, and no longer
   copies the old stages from SOURCE's native pipeline.
+- Lead magnets now create their Attio deal at stage Lead with status Active
+  (AZM-172). They wrote the old Inbound stage, so new lead-magnet deals failed
+  to save after the stage change.
+- Match approval now promotes a Lead deal to Qualified (AZM-172). It looked for
+  the old Inbound stage, so it never found one and left Lead deals where they
+  were. A deal it creates also gets status Active.
 
 ### Added
 

@@ -13,14 +13,14 @@ from app.modules.ddl_commands.api.organizations import (
     OrganizationUpdate,
 )
 from app.modules.ddl_commands.api.schemas import PrefillValue
-from app.modules.ddl_commands.api.seller_edit import OrgRemovedError, write_seller_edit
+from app.modules.ddl_commands.api.seller_edit import write_seller_edit
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
     SELLER_ROLE_FIELDS_BY_NAME,
     SellerUpdate,
 )
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import normalize_prefill
-from app.modules.ddl_commands.api.write_errors import PartialWriteError
+from app.modules.ddl_commands.api.write_errors import OrgRemovedError, PartialWriteError
 from app.modules.ddl_commands.application.sellers import SellerNotFoundError
 from app.modules.matching_engine import (
     SellerEditOutcome,

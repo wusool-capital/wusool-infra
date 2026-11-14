@@ -116,6 +116,9 @@ async def track_command(
 
     if invoked_via == "discovery":
         actor, source = ActivityActor.system("discovery"), ActivitySource.DISCOVERY
+    elif invoked_via == "mcp":
+        # MCP v1 has no per-user identity yet, so the actor is the MCP server.
+        actor, source = ActivityActor.system("mcp"), ActivitySource.MCP
     else:
         actor, source = ActivityActor.slack(requested_by), ActivitySource.SLACK
     tracker = CommandTracker(run_id=run_id, context=WriteContext(actor, source, run_id))

@@ -4,7 +4,8 @@ from dataclasses import dataclass
 from typing import Literal
 
 QUALIFIED_STAGE = "Qualified"
-INBOUND_STAGE = "Inbound"
+LEAD_STAGE = "Lead"
+ACTIVE_STATUS = "Active"
 
 DealResolution = Literal["promote_existing", "create_new"]
 

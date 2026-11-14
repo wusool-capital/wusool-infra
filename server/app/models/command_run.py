@@ -27,7 +27,7 @@ class CommandRun(Base):
             name="command_runs_command_check",
         ),
         CheckConstraint(
-            "invoked_via IN ('slack','discovery')",
+            "invoked_via IN ('slack','discovery','mcp')",
             name="command_runs_invoked_via_check",
         ),
         CheckConstraint(

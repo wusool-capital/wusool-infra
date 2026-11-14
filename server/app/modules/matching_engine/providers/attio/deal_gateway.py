@@ -2,7 +2,7 @@
 
 Deliberately not `lead_magnets`' `AttioDealWriter`: that writer is
 one-deal-per-organisation and never moves a deal off its current stage,
-so it can neither create a Qualified deal nor promote an Inbound one.
+so it can neither create a Qualified deal nor promote a Lead one.
 """
 
 import aiohttp
@@ -17,6 +17,7 @@ from app.modules.attio.providers.attio.write_values import (
 )
 from app.modules.matching_engine.application.errors import DealGatewayError
 from app.modules.matching_engine.domain.matching.deals import (
+    ACTIVE_STATUS,
     QUALIFIED_STAGE,
     ExistingDeal,
     QualifiedDealDraft,
@@ -58,6 +59,7 @@ class AttioDealGateway:
         values: dict[str, object] = {
             "deal_name": draft.name,
             "deal_stage": QUALIFIED_STAGE,
+            "deal_status": ACTIVE_STATUS,
             "deal_type": _DEAL_TYPE,
             "deal_owner": ActorReferenceValue(
                 referenced_actor_type="workspace-member", referenced_actor_id=self._owner_id

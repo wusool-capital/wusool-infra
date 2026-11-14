@@ -126,7 +126,7 @@ skip it.
 
 **Approve** follows the normal approval path. It creates a Qualified Buy-side
 deal in Attio for the buyer and seller, or offers to promote an existing
-Inbound deal. It then starts **full enrichment** in the background, posting a
+Lead deal. It then starts **full enrichment** in the background, posting a
 research proposal for the new seller. Nothing in it is saved until someone
 uses **Review & Save**.
 
