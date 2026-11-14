@@ -1,5 +1,25 @@
 """Errors shared by every Attio-first write path (Slack handlers and the
-headless seller writer)."""
+headless seller and buyer writers)."""
+
+from app.models.organization import Organization
+
+
+class OrgRemovedError(Exception):
+    pass
+
+
+class OrgMismatchError(Exception):
+    pass
+
+
+def check_role_organization(organization: Organization, org_attio_id: str) -> None:
+    """Run before any Attio write. Callers outside Slack pass the role and org
+    ids separately, so never write to an org the role does not belong to.
+    """
+    if organization.removed_at is not None:
+        raise OrgRemovedError(org_attio_id)
+    if organization.attio_id != org_attio_id:
+        raise OrgMismatchError(org_attio_id)
 
 
 class PartialWriteError(Exception):

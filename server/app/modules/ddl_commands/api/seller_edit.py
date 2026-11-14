@@ -23,16 +23,12 @@ from app.modules.ddl_commands.api.dependencies import ddl_commands_service, reso
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS_BY_NAME
-from app.modules.ddl_commands.api.write_errors import PartialWriteError
+from app.modules.ddl_commands.api.write_errors import PartialWriteError, check_role_organization
 from app.modules.ddl_commands.application.sellers import SellerNotFoundError
 from app.modules.ddl_commands.providers.attio.write_payload import (
     build_attio_values,
     build_postgres_values,
 )
-
-
-class OrgRemovedError(Exception):
-    pass
 
 
 async def write_seller_edit(
@@ -74,8 +70,7 @@ async def _seller_edit(
     role = await resolve_seller_by_id(seller_role_id)
     if role is None:
         raise SellerNotFoundError(seller_role_id)
-    if role.organization.removed_at is not None:
-        raise OrgRemovedError(org_attio_id)
+    check_role_organization(role.organization, org_attio_id)
 
     landed: list[str] = []
     run.landed = landed

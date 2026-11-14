@@ -51,7 +51,7 @@ from app.modules.ddl_commands.api.organizations import (
     ORGANIZATION_FIELDS_BY_NAME,
     OrganizationUpdate,
 )
-from app.modules.ddl_commands.api.seller_edit import OrgRemovedError, write_seller_edit
+from app.modules.ddl_commands.api.seller_edit import write_seller_edit
 from app.modules.ddl_commands.api.seller_write import write_seller_add
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
@@ -90,7 +90,11 @@ from app.modules.ddl_commands.api.slack.views.organization_selection import (
 )
 from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
 from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
-from app.modules.ddl_commands.api.write_errors import PartialWriteError, partial_write_message
+from app.modules.ddl_commands.api.write_errors import (
+    OrgRemovedError,
+    PartialWriteError,
+    partial_write_message,
+)
 from app.modules.ddl_commands.application.buyers import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,

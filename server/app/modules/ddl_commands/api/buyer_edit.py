@@ -22,17 +22,12 @@ from app.modules.ddl_commands.api.command_tracking import (
 from app.modules.ddl_commands.api.dependencies import ddl_commands_service, resolve_buyer_by_id
 from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.schemas import PrefillValue
-from app.modules.ddl_commands.api.seller_edit import OrgRemovedError
-from app.modules.ddl_commands.api.write_errors import PartialWriteError
+from app.modules.ddl_commands.api.write_errors import PartialWriteError, check_role_organization
 from app.modules.ddl_commands.application.buyers import BuyerNotFoundError
 from app.modules.ddl_commands.providers.attio.write_payload import (
     build_attio_values,
     build_postgres_values,
 )
-
-
-class OrgMismatchError(Exception):
-    pass
 
 
 async def write_buyer_edit(
@@ -70,11 +65,7 @@ async def _buyer_edit(
     role = await resolve_buyer_by_id(buyer_role_id)
     if role is None:
         raise BuyerNotFoundError(buyer_role_id)
-    if role.organization.removed_at is not None:
-        raise OrgRemovedError(org_attio_id)
-    # Callers outside Slack pass both ids separately; never write to another buyer's org.
-    if role.organization.attio_id != org_attio_id:
-        raise OrgMismatchError(org_attio_id)
+    check_role_organization(role.organization, org_attio_id)
 
     landed: list[str] = []
     run.landed = landed
