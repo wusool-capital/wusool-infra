@@ -1,9 +1,10 @@
 """The one deployed entrypoint for this Slack bot — a single process serving
-all 10 commands: `/find-match` (matching_engine module), `/check-buyer`
+all 12 commands: `/find-match` (matching_engine module), `/check-buyer`
 (discrepancies module), `/enrich-seller`/`/enrich-buyer` (enrichment
-module), `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`
-(ddl_commands module), and `/toolkit-help`/`/toolkit-status` (answered
-directly here, since neither is owned by any one module) — plus the
+module), `/edit-seller`/`/edit-buyer`/`/add-seller`/`/add-buyer`/
+`/bulk-seller`/`/bulk-buyer` (ddl_commands module), and
+`/toolkit-help`/`/toolkit-status` (answered directly here, since neither is
+owned by any one module) — plus the
 `meetings` module's `/desktop/*` REST surface for the WusoolScribe desktop
 app (transcript ingestion, summarization, status polling; no Slack
 command).
@@ -132,6 +133,8 @@ _SERVICE_BY_TRIGGER: dict[str, str] = {
     "/edit-buyer": "ddl-commands",
     "/add-seller": "ddl-commands",
     "/add-buyer": "ddl-commands",
+    "/bulk-seller": "ddl-commands",
+    "/bulk-buyer": "ddl-commands",
     "/enrich-seller": "enrichment",
     "/enrich-buyer": "enrichment",
     "/toolkit-help": "help",
@@ -169,6 +172,8 @@ _COMMAND_HELP: tuple[tuple[str, str, str], ...] = (
     ("/edit-buyer", "<buyer org name>", "Edit an existing buyer profile."),
     ("/add-seller", "<organization name>", "Add a new seller."),
     ("/add-buyer", "<organization name>", "Add a new buyer."),
+    ("/bulk-seller", "", "Add many sellers from a CSV or Excel file."),
+    ("/bulk-buyer", "", "Add many buyers from a CSV or Excel file."),
     ("/toolkit-status", "", "Show the bot's uptime, database, and Attio mode."),
     ("/toolkit-help", "", "List every command and how to use it."),
 )
