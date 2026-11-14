@@ -39,7 +39,9 @@ ddl_commands/
   providers/attio/   # write_payload.py — this module's own field-to-Attio-payload mapping
                        # (the vendor client/helpers themselves live in app.modules.attio)
   api/                # router.py (aggregates health.py + attio_sync.py's routers),
-                       # Slack handlers, dependencies.py
+                       # Slack handlers, dependencies.py, headless writes
+                       # (seller_write.py, buyer_write.py, *_edit.py) and bulk
+                       # upload (bulk_upload.py, bulk_store.py)
   scripts/            # attio_sync_full_resync.py — standalone nightly batch job
   tests/
 ```
@@ -144,6 +146,51 @@ A website-check card's `review_card_token` travels the same way. After a
 successful save, the add-seller handler passes it to
 `discovery.mark_review_card_added`, which marks the card as added. This is
 the one call from this module's Slack handlers into `discovery`.
+
+### Headless buyer add
+
+`api/buyer_write.py::write_buyer_add` is the Attio-first buyer write the
+`/add-buyer` submission calls, kept out of the Slack handler so MCP v1 and
+bulk upload can call it, shaped like `write_seller_add`. It returns the created
+`BuyerRole` and raises `BuyerAlreadyExistsError` or `PartialWriteError`. It keeps
+the per-(organization, vertical) lock, so two adds for one vertical create one
+Attio entry. `invoked_via` is `slack` or `mcp`.
+
+### Bulk upload (MCP v1)
+
+`api/bulk_upload.py` adds a list of buyers or sellers in three steps. Nothing is
+created until the person confirms the preview in Claude.
+
+- `preview_buyers(rows)` / `preview_sellers(rows)` validate and dedupe, and
+  write nothing. They return the new, existing and invalid counts, the problem
+  on each invalid row, and a `preview_id`. One call takes 1 to 1,000 rows.
+- `commit(preview_id, requested_by=...)` adds the new rows in the background, one
+  at a time, through `write_buyer_add` / `write_seller_add` with
+  `invoked_via="mcp"`. A second call while it runs returns the current progress.
+- `status(preview_id)` returns the state (`ready`, `running`, `done`,
+  `interrupted`) with the added count and the skipped and failed rows.
+
+A row is flat: `org_name`, `domain`, and any organization or role field the
+Slack add forms offer. Buyer rows also need `target_vertical`. `domain` is the
+company's website or domain; it becomes the organization's `domains`.
+Unknown fields and values outside a select's options make a row invalid, so
+nothing is dropped silently.
+
+A row is existing when its domain matches an organization that already holds
+the role: a buyer role for the same vertical, or any active seller role. A
+company that exists with a different vertical gets the new buyer role on its
+existing organization. Existing organizations are never changed (our data
+wins), and existing rows are skipped. The company name is not part of the match.
+
+`commit` re-checks every row just before it writes, under one lock, so a row
+added in the meantime, or a rerun, is skipped instead of duplicated. Each added
+row leaves the usual `command_runs` and `activities` record with source `mcp`.
+
+Previews and progress sit behind the `PreviewStore` Protocol
+(`api/bulk_store.py`). The in-memory adapter keeps them for an hour and forgets
+them on a restart; the row re-check is what makes a rerun safe. It is correct
+for one server per environment. A Postgres adapter can replace it without
+changing callers.
 
 ## Why Attio-first, not a Postgres-only write
 

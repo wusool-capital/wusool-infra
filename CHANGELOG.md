@@ -12,6 +12,15 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The buyer add behind `/add-buyer` now lives in `ddl_commands/api/buyer_write.py`
+  (`write_buyer_add`), so MCP v1 can call it without Slack (AZM-167).
+  `/add-buyer` behaves as before.
+- Bulk upload of buyers and sellers (AZM-167). `preview_buyers` and
+  `preview_sellers` check a list of up to 1,000 rows and flag the ones already
+  in the CRM. They write nothing. `commit` then adds the new rows in the
+  background, and `status` reports progress. Rows already in the CRM are
+  skipped, and a rerun adds nothing twice. The MCP tools that call these come
+  with AZM-168.
 - The buyer edit behind `/edit-buyer` now lives in
   `ddl_commands/api/buyer_edit.py` (`write_buyer_edit`), so MCP v1 can call it
   without Slack (AZM-171). `/edit-buyer` behaves as before.
