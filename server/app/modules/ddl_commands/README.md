@@ -181,6 +181,7 @@ the role: a buyer role for the same vertical, or any active seller role. A
 company that exists with a different vertical gets the new buyer role on its
 existing organization. Existing organizations are never changed (our data
 wins), and existing rows are skipped. The company name is not part of the match.
+The host must match exactly, so `shop.acme.com` is not `acme.com`.
 
 `commit` re-checks every row just before it writes, under one lock, so a row
 added in the meantime, or a rerun, is skipped instead of duplicated. Each added

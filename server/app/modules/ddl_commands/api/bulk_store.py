@@ -33,7 +33,7 @@ class PlannedRow(BaseModel):
 
     index: int  # 1-based position in the uploaded list
     org_name: str
-    domain: str  # registrable-style host, lower-case, no "www."
+    domain: str  # full host, lower-case, no "www."; a subdomain is a different domain
     org_extracted: dict[str, PrefillValue | None]
     role_extracted: dict[str, PrefillValue | None]
 
@@ -108,7 +108,13 @@ class InMemoryPreviewStore:
             expires_at=self._clock() + self._ttl,
         )
         while len(self._entries) > _MAX_STORED:
-            del self._entries[next(iter(self._entries))]
+            # A running commit must stay readable, or its caller loses the results.
+            oldest_idle = next(
+                (k for k, e in self._entries.items() if e.progress.state != "running"), None
+            )
+            if oldest_idle is None:
+                break
+            del self._entries[oldest_idle]
 
     def get(self, preview_id: uuid.UUID) -> StoredPreview | None:
         entry = self._live(preview_id)

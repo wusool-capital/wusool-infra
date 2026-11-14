@@ -350,6 +350,19 @@ def test_store_expires_previews_and_a_write_extends_the_life() -> None:
     assert store.progress(preview.id) is None
 
 
+def test_store_never_evicts_a_running_commit() -> None:
+    store = InMemoryPreviewStore()
+    running = StoredPreview(id=uuid.uuid4(), kind="buyer", rows=())
+    store.save(running)
+    store.set_progress(running.id, CommitProgress(state="running", total=0))
+    idle = [StoredPreview(id=uuid.uuid4(), kind="buyer", rows=()) for _ in range(60)]
+    for p in idle:
+        store.save(p)
+
+    assert store.progress(running.id) is not None
+    assert store.get(idle[0].id) is None  # idle previews still go oldest first
+
+
 def test_store_drops_the_oldest_preview_past_its_cap() -> None:
     store = InMemoryPreviewStore()
     previews = [StoredPreview(id=uuid.uuid4(), kind="seller", rows=()) for _ in range(51)]

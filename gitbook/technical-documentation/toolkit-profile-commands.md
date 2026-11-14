@@ -98,7 +98,8 @@ options, is marked invalid so no data is dropped silently.
 
 A row counts as existing when its domain matches an organization that already
 has the role: a buyer role for the same vertical, or any active seller role.
-Existing rows are skipped and never change the record. Each row is checked
+Existing rows are skipped and never change the record. The domain must match
+exactly: `shop.acme.com` does not match `acme.com`. Each row is checked
 again just before it is added, so a rerun adds only the rows still missing.
 Added rows appear in the command log and the activity feed with source `mcp`.
 
