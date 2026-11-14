@@ -102,7 +102,7 @@ Approve writes the Qualified Buy-side deal to Attio first, then records it in
 the database in one transaction, with a `match.approved` activity for the
 approver. A changed deal stage is also recorded in `deal_stage_events`. If
 Attio already has a deal for that buyer and seller, the approver chooses to
-promote it or create a new one. Only an Inbound deal is promoted.
+promote it or create a new one. Only a Lead deal is promoted.
 
 The browser app and its API are on
 [Web app and API](toolkit-matching-web.md).

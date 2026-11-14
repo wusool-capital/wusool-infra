@@ -19,7 +19,7 @@ form; it is the only tool built new rather than ported.
    team. It is never shown to the applicant, and a failure never blocks the
    application.
 4. Attio gets the organization, **one buyer role per sector ticked**, the
-   person, and a Buy-side deal at Inbound. A repeat submission updates the
+   person, and a Buy-side deal at stage Lead, status Active. A repeat submission updates the
    roles it already has and adds new ones.
 
 The option lists on the page are generated from the same sets the server

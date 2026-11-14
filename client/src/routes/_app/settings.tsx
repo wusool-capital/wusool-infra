@@ -217,7 +217,7 @@ function SettingsPage(): React.JSX.Element {
         >
           <Line label="Approve">
             Creates a Qualified deal in Attio for the buyer and seller, or
-            promotes an existing Inbound one.
+            promotes an existing Lead one.
           </Line>
           <Line label="Reject">
             Recorded on the run only. Nothing is written to Attio.

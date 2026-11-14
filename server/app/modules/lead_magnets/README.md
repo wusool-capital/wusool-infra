@@ -461,9 +461,9 @@ The order is the whole point; it is what makes a lost lead impossible.
    one `seller_role` entry (with its `sector`) or one `buyer_role` entry
    **per ticked sector** (`target_vertical`, found again by vertical on a
    resubmission; the form's sectors no longer land on the organisation),
-   one `person`, and one `deal` at
-   stage **Inbound** so the lead lands in the pipeline rather than waiting
-   for someone to key it in by hand.
+   one `person`, and one `deal` at stage **Lead** with status **Active** so
+   the lead lands in the pipeline rather than waiting for someone to key it in
+   by hand.
 5. **Email the visitor** a confirmation, via SES (`domain/<tool>/email.py`
    builds the HTML, `notifications.EmailSenderPort` sends it).
 6. **Email the internal team** a notice, with links back to the Attio
@@ -757,7 +757,7 @@ lead, not two. `providers/attio/deal_writer.py` queries `deal` before
 creating (same query-then-create shape, and the same reason, as the person
 write below), and returns a matched deal **untouched** — its stage is a
 human's working state, and a later lead magnet must never drag a `Qualified`
-deal back to `Inbound`.
+deal back to `Lead`.
 
 The match against `seller_id`/`buyer_id` happens client-side: `entries.py`'s
 own opening docstring already documents that this codebase has no verified
@@ -778,7 +778,7 @@ A create Attio *rejects* is retried once with
 workspace would otherwise silently stop every lead-magnet deal from being
 created, visible only as a log line, since this write is best-effort.
 
-`deal_value` is deliberately never written. No `Inbound` deal in the live
+`deal_value` is deliberately never written. No `Lead` deal in the live
 workspace carries one — value is set by a human as the deal advances, and a
 self-reported figure from the valuation tool is not that.
 

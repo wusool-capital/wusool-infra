@@ -303,7 +303,7 @@ def test_approve_with_existing_deals_is_409_with_choices(api) -> None:
     candidate = _row()
     api.service.get_match_analysis.return_value = _analysis(candidates=[candidate])
     api.service.approve_match.side_effect = ExistingDealsFoundError(
-        [ExistingDeal("deal-1", "Old deal", "Inbound", None)]
+        [ExistingDeal("deal-1", "Old deal", "Lead", None)]
     )
 
     response = api.client.post(

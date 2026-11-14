@@ -156,8 +156,8 @@ DB-backed integration tests skip cleanly when `DATABASE_URL` is unreachable
    deal to Attio *first* (`deals.attio_id` is the Postgres primary key),
    then one Postgres transaction does the compare-and-set, the `deals`
    upsert and the `deal_attio_id` stamp. If Attio already has a deal for
-   the buyer+seller pair, the approver chooses to promote it (only an
-   `Inbound` deal moves; later stages are left alone) or create a new one.
+   the buyer+seller pair, the approver chooses to promote it (only a
+   `Lead` deal moves; later stages are left alone) or create a new one.
    Attio-succeeds/Postgres-fails raises `PartialWriteError`; the inbound
    webhook / nightly resync reconciles the orphan. This path is its own
    (`providers/attio/deal_gateway.py`), not `lead_magnets`' deal writer,

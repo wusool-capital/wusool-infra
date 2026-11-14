@@ -50,7 +50,7 @@ The note can't change these:
 - Sellers already rejected for this buyer and vertical stay out.
 
 **Approve Match** creates a Qualified Buy-side deal in Attio for that buyer
-and seller. If an Inbound deal already exists for the pair, the bot asks
+and seller. If a Lead deal already exists for the pair, the bot asks
 whether to promote it to Qualified or create a new one. An approval can't be
 undone from Slack; ask the CRM owner to change the deal in Attio. Matching
 never contacts an organization.
