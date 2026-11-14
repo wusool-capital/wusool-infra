@@ -604,3 +604,37 @@ async def test_a_rerun_skips_the_earlier_existing_rows_and_the_ones_just_added(
     again = await commit_and_wait(result.preview_id)
 
     assert (again.added, len(again.skipped)) == (0, 3)  # 1 existing at preview, 2 added since
+
+
+async def test_problems_carry_structured_fields_not_just_a_message() -> None:
+    rows: list[bulk.UploadRow] = [
+        {"org_name": "", "domain": "a.com", "target_vertical": VERTICAL},
+        {"org_name": "B", "domain": "b.com", "target_vertical": VERTICAL, "nonsense": "x"},
+        {"org_name": "C", "domain": "c.com", "target_vertical": VERTICAL, "model": "nope"},
+        {"org_name": "D", "domain": "d.com", "target_vertical": VERTICAL},
+        {"org_name": "D again", "domain": "d.com", "target_vertical": VERTICAL},
+    ]
+
+    result = rejected(await bulk.preview_buyers(rows))
+
+    by_row = {p.row: p for p in result.problems}
+    assert (by_row[1].kind, by_row[1].field) == ("required", "org_name")
+    assert (by_row[2].kind, by_row[2].field) == ("unknown_field", "nonsense")
+    assert (by_row[3].kind, by_row[3].field) == ("not_allowed", "model")
+    assert (by_row[5].kind, by_row[5].duplicate_of) == ("duplicate", 4)
+
+
+async def test_a_row_from_claude_matches_dropdown_values_ignoring_case() -> None:
+    row = buyer_row(1)
+    row["target_vertical"] = VERTICAL.lower()
+    row["model"] = BUYER_ROLE_FIELDS_BY_NAME["model"].options[0].upper()
+    row["sector_focus"] = [SECTORS[0].lower(), f" {SECTORS[1].upper()} "]
+
+    result = await buyers_ok([row])
+
+    stored = bulk._store.get(result.preview_id)
+    assert stored is not None
+    role = stored.rows[0].role_extracted
+    assert role["target_vertical"] == VERTICAL  # stored in the field's own spelling
+    assert role["model"] == BUYER_ROLE_FIELDS_BY_NAME["model"].options[0]
+    assert stored.rows[0].org_extracted["sector_focus"] == [SECTORS[0], SECTORS[1]]

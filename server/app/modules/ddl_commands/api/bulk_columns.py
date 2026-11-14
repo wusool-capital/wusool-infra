@@ -154,24 +154,41 @@ def _shown_options(spec: FieldSpec) -> str:
     return f"{shown}, ..." if len(spec.options) > _MAX_SHOWN_OPTIONS else shown
 
 
+def match_option(spec: FieldSpec, text: str) -> str | None:
+    """The field's own spelling of `text`, ignoring case, or None. The one place
+    option matching is decided, for a file's cells and for rows from Claude alike."""
+    lowered = text.strip().lower()
+    return next((option for option in spec.options if option.lower() == lowered), None)
+
+
+def canonical_value(spec: FieldSpec, value: PrefillValue) -> PrefillValue:
+    """A select or multi-select value in the field's own spelling. A value that
+    doesn't match is returned as it is, for the caller to refuse."""
+    if spec.kind == "select" and isinstance(value, str):
+        return match_option(spec, value) or value
+    if spec.kind == "multi_select_text" and isinstance(value, list):
+        return [match_option(spec, item) or item for item in value]
+    return value
+
+
 def _option(spec: FieldSpec, text: str) -> str:
-    by_lower = {option.lower(): option for option in spec.options}
-    if text.lower() in by_lower:
-        return by_lower[text.lower()]
-    raise CellError(f"not an allowed value. Allowed: {_shown_options(spec)}")
+    matched = match_option(spec, text)
+    if matched is None:
+        raise CellError(f"not an allowed value. Allowed: {_shown_options(spec)}")
+    return matched
 
 
 def _options(spec: FieldSpec, items: list[str]) -> list[str]:
-    by_lower = {option.lower(): option for option in spec.options}
+    matches = [match_option(spec, item) for item in items]
     # By position, not by text: the message is also posted to a channel.
-    unknown = [n for n, item in enumerate(items, start=1) if item.lower() not in by_lower]
+    unknown = [n for n, matched in enumerate(matches, start=1) if matched is None]
     if unknown:
         which = ", ".join(str(n) for n in unknown)
         raise CellError(
             f"not an allowed value in item {which} (items are separated by ;). "
             f"Allowed: {_shown_options(spec)}"
         )
-    return [by_lower[item.lower()] for item in items]
+    return [matched for matched in matches if matched is not None]
 
 
 def _number(raw: CellValue, noun: str) -> float:

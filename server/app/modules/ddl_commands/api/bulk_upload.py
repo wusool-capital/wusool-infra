@@ -13,10 +13,11 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from app.modules.ddl_commands.api.bulk_columns import routes_for
+from app.modules.ddl_commands.api.bulk_columns import canonical_value, routes_for
 from app.modules.ddl_commands.api.bulk_store import (
     MAX_ROWS,
     CommitProgress,
@@ -71,11 +72,22 @@ class PreviewNotFoundError(BulkUploadError):
     pass
 
 
+ProblemKind = Literal["required", "unknown_field", "not_allowed", "invalid", "duplicate"]
+
+
 class RowProblem(BaseModel):
+    """What is wrong with one row. `message` is complete on its own, for Claude.
+    The other fields let any caller (the Slack report) word it differently without
+    reading the message."""
+
     model_config = ConfigDict(frozen=True)
 
     row: int  # 1-based position in the list, or the spreadsheet line for a file
     message: str
+    kind: ProblemKind
+    field: str | None = None  # the row key the problem is about
+    error_type: str | None = None  # for `invalid`: the validation error's type
+    duplicate_of: int | None = None  # for `duplicate`: the earlier row
 
 
 class PreviewResult(BaseModel):
@@ -211,12 +223,19 @@ def _validate(
         parsed = _parse(kind, number, raw)
         if isinstance(parsed, list):
             invalid += 1
-            problems.extend(RowProblem(row=number, message=m) for m in parsed)
+            problems.extend(parsed)
             continue
         key = (parsed.domain, _vertical(parsed) if kind == "buyer" else None)
         if key in seen:
             invalid += 1
-            problems.append(RowProblem(row=number, message=f"duplicate of row {seen[key]}"))
+            problems.append(
+                RowProblem(
+                    row=number,
+                    kind="duplicate",
+                    duplicate_of=seen[key],
+                    message=f"duplicate of row {seen[key]}",
+                )
+            )
             continue
         seen[key] = number
         valid.append(parsed)
@@ -260,28 +279,41 @@ async def _preview(
     )
 
 
-def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[str]:
+def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[RowProblem]:
     routes = routes_for(kind)
     fields = {key: route.spec for key, route in routes.items()}
-    problems: list[str] = []
+    problems: list[RowProblem] = []
+
+    def problem(
+        problem_kind: ProblemKind, field: str, message: str, error_type: str | None = None
+    ) -> RowProblem:
+        return RowProblem(
+            row=index, kind=problem_kind, field=field, message=message, error_type=error_type
+        )
 
     org_name = raw.get("org_name")
     if not isinstance(org_name, str) or not org_name.strip():
-        problems.append("org_name is required")
+        problems.append(problem("required", "org_name", "org_name is required"))
     host = _host(raw.get("domain"))
     if host is None:
-        problems.append("domain is required (a company website or domain)")
+        message = "domain is required (a company website or domain)"
+        problems.append(problem("required", "domain", message))
     if kind == "buyer" and not raw.get("target_vertical"):
-        problems.append("target_vertical is required")
+        problems.append(problem("required", "target_vertical", "target_vertical is required"))
     problems.extend(
-        f"unknown field '{k}'" for k in sorted(raw) if k not in fields and k not in _ROW_KEYS
+        problem("unknown_field", k, f"unknown field '{k}'")
+        for k in sorted(raw)
+        if k not in fields and k not in _ROW_KEYS
     )
 
-    given = {k: v for k, v in raw.items() if k in fields and v is not None}
+    # The same spelling rules for a file's rows and for Claude's.
+    given = {
+        k: canonical_value(fields[k], v) for k, v in raw.items() if k in fields and v is not None
+    }
     normalized = normalize_prefill(given, fields, warn_on_drop=False)
     # A silently dropped value, or a trimmed list, would be lost data, so say so.
     problems.extend(
-        _not_allowed(k, fields[k])
+        problem("not_allowed", k, _not_allowed(k, fields[k]))
         for k, v in given.items()
         if k not in normalized or (isinstance(v, list) and normalized[k] != v)
     )
@@ -292,6 +324,7 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[st
         routes[k].name: v for k, v in normalized.items() if routes[k].target == "role"
     }
     role_model = BuyerUpdate if kind == "buyer" else SellerUpdate
+    keys = {(r.target, r.name): r.key for r in routes.values()}
     for target, model, extracted in (
         ("org", OrganizationUpdate, org_extracted),
         ("role", role_model, role_extracted),
@@ -300,12 +333,10 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[st
             model.model_validate(extracted)
         except ValidationError as exc:
             # Location and type only, as messages can quote values. Keys are the row's own.
-            keys = {(r.target, r.name): r.key for r in routes.values()}
-            problems.extend(
-                f"invalid '{keys.get((target, str(e['loc'][0])), '.'.join(map(str, e['loc'])))}'"
-                f" ({e['type']})"
-                for e in exc.errors()
-            )
+            for e in exc.errors():
+                key = keys.get((target, str(e["loc"][0])), ".".join(map(str, e["loc"])))
+                message = f"invalid '{key}' ({e['type']})"
+                problems.append(problem("invalid", key, message, error_type=e["type"]))
 
     if problems or not isinstance(org_name, str) or host is None:
         return problems

@@ -9,6 +9,7 @@ import pytest
 from app.modules.ddl_commands.api.bulk_columns import (
     CellError,
     CellValue,
+    canonical_value,
     coerce_cell,
     columns_for,
     routes_for,
@@ -205,3 +206,17 @@ def test_a_bad_cell_is_refused_with_a_plain_message(
 def test_a_multi_select_cell_of_only_separators_is_an_empty_cell(raw: str) -> None:
     assert coerce_cell(spec("buyer", "sector_focus"), raw) is None
     assert coerce_cell(spec("buyer", "hq_country"), raw) is None
+
+
+def test_the_file_reader_and_the_backend_spell_dropdown_values_the_same_way() -> None:
+    # One matcher serves a file's cells and rows from Claude, so they cannot disagree.
+    model = spec("buyer", "model")
+    sector = spec("buyer", "sector_focus")
+    text = f"  {model.options[0].upper()} "
+    items = [f" {sector.options[0].lower()}", sector.options[1].upper()]
+
+    assert coerce_cell(model, text) == canonical_value(model, text) == model.options[0]
+    assert coerce_cell(sector, ";".join(items)) == canonical_value(sector, items)
+    assert (
+        canonical_value(model, "not an option") == "not an option"
+    )  # left for the caller to refuse

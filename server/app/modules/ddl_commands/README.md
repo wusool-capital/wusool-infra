@@ -167,6 +167,8 @@ created until the person confirms the preview, in Claude or in Slack.
   any invalid row returns a `RejectedUpload` with the exact problem on every bad
   row, stores nothing and skips every database lookup, so the sender can fix the
   rows and send the list again. A select field's problem names the allowed values.
+  Each problem is structured (`row`, `kind`, `field`, plus a plain `message`), so a
+  caller words it its own way without parsing the message; Slack does.
   A clean list returns a `PreviewResult` with the new and existing counts and a
   `preview_id`. One call takes 1 to 1,000 rows. `row_numbers` are the spreadsheet
   lines to report for a file, and `invoked_via` is `mcp` or `slack`.
@@ -185,7 +187,8 @@ company's website or domain; it becomes the organization's `domains`.
 A seller has `relationship_status` on both the role and the organization, so the
 plain key is the role's and `org_relationship_status` is the organization's.
 Unknown fields and values outside a select's options make a row invalid, so
-nothing is dropped silently.
+nothing is dropped silently. Dropdown values match ignoring case, for a file and
+for Claude alike, through one shared matcher (`bulk_columns.match_option`).
 
 A row is existing when its domain matches an organization that already holds
 the role: a buyer role for the same vertical, or any active seller role. A

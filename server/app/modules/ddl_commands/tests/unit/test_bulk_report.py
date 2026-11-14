@@ -14,15 +14,34 @@ from app.modules.ddl_commands.api.bulk_report import (
     rejection_text,
 )
 from app.modules.ddl_commands.api.bulk_store import CommitProgress, RowOutcome
-from app.modules.ddl_commands.api.bulk_upload import RowProblem
+from app.modules.ddl_commands.api.bulk_upload import ProblemKind, RowProblem
+
+
+def problem(
+    row: int,
+    kind: ProblemKind,
+    field: str | None = None,
+    *,
+    error_type: str | None = None,
+    duplicate_of: int | None = None,
+) -> RowProblem:
+    # The message is deliberately useless: the report must not depend on its wording.
+    return RowProblem(
+        row=row,
+        kind=kind,
+        field=field,
+        error_type=error_type,
+        duplicate_of=duplicate_of,
+        message="(reworded by a future change)",
+    )
 
 
 def test_row_problems_use_column_labels_and_spreadsheet_wording() -> None:
     row_problems = [
-        RowProblem(row=3, message="org_name is required"),
-        RowProblem(row=4, message="domain is required (a company website or domain)"),
-        RowProblem(row=5, message="invalid 'description' (string_too_long)"),
-        RowProblem(row=6, message="duplicate of row 2"),
+        problem(3, "required", "org_name"),
+        problem(4, "required", "domain"),
+        problem(5, "invalid", "description", error_type="string_too_long"),
+        problem(6, "duplicate", duplicate_of=2),
     ]
 
     lines = combine_problems("buyer", [], row_problems)
@@ -38,8 +57,8 @@ def test_row_problems_use_column_labels_and_spreadsheet_wording() -> None:
 def test_a_cell_problem_replaces_the_row_problems_it_would_also_cause() -> None:
     cell = [CellProblem(line=4, column="Target vertical", message="not an allowed value")]
     rows = [
-        RowProblem(row=4, message="target_vertical is required"),  # caused by the cell above
-        RowProblem(row=7, message="org_name is required"),
+        problem(4, "required", "target_vertical"),  # caused by the cell above
+        problem(7, "required", "org_name"),
     ]
 
     lines = combine_problems("buyer", cell, rows)
@@ -52,7 +71,7 @@ def test_a_cell_problem_replaces_the_row_problems_it_would_also_cause() -> None:
 
 def test_problems_are_listed_in_line_order() -> None:
     cell = [CellProblem(line=9, column="Notes", message="x")]
-    rows = [RowProblem(row=2, message="org_name is required")]
+    rows = [problem(2, "required", "org_name")]
 
     assert [p.line for p in combine_problems("seller", cell, rows)] == [2, 9]
 
@@ -156,8 +175,8 @@ def test_hidden_problems_mean_the_full_list_must_be_attached() -> None:
 
 def test_an_organization_field_that_shares_a_name_is_reported_under_its_own_label() -> None:
     problems = [
-        RowProblem(row=3, message="invalid 'org_relationship_status' (string_too_long)"),
-        RowProblem(row=4, message="invalid 'relationship_status' (string_too_long)"),
+        problem(3, "invalid", "org_relationship_status", error_type="string_too_long"),
+        problem(4, "invalid", "relationship_status", error_type="string_too_long"),
     ]
 
     lines = combine_problems("seller", [], problems)
@@ -169,8 +188,16 @@ def test_an_organization_field_that_shares_a_name_is_reported_under_its_own_labe
 
 
 def test_a_value_that_is_not_allowed_uses_the_column_label() -> None:
-    lines = combine_problems(
-        "buyer", [], [RowProblem(row=2, message="value not allowed for 'model'")]
-    )
+    lines = combine_problems("buyer", [], [problem(2, "not_allowed", "model")])
 
     assert lines[0].text == "Line 2, Model: is not an allowed value"
+
+
+def test_an_unknown_kind_of_problem_falls_back_to_the_backend_message() -> None:
+    row_problem = RowProblem(
+        row=3, kind="unknown_field", field="nonsense", message="unknown field 'nonsense'"
+    )
+
+    lines = combine_problems("buyer", [], [row_problem])
+
+    assert lines[0].text == "Line 3: unknown field 'nonsense'"

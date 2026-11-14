@@ -5,7 +5,6 @@ internal field names, and never the contents of a cell.
 
 import csv
 import io
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -19,11 +18,6 @@ SHOWN_PROBLEMS = 20
 _SHOWN_FAILURES = 10
 # Slack allows 3,000 characters in one text block; leave room for the heading.
 _MAX_LIST_CHARS = 2400
-
-_REQUIRED = re.compile(r"^(\w+) is required")
-_INVALID = re.compile(r"^invalid '([^']+)' \((\w+)\)$")
-_NOT_ALLOWED = re.compile(r"^value not allowed for '([^']+)'")
-_DUPLICATE = re.compile(r"^duplicate of row (\d+)$")
 
 
 @dataclass(frozen=True)
@@ -53,19 +47,18 @@ def combine_problems(
 
 
 def _row_problem(problem: RowProblem, labels: dict[str, str]) -> ProblemLine:
-    message = problem.message
-    if match := _REQUIRED.match(message):
-        label = labels.get(match.group(1), match.group(1))
-        return ProblemLine(problem.row, label, "is required")
-    if match := _INVALID.match(message):
-        label = labels.get(match.group(1), match.group(1))
-        return ProblemLine(problem.row, label, f"is not valid ({match.group(2)})")
-    if match := _NOT_ALLOWED.match(message):
-        label = labels.get(match.group(1), match.group(1))
-        return ProblemLine(problem.row, label, "is not an allowed value")
-    if match := _DUPLICATE.match(message):
-        return ProblemLine(problem.row, "", f"same company as line {match.group(1)}")
-    return ProblemLine(problem.row, "", message)
+    label = labels.get(problem.field or "", "")
+    match problem.kind:
+        case "required":
+            return ProblemLine(problem.row, label, "is required")
+        case "not_allowed":
+            return ProblemLine(problem.row, label, "is not an allowed value")
+        case "invalid":
+            return ProblemLine(problem.row, label, f"is not valid ({problem.error_type})")
+        case "duplicate":
+            return ProblemLine(problem.row, "", f"same company as line {problem.duplicate_of}")
+        case _:
+            return ProblemLine(problem.row, label, problem.message)
 
 
 def _visible(problems: Sequence[ProblemLine]) -> list[str]:
