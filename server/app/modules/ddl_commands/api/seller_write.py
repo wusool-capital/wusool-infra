@@ -37,7 +37,7 @@ async def write_seller_add(
     org_extracted: dict[str, PrefillValue | None],
     role_extracted: dict[str, PrefillValue | None],
     requested_by: str | None,
-    invoked_via: Literal["slack", "discovery"],
+    invoked_via: Literal["slack", "discovery", "mcp"],
     source_place_id: str | None = None,
 ) -> SellerRole:
     """Records a `command_runs` row around the write — see `_write_seller_add`."""
