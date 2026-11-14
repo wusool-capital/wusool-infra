@@ -1,7 +1,5 @@
-# Partial backend: one directory, one state. This stack holds public download
-# files, not a per-environment resource - same convention as stacks/account,
-# stacks/peering and stacks/scribe-updates.
-#
+# Partial backend: one directory, one state, shared by both environments.
+
 #   tofu init -reconfigure \
 #     -backend-config=bucket=wusool-tfstate \
 #     -backend-config=region=me-central-1 \

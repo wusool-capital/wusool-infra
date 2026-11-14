@@ -53,4 +53,5 @@ A company already in the CRM is skipped, and its record never changes. The bot c
 
 - If the result lists failed rows, upload the file again. Rows already added are skipped.
 - If you wait more than an hour before clicking **Add**, the check expires. Upload the file again.
+- If a column uses formulas, open the file in Excel and save it before uploading. A formula with no saved result reads as empty.
 - If the bot can't read your file, ask an admin to check the bot's file permission.

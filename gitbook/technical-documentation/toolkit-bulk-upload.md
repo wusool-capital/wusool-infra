@@ -58,7 +58,8 @@ The Slack app needs the `files:read` and `files:write` scopes and the two new co
 
 - Previews live in memory for an hour. A restart loses them, and the person uploads the file again.
 - The checks are all-or-nothing, but the writes are not. If Attio fails halfway, rows already added stay, and the result lists the failures.
-- An Excel file is read for its values. Formulas, macros and other sheets are ignored.
+- An Excel file is read for its saved values. A formula with no saved result reads as empty. Macros and other sheets are ignored.
+- A file is parsed in a background thread, and a packed workbook over 50 MB unpacked is refused.
 
 ## Code
 

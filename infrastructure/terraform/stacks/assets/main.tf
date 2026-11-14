@@ -1,22 +1,10 @@
-# Public downloads. Today that is the two template files that /bulk-buyer and
-# /bulk-seller link to when an uploaded file is not the template. Not
-# per-environment: the files are the same for dev and prod. The Slack app's
-# "wrong template" message links straight to these objects.
-#
-# This bucket is public on purpose, and only for the `templates/` prefix. The
-# files hold column headers and no business data. Never put anything else under
-# that prefix, and nothing sensitive anywhere in this bucket: a public read
-# policy can't tell one file from another.
-#
-# Expect Security Hub to flag this bucket (AWS Foundational Security Best
-# Practices, the S3 "block public access" controls) once it is applied. The
-# account stack alerts on new HIGH findings, so the first apply may page. The
-# public read is intended: suppress those findings with a note saying so.
-#
-# The template files are owned by the server code (the field definitions build
-# them), so this stack uploads the committed copies and a unit test fails when
-# they drift. After changing a field, regenerate and commit them, then apply
-# this stack out of band, like stacks/scribe-updates.
+# Public downloads: the /bulk-buyer and /bulk-seller template files. Not per-environment.
+
+# Public on purpose, under `templates/` only. Keep anything sensitive out of this bucket.
+
+# Expect Security Hub HIGH findings for the public bucket. Intended: suppress with a note.
+
+# Templates are built from the field definitions. Apply out of band after changing a field.
 
 data "aws_caller_identity" "current" {}
 
@@ -30,8 +18,7 @@ resource "aws_s3_bucket" "assets" {
   force_destroy = false
 }
 
-# Public read comes only from the bucket policy below, scoped to one prefix.
-# ACLs stay blocked, so no object can be made public one by one.
+# Public read comes only from the bucket policy below. ACLs stay blocked.
 resource "aws_s3_bucket_public_access_block" "assets" {
   bucket                  = aws_s3_bucket.assets.id
   block_public_acls       = true
