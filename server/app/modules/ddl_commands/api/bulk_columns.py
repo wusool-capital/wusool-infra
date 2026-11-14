@@ -94,6 +94,10 @@ def columns_for(kind: UploadKind) -> tuple[Column, ...]:
     return tuple(columns)
 
 
+def template_filename(kind: UploadKind) -> str:
+    return f"{kind}-template.csv"
+
+
 def template_csv(kind: UploadKind) -> bytes:
     """The header row only. `utf-8-sig` so Excel reads Arabic text correctly."""
     buffer = io.StringIO()

@@ -33,6 +33,10 @@ class Settings(SecretsManagerSettings):
     # retrievable again after that. See `ddl_commands/shared/attio/signature.py`.
     attio_webhook_secret: str
 
+    # Where the public bulk upload template files live, without a trailing slash.
+    # Empty means the "wrong template" message shows the reason without a link.
+    bulk_template_base_url: str = ""
+
     @field_validator("database_url")
     @classmethod
     def normalize_database_url(cls, value: str) -> str:

@@ -134,6 +134,13 @@ async def preview_sellers_strict(
     return await _strict("seller", rows, row_numbers, invoked_via)
 
 
+def find_row_problems(
+    kind: UploadKind, rows: Sequence[UploadRow], row_numbers: Sequence[int]
+) -> tuple[RowProblem, ...]:
+    """What is wrong with these rows, without touching the database."""
+    return _validate(kind, rows, row_numbers).problems
+
+
 def status(preview_id: uuid.UUID) -> CommitProgress:
     progress = _store.progress(preview_id)
     if progress is None:
