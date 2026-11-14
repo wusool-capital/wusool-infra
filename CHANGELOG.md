@@ -13,15 +13,16 @@ for current production evidence and open handover items.
 ### Added
 
 - Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
-  sign-in and can find, add, edit and bulk-import buyers and sellers. Adds and
-  edits are saved straight away, Attio first; a bulk list is saved only after
-  the person confirms the preview. A company that already holds the role comes
-  back as the existing record. Sign-in is OAuth 2.1 with PKCE and stateless
-  signed tokens. Only active, non-guest members of the Wusool Slack workspace
-  get in, and a refresh refuses someone who has left. Every write is attributed to
-  the person with source `mcp`. Served at `/mcp` once `MCP_PUBLIC_URL` and
-  `MCP_TOKEN_SECRET` are set and the Slack app lists
-  `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a redirect URL. No new tables.
+  sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
+- Adds and edits from Claude are saved straight away, Attio first. A bulk list is
+  saved only after the person confirms the preview. A company that already holds
+  the role comes back as the existing record.
+- MCP sign-in is OAuth 2.1 with PKCE and stateless signed tokens. Only active,
+  non-guest members of the Wusool Slack workspace get in. A refresh refuses
+  someone who has left, and every write is attributed to the person.
+- The MCP is served at `/mcp` once `MCP_PUBLIC_URL` and `MCP_TOKEN_SECRET` are
+  set. The Slack app must list `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a
+  redirect URL.
 
 ### Changed
 
