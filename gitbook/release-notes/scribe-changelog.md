@@ -2,6 +2,15 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.7
+
+### What's new
+
+* While you record, the screen splits into the transcript and **Notes**. Type notes as the meeting goes; they save as you type. Drag the line between the two sides to resize them.
+* A floating notepad keeps your notes on top of other apps, such as a full-screen call. Open it from the button beside **Notes**, or with **Open Notepad** in the menu-bar icon. It's hidden from screen shares.
+* Your notes are sent with the push. The summary gives weight to what you noted, and the Attio note shows your notes under **Advisor notes**.
+* Notes stay editable after a push, in the meeting's **Notes** tab. Changes update the Attio note.
+
 ## 0.8.6
 
 ### What's new

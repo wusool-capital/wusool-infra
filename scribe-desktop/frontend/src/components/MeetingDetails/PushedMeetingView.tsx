@@ -119,11 +119,11 @@ export function PushedMeetingView({
       <Tabs value={tab} onValueChange={setTab} className="flex flex-col h-full">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <TabsList>
-            <TabsTrigger value="notes" className="gap-1.5">
-              <NotebookPen size={14} /> Notes
-            </TabsTrigger>
             <TabsTrigger value="summary" className="gap-1.5">
               <ListChecks size={14} /> Summary
+            </TabsTrigger>
+            <TabsTrigger value="notes" className="gap-1.5">
+              <NotebookPen size={14} /> Notes
             </TabsTrigger>
             <TabsTrigger value="transcript" className="gap-1.5">
               <FileText size={14} /> Transcript
@@ -140,10 +140,6 @@ export function PushedMeetingView({
             </Button>
           )}
         </div>
-
-        <TabsContent value="notes" className="flex-1 min-h-0 mt-0">
-          <MeetingNotesEditor meetingId={meetingId} isPushed />
-        </TabsContent>
 
         <TabsContent value="summary" className="flex-1 min-h-0 mt-0">
           <ScrollArea className="h-full">
@@ -165,6 +161,10 @@ export function PushedMeetingView({
               )}
             </div>
           </ScrollArea>
+        </TabsContent>
+
+        <TabsContent value="notes" className="flex-1 min-h-0 mt-0">
+          <MeetingNotesEditor meetingId={meetingId} isPushed />
         </TabsContent>
 
         <TabsContent value="transcript" className="flex-1 overflow-hidden mt-0">
