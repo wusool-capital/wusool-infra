@@ -1,4 +1,7 @@
-export type NotesSaveState = 'idle' | 'saving' | 'saved' | 'error';
+export type NotesSaveState = 'idle' | 'saving' | 'saved' | 'error' | 'too_long';
+
+/** Error the Rust save commands return past the server's 50,000-character cap. */
+export const NOTES_TOO_LONG = 'NOTES_TOO_LONG';
 
 /** Mirrors the Rust `LiveNotes` / `MeetingNotes` payloads. */
 export interface NotesContent {
@@ -36,8 +39,9 @@ export function createAutosave<T>(
         await save(value);
         if (!pending && !timer) onState('saved');
       } catch (error) {
-        console.error('Failed to save notes:', error);
-        onState('error');
+        const tooLong = String(error) === NOTES_TOO_LONG;
+        if (!tooLong) console.error('Failed to save notes:', error);
+        onState(tooLong ? 'too_long' : 'error');
       }
     });
     return chain;

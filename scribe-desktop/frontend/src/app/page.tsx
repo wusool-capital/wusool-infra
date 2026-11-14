@@ -213,7 +213,7 @@ export default function Home() {
                 split
               />
             }
-            right={<LiveNotesPanel />}
+            right={<LiveNotesPanel locked={!recordingState.isRecording || isStopping} />}
           />
         ) : (
           <TranscriptPanel

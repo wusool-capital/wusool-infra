@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { createAutosave, type NotesSaveState } from '../../src/lib/notesAutosave';
+import { createAutosave, NOTES_TOO_LONG, type NotesSaveState } from '../../src/lib/notesAutosave';
 
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -42,6 +42,22 @@ describe('createAutosave', () => {
     await autosave.flush();
 
     expect(states.at(-1)).toBe('error');
+  });
+
+  test('the length cap reports too_long', async () => {
+    const states: NotesSaveState[] = [];
+    const autosave = createAutosave<string>(
+      async () => {
+        throw NOTES_TOO_LONG;
+      },
+      (s) => states.push(s),
+      1,
+    );
+
+    autosave.schedule('x');
+    await autosave.flush();
+
+    expect(states.at(-1)).toBe('too_long');
   });
 
   test('cancel drops a pending save', async () => {

@@ -11,6 +11,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from app.modules.meetings.api.schemas import (
+    DesktopMeetingSubmitRequest,
+    DesktopMeetingUserNotesRequest,
+)
 from app.modules.meetings.application.errors import MeetingNotFoundError
 from app.modules.meetings.application.service import MeetingsService
 from app.modules.meetings.application.summarize import SummarizationService
@@ -153,20 +157,23 @@ def _service(repo: _FakeMeetingsRepository) -> MeetingsService:
     )
 
 
-async def test_update_user_notes_stores_trimmed_notes() -> None:
+async def test_update_user_notes_stores_notes() -> None:
     repo = _FakeMeetingsRepository(meeting=_MEETING)
 
-    await _service(repo).update_user_notes("install-1", "rec-1", "  - follow up  \n")
+    await _service(repo).update_user_notes("install-1", "rec-1", "- follow up")
 
     assert repo.update_calls == [(_MEETING_ID, "- follow up")]
 
 
-async def test_update_user_notes_blank_clears() -> None:
-    repo = _FakeMeetingsRepository(meeting=_MEETING)
-
-    await _service(repo).update_user_notes("install-1", "rec-1", "   ")
-
-    assert repo.update_calls == [(_MEETING_ID, None)]
+@pytest.mark.parametrize("model", [DesktopMeetingUserNotesRequest, DesktopMeetingSubmitRequest])
+@pytest.mark.parametrize(("raw", "expected"), [("  - a  \n", "- a"), ("   ", None), (None, None)])
+def test_notes_are_normalised_at_the_boundary(
+    model: type[DesktopMeetingUserNotesRequest | DesktopMeetingSubmitRequest],
+    raw: str | None,
+    expected: str | None,
+) -> None:
+    base = {"install_id": "i", "local_recording_id": "r", "transcript": [], "duration_seconds": 0}
+    assert model.model_validate({**base, "user_notes": raw}).user_notes == expected
 
 
 @pytest.mark.parametrize(

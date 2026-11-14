@@ -20,8 +20,5 @@ class UserNotesMixin(ServiceBase):
             raise MeetingNotFoundError(
                 f"Meeting for install {install_id} / recording {local_recording_id} not found"
             )
-        cleaned = user_notes.strip() if user_notes else None
-        if not await self._meetings_repository.update_user_notes(
-            meeting.id, user_notes=cleaned or None
-        ):
+        if not await self._meetings_repository.update_user_notes(meeting.id, user_notes=user_notes):
             raise MeetingNotFoundError(f"Meeting {meeting.id} not found")

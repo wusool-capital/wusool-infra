@@ -2,9 +2,10 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 import { LiveNotesEditor } from '@/components/notes/LiveNotesEditor';
 import { NotesSaveStatus } from '@/components/notes/NotesSaveStatus';
+import { NOTEPAD_FLUSH_REQUEST, NOTEPAD_FLUSHED } from '@/lib/liveNotesFlush';
 import type { NotesSaveState } from '@/lib/notesAutosave';
 import { cn } from '@/lib/utils';
 
@@ -28,23 +29,34 @@ export default function NotepadPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [saveState, setSaveState] = useState<NotesSaveState>('idle');
   const [recording, setRecording] = useState<RecordingStateSnapshot | null>(null);
+  const [visible, setVisible] = useState(true);
   const flushRef = useRef<(() => Promise<void>) | null>(null);
 
-  // The panel is hidden, never destroyed, so each show must reload the draft.
   useEffect(() => {
-    const unlisten = listen<boolean>('notepad-visibility', ({ payload }) => {
+    // Tells the main window the draft on disk is final, so it can take it back.
+    const flushAndReport = async () => {
+      await flushRef.current?.();
+      await emit(NOTEPAD_FLUSHED);
+    };
+    // The panel is hidden, never destroyed, so each show must reload the draft.
+    const unlistenVisibility = listen<boolean>('notepad-visibility', ({ payload }) => {
+      setVisible(payload);
       if (payload) {
         setReloadKey((key) => key + 1);
       } else {
-        void flushRef.current?.();
+        void flushAndReport();
       }
     });
+    const unlistenRequest = listen(NOTEPAD_FLUSH_REQUEST, () => void flushAndReport());
     return () => {
-      unlisten.then((fn) => fn());
+      unlistenVisibility.then((fn) => fn());
+      unlistenRequest.then((fn) => fn());
     };
   }, []);
 
+  // Only while shown: the hidden panel stays alive for the app's lifetime.
   useEffect(() => {
+    if (!visible) return;
     const read = () =>
       invoke<RecordingStateSnapshot>('get_recording_state')
         .then(setRecording)
@@ -52,7 +64,7 @@ export default function NotepadPage() {
     read();
     const id = setInterval(read, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [visible]);
 
   const returnToApp = async () => {
     await flushRef.current?.();

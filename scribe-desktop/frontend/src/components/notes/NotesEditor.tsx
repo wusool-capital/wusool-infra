@@ -18,6 +18,7 @@ export interface NotesEditorProps {
   flushRef?: MutableRefObject<(() => Promise<void>) | null>;
   placeholder?: string;
   autoFocus?: boolean;
+  editable?: boolean;
   className?: string;
 }
 
@@ -52,6 +53,7 @@ export default function NotesEditor({
   flushRef,
   placeholder = 'Write notes…',
   autoFocus = false,
+  editable = true,
   className,
 }: NotesEditorProps) {
   const dark = useDarkClass();
@@ -115,7 +117,7 @@ export default function NotesEditor({
 
   return (
     <div className={cn('select-text [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent', className)}>
-      <BlockNoteView editor={editor} theme={dark ? 'dark' : 'light'} />
+      <BlockNoteView editor={editor} editable={editable} theme={dark ? 'dark' : 'light'} />
     </div>
   );
 }

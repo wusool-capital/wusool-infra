@@ -6,6 +6,7 @@ const LABELS: Record<NotesSaveState, string> = {
   saving: 'Saving…',
   saved: 'Saved',
   error: "Couldn't save. Keep typing to retry.",
+  too_long: 'Notes are too long to save. Shorten them to keep saving.',
 };
 
 interface NotesSaveStatusProps {
@@ -23,7 +24,7 @@ export function NotesSaveStatus({ state, savedLabel, className }: NotesSaveStatu
       aria-live="polite"
       className={cn(
         'text-xs tabular-nums',
-        state === 'error' ? 'text-destructive' : 'text-muted-foreground',
+        state === 'error' || state === 'too_long' ? 'text-destructive' : 'text-muted-foreground',
         className,
       )}
     >

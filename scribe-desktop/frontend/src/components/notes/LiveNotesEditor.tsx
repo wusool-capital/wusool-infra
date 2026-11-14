@@ -13,6 +13,7 @@ interface LiveNotesEditorProps {
   onSaveStateChange?: (state: NotesSaveState) => void;
   flushRef?: MutableRefObject<(() => Promise<void>) | null>;
   autoFocus?: boolean;
+  editable?: boolean;
   className?: string;
 }
 
@@ -20,7 +21,14 @@ const saveLiveNotes = (content: NotesContent) =>
   invoke<void>('save_live_notes', { notesMarkdown: content.notes_markdown, notesJson: content.notes_json });
 
 /** Notes for the meeting being recorded, kept as a draft until it is saved. */
-export function LiveNotesEditor({ reloadKey, onSaveStateChange, flushRef, autoFocus, className }: LiveNotesEditorProps) {
+export function LiveNotesEditor({
+  reloadKey,
+  onSaveStateChange,
+  flushRef,
+  autoFocus,
+  editable,
+  className,
+}: LiveNotesEditorProps) {
   const [draft, setDraft] = useState<{ key: number; content: NotesContent | null } | null>(null);
 
   useEffect(() => {
@@ -48,6 +56,7 @@ export function LiveNotesEditor({ reloadKey, onSaveStateChange, flushRef, autoFo
       onSaveStateChange={onSaveStateChange}
       flushRef={flushRef}
       autoFocus={autoFocus}
+      editable={editable}
       className={className}
     />
   );

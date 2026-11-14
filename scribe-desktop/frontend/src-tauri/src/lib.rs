@@ -595,6 +595,7 @@ pub fn run() {
             notes::notepad::open_notepad,
             notes::notepad::close_notepad,
             notes::notepad::is_notepad_open,
+            notes::notepad::notepad_exists,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,

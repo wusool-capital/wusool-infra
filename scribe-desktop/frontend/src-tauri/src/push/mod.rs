@@ -628,11 +628,11 @@ pub async fn push_meeting<R: Runtime>(
         })
         - Duration::milliseconds((duration_seconds * 1000.0) as i64);
 
-    let user_notes = MeetingNotesRepository::get(pool, &meeting_id)
+    let stored_notes = MeetingNotesRepository::get(pool, &meeting_id)
         .await
         .map_err(|e| format!("Failed to load notes for {}: {}", meeting_id, e))?
-        .and_then(|notes| notes.notes_markdown)
-        .filter(|markdown| !markdown.trim().is_empty());
+        .and_then(|notes| notes.notes_markdown);
+    let user_notes = stored_notes.clone().filter(|markdown| !markdown.trim().is_empty());
 
     let request_body = DesktopMeetingSubmitRequest {
         install_id: config.install_id.clone(),
@@ -655,7 +655,7 @@ pub async fn push_meeting<R: Runtime>(
         client_version: Some(env!("CARGO_PKG_VERSION").to_string()),
         return_summary: true,
         skip_attio: config.skip_attio,
-        user_notes: user_notes.clone(),
+        user_notes,
     };
 
     let url = format!("{}/desktop/meetings", config.server_url.trim_end_matches('/'));
@@ -699,16 +699,9 @@ pub async fn push_meeting<R: Runtime>(
     if let Err(e) = MeetingsRepository::mark_meeting_pushed(pool, &meeting_id).await {
         warn!("Pushed meeting {} but failed to record pushed_at: {}", meeting_id, e);
     }
-    let sent_notes = MeetingNotesRepository::get(pool, &meeting_id)
-        .await
-        .ok()
-        .flatten()
-        .and_then(|notes| notes.notes_markdown);
-    // Only when the push carried exactly what's stored (blank counts as sent).
-    if sent_notes.as_deref().filter(|m| !m.trim().is_empty()) == user_notes.as_deref() {
-        if let Err(e) = MeetingNotesRepository::mark_synced(pool, &meeting_id, sent_notes.as_deref()).await {
-            warn!("Pushed meeting {} but failed to mark its notes synced: {}", meeting_id, e);
-        }
+    // No-op if the notes changed during the push; they then sync as an edit.
+    if let Err(e) = MeetingNotesRepository::mark_synced(pool, &meeting_id, stored_notes.as_deref()).await {
+        warn!("Pushed meeting {} but failed to mark its notes synced: {}", meeting_id, e);
     }
 
     Ok(parsed)
@@ -719,14 +712,19 @@ pub async fn push_meeting<R: Runtime>(
 // /desktop/meetings/{install_id}/{local_recording_id}/user-notes.
 // ---------------------------------------------------------------------------
 
+// One notes PUT at a time, each reading the latest row once it holds the
+// lock, so an older body can never reach the server after a newer one.
+static NOTES_SYNC_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Sends a pushed meeting's current notes. A 404 (meeting deleted remotely,
-/// or a server without the route) marks them synced so the background loop
-/// stops retrying; the next local edit tries again.
+/// or a server without the route) or a 422 (rejected body) marks them synced
+/// so the background loop stops retrying; the next local edit tries again.
 pub(crate) async fn sync_meeting_notes<R: Runtime>(
     app: &AppHandle<R>,
     pool: &SqlitePool,
     meeting_id: &str,
 ) -> Result<(), String> {
+    let _guard = NOTES_SYNC_LOCK.lock().await;
     let config = load_push_config(app);
     if config.server_url.trim().is_empty() {
         return Err("Push destination is not configured.".to_string());
@@ -760,8 +758,8 @@ pub(crate) async fn sync_meeting_notes<R: Runtime>(
         .await
         .map_err(|e| format!("Failed to reach {}: {}", url, e))?;
     let status = response.status();
-    if status == reqwest::StatusCode::NOT_FOUND {
-        warn!("Server has no meeting for {}; dropping its pending notes sync", meeting_id);
+    if status == reqwest::StatusCode::NOT_FOUND || status == reqwest::StatusCode::UNPROCESSABLE_ENTITY {
+        warn!("Server refused notes for {} ({}); dropping its pending sync", meeting_id, status);
     } else if !status.is_success() {
         let body = response.text().await.unwrap_or_default();
         return Err(format!("Notes sync failed ({}): {}", status, body));

@@ -50,6 +50,11 @@ fn write_draft(folder: &Path, notes: &LiveNotes) -> Result<(), String> {
         .map_err(|e| format!("Failed to save notes draft: {}", e))
 }
 
+/// A new recording must never fall back to a previous recording's folder.
+pub fn forget_last_folder() {
+    *LAST_FOLDER.lock().unwrap() = None;
+}
+
 #[tauri::command]
 pub async fn get_live_notes() -> Result<Option<LiveNotes>, String> {
     Ok(draft_folder().await.and_then(|folder| read_draft(&folder)))
@@ -60,6 +65,7 @@ pub async fn save_live_notes(
     notes_markdown: Option<String>,
     notes_json: Option<String>,
 ) -> Result<(), String> {
+    super::check_notes_length(notes_markdown.as_deref())?;
     let folder = draft_folder()
         .await
         .ok_or_else(|| "No recording folder, so notes can't be saved.".to_string())?;

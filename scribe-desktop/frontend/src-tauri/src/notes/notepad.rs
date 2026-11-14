@@ -19,6 +19,8 @@ const NOTEPAD_SPEC: OverlaySpec = OverlaySpec {
 };
 
 static OPEN: AtomicBool = AtomicBool::new(false);
+// Hidden panels live on, so once created the notepad can still hold unsaved edits.
+static CREATED: AtomicBool = AtomicBool::new(false);
 
 fn set_open<R: Runtime>(app: &AppHandle<R>, open: bool) {
     if OPEN.swap(open, Ordering::SeqCst) != open {
@@ -29,6 +31,7 @@ fn set_open<R: Runtime>(app: &AppHandle<R>, open: bool) {
 
 pub fn open<R: Runtime>(app: &AppHandle<R>) {
     show_overlay(app, &NOTEPAD_SPEC);
+    CREATED.store(true, Ordering::SeqCst);
     set_open(app, true);
 }
 
@@ -56,4 +59,10 @@ pub async fn close_notepad<R: Runtime>(app: AppHandle<R>) -> Result<(), String> 
 #[tauri::command]
 pub fn is_notepad_open() -> bool {
     OPEN.load(Ordering::SeqCst)
+}
+
+/// Whether a notepad window exists to ask for a final save.
+#[tauri::command]
+pub fn notepad_exists() -> bool {
+    CREATED.load(Ordering::SeqCst)
 }

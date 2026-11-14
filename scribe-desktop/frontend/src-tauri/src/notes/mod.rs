@@ -20,6 +20,19 @@ use crate::state::AppState;
 // Typing saves every ~500ms; batch those into one server call per window.
 const SYNC_DELAY: std::time::Duration = std::time::Duration::from_secs(3);
 
+/// Same cap as the server's `USER_NOTES_MAX_CHARS`; longer notes would fail the push.
+pub const USER_NOTES_MAX_CHARS: usize = 50_000;
+
+/// Error text the frontend matches to show "too long" instead of a generic failure.
+pub const NOTES_TOO_LONG: &str = "NOTES_TOO_LONG";
+
+pub(crate) fn check_notes_length(markdown: Option<&str>) -> Result<(), String> {
+    match markdown {
+        Some(text) if text.chars().count() > USER_NOTES_MAX_CHARS => Err(NOTES_TOO_LONG.to_string()),
+        _ => Ok(()),
+    }
+}
+
 static SCHEDULED_SYNCS: Lazy<Mutex<HashSet<String>>> = Lazy::new(|| Mutex::new(HashSet::new()));
 
 #[derive(Debug, Clone, Serialize)]
@@ -47,6 +60,7 @@ pub async fn save_meeting_notes<R: Runtime>(
     notes_markdown: Option<String>,
     notes_json: Option<String>,
 ) -> Result<(), String> {
+    check_notes_length(notes_markdown.as_deref())?;
     MeetingNotesRepository::upsert(
         state.db_manager.pool(),
         &meeting_id,
@@ -87,4 +101,20 @@ fn schedule_sync<R: Runtime>(app: &AppHandle<R>, meeting_id: String) {
         };
         let _ = app.emit("meeting-notes-sync", NotesSyncEvent { meeting_id, synced });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notes_length_is_capped_in_characters() {
+        let at_limit = "é".repeat(USER_NOTES_MAX_CHARS);
+        assert!(check_notes_length(Some(&at_limit)).is_ok());
+        assert_eq!(
+            check_notes_length(Some(&format!("{at_limit}x"))),
+            Err(NOTES_TOO_LONG.to_string())
+        );
+        assert!(check_notes_length(None).is_ok());
+    }
 }

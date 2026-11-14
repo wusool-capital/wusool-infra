@@ -18,7 +18,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.meetings.domain.corrections import CorrectionCategory
 from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyncStatus
@@ -27,6 +27,18 @@ from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
 
 # Generous for typed notes; bounds prompt size and row size.
 USER_NOTES_MAX_CHARS = 50_000
+
+
+def _blank_notes_to_none(value: str | None) -> str | None:
+    stripped = value.strip() if value is not None else ""
+    return stripped or None
+
+
+# Normalised here so both the push and later edits store the same shape.
+_UserNotes = Annotated[
+    Annotated[str, Field(max_length=USER_NOTES_MAX_CHARS)] | None,
+    AfterValidator(_blank_notes_to_none),
+]
 
 
 class DesktopTranscriptTurn(BaseModel):
@@ -69,13 +81,13 @@ class DesktopMeetingSubmitRequest(BaseModel):
     return_summary: bool = True
     # Dev-only switch from the desktop settings: process normally but file no Attio note.
     skip_attio: bool = False
-    user_notes: str | None = Field(default=None, max_length=USER_NOTES_MAX_CHARS)
+    user_notes: _UserNotes = None
 
 
 class DesktopMeetingUserNotesRequest(BaseModel):
     """Replaces a pushed meeting's notes; `None` or "" clears them."""
 
-    user_notes: str | None = Field(default=None, max_length=USER_NOTES_MAX_CHARS)
+    user_notes: _UserNotes = None
 
 
 class DesktopMeetingSubmitResponse(BaseModel):
