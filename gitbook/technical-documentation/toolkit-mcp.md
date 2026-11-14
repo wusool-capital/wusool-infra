@@ -22,7 +22,7 @@ No tool deletes, sends, spends provider credits or shows fees. Tool and field na
 - The tools call `ddl_commands`' public functions: `add_one`, `edit_one`, `find_records`, `preview_buyers`, `preview_sellers`, `commit` and `status`. Writes go to Attio first, then the database, as in [Profile commands](toolkit-profile-commands.md) and [Bulk upload](toolkit-bulk-upload.md).
 - A single add follows the bulk-upload row rules: `org_name`, `domain`, `target_vertical` for buyers, and optional `fields` keyed like the template columns. Each tool description lists the keys and allowed values, built from the same field definitions as the Slack forms.
 - Every add, edit and confirm carries a `request_id`. A retry with the same id returns the first result and never writes twice.
-- One wrapper handles every call: the signed-in person, the permission the tool declares, the `request_id`, a per-person hourly limit (`MCP_CALLS_PER_HOUR`), one log line per call (tool, Slack user, duration, result, never record contents) and plain-language errors. A crash returns a generic error, never a stack trace.
+- One wrapper handles every call. It finds the signed-in person, checks the permission the tool declares, replays a repeated `request_id`, and applies a per-person hourly limit (`MCP_CALLS_PER_HOUR`). It writes one log line per call (tool, Slack user, duration, result, never record contents) and turns errors into plain sentences. A crash returns a generic error, never a stack trace.
 - Every write leaves a `command_runs` row and an activity with source `mcp`, attributed to the person's Slack user.
 
 ## Sign-in

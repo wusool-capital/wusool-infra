@@ -23,7 +23,7 @@ The Wusool connector lets you find, add and edit buyers and sellers from a Claud
 | Add a list of buyers or sellers | Claude checks the list first and shows how many are new and how many already exist. Nothing is saved until you say go |
 | Show how an import is going | Shows how many rows were added, skipped and failed |
 
-For example: "Add Acme Capital (acme.com) as a Fintech buyer with mandate status Active", or "Here are 140 sellers from my research: add the new ones".
+For example: "Add Acme Capital (acme.com) as a Fintech buyer with mandate status Active". Or: "Here are 140 sellers from my research: add the new ones".
 
 ## Adding a list
 
