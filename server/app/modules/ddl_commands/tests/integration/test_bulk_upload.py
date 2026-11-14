@@ -70,6 +70,18 @@ def buyer_rows(hosts: list[str]) -> list[bulk.UploadRow]:
     ]
 
 
+async def _buyers(rows: list[bulk.UploadRow]) -> bulk.PreviewResult:
+    result = await bulk.preview_buyers(rows)
+    assert isinstance(result, bulk.PreviewResult), result
+    return result
+
+
+async def _sellers(rows: list[bulk.UploadRow]) -> bulk.PreviewResult:
+    result = await bulk.preview_sellers(rows)
+    assert isinstance(result, bulk.PreviewResult), result
+    return result
+
+
 async def _count_roles(
     maker: async_sessionmaker[AsyncSession], table: str, hosts: list[str]
 ) -> int:
@@ -110,22 +122,24 @@ async def test_buyer_preview_commit_and_rerun(
 ) -> None:
     rows = buyer_rows(hosts)
     # Two companies already in the CRM, added by an earlier upload.
-    seeded = await bulk.preview_buyers(rows[:2])
+    seeded = await _buyers(rows[:2])
     await _commit(seeded.preview_id, person)
     assert await _count_roles(db_sessionmaker, "buyer_roles", hosts) == 2
 
-    preview = await bulk.preview_buyers(rows)
+    preview = await _buyers(rows)
 
-    assert (preview.new, preview.existing, preview.invalid) == (4, 2, 0)
+    assert (preview.new, preview.existing) == (4, 2)
     assert preview.existing_rows == (1, 2)
     assert await _count_roles(db_sessionmaker, "buyer_roles", hosts) == 2  # preview wrote nothing
 
     first = await _commit(preview.preview_id, person)
     assert (first.state, first.added, first.failed) == ("done", 4, ())
+    assert len(first.skipped) == 2  # the two already in the CRM at preview
     assert await _count_roles(db_sessionmaker, "buyer_roles", hosts) == 6
 
     second = await _commit(preview.preview_id, person)
-    assert (second.added, len(second.skipped), second.failed) == (0, 4, ())
+    # The two existing at preview, plus the four just added.
+    assert (second.added, len(second.skipped), second.failed) == (0, 6, ())
     assert await _count_roles(db_sessionmaker, "buyer_roles", hosts) == 6
 
     runs = await _runs(db_sessionmaker, person)
@@ -138,13 +152,13 @@ async def test_buyer_preview_commit_and_rerun(
 async def test_existing_company_gets_a_second_vertical_and_keeps_its_org_row(
     db_sessionmaker: async_sessionmaker[AsyncSession], hosts: list[str], person: str
 ) -> None:
-    first = await bulk.preview_buyers(buyer_rows(hosts[:1]))
+    first = await _buyers(buyer_rows(hosts[:1]))
     await _commit(first.preview_id, person)
     other: list[bulk.UploadRow] = [
         {"org_name": "Renamed", "domain": hosts[0], "target_vertical": OTHER_VERTICAL}
     ]
 
-    preview = await bulk.preview_buyers(other)
+    preview = await _buyers(other)
     progress = await _commit(preview.preview_id, person)
 
     assert (preview.new, preview.existing) == (1, 0)
@@ -170,15 +184,16 @@ async def test_seller_preview_commit_and_rerun(
     rows: list[bulk.UploadRow] = [
         {"org_name": f"Seller {i}", "domain": h} for i, h in enumerate(hosts[:3])
     ]
-    seeded = await bulk.preview_sellers(rows[:1])
+    seeded = await _sellers(rows[:1])
     await _commit(seeded.preview_id, person)
 
-    preview = await bulk.preview_sellers(rows)
+    preview = await _sellers(rows)
     first = await _commit(preview.preview_id, person)
     second = await _commit(preview.preview_id, person)
 
     assert (preview.new, preview.existing) == (2, 1)
-    assert (first.added, second.added, len(second.skipped)) == (2, 0, 2)
+    assert (first.added, len(first.skipped)) == (2, 1)
+    assert (second.added, len(second.skipped)) == (0, 3)
     assert await _count_roles(db_sessionmaker, "seller_roles", hosts[:3]) == 3
     assert {(r.command, r.invoked_via, r.source) for r in await _runs(db_sessionmaker, person)} == {
         ("add_seller", "mcp", "mcp")

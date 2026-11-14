@@ -36,7 +36,7 @@ from app.modules.ddl_commands.api.dependencies import (
     resolve_organization,
 )
 from app.modules.ddl_commands.api.organizations import OrganizationUpdate
-from app.modules.ddl_commands.api.schemas import PrefillValue
+from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue
 from app.modules.ddl_commands.api.seller_write import write_seller_add
 from app.modules.ddl_commands.api.sellers import SellerUpdate
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import normalize_prefill
@@ -79,19 +79,20 @@ class RowProblem(BaseModel):
 
 
 class PreviewResult(BaseModel):
+    """Every row is valid. `existing` rows are already in the CRM and will be skipped."""
+
     model_config = ConfigDict(frozen=True)
 
     preview_id: uuid.UUID
     new: int
     existing: int
-    invalid: int
     existing_rows: tuple[int, ...]
-    problems: tuple[RowProblem, ...]
 
 
 class RejectedUpload(BaseModel):
-    """A strict preview found invalid rows: nothing was stored, so there is no
-    preview id and nothing to commit."""
+    """At least one row is invalid. The whole upload is refused: nothing was
+    stored, so there is no preview id and nothing to commit. Fix the rows named
+    in `problems` and send the list again."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -112,26 +113,24 @@ class _Checked:
     invalid: int
 
 
-async def preview_buyers(rows: Sequence[UploadRow]) -> PreviewResult:
-    return await _finish("buyer", _validate("buyer", rows, None), "mcp")
-
-
-async def preview_sellers(rows: Sequence[UploadRow]) -> PreviewResult:
-    return await _finish("seller", _validate("seller", rows, None), "mcp")
-
-
-async def preview_buyers_strict(
-    rows: Sequence[UploadRow], *, row_numbers: Sequence[int], invoked_via: InvokedVia
+async def preview_buyers(
+    rows: Sequence[UploadRow],
+    *,
+    row_numbers: Sequence[int] | None = None,
+    invoked_via: InvokedVia = "mcp",
 ) -> PreviewResult | RejectedUpload:
-    """All or nothing, for a file a person uploaded: any invalid row rejects the
-    whole upload. `row_numbers` are the spreadsheet lines to report."""
-    return await _strict("buyer", rows, row_numbers, invoked_via)
+    """All or nothing: any invalid row rejects the whole list. `row_numbers` are the
+    spreadsheet lines to report, for an uploaded file; otherwise rows count from 1."""
+    return await _preview("buyer", rows, row_numbers, invoked_via)
 
 
-async def preview_sellers_strict(
-    rows: Sequence[UploadRow], *, row_numbers: Sequence[int], invoked_via: InvokedVia
+async def preview_sellers(
+    rows: Sequence[UploadRow],
+    *,
+    row_numbers: Sequence[int] | None = None,
+    invoked_via: InvokedVia = "mcp",
 ) -> PreviewResult | RejectedUpload:
-    return await _strict("seller", rows, row_numbers, invoked_via)
+    return await _preview("seller", rows, row_numbers, invoked_via)
 
 
 def find_row_problems(
@@ -162,7 +161,7 @@ def commit(
     current = status(preview_id)
     if current.state == "running":
         return current
-    started = CommitProgress(state="running", total=len(preview.rows))
+    started = preview.progress("running")
     _store.set_progress(preview_id, started)
     get_shared_task_runner().run(
         lambda: run_commit(preview, requested_by, on_done), name=f"bulk-upload-{preview_id}"
@@ -173,7 +172,7 @@ def commit(
 async def run_commit(
     preview: StoredPreview, requested_by: str | None, on_done: OnDone | None = None
 ) -> None:
-    progress = CommitProgress(state="running", total=len(preview.rows))
+    progress = preview.progress("running")
     try:
         for row in preview.rows:
             outcome = await _commit_row(preview.kind, row, requested_by, preview.invoked_via)
@@ -224,8 +223,18 @@ def _validate(
     return _Checked(tuple(valid), tuple(problems), invalid)
 
 
-async def _finish(kind: UploadKind, checked: _Checked, invoked_via: InvokedVia) -> PreviewResult:
-    """Splits the valid rows into new and already in the CRM, and stores the new ones."""
+async def _preview(
+    kind: UploadKind,
+    rows: Sequence[UploadRow],
+    row_numbers: Sequence[int] | None,
+    invoked_via: InvokedVia,
+) -> PreviewResult | RejectedUpload:
+    checked = _validate(kind, rows, row_numbers)
+    if checked.invalid:
+        # Before any database lookup: the whole upload is already refused.
+        return RejectedUpload(invalid=checked.invalid, problems=checked.problems)
+
+    # Splits the valid rows into new and already in the CRM, and stores the new ones.
     planned: list[PlannedRow] = []
     existing_rows: list[int] = []
     for row in checked.valid:
@@ -236,30 +245,19 @@ async def _finish(kind: UploadKind, checked: _Checked, invoked_via: InvokedVia) 
             planned.append(row)
 
     preview = StoredPreview(
-        id=uuid.uuid4(), kind=kind, rows=tuple(planned), invoked_via=invoked_via
+        id=uuid.uuid4(),
+        kind=kind,
+        rows=tuple(planned),
+        invoked_via=invoked_via,
+        existing_rows=tuple(existing_rows),
     )
     _store.save(preview)
     return PreviewResult(
         preview_id=preview.id,
         new=len(planned),
         existing=len(existing_rows),
-        invalid=checked.invalid,
         existing_rows=tuple(existing_rows),
-        problems=checked.problems,
     )
-
-
-async def _strict(
-    kind: UploadKind,
-    rows: Sequence[UploadRow],
-    row_numbers: Sequence[int],
-    invoked_via: InvokedVia,
-) -> PreviewResult | RejectedUpload:
-    checked = _validate(kind, rows, row_numbers)
-    if checked.invalid:
-        # Before any database lookup: the upload is already rejected.
-        return RejectedUpload(invalid=checked.invalid, problems=checked.problems)
-    return await _finish(kind, checked, invoked_via)
 
 
 def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[str]:
@@ -283,7 +281,7 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[st
     normalized = normalize_prefill(given, fields, warn_on_drop=False)
     # A silently dropped value, or a trimmed list, would be lost data, so say so.
     problems.extend(
-        f"value not allowed for '{k}'"
+        _not_allowed(k, fields[k])
         for k, v in given.items()
         if k not in normalized or (isinstance(v, list) and normalized[k] != v)
     )
@@ -318,6 +316,11 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[st
         org_extracted=org_extracted,
         role_extracted=role_extracted,
     )
+
+
+def _not_allowed(key: str, spec: FieldSpec) -> str:
+    """Names the allowed values, so the sender can fix the row and send it again."""
+    return f"value not allowed for '{key}'. Allowed: {'; '.join(spec.options)}"
 
 
 def _host(value: PrefillValue | None) -> str | None:

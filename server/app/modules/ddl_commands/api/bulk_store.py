@@ -46,6 +46,15 @@ class StoredPreview(BaseModel):
     kind: UploadKind
     rows: tuple[PlannedRow, ...]
     invoked_via: InvokedVia = "mcp"
+    # Rows already in the CRM when the upload was checked: never stored, but counted as skipped.
+    existing_rows: tuple[int, ...] = ()
+
+    def progress(self, state: "CommitState") -> "CommitProgress":
+        skipped = tuple(
+            RowOutcome(row=n, kind="skipped", reason="already in the CRM")
+            for n in self.existing_rows
+        )
+        return CommitProgress(state=state, total=len(self.rows), skipped=skipped)
 
 
 class RowOutcome(BaseModel):
@@ -106,7 +115,7 @@ class InMemoryPreviewStore:
         self._evict()
         self._entries[preview.id] = _Entry(
             preview=preview,
-            progress=CommitProgress(state="ready", total=len(preview.rows)),
+            progress=preview.progress("ready"),
             expires_at=self._clock() + self._ttl,
         )
         while len(self._entries) > _MAX_STORED:

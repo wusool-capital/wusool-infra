@@ -159,6 +159,24 @@ def buyer_row(n: int, **extra: str) -> bulk.UploadRow:
     return {"org_name": f"Co {n}", "domain": f"co{n}.com", "target_vertical": VERTICAL, **extra}
 
 
+def accepted(result: bulk.PreviewResult | bulk.RejectedUpload) -> bulk.PreviewResult:
+    assert isinstance(result, bulk.PreviewResult), result
+    return result
+
+
+def rejected(result: bulk.PreviewResult | bulk.RejectedUpload) -> bulk.RejectedUpload:
+    assert isinstance(result, bulk.RejectedUpload), result
+    return result
+
+
+async def buyers_ok(rows: list[bulk.UploadRow]) -> bulk.PreviewResult:
+    return accepted(await bulk.preview_buyers(rows))
+
+
+async def sellers_ok(rows: list[bulk.UploadRow]) -> bulk.PreviewResult:
+    return accepted(await bulk.preview_sellers(rows))
+
+
 async def commit_and_wait(preview_id: uuid.UUID, requested_by: str | None = "U1") -> CommitProgress:
     preview = bulk._store.get(preview_id)
     assert preview is not None
@@ -166,22 +184,32 @@ async def commit_and_wait(preview_id: uuid.UUID, requested_by: str | None = "U1"
     return bulk.status(preview_id)
 
 
-async def test_preview_flags_existing_and_invalid_and_writes_nothing(crm: FakeCrm) -> None:
-    for n in range(1, 19):
-        crm.orgs[f"co{n}.com"] = {VERTICAL}
+async def test_one_invalid_row_rejects_the_whole_list_and_nothing_is_stored(crm: FakeCrm) -> None:
     rows = [buyer_row(n) for n in range(1, 138)]
     rows += [{"org_name": f"No domain {n}", "target_vertical": VERTICAL} for n in range(3)]
 
-    result = await bulk.preview_buyers(rows)
+    result = rejected(await bulk.preview_buyers(rows))
 
-    assert (result.new, result.existing, result.invalid) == (119, 18, 3)
-    assert result.existing_rows == tuple(range(1, 19))
+    assert result.invalid == 3
     assert {p.row for p in result.problems} == {138, 139, 140}
+    assert crm.lookups == 0  # refused before any database work
     assert crm.calls == []
 
 
+async def test_preview_counts_the_new_rows_and_flags_the_existing_ones(crm: FakeCrm) -> None:
+    for n in range(1, 19):
+        crm.orgs[f"co{n}.com"] = {VERTICAL}
+    rows = [buyer_row(n) for n in range(1, 138)]
+
+    result = await buyers_ok(rows)
+
+    assert (result.new, result.existing) == (119, 18)
+    assert result.existing_rows == tuple(range(1, 19))
+    assert crm.calls == []  # a preview writes nothing
+
+
 async def test_commit_adds_new_rows_and_a_rerun_adds_nothing(crm: FakeCrm) -> None:
-    result = await bulk.preview_buyers([buyer_row(n) for n in range(1, 6)])
+    result = await buyers_ok([buyer_row(n) for n in range(1, 6)])
 
     first = await commit_and_wait(result.preview_id)
     second = await commit_and_wait(result.preview_id)
@@ -192,7 +220,7 @@ async def test_commit_adds_new_rows_and_a_rerun_adds_nothing(crm: FakeCrm) -> No
 
 
 async def test_commit_passes_mcp_and_the_signed_in_person(crm: FakeCrm) -> None:
-    result = await bulk.preview_buyers([buyer_row(1)])
+    result = await buyers_ok([buyer_row(1)])
 
     await commit_and_wait(result.preview_id, requested_by="person-1")
 
@@ -203,7 +231,7 @@ async def test_commit_passes_mcp_and_the_signed_in_person(crm: FakeCrm) -> None:
 
 
 async def test_row_added_after_preview_is_skipped_not_duplicated(crm: FakeCrm) -> None:
-    result = await bulk.preview_buyers([buyer_row(1), buyer_row(2)])
+    result = await buyers_ok([buyer_row(1), buyer_row(2)])
     crm.orgs["co1.com"] = {VERTICAL}  # added by someone else meanwhile
 
     progress = await commit_and_wait(result.preview_id)
@@ -215,7 +243,7 @@ async def test_row_added_after_preview_is_skipped_not_duplicated(crm: FakeCrm) -
 
 async def test_a_failed_row_is_reported_and_the_batch_continues(crm: FakeCrm) -> None:
     crm.fail_hosts = {"co2.com"}
-    result = await bulk.preview_buyers([buyer_row(1), buyer_row(2), buyer_row(3)])
+    result = await buyers_ok([buyer_row(1), buyer_row(2), buyer_row(3)])
 
     progress = await commit_and_wait(result.preview_id)
 
@@ -230,7 +258,7 @@ async def test_existing_org_with_a_new_vertical_gets_a_role_and_no_org_changes(
     crm: FakeCrm,
 ) -> None:
     crm.orgs["co1.com"] = {OTHER_VERTICAL}
-    result = await bulk.preview_buyers([buyer_row(1, hq_country="Overwritten")])
+    result = await buyers_ok([buyer_row(1, hq_country="Overwritten")])
 
     assert (result.new, result.existing) == (1, 0)
     await commit_and_wait(result.preview_id)
@@ -248,7 +276,7 @@ async def test_seller_with_an_active_role_is_existing_whatever_the_sector(crm: F
         {"org_name": "Co 2", "domain": "co2.com"},
     ]
 
-    result = await bulk.preview_sellers(rows)
+    result = await sellers_ok(rows)
     progress = await commit_and_wait(result.preview_id)
 
     assert (result.new, result.existing) == (1, 1)
@@ -266,30 +294,39 @@ async def test_row_problems_are_specific_and_never_echo_values() -> None:
         {"org_name": "F", "domain": "instagram.com/f", "target_vertical": VERTICAL},
     ]
 
-    result = await bulk.preview_buyers(rows)
+    result = rejected(await bulk.preview_buyers(rows))
 
     by_row = {p.row: p.message for p in result.problems}
     assert by_row[1] == "org_name is required"
     assert by_row[2] == "unknown field 'nonsense'"
-    assert by_row[3] == "value not allowed for 'model'"
+    assert by_row[3].startswith("value not allowed for 'model'. Allowed: ")
+    assert "Model 1 (Network)" in by_row[3]  # enough to fix the row and send it again
     assert by_row[4] == "unknown field 'domains'"
     assert by_row[5] == "target_vertical is required"
     assert by_row[6].startswith("domain is required")  # a shared platform names no company
-    assert (result.new, result.invalid) == (0, 6)
+    assert result.invalid == 6
 
 
-async def test_domain_is_normalised_and_in_batch_duplicates_are_flagged() -> None:
+async def test_a_duplicate_in_the_list_rejects_it() -> None:
     rows: list[bulk.UploadRow] = [
-        {"org_name": "A", "domain": "https://www.Acme.com/about", "target_vertical": VERTICAL},
+        {"org_name": "A", "domain": "acme.com", "target_vertical": VERTICAL},
         {"org_name": "A again", "domain": "acme.com", "target_vertical": VERTICAL},
         {"org_name": "A other vertical", "domain": "acme.com", "target_vertical": OTHER_VERTICAL},
     ]
 
-    result = await bulk.preview_buyers(rows)
+    result = rejected(await bulk.preview_buyers(rows))
 
-    assert (result.new, result.invalid) == (2, 1)
-    assert result.problems[0].row == 2
-    assert result.problems[0].message == "duplicate of row 1"
+    assert [(p.row, p.message) for p in result.problems] == [(2, "duplicate of row 1")]
+
+
+async def test_a_domain_is_normalised_to_its_bare_host() -> None:
+    rows: list[bulk.UploadRow] = [
+        {"org_name": "A", "domain": "https://www.Acme.com/about", "target_vertical": VERTICAL},
+        {"org_name": "B", "domain": "acme.com", "target_vertical": OTHER_VERTICAL},
+    ]
+
+    result = await buyers_ok(rows)
+
     stored = bulk._store.get(result.preview_id)
     assert stored is not None
     assert {r.domain for r in stored.rows} == {"acme.com"}
@@ -306,7 +343,7 @@ async def test_commit_runs_in_the_background_and_is_not_started_twice(
 ) -> None:
     runner = FakeRunner()
     monkeypatch.setattr(bulk, "get_shared_task_runner", lambda: runner)
-    result = await bulk.preview_buyers([buyer_row(1)])
+    result = await buyers_ok([buyer_row(1)])
 
     first = bulk.commit(result.preview_id, requested_by="U1")
     second = bulk.commit(result.preview_id, requested_by="U1")
@@ -327,7 +364,7 @@ async def test_a_cancelled_commit_is_marked_interrupted_so_it_can_resume(
 ) -> None:
     import asyncio
 
-    result = await bulk.preview_buyers([buyer_row(1), buyer_row(2)])
+    result = await buyers_ok([buyer_row(1), buyer_row(2)])
     preview = bulk._store.get(result.preview_id)
     assert preview is not None
     original = bulk._commit_row
@@ -392,9 +429,8 @@ async def test_strict_preview_rejects_the_whole_file_and_looks_nothing_up(crm: F
         buyer_row(3),
     ]
 
-    result = await bulk.preview_buyers_strict(rows, row_numbers=[2, 3, 4], invoked_via="slack")
+    result = rejected(await bulk.preview_buyers(rows, row_numbers=[2, 3, 4], invoked_via="slack"))
 
-    assert isinstance(result, bulk.RejectedUpload)
     assert result.invalid == 1
     assert [(p.row, p.message) for p in result.problems] == [(3, "target_vertical is required")]
     assert crm.lookups == 0  # rejected before any database work
@@ -410,11 +446,10 @@ async def test_strict_preview_reports_every_bad_row_by_its_spreadsheet_line() ->
         {"org_name": "Bad model", "domain": "m.com", "target_vertical": VERTICAL, "model": "x"},
     ]
 
-    result = await bulk.preview_buyers_strict(
-        rows, row_numbers=[2, 3, 4, 5, 6], invoked_via="slack"
+    result = rejected(
+        await bulk.preview_buyers(rows, row_numbers=[2, 3, 4, 5, 6], invoked_via="slack")
     )
 
-    assert isinstance(result, bulk.RejectedUpload)
     assert {p.row for p in result.problems} == {3, 5, 6}
     assert next(p.message for p in result.problems if p.row == 5) == "duplicate of row 4"
     assert result.invalid == 3
@@ -425,11 +460,12 @@ async def test_strict_preview_of_a_clean_file_skips_existing_and_records_slack(
 ) -> None:
     crm.orgs["co1.com"] = {VERTICAL}
 
-    result = await bulk.preview_buyers_strict(
-        [buyer_row(1), buyer_row(2)], row_numbers=[2, 3], invoked_via="slack"
+    result = accepted(
+        await bulk.preview_buyers(
+            [buyer_row(1), buyer_row(2)], row_numbers=[2, 3], invoked_via="slack"
+        )
     )
 
-    assert isinstance(result, bulk.PreviewResult)
     assert (result.new, result.existing, result.existing_rows) == (1, 1, (2,))
     progress = await commit_and_wait(result.preview_id)
     assert progress.added == 1
@@ -438,7 +474,7 @@ async def test_strict_preview_of_a_clean_file_skips_existing_and_records_slack(
 
 async def test_row_numbers_must_have_one_number_per_row() -> None:
     with pytest.raises(bulk.InvalidUploadError):
-        await bulk.preview_buyers_strict([buyer_row(1)], row_numbers=[2, 3], invoked_via="slack")
+        await bulk.preview_buyers([buyer_row(1)], row_numbers=[2, 3], invoked_via="slack")
 
 
 async def test_commit_hands_the_final_progress_to_the_done_callback(
@@ -446,7 +482,7 @@ async def test_commit_hands_the_final_progress_to_the_done_callback(
 ) -> None:
     runner = FakeRunner()
     monkeypatch.setattr(bulk, "get_shared_task_runner", lambda: runner)
-    result = await bulk.preview_buyers([buyer_row(1), buyer_row(2)])
+    result = await buyers_ok([buyer_row(1), buyer_row(2)])
     reported: list[CommitProgress] = []
 
     async def on_done(progress: CommitProgress) -> None:
@@ -463,7 +499,7 @@ async def test_a_failing_done_callback_does_not_fail_the_commit(
 ) -> None:
     runner = FakeRunner()
     monkeypatch.setattr(bulk, "get_shared_task_runner", lambda: runner)
-    result = await bulk.preview_buyers([buyer_row(1)])
+    result = await buyers_ok([buyer_row(1)])
 
     async def on_done(progress: CommitProgress) -> None:
         raise RuntimeError("slack is down")
@@ -485,7 +521,7 @@ async def test_a_sellers_status_goes_to_the_role_and_the_org_status_to_the_org(
         "org_relationship_status": ORG_STATUS,
     }
 
-    result = await bulk.preview_sellers([row])
+    result = await sellers_ok([row])
     await commit_and_wait(result.preview_id)
 
     assert crm.calls[0].role_extracted == {"relationship_status": SELLER_STATUS}
@@ -495,7 +531,7 @@ async def test_a_sellers_status_goes_to_the_role_and_the_org_status_to_the_org(
 async def test_a_sellers_status_alone_is_not_copied_to_the_organization(crm: FakeCrm) -> None:
     row: bulk.UploadRow = {"org_name": "S", "domain": "s.com", "relationship_status": SELLER_STATUS}
 
-    result = await bulk.preview_sellers([row])
+    result = await sellers_ok([row])
     await commit_and_wait(result.preview_id)
 
     assert crm.calls[0].role_extracted == {"relationship_status": SELLER_STATUS}
@@ -505,19 +541,21 @@ async def test_a_sellers_status_alone_is_not_copied_to_the_organization(crm: Fak
 async def test_an_org_only_status_in_the_role_key_is_refused() -> None:
     row: bulk.UploadRow = {"org_name": "S", "domain": "s.com", "relationship_status": ORG_STATUS}
 
-    result = await bulk.preview_sellers([row])
+    result = rejected(await bulk.preview_sellers([row]))
 
-    assert result.problems[0].message == "value not allowed for 'relationship_status'"
+    message = result.problems[0].message
+    assert message.startswith("value not allowed for 'relationship_status'. Allowed: ")
+    assert SELLER_STATUS in message
 
 
 async def test_a_list_with_some_unknown_options_is_refused_not_trimmed() -> None:
     row = buyer_row(1)
     row["sector_focus"] = [SECTORS[0], "Not a sector"]
 
-    result = await bulk.preview_buyers([row])
+    result = rejected(await bulk.preview_buyers([row]))
 
-    assert (result.new, result.invalid) == (0, 1)
-    assert result.problems[0].message == "value not allowed for 'sector_focus'"
+    assert result.invalid == 1
+    assert result.problems[0].message.startswith("value not allowed for 'sector_focus'. Allowed: ")
 
 
 async def test_an_organization_validation_error_names_the_organization_column(
@@ -533,7 +571,36 @@ async def test_an_organization_validation_error_names_the_organization_column(
         "org_relationship_status": ORG_STATUS,
     }
 
-    result = await bulk.preview_sellers([row])
+    result = rejected(await bulk.preview_sellers([row]))
 
     # Not `relationship_status`, which is the seller role's own column.
     assert result.problems[0].message == "invalid 'org_relationship_status' (string_too_long)"
+
+
+async def test_rows_already_in_the_crm_count_as_skipped_before_and_after_the_commit(
+    crm: FakeCrm,
+) -> None:
+    for n in (1, 2):
+        crm.orgs[f"co{n}.com"] = {VERTICAL}
+
+    result = await buyers_ok([buyer_row(n) for n in range(1, 6)])
+
+    assert (result.new, result.existing) == (3, 2)
+    before = bulk.status(result.preview_id)
+    assert before.state == "ready"
+    assert [o.row for o in before.skipped] == [1, 2]  # visible before anything is added
+    after = await commit_and_wait(result.preview_id)
+    assert (after.added, len(after.skipped), len(after.failed)) == (3, 2, 0)
+    assert all(o.reason == "already in the CRM" for o in after.skipped)
+
+
+async def test_a_rerun_skips_the_earlier_existing_rows_and_the_ones_just_added(
+    crm: FakeCrm,
+) -> None:
+    crm.orgs["co1.com"] = {VERTICAL}
+    result = await buyers_ok([buyer_row(n) for n in range(1, 4)])
+    await commit_and_wait(result.preview_id)
+
+    again = await commit_and_wait(result.preview_id)
+
+    assert (again.added, len(again.skipped)) == (0, 3)  # 1 existing at preview, 2 added since

@@ -39,8 +39,8 @@ from app.modules.ddl_commands.api.bulk_upload import (
     RejectedUpload,
     commit,
     find_row_problems,
-    preview_buyers_strict,
-    preview_sellers_strict,
+    preview_buyers,
+    preview_sellers,
     status,
 )
 from app.modules.ddl_commands.api.slack.views.bulk_upload_form import (
@@ -208,7 +208,7 @@ async def _check_rows(
         problems = combine_problems(kind, parsed.problems, row_problems)
         return await _rejected_view(client, metadata, problems)
 
-    preview = preview_buyers_strict if kind == "buyer" else preview_sellers_strict
+    preview = preview_buyers if kind == "buyer" else preview_sellers
     result = await preview(parsed.rows, row_numbers=parsed.lines, invoked_via="slack")
     if isinstance(result, RejectedUpload):
         return await _rejected_view(client, metadata, combine_problems(kind, (), result.problems))

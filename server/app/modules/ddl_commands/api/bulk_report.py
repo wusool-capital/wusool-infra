@@ -22,7 +22,7 @@ _MAX_LIST_CHARS = 2400
 
 _REQUIRED = re.compile(r"^(\w+) is required")
 _INVALID = re.compile(r"^invalid '([^']+)' \((\w+)\)$")
-_NOT_ALLOWED = re.compile(r"^value not allowed for '([^']+)'$")
+_NOT_ALLOWED = re.compile(r"^value not allowed for '([^']+)'")
 _DUPLICATE = re.compile(r"^duplicate of row (\d+)$")
 
 
