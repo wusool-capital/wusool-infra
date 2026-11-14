@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
-import type { Block, PartialBlock } from '@blocknote/core';
+import { BlockNoteSchema, defaultBlockSpecs, type PartialBlock } from '@blocknote/core';
 import { en } from '@blocknote/core/locales';
 import { useCreateBlockNote } from '@blocknote/react';
 import { BlockNoteView } from '@blocknote/shadcn';
@@ -22,11 +22,34 @@ export interface NotesEditorProps {
   className?: string;
 }
 
-function parseBlocks(json: string | null | undefined): PartialBlock[] | undefined {
+// Notes are text: they reach the server and Attio as markdown, and the app's
+// CSP blocks remote media, so file/image/video/audio blocks are left out.
+const { file: _file, image: _image, video: _video, audio: _audio, ...textBlockSpecs } = defaultBlockSpecs;
+const notesSchema = BlockNoteSchema.create({ blockSpecs: textBlockSpecs });
+type NotesBlock = typeof notesSchema.Block;
+type NotesPartialBlock = PartialBlock<typeof notesSchema.blockSchema>;
+
+const TEXT_BLOCK_TYPES = new Set(Object.keys(textBlockSpecs));
+
+interface StoredBlock {
+  type?: string;
+  children?: StoredBlock[];
+}
+
+/** Drops media blocks saved before they were removed, so old notes still open. */
+function keepTextBlocks(blocks: StoredBlock[]): StoredBlock[] {
+  return blocks
+    .filter((block) => !block.type || TEXT_BLOCK_TYPES.has(block.type))
+    .map((block) => (block.children ? { ...block, children: keepTextBlocks(block.children) } : block));
+}
+
+function parseBlocks(json: string | null | undefined): NotesPartialBlock[] | undefined {
   if (!json) return undefined;
   try {
-    const blocks = JSON.parse(json);
-    return Array.isArray(blocks) && blocks.length > 0 ? blocks : undefined;
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return undefined;
+    const blocks = keepTextBlocks(parsed as StoredBlock[]);
+    return blocks.length > 0 ? (blocks as NotesPartialBlock[]) : undefined;
   } catch {
     return undefined;
   }
@@ -59,6 +82,7 @@ export default function NotesEditor({
   const dark = useDarkClass();
   const initialBlocks = useMemo(() => parseBlocks(initial?.notes_json), [initial]);
   const editor = useCreateBlockNote({
+    schema: notesSchema,
     initialContent: initialBlocks,
     // WebKit's caret can't animate, so an animated resize leaves it lagging behind the text.
     animations: false,
@@ -72,7 +96,7 @@ export default function NotesEditor({
 
   const autosave = useMemo(
     () =>
-      createAutosave<Block[]>(
+      createAutosave<NotesBlock[]>(
         async (blocks) => {
           const { markdown } = await blocksToMarkdownSafely(editor, blocks, { source: 'notes' });
           await onSaveRef.current({
