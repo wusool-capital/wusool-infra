@@ -186,3 +186,53 @@ async def test_a_dotted_name_with_no_domain_match_falls_back_to_the_name(
 
     resolve.assert_awaited_once_with("Booking.com")
     assert [r.org_name for r in found] == ["Acme"]
+
+
+def test_stored_values_come_back_in_the_shape_edit_accepts() -> None:
+    from datetime import date
+    from decimal import Decimal
+
+    assert flat_records._plain({"amount": 5000000, "currency": "USD"}) == 5000000.0
+    assert flat_records._plain({"currency": "USD"}) is None
+    assert flat_records._plain(date(2026, 1, 31)) == "2026-01-31"
+    assert flat_records._plain(Decimal("12.5")) == 12.5
+    assert flat_records._plain(["UAE"]) == ["UAE"]
+    assert flat_records._plain(True) is True
+    assert flat_records._plain(None) is None
+
+
+async def test_get_of_an_inactive_buyer_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        flat_records, "resolve_buyer_by_id", AsyncMock(return_value=_buyer(active=False))
+    )
+
+    with pytest.raises(BuyerNotFoundError):
+        await flat_records.get_record("buyer", _ROLE_ID)
+
+
+async def test_list_filters_are_checked_before_any_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = SimpleNamespace(list_buyers=AsyncMock())
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+
+    with pytest.raises(flat_records.InvalidFieldsError) as caught:
+        await flat_records.list_buyer_records(mandate_status="sleeping", target_country=["Mars"])
+
+    assert {p.field for p in caught.value.problems} == {"mandate_status", "target_country"}
+    service.list_buyers.assert_not_awaited()
+
+
+async def test_list_uses_canonical_values_and_reports_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roles = [
+        SimpleNamespace(id=uuid.uuid4(), is_active=True, organization=_org()) for _ in range(3)
+    ]
+    service = SimpleNamespace(list_buyers=AsyncMock(return_value=roles))
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+
+    found = await flat_records.list_buyer_records(mandate_status="active", limit=2)
+
+    filters, limit = service.list_buyers.await_args.args
+    assert filters.mandate_status == "Active"
+    assert limit == 3  # one extra, to know whether more match
+    assert len(found.records) == 2 and found.truncated is True

@@ -1,5 +1,5 @@
 """Slack CRM commands. Public names: the read-only Person lookup other modules
-use, and the find, add, edit and bulk-upload calls the Wusool MCP (`mcp`) makes."""
+use, and the find, get, list, add, edit and bulk-upload calls the Wusool MCP (`mcp`) makes."""
 
 from app.modules.ddl_commands.api.bulk_columns import Column, columns_for
 from app.modules.ddl_commands.api.bulk_store import (
@@ -21,12 +21,18 @@ from app.modules.ddl_commands.api.bulk_upload import (
     status,
 )
 from app.modules.ddl_commands.api.flat_records import (
+    LIST_LIMIT_MAX,
     AddOutcome,
     InvalidFieldsError,
+    RecordDetail,
+    RecordList,
     RecordRef,
     add_one,
     edit_one,
     find_records,
+    get_record,
+    list_buyer_records,
+    list_seller_records,
 )
 from app.modules.ddl_commands.api.write_errors import (
     OrgMismatchError,
@@ -41,6 +47,7 @@ from app.modules.ddl_commands.persistence.person_emails import (
 )
 
 __all__ = [
+    "LIST_LIMIT_MAX",
     "MAX_ROWS",
     "AddOutcome",
     "BuyerNotFoundError",
@@ -54,6 +61,8 @@ __all__ = [
     "PersonEmails",
     "PreviewNotFoundError",
     "PreviewResult",
+    "RecordDetail",
+    "RecordList",
     "RecordRef",
     "RejectedUpload",
     "RowOutcome",
@@ -66,7 +75,10 @@ __all__ = [
     "commit",
     "edit_one",
     "find_records",
+    "get_record",
+    "list_buyer_records",
     "list_live_person_emails",
+    "list_seller_records",
     "preview_buyers",
     "preview_sellers",
     "status",

@@ -1,6 +1,7 @@
 """Every tool through the SDK's in-memory client, with the `ddl_commands` calls faked."""
 
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -15,12 +16,14 @@ from app.modules.ddl_commands import (
     InvalidFieldsError,
     PartialWriteError,
     PreviewResult,
+    RecordDetail,
+    RecordList,
     RecordRef,
     RejectedUpload,
     RowProblem,
 )
 from app.modules.mcp.api.runner import caller_from_token
-from app.modules.mcp.api.tools import imports, records
+from app.modules.mcp.api.tools import imports, lookups, records
 from app.modules.mcp.bootstrap import build_server
 from app.modules.mcp.domain.access import Caller
 
@@ -63,6 +66,12 @@ async def test_lists_every_tool_with_its_annotations() -> None:
         "bulk_import_sellers",
         "confirm_import",
         "get_import",
+        "get_buyer",
+        "get_seller",
+        "list_buyers",
+        "list_sellers",
+        "check_buyer",
+        "list_field_options",
     }
     find = tools["find_buyers"].annotations
     assert find is not None and find.read_only_hint is True
@@ -245,3 +254,114 @@ async def test_a_reused_request_id_for_a_different_change_is_refused(
     assert reused.is_error
     assert "already used for a different change" in _text(reused)
     add.assert_awaited_once()
+
+
+async def test_get_buyer_returns_every_field(monkeypatch: pytest.MonkeyPatch) -> None:
+    detail = RecordDetail(**_REF.model_dump(), fields={"notes": "hi", "check_size_min": 5e6})
+    get = AsyncMock(return_value=detail)
+    monkeypatch.setattr(lookups, "get_record", get)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("get_buyer", {"role_id": str(_REF.role_id)})
+
+    assert result.structured_content is not None
+    assert result.structured_content["fields"] == {"notes": "hi", "check_size_min": 5e6}
+    get.assert_awaited_once_with("buyer", _REF.role_id)
+
+
+async def test_list_buyers_passes_filters_and_flags_truncation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listed = AsyncMock(return_value=RecordList(records=(_REF,), truncated=True))
+    monkeypatch.setattr(lookups, "list_buyer_records", listed)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "list_buyers",
+            {"target_vertical": "fintech", "target_country": ["UAE"], "check_size_usd": 5e6},
+        )
+
+    assert result.structured_content is not None
+    assert result.structured_content["truncated"] is True
+    assert listed.await_args is not None
+    assert listed.await_args.kwargs == {
+        "target_vertical": "fintech",
+        "mandate_status": None,
+        "model": None,
+        "target_region": (),
+        "target_country": ["UAE"],
+        "check_size_usd": 5e6,
+        "hq_country": None,
+        "limit": 20,
+    }
+
+
+async def test_a_bad_filter_value_names_the_allowed_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    problem = RowProblem(
+        row=1,
+        kind="not_allowed",
+        field="outreach_tier",
+        message="value not allowed for 'outreach_tier'. Allowed: Tier 1; Tier 2",
+    )
+    monkeypatch.setattr(
+        lookups, "list_seller_records", AsyncMock(side_effect=InvalidFieldsError([problem]))
+    )
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("list_sellers", {"outreach_tier": "gold"})
+
+    assert result.is_error
+    assert "Allowed: Tier 1; Tier 2" in _text(result)
+
+
+async def test_check_buyer_reports_gaps(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(lookups, "get_record", AsyncMock())
+    report = SimpleNamespace(
+        is_clear=False,
+        conflicts=(),
+        missing=(SimpleNamespace(criterion="ticket_band", stored="not set", stated=None),),
+    )
+    check = AsyncMock(return_value=SimpleNamespace(report=report, message="1 gap"))
+    monkeypatch.setattr(lookups, "check_buyer_by_id", check)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("check_buyer", {"role_id": str(_REF.role_id)})
+
+    assert result.structured_content is not None
+    assert result.structured_content["clear"] is False
+    assert result.structured_content["missing"] == [
+        {"criterion": "ticket_band", "stored": "not set", "stated": None}
+    ]
+    check.assert_awaited_once_with(str(_REF.role_id), None)
+
+
+async def test_check_buyer_refuses_an_unknown_buyer(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.modules.ddl_commands import BuyerNotFoundError
+
+    monkeypatch.setattr(lookups, "get_record", AsyncMock(side_effect=BuyerNotFoundError("x")))
+    check = AsyncMock()
+    monkeypatch.setattr(lookups, "check_buyer_by_id", check)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("check_buyer", {"role_id": str(_REF.role_id)})
+
+    assert result.is_error
+    assert "find_buyers" in _text(result)
+    check.assert_not_awaited()
+
+
+async def test_list_field_options_has_every_column_and_long_lists_leave_descriptions() -> None:
+    async with Client(_server()) as client:
+        result = await client.call_tool("list_field_options", {"kind": "buyer"})
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+
+    assert result.structured_content is not None
+    by_key = {f["key"]: f for f in result.structured_content["fields"]}
+    assert by_key["org_name"]["required"] is True
+    assert "Fintech" in by_key["target_vertical"]["options"]
+    description = tools["add_buyer"].description or ""
+    assert "see list_field_options" in description
+    assert "Fintech |" not in description
+    assert "one of Active | Paused" in description

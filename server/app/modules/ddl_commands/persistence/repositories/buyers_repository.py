@@ -5,16 +5,18 @@ Implements `application.ports.buyers.BuyerRepositoryPort`.
 """
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Unpack
 
-from sqlalchemy import func, literal_column, select
+from sqlalchemy import ColumnElement, Numeric, and_, case, func, literal_column, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.models import BuyerRole, Organization
-from app.modules.ddl_commands.application.ports.buyers import BuyerRoleFields
+from app.modules.ddl_commands.application.ports.buyers import BuyerFilters, BuyerRoleFields
 from app.modules.organizations import org_name_trigram_predicate
+from app.modules.utilities.domain.json_types import JsonObject
 
 
 class BuyerRepository:
@@ -117,6 +119,49 @@ class BuyerRepository:
         rank = {org_id: i for i, org_id in enumerate(org_ids)}
         return sorted(roles, key=lambda r: (rank[r.org_attio_id], r.target_vertical or ""))
 
+    async def list_filtered(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]:
+        """Active roles of live organizations, ordered by organization name then id
+        so the order is stable when an organization holds several roles."""
+        conditions: list[ColumnElement[bool]] = [
+            BuyerRole.is_active.is_(True),
+            Organization.removed_at.is_(None),
+        ]
+        if filters.target_vertical is not None:
+            conditions.append(BuyerRole.target_vertical == filters.target_vertical)
+        if filters.mandate_status is not None:
+            conditions.append(BuyerRole.mandate_status == filters.mandate_status)
+        if filters.model is not None:
+            conditions.append(BuyerRole.model == filters.model)
+        if filters.target_region:
+            conditions.append(BuyerRole.target_region.overlap(list(filters.target_region)))
+        if filters.target_country:
+            conditions.append(BuyerRole.target_country.overlap(list(filters.target_country)))
+        if filters.hq_country is not None:
+            conditions.append(Organization.hq_country == filters.hq_country)
+        if filters.check_size_usd is not None:
+            amount = filters.check_size_usd
+            conditions.append(
+                or_(
+                    _money(BuyerRole.check_size_min).is_(None),
+                    _money(BuyerRole.check_size_min) <= amount,
+                )
+            )
+            conditions.append(
+                or_(
+                    _money(BuyerRole.check_size_max).is_(None),
+                    _money(BuyerRole.check_size_max) >= amount,
+                )
+            )
+        stmt = (
+            select(BuyerRole)
+            .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
+            .where(and_(*conditions))
+            .options(selectinload(BuyerRole.organization))
+            .order_by(Organization.name, BuyerRole.id)
+            .limit(limit)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def update(
         self, buyer_role_id: str, **fields: Unpack[BuyerRoleFields]
     ) -> BuyerRole | None:
@@ -129,3 +174,13 @@ class BuyerRepository:
         role.updated_at = datetime.now(UTC)
         await self._session.flush()
         return role
+
+
+def _money(column: InstrumentedAttribute[JsonObject | None]) -> ColumnElement[Decimal | None]:
+    """The stored USD amount, or NULL when missing or not a number, so one
+    malformed row never fails the whole query."""
+    amount = column["amount"]
+    return case(
+        (func.jsonb_typeof(amount) == "number", amount.astext.cast(Numeric)),
+        else_=None,
+    )

@@ -18,6 +18,7 @@ listed in `__all__` here.
 """
 
 from app.modules.discrepancies.api.dependencies import (
+    check_buyer_by_id,
     check_buyer_discrepancies,
     configure_criteria_reader_port,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "BuyerCriteriaReaderPort",
     "DiscrepancyCheckResult",
     "DiscrepancyReport",
+    "check_buyer_by_id",
     "check_buyer_discrepancies",
     "configure_criteria_reader_port",
 ]

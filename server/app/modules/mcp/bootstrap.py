@@ -13,7 +13,7 @@ from app.modules.auth import slack_sign_in_configured
 from app.modules.mcp.api.oauth import CALLBACK_PATH, WusoolOAuthProvider
 from app.modules.mcp.api.runner import CallerSource, ToolRunner, caller_from_token
 from app.modules.mcp.api.tokens import CODE_SECONDS, TokenCodec
-from app.modules.mcp.api.tools import imports, records
+from app.modules.mcp.api.tools import imports, lookups, records
 from app.modules.mcp.config import McpSettings, get_settings
 from app.modules.mcp.domain.access import CRM_SCOPE
 from app.modules.mcp.persistence.adapters import ActiveMemberPermissions, InMemoryIdempotencyStore
@@ -65,6 +65,7 @@ def build_server(
     )
     records.register(server, runner)
     imports.register(server, runner)
+    lookups.register(server, runner)
     return server
 
 

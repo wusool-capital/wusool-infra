@@ -7,13 +7,13 @@ Implements `application.ports.sellers.SellerRepositoryPort`.
 from datetime import UTC, datetime
 from typing import Unpack
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, and_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Organization, SellerRole
-from app.modules.ddl_commands.application.ports.sellers import SellerRoleFields
+from app.modules.ddl_commands.application.ports.sellers import SellerFilters, SellerRoleFields
 from app.modules.organizations import org_name_trigram_predicate
 
 
@@ -95,6 +95,32 @@ class SellerRepository:
             .where(SellerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
             .options(selectinload(SellerRole.organization))
             .order_by(similarity.desc())
+            .limit(limit)
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def list_filtered(self, filters: SellerFilters, limit: int) -> list[SellerRole]:
+        """Active roles of live organizations, ordered by organization name then id."""
+        conditions: list[ColumnElement[bool]] = [
+            SellerRole.is_active.is_(True),
+            Organization.removed_at.is_(None),
+        ]
+        if filters.sector is not None:
+            conditions.append(Organization.sector_focus.contains([filters.sector]))
+        if filters.hq_country is not None:
+            conditions.append(Organization.hq_country == filters.hq_country)
+        if filters.region is not None:
+            conditions.append(Organization.region == filters.region)
+        if filters.relationship_status is not None:
+            conditions.append(SellerRole.relationship_status == filters.relationship_status)
+        if filters.outreach_tier is not None:
+            conditions.append(SellerRole.outreach_tier == filters.outreach_tier)
+        stmt = (
+            select(SellerRole)
+            .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
+            .where(and_(*conditions))
+            .options(selectinload(SellerRole.organization))
+            .order_by(Organization.name, SellerRole.id)
             .limit(limit)
         )
         return list((await self._session.execute(stmt)).scalars().all())
