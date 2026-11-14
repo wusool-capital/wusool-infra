@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from types import SimpleNamespace
 
 import pytest
+from pydantic import BaseModel, Field
 
 import app.modules.ddl_commands.api.bulk_upload as bulk
 from app.modules.ddl_commands.api.bulk_store import (
@@ -517,3 +518,22 @@ async def test_a_list_with_some_unknown_options_is_refused_not_trimmed() -> None
 
     assert (result.new, result.invalid) == (0, 1)
     assert result.problems[0].message == "value not allowed for 'sector_focus'"
+
+
+async def test_an_organization_validation_error_names_the_organization_column(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class StrictOrganization(BaseModel):
+        relationship_status: str | None = Field(default=None, max_length=1)
+
+    monkeypatch.setattr(bulk, "OrganizationUpdate", StrictOrganization)
+    row: bulk.UploadRow = {
+        "org_name": "S",
+        "domain": "s.com",
+        "org_relationship_status": ORG_STATUS,
+    }
+
+    result = await bulk.preview_sellers([row])
+
+    # Not `relationship_status`, which is the seller role's own column.
+    assert result.problems[0].message == "invalid 'org_relationship_status' (string_too_long)"

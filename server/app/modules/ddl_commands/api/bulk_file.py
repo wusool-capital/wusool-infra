@@ -7,6 +7,7 @@ whole; a `CellProblem` is one bad value in an otherwise good file.
 
 import csv
 import io
+import logging
 import zipfile
 from collections.abc import Generator, Iterator, Sequence
 from dataclasses import dataclass
@@ -27,7 +28,11 @@ from app.modules.ddl_commands.api.bulk_upload import UploadRow
 from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.notifications import sanitize_mrkdwn
 
+logger = logging.getLogger(__name__)
+
 MAX_FILE_BYTES = 5 * 1024 * 1024
+# The size cap above is on compressed bytes; this one stops a zip bomb.
+MAX_UNPACKED_BYTES = 50 * 1024 * 1024
 _HEADER_LINE = 1
 # Blank lines count here, so a sheet padded with them is refused, not silently cut short.
 _MAX_SCANNED_LINES = 10 * MAX_ROWS
@@ -65,6 +70,12 @@ def parse_upload(kind: UploadKind, filename: str, content: bytes) -> ParsedUploa
             raise TemplateError("the file is empty")
         columns = _match_columns(kind, header_cells)
         data = _data_lines(sheet)
+    except TemplateError:
+        raise
+    except Exception:
+        # An untrusted file can break a parser in many ways; none should reach the user as a crash.
+        logger.warning("bulk_upload_file_unreadable", exc_info=True)
+        raise TemplateError("the file could not be read") from None
     finally:
         sheet.close()
 
@@ -150,6 +161,13 @@ def _csv_rows(content: bytes) -> Generator[list[CellValue]]:
 
 def _xlsx_rows(content: bytes) -> Generator[list[CellValue]]:
     try:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            unpacked = sum(info.file_size for info in archive.infolist())
+    except zipfile.BadZipFile:
+        raise TemplateError("the file could not be read as an Excel workbook") from None
+    if unpacked > MAX_UNPACKED_BYTES:
+        raise TemplateError("the file is too large once unpacked")
+    try:
         workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, KeyError, ValueError, OSError):
         raise TemplateError("the file could not be read as an Excel workbook") from None
@@ -161,7 +179,8 @@ def _xlsx_rows(content: bytes) -> Generator[list[CellValue]]:
 
 
 def _xlsx_value(value: CellValue, number_format: str | None) -> CellValue:
-    # Excel stores 35% as 0.35; the add forms take 35.
-    if isinstance(value, float) and number_format and "%" in number_format:
+    # Excel stores 35% as 0.35, and 100% as the int 1; the add forms take 35.
+    is_number = isinstance(value, int | float) and not isinstance(value, bool)
+    if is_number and number_format and "%" in number_format:
         return round(value * 100, 10)
     return value

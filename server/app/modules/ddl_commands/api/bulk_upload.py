@@ -293,14 +293,21 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[st
     role_extracted: UploadRow = {
         routes[k].name: v for k, v in normalized.items() if routes[k].target == "role"
     }
-    try:
-        OrganizationUpdate.model_validate(org_extracted)
-        (BuyerUpdate if kind == "buyer" else SellerUpdate).model_validate(role_extracted)
-    except ValidationError as exc:
-        # Location and type only: the message can quote the row's values.
-        problems.extend(
-            f"invalid '{'.'.join(str(p) for p in e['loc'])}' ({e['type']})" for e in exc.errors()
-        )
+    role_model = BuyerUpdate if kind == "buyer" else SellerUpdate
+    for target, model, extracted in (
+        ("org", OrganizationUpdate, org_extracted),
+        ("role", role_model, role_extracted),
+    ):
+        try:
+            model.model_validate(extracted)
+        except ValidationError as exc:
+            # Location and type only, as messages can quote values. Keys are the row's own.
+            keys = {(r.target, r.name): r.key for r in routes.values()}
+            problems.extend(
+                f"invalid '{keys.get((target, str(e['loc'][0])), '.'.join(map(str, e['loc'])))}'"
+                f" ({e['type']})"
+                for e in exc.errors()
+            )
 
     if problems or not isinstance(org_name, str) or host is None:
         return problems

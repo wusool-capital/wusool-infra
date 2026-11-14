@@ -7,6 +7,7 @@ Everything after `ack()` runs detached from the HTTP response, so the file is
 downloaded and checked while a "checking" view shows, and the result replaces it.
 """
 
+import asyncio
 import logging
 
 import aiohttp
@@ -40,6 +41,7 @@ from app.modules.ddl_commands.api.bulk_upload import (
     find_row_problems,
     preview_buyers_strict,
     preview_sellers_strict,
+    status,
 )
 from app.modules.ddl_commands.api.slack.views.bulk_upload_form import (
     CONFIRM_CALLBACK_ID,
@@ -146,22 +148,40 @@ def register(app: AsyncApp) -> None:
         requested_by = body["user"]["id"]
 
         async def say(text: str) -> None:
-            await client.chat_postEphemeral(
-                channel=metadata.channel_id, user=requested_by, text=text
-            )
+            await _tell(client, metadata.channel_id, requested_by, text)
 
         async def on_done(progress: CommitProgress) -> None:
             await say(finished_text(progress))
 
+        expired = "*This upload expired.* Upload the file again."
         try:
-            progress = commit(metadata.preview_id, requested_by=requested_by, on_done=on_done)
+            total = status(metadata.preview_id).total
         except PreviewNotFoundError:
-            await say("*This upload expired.* Upload the file again.")
+            await say(expired)
             return
+        # Before `commit`: a small file can finish before this message is sent.
         await say(
-            f"Adding {progress.total} {metadata.kind}{'s' if progress.total != 1 else ''}… "
+            f"Adding {total} {metadata.kind}{'s' if total != 1 else ''}… "
             "I'll post the result here when it finishes."
         )
+        try:
+            commit(metadata.preview_id, requested_by=requested_by, on_done=on_done)
+        except PreviewNotFoundError:
+            await say(expired)
+
+
+async def _tell(client: AsyncWebClient, channel_id: str, user_id: str, text: str) -> None:
+    """Best effort. An ephemeral post fails where the bot isn't a member, so fall
+    back to a direct message; a failed notice must never undo the work."""
+    try:
+        await client.chat_postEphemeral(channel=channel_id, user=user_id, text=text)
+        return
+    except SlackApiError:
+        logger.warning("bulk_upload_ephemeral_failed", exc_info=True)
+    try:
+        await client.chat_postMessage(channel=user_id, text=text)
+    except SlackApiError:
+        logger.warning("bulk_upload_direct_message_failed", exc_info=True)
 
 
 async def _check_file(client: AsyncWebClient, metadata: BulkUploadMetadata, file_id: str) -> View:
@@ -169,7 +189,8 @@ async def _check_file(client: AsyncWebClient, metadata: BulkUploadMetadata, file
     kind, title = metadata.kind, modal_title(metadata.kind)
     try:
         name, content = await _fetch_file(client, file_id)
-        parsed = parse_upload(kind, name, content)
+        # Off the event loop: parsing a large workbook would stall every Slack command.
+        parsed = await asyncio.to_thread(parse_upload, kind, name, content)
     except _DownloadError as exc:
         return build_notice_modal(title, f"*Couldn't read the file from Slack.* {exc}")
     except TemplateError as exc:

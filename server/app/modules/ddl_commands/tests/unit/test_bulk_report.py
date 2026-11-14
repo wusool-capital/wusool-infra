@@ -152,3 +152,25 @@ def test_hidden_problems_mean_the_full_list_must_be_attached() -> None:
     assert not has_hidden_problems(few_short)
     assert has_hidden_problems(many_short)  # over twenty
     assert has_hidden_problems(few_long)  # under twenty, but too long to fit
+
+
+def test_an_organization_field_that_shares_a_name_is_reported_under_its_own_label() -> None:
+    problems = [
+        RowProblem(row=3, message="invalid 'org_relationship_status' (string_too_long)"),
+        RowProblem(row=4, message="invalid 'relationship_status' (string_too_long)"),
+    ]
+
+    lines = combine_problems("seller", [], problems)
+
+    assert [(p.line, p.column) for p in lines] == [
+        (3, "Relationship status"),
+        (4, "Seller relationship status"),
+    ]
+
+
+def test_a_value_that_is_not_allowed_uses_the_column_label() -> None:
+    lines = combine_problems(
+        "buyer", [], [RowProblem(row=2, message="value not allowed for 'model'")]
+    )
+
+    assert lines[0].text == "Line 2, Model: is not an allowed value"

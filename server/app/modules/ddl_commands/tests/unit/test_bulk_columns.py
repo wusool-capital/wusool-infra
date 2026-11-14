@@ -199,3 +199,9 @@ def test_a_bad_cell_is_refused_with_a_plain_message(
         coerce_cell(spec("buyer", field), raw)
 
     assert str(raised.value) == message
+
+
+@pytest.mark.parametrize("raw", [";", " ; ", ";;"])
+def test_a_multi_select_cell_of_only_separators_is_an_empty_cell(raw: str) -> None:
+    assert coerce_cell(spec("buyer", "sector_focus"), raw) is None
+    assert coerce_cell(spec("buyer", "hq_country"), raw) is None

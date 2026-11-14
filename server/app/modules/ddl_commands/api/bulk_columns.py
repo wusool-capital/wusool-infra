@@ -117,9 +117,10 @@ def coerce_cell(spec: FieldSpec, raw: CellValue) -> PrefillValue | None:
         case "select":
             return _option(spec, _text(raw))
         case "multi_select_text":
-            return _options(spec, _items(raw))
+            items = _items(raw)
+            return _options(spec, items) if items else None  # a lone ";" is an empty cell
         case "multi_select_as_text":
-            return ", ".join(_items(raw))
+            return ", ".join(items) if (items := _items(raw)) else None
         case "currency":
             return _number(raw, "an amount")
         case "percent":

@@ -3,6 +3,7 @@ request. No database and no Slack network: the file download, the organization
 lookups and the Slack Web API calls are faked.
 """
 
+import asyncio
 import csv
 import io
 import uuid
@@ -414,6 +415,19 @@ def test_an_unexpected_error_is_reported_and_nothing_is_added(
     assert "boom" not in text
 
 
+def _stored_preview(rows: int = 2) -> uuid.UUID:
+    """A real preview in the store, so the confirm step finds it."""
+    result = asyncio.run(
+        bulk_upload_module.preview_buyers(
+            [
+                {"org_name": f"Co {n}", "domain": f"co{n}.com", "target_vertical": VERTICAL}
+                for n in range(rows)
+            ]
+        )
+    )
+    return result.preview_id
+
+
 def test_confirming_starts_the_add_for_the_person_who_clicked(
     monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
 ) -> None:
@@ -424,7 +438,7 @@ def test_confirming_starts_the_add_for_the_person_who_clicked(
         return CommitProgress(state="running", total=2)
 
     monkeypatch.setattr(bulk_handler, "commit", fake_commit)
-    preview_id = uuid.uuid4()
+    preview_id = _stored_preview(2)
 
     _post_interactivity(_confirm_payload(preview_id, submitter="U_TEST"))
 
@@ -435,8 +449,24 @@ def test_confirming_starts_the_add_for_the_person_who_clicked(
     assert slack.posted[0]["text"].startswith("Adding 2 buyers…")
 
 
-@pytest.mark.asyncio
-async def test_the_done_callback_posts_the_result_to_the_person(
+def test_the_adding_notice_is_sent_before_the_work_starts(
+    monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
+) -> None:
+    seen_when_started: list[int] = []
+
+    def fake_commit(preview_id, *, requested_by, on_done):  # noqa: ANN001, ANN202
+        seen_when_started.append(len(slack.posted))
+        return CommitProgress(state="running", total=1)
+
+    monkeypatch.setattr(bulk_handler, "commit", fake_commit)
+
+    _post_interactivity(_confirm_payload(_stored_preview(1)))
+
+    # A small file can finish at once, so "Adding" must already be out.
+    assert seen_when_started == [1]
+
+
+def test_the_done_callback_posts_the_result_to_the_person(
     monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
 ) -> None:
     captured: list = []
@@ -446,16 +476,18 @@ async def test_the_done_callback_posts_the_result_to_the_person(
         return CommitProgress(state="running", total=1)
 
     monkeypatch.setattr(bulk_handler, "commit", fake_commit)
-    _post_interactivity(_confirm_payload(uuid.uuid4()))
+    _post_interactivity(_confirm_payload(_stored_preview(1)))
 
-    await captured[0](
-        CommitProgress(
-            state="done",
-            total=3,
-            added=2,
-            failed=(
-                RowOutcome(row=4, kind="failed", reason="RuntimeError; already saved: nothing"),
-            ),
+    asyncio.run(
+        captured[0](
+            CommitProgress(
+                state="done",
+                total=3,
+                added=2,
+                failed=(
+                    RowOutcome(row=4, kind="failed", reason="RuntimeError; already saved: nothing"),
+                ),
+            )
         )
     )
 
@@ -463,7 +495,20 @@ async def test_the_done_callback_posts_the_result_to_the_person(
     assert "Line 4: RuntimeError" in slack.posted[-1]["text"]
 
 
-def test_confirming_an_expired_upload_says_so(
+def test_confirming_an_expired_upload_says_so_and_starts_nothing(
+    monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
+) -> None:
+    def never(preview_id, *, requested_by, on_done):  # noqa: ANN001, ANN202
+        raise AssertionError("nothing should start for an expired upload")
+
+    monkeypatch.setattr(bulk_handler, "commit", never)
+
+    _post_interactivity(_confirm_payload(uuid.uuid4()))
+
+    assert [p["text"] for p in slack.posted] == ["*This upload expired.* Upload the file again."]
+
+
+def test_an_upload_that_expires_just_before_it_starts_says_so(
     monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
 ) -> None:
     def expired(preview_id, *, requested_by, on_done):  # noqa: ANN001, ANN202
@@ -471,6 +516,54 @@ def test_confirming_an_expired_upload_says_so(
 
     monkeypatch.setattr(bulk_handler, "commit", expired)
 
-    _post_interactivity(_confirm_payload(uuid.uuid4()))
+    _post_interactivity(_confirm_payload(_stored_preview(1)))
 
-    assert slack.posted[0]["text"] == "*This upload expired.* Upload the file again."
+    assert slack.posted[-1]["text"] == "*This upload expired.* Upload the file again."
+
+
+def test_a_notice_falls_back_to_a_direct_message_when_the_channel_post_fails(
+    monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
+) -> None:
+    direct: list[dict] = []
+
+    async def not_in_channel(self, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        raise SlackApiError("not_in_channel", {"ok": False, "error": "not_in_channel"})
+
+    async def post_message(self, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        direct.append(kwargs)
+        return {"ok": True}
+
+    base = "slack_sdk.web.async_client.AsyncWebClient"
+    monkeypatch.setattr(f"{base}.chat_postEphemeral", not_in_channel)
+    monkeypatch.setattr(f"{base}.chat_postMessage", post_message)
+    monkeypatch.setattr(
+        bulk_handler, "commit", lambda *a, **k: CommitProgress(state="running", total=1)
+    )
+
+    _post_interactivity(_confirm_payload(_stored_preview(1)))
+
+    assert direct[0]["channel"] == "U_TEST"  # the person, not the channel
+    assert direct[0]["text"].startswith("Adding 1 buyer…")
+
+
+def test_a_notice_that_cannot_be_sent_anywhere_does_not_stop_the_add(
+    monkeypatch: pytest.MonkeyPatch, slack: SimpleNamespace
+) -> None:
+    started: list[uuid.UUID] = []
+
+    async def fail(self, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        raise SlackApiError("channel_not_found", {"ok": False, "error": "channel_not_found"})
+
+    def fake_commit(preview_id, *, requested_by, on_done):  # noqa: ANN001, ANN202
+        started.append(preview_id)
+        return CommitProgress(state="running", total=1)
+
+    base = "slack_sdk.web.async_client.AsyncWebClient"
+    monkeypatch.setattr(f"{base}.chat_postEphemeral", fail)
+    monkeypatch.setattr(f"{base}.chat_postMessage", fail)
+    monkeypatch.setattr(bulk_handler, "commit", fake_commit)
+    preview_id = _stored_preview(1)
+
+    _post_interactivity(_confirm_payload(preview_id))
+
+    assert started == [preview_id]

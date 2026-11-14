@@ -22,6 +22,7 @@ _MAX_LIST_CHARS = 2400
 
 _REQUIRED = re.compile(r"^(\w+) is required")
 _INVALID = re.compile(r"^invalid '([^']+)' \((\w+)\)$")
+_NOT_ALLOWED = re.compile(r"^value not allowed for '([^']+)'$")
 _DUPLICATE = re.compile(r"^duplicate of row (\d+)$")
 
 
@@ -59,6 +60,9 @@ def _row_problem(problem: RowProblem, labels: dict[str, str]) -> ProblemLine:
     if match := _INVALID.match(message):
         label = labels.get(match.group(1), match.group(1))
         return ProblemLine(problem.row, label, f"is not valid ({match.group(2)})")
+    if match := _NOT_ALLOWED.match(message):
+        label = labels.get(match.group(1), match.group(1))
+        return ProblemLine(problem.row, label, "is not an allowed value")
     if match := _DUPLICATE.match(message):
         return ProblemLine(problem.row, "", f"same company as line {match.group(1)}")
     return ProblemLine(problem.row, "", message)

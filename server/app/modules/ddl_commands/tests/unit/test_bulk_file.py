@@ -318,3 +318,33 @@ def test_a_sheet_padded_with_blank_lines_is_refused_not_cut_short(
 
     with pytest.raises(TemplateError, match="Remove blank rows"):
         parse_upload("buyer", "list.csv", csv_bytes(BUYER_HEADER, rows))
+
+
+def test_a_whole_number_excel_percent_is_scaled_like_any_other() -> None:
+    header = [label("seller", f) for f in ("org_name", "domain", "gross_margin_pct")]
+    # Excel stores 100% as the integer 1, not the float 1.0.
+    content = xlsx_bytes([header, ["Acme", "a.com", 1]], formats={"C2": "0%"})
+
+    assert parse_upload("seller", "list.xlsx", content).rows[0]["gross_margin_pct"] == 100.0
+
+
+def test_a_plain_excel_number_in_a_percent_column_is_left_alone() -> None:
+    header = [label("seller", f) for f in ("org_name", "domain", "gross_margin_pct")]
+    content = xlsx_bytes([header, ["Acme", "a.com", 35]])
+
+    assert parse_upload("seller", "list.xlsx", content).rows[0]["gross_margin_pct"] == 35.0
+
+
+def test_a_csv_cell_over_the_parser_limit_is_a_template_error_not_a_crash() -> None:
+    content = csv_bytes(BUYER_HEADER, [["x" * 200_000, "a.com", VERTICAL]])
+
+    with pytest.raises(TemplateError, match="could not be read"):
+        parse_upload("buyer", "list.csv", content)
+
+
+def test_a_workbook_that_unpacks_too_large_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bulk_file, "MAX_UNPACKED_BYTES", 100)
+    content = xlsx_bytes([BUYER_HEADER, ["Acme", "a.com", VERTICAL]])
+
+    with pytest.raises(TemplateError, match="too large once unpacked"):
+        parse_upload("buyer", "list.xlsx", content)
