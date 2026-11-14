@@ -90,13 +90,13 @@ async def test_a_discovery_run_has_a_system_actor_and_no_requester(service) -> N
     assert service.started[0]["requested_by"] is None
 
 
-async def test_an_mcp_run_has_the_mcp_source_and_a_system_actor(service) -> None:
-    async with tracking.track_command("edit_buyer", invoked_via="mcp", requested_by=None) as run:
+async def test_an_mcp_run_has_the_mcp_source_and_the_person_as_actor(service) -> None:
+    async with tracking.track_command("edit_buyer", invoked_via="mcp", requested_by="U1") as run:
         pass
 
     assert run.context.source is ActivitySource.MCP
-    assert run.context.actor.type is ActorType.SYSTEM
-    assert run.context.actor.ref == "mcp"
+    assert run.context.actor.type is ActorType.SLACK_USER
+    assert run.context.actor.ref == "U1"
     assert service.started[0]["invoked_via"] == "mcp"
 
 

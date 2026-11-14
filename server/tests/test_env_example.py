@@ -19,6 +19,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 
 from app.modules.attio.config import AttioSettings
+from app.modules.auth.config import AuthSettings
 from app.modules.ddl_commands.config import Settings as DdlCommandsSettings
 from app.modules.discovery.config import Settings as DiscoverySettings
 from app.modules.discrepancies.config import Settings as DiscrepanciesSettings
@@ -27,6 +28,7 @@ from app.modules.google_workspace.config import GoogleWorkspaceSettings
 from app.modules.interactions.config import InteractionsSettings
 from app.modules.lead_magnets.config import Settings as LeadMagnetsSettings
 from app.modules.matching_engine.config import Settings as MatchingEngineSettings
+from app.modules.mcp.config import McpSettings
 from app.modules.meetings.config import Settings as MeetingsSettings
 from app.modules.utilities.secrets_manager import SecretLocation
 
@@ -35,7 +37,9 @@ _SETTINGS_CLASSES = (
     MatchingEngineSettings,
     DdlCommandsSettings,
     AttioSettings,
+    AuthSettings,
     MeetingsSettings,
+    McpSettings,
     EnrichmentSettings,
     DiscoverySettings,
     DiscrepanciesSettings,
@@ -61,6 +65,7 @@ _SECRETS_MANAGER_KEYS = frozenset(
         "WEB_API_KEY",
         "SLACK_CLIENT_SECRET",
         "WEB_SESSION_SECRET",
+        "MCP_TOKEN_SECRET",
         "DIFFBOT_API_KEY",
         "PEOPLE_DATA_LABS_API_KEY",
         "APIFY_API_TOKEN",

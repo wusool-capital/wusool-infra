@@ -1,5 +1,6 @@
 """Sign in with Slack (OpenID Connect) against the Toolkit's own Slack app, and
-the bot-token checks that keep a session tied to a current workspace member.
+the bot-token checks that keep a sign-in tied to a current workspace member.
+Callers pass their own `redirect_uri`, since each sign-in flow has its own callback.
 """
 
 import logging
@@ -9,7 +10,7 @@ from urllib.parse import urlencode
 from slack_sdk.errors import SlackApiError
 from slack_sdk.web.async_client import AsyncWebClient
 
-from app.modules.matching_engine.config import get_settings
+from app.modules.auth.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +28,18 @@ class SlackSignInError(Exception):
     """Slack refused the sign-in, or answered with something unusable."""
 
 
-def callback_url() -> str:
-    base = (get_settings().web_public_url or "").rstrip("/")
-    return f"{base}/api/auth/slack/callback"
+def slack_sign_in_configured() -> bool:
+    settings = get_settings()
+    return bool(settings.slack_client_id and settings.slack_client_secret)
 
 
-def authorize_url(*, state: str, team_id: str | None) -> str:
+def authorize_url(*, state: str, team_id: str | None, redirect_uri: str) -> str:
     params = {
         "response_type": "code",
         "scope": "openid profile",
         "client_id": get_settings().slack_client_id or "",
         "state": state,
-        "redirect_uri": callback_url(),
+        "redirect_uri": redirect_uri,
     }
     if team_id:
         # Skips Slack's workspace picker for people in several workspaces.
@@ -46,7 +47,7 @@ def authorize_url(*, state: str, team_id: str | None) -> str:
     return f"{_AUTHORIZE_URL}?{urlencode(params)}"
 
 
-async def identity_from_code(code: str) -> SlackIdentity:
+async def identity_from_code(code: str, *, redirect_uri: str) -> SlackIdentity:
     settings = get_settings()
     secret = settings.slack_client_secret
     try:
@@ -54,7 +55,7 @@ async def identity_from_code(code: str) -> SlackIdentity:
             client_id=settings.slack_client_id or "",
             client_secret=secret.get_secret_value() if secret else "",
             code=code,
-            redirect_uri=callback_url(),
+            redirect_uri=redirect_uri,
         )
         access_token = token.get("access_token")
         if not isinstance(access_token, str):
@@ -90,9 +91,10 @@ async def workspace_team_id() -> str:
     return _team_id_cache["team_id"]
 
 
-async def is_active_member(user_id: str) -> bool | None:
-    """False once Slack says the person was removed or deactivated; None when
-    Slack can't be asked, so an outage doesn't sign everyone out."""
+async def is_active_member(user_id: str, *, allow_guests: bool = True) -> bool | None:
+    """False once Slack says the person was removed or deactivated (or is a
+    guest, when guests aren't allowed); None when Slack can't be asked, so an
+    outage doesn't sign everyone out."""
     try:
         user = (await _bot().users_info(user=user_id)).get("user")
     except SlackApiError as exc:
@@ -110,4 +112,7 @@ async def is_active_member(user_id: str) -> bool | None:
         return None
     if not isinstance(user, dict):
         return None
-    return not user.get("deleted", False)
+    if user.get("deleted", False):
+        return False
+    # `is_restricted` covers both multi- and single-channel guests.
+    return allow_guests or not user.get("is_restricted", False)

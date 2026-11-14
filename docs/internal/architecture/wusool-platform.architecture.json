@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "7108ea28a89a5a9adf464b644591e632164a5560"
+      "revision": "6a8da07a34c41f3c90127bc7f878746b0114129e"
     },
     "viewBox": [
       1240,
@@ -58,6 +58,26 @@
         {
           "path": "server/app/modules/matching_engine/api/http/routes.py",
           "label": "Web API routes"
+        }
+      ]
+    },
+    {
+      "id": "claude",
+      "type": "external",
+      "label": "Claude (Wusool MCP)",
+      "sublabel": "find · add · edit · bulk import",
+      "pos": [
+        40,
+        50
+      ],
+      "size": [
+        220,
+        56
+      ],
+      "sources": [
+        {
+          "path": "server/app/modules/mcp/README.md",
+          "label": "MCP module"
         }
       ]
     },
@@ -455,6 +475,18 @@
       ]
     },
     {
+      "from": "claude",
+      "to": "toolkit",
+      "label": "HTTPS /mcp (OAuth, Slack sign-in)",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "top",
+      "labelAt": [
+        390,
+        62
+      ]
+    },
+    {
       "from": "website",
       "to": "toolkit",
       "label": "embed.js iframe",
@@ -513,25 +545,66 @@
       "from": "website",
       "to": "posthog",
       "label": "browser events, after consent",
-      "variant": "dashed"
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left",
+      "via": [
+        [
+          440,
+          346
+        ],
+        [
+          440,
+          628
+        ]
+      ],
+      "labelAt": [
+        300,
+        640
+      ]
     },
     {
       "from": "attio",
       "to": "toolkit",
       "label": "signed POST /webhooks/attio",
-      "variant": "security"
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelAt": [
+        560,
+        100
+      ]
     },
     {
       "from": "toolkit",
       "to": "attio",
       "label": "writes",
-      "variant": "dashed"
+      "variant": "dashed",
+      "labelDy": -12,
+      "fromSide": "top",
+      "toSide": "bottom"
     },
     {
       "from": "github",
       "to": "toolkit",
       "label": "deploy + nightly resync via SSM",
-      "variant": "emphasis"
+      "variant": "emphasis",
+      "fromSide": "bottom",
+      "toSide": "right",
+      "via": [
+        [
+          1020,
+          200
+        ],
+        [
+          800,
+          200
+        ],
+        [
+          800,
+          370
+        ]
+      ]
     },
     {
       "from": "toolkit",
@@ -608,7 +681,9 @@
       "from": "toolkit",
       "to": "google",
       "label": "mail + calendar metadata (delegated, read-only)",
-      "variant": "dashed"
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
     }
   ],
   "cards": [
@@ -616,7 +691,7 @@
       "dot": "cyan",
       "title": "One Toolkit process",
       "items": [
-        "Serves Slack, the web find-match app, Scribe, the lead tools, and Attio and Sanity webhooks",
+        "Serves Slack, the web find-match app, the Claude MCP connector, Scribe, the lead tools, and Attio and Sanity webhooks",
         "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards",
         "Optionally reads Gmail and Calendar metadata into PostgreSQL (the interactions loop, off by default)"
       ]

@@ -8,6 +8,29 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-15
+
+### Added
+
+- Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
+  sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
+- Adds and edits from Claude are saved straight away, Attio first. A bulk list is
+  saved only after the person confirms the preview. A company that already holds
+  the role comes back as the existing record.
+- MCP sign-in is OAuth 2.1 with PKCE and stateless signed tokens. Only active,
+  non-guest members of the Wusool Slack workspace get in. A refresh refuses
+  someone who has left, and every write is attributed to the person.
+- The MCP is served at `/mcp` once `MCP_PUBLIC_URL` and `MCP_TOKEN_SECRET` are
+  set. The Slack app must list `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a
+  redirect URL.
+
+### Changed
+
+- Sign in with Slack moved from `matching_engine` to a new `auth` module, shared
+  by the web app and the MCP. The web sign-in behaves as before.
+- `mcp` activities are now attributed to the person's Slack user instead of
+  `system/mcp`.
+
 ## 2026-11-14
 
 ### Changed

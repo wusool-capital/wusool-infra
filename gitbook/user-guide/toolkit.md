@@ -17,6 +17,8 @@ Its scores and research are decision support; always check the result.
 | `/edit-seller <name>` / `/edit-buyer <name>` | Edit an existing profile |
 | `/add-seller <organization>` / `/add-buyer <organization>` | Add a role |
 | `/bulk-seller` / `/bulk-buyer` | Add many roles from a CSV or Excel file |
+
+You can also find, add and edit profiles from Claude. See [Use Wusool from Claude](toolkit-claude.md).
 | `/enrich-seller <name>` / `/enrich-buyer <name>` | Propose missing values |
 | `/toolkit-status` | Checks the bot is healthy |
 | `/toolkit-help` | Command help |

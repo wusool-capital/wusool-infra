@@ -20,7 +20,7 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextlib import asynccontextmanager, suppress
+from contextlib import AsyncExitStack, asynccontextmanager, suppress
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -89,6 +89,7 @@ from app.modules.matching_engine.persistence.database import (
 from app.modules.matching_engine.providers.discrepancies.criteria_reader_adapter import (
     MatchingEngineCriteriaReaderAdapter,
 )
+from app.modules.mcp import build_mcp_app
 from app.modules.meetings.api.router import router as meetings_router
 from app.modules.meetings.persistence.database import (
     import_all_models as import_meetings_models,
@@ -210,7 +211,11 @@ async def _lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Reads Gmail and Calendar into Postgres. Returns at once unless INTERACTIONS_ENABLED is set.
     interactions_task = asyncio.create_task(run_interactions_forever())
     try:
-        yield
+        async with AsyncExitStack() as stack:
+            if _mcp is not None:
+                # Runs the SDK's transport, which every /mcp request needs.
+                await stack.enter_async_context(_mcp.server.session_manager.run())
+            yield
     finally:
         sweeper_task.cancel()
         interactions_task.cancel()
@@ -232,6 +237,11 @@ app.include_router(lead_magnets_router)
 # The web find-match app's API (`client/`); disabled until WEB_API_KEY is set.
 app.include_router(web_auth_router)
 app.include_router(find_match_web_router)
+# The Wusool MCP for Claude (`/mcp`, its OAuth endpoints and metadata); off until configured.
+# Above the catch-all static mount below, which would otherwise claim these paths.
+_mcp = build_mcp_app()
+if _mcp is not None:
+    app.router.routes.extend(_mcp.routes)
 if settings.web_allowed_origins:
     app.add_middleware(
         CORSMiddleware,
