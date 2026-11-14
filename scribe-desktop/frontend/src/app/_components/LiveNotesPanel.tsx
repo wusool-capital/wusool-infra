@@ -84,7 +84,7 @@ export function LiveNotesPanel({ locked }: LiveNotesPanelProps) {
   };
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-notes">
       <div className="flex h-14 shrink-0 items-center justify-between gap-3 px-6">
         <div className="flex items-baseline gap-3">
           <h2 className="text-sm font-semibold text-foreground">Notes</h2>

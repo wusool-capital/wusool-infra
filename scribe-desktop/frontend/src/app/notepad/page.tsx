@@ -80,7 +80,7 @@ export default function NotepadPage() {
   const paused = recording?.is_paused ?? false;
 
   return (
-    <main className="flex h-screen w-screen flex-col overflow-hidden rounded-xl border border-border bg-card text-foreground">
+    <main className="flex h-screen w-screen flex-col overflow-hidden rounded-xl border border-border bg-notes text-foreground">
       <header data-tauri-drag-region className="flex h-11 shrink-0 cursor-grab items-center gap-2 border-b border-border px-3">
         <span
           aria-hidden

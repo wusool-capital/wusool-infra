@@ -195,7 +195,7 @@ export default function PageContent({
                 onUnnamedSpeakersChange={setUnnamedSpeakers}
               />
             }
-            right={<MeetingNotesEditor meetingId={meeting.id} isPushed={false} className="bg-card" />}
+            right={<MeetingNotesEditor meetingId={meeting.id} isPushed={false} className="bg-notes" />}
           />
         )}
       </div>
