@@ -15,7 +15,7 @@ Use `/bulk-buyer` or `/bulk-seller` when you have a list of buyers or sellers in
 3. Fill in one row per company.
 4. Choose your file in the form and click **Check file**.
 5. If the file is valid, the bot shows how many profiles it will add. Click **Add** to confirm.
-6. The bot posts the result in the channel when it finishes.
+6. The bot posts the result in the channel when it finishes. It shows how many profiles were added, how many were skipped, and how many failed.
 
 ## What each row needs
 

@@ -38,11 +38,11 @@ A bad value in a good file is a row problem. Each one reads like `Line 7, Target
 
 Rows go through the same writes as `/add-buyer` and `/add-seller`: Attio first, then the database.
 
-- A row whose domain matches an organization that already has the role is skipped and never changes the record.
+- A row whose domain matches an organization that already has the role is skipped and never changes the record. The final result counts these as skipped.
 - Each row is checked again just before it is added, so a rerun adds only the rows still missing.
 - Added rows get a `command_runs` and activity record with the source `slack` or `mcp`.
 
-The all-or-nothing rule applies to Slack uploads only. Claude's uploads report invalid rows and add the valid ones.
+The all-or-nothing rule applies to Claude's uploads too. A rejected list returns the exact problem on each bad row, so Claude can fix it and send it again.
 
 ## Templates
 

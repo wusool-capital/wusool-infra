@@ -16,11 +16,12 @@ for current production evidence and open handover items.
   (`write_buyer_add`), so MCP v1 can call it without Slack (AZM-167).
   `/add-buyer` behaves as before.
 - Bulk upload of buyers and sellers (AZM-167). `preview_buyers` and
-  `preview_sellers` check a list of up to 1,000 rows and flag the ones already
-  in the CRM. They write nothing. `commit` then adds the new rows in the
-  background, and `status` reports progress. Rows already in the CRM are
-  skipped, and a rerun adds nothing twice. The MCP tools that call these come
-  with AZM-168.
+  `preview_sellers` check a list of up to 1,000 rows and write nothing. If any
+  row is invalid, the whole list is rejected. Each bad row gets its exact
+  problem, so Claude can fix it and send it again. Otherwise `commit` adds the
+  new rows in the background, and `status` reports added, skipped and failed.
+  Rows already in the CRM are counted as skipped, and a rerun adds nothing twice.
+  The MCP tools that call these come with AZM-168.
 - `/bulk-buyer` and `/bulk-seller` add many profiles from a CSV or Excel file
   uploaded in Slack (AZM-167). The bot checks the whole file first. If any row
   is invalid, nothing is added and every problem is listed by line and column.
