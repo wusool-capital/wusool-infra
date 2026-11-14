@@ -4,3 +4,6 @@
 *.sh text eol=lf
 *.tpl text eol=lf
 *.md text eol=lf
+
+# Bulk upload templates: Terraform uploads these byte for byte, so keep LF on every OS.
+server/app/modules/ddl_commands/bulk_templates/*.csv text eol=lf

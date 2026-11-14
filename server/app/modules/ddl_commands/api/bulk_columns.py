@@ -99,9 +99,10 @@ def template_filename(kind: UploadKind) -> str:
 
 
 def template_csv(kind: UploadKind) -> bytes:
-    """The header row only. `utf-8-sig` so Excel reads Arabic text correctly."""
+    """The header row only. `utf-8-sig` so Excel reads Arabic text correctly, and LF
+    line endings so the file is the same bytes on every OS."""
     buffer = io.StringIO()
-    csv.writer(buffer, lineterminator="\r\n").writerow([c.label for c in columns_for(kind)])
+    csv.writer(buffer, lineterminator="\n").writerow([c.label for c in columns_for(kind)])
     return buffer.getvalue().encode("utf-8-sig")
 
 
