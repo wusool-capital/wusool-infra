@@ -50,6 +50,8 @@ ddl_commands/
 `__init__.py` exports one read-only lookup for other modules: `list_live_person_emails`,
 which returns a `PersonEmails` (id, emails, organization) for each live Person. `interactions`
 uses it to match mail to People. This module writes the `person` mirror, so the read lives here.
+It also exports the find, add, edit and bulk-upload calls the `mcp` module makes
+(see "One record from a flat field map" below); `mcp` imports nothing deeper.
 
 Organization persistence (search, CRUD) lives in the `app.modules.organizations`
 peer module, shared with `matching_engine`. Attio's vendor client, webhook
@@ -128,6 +130,20 @@ raises `BuyerNotFoundError`, `OrgRemovedError`, `OrgMismatchError` or
 `PartialWriteError` with what already landed. Both headless edits run
 `write_errors.check_role_organization` before any Attio write, refusing a
 removed org or one the role does not belong to. The `/find-match` edit gate stays in the Slack handler.
+
+### One record from a flat field map (MCP v1)
+
+`api/flat_records.py` is what the Wusool MCP (`mcp` module) calls, through this
+module's `__all__`. `add_one(kind, row)` takes one bulk-upload row and follows
+the same rules: checked by `parse_row`, matched on the domain, and written with
+`write_buyer_add` / `write_seller_add` under the bulk write lock. A company that
+already holds the role returns the existing record (`status="existing"`) and
+writes nothing. `edit_one(kind, role_id, fields)` routes the flat keys to
+organization and role fields with `route_fields` and calls `write_buyer_edit` /
+`write_seller_edit`; `target_vertical` can't be edited, as in Slack.
+`find_records(kind, term)` matches an exact domain, or else a similar company
+name. Bad fields raise `InvalidFieldsError` with structured problems, and nothing
+is written. Both edits take `invoked_via` (`slack` by default, `mcp` here).
 
 ### Headless seller add (discovery)
 
@@ -256,7 +272,7 @@ A successful write also records a `seller|buyer.added|edited` activity in the
 same transaction as the Postgres write, linked to the `command_runs` row and
 attributed to the Slack user (`system/discovery` for discovery).
 `command_runs.invoked_via` is `slack`, `discovery` or `mcp`; an `mcp` run is
-attributed to `system/mcp` with activity source `mcp`. The payload
+attributed to the signed-in person's Slack user with activity source `mcp`. The payload
 holds changed field names, never values.
 
 The Attio webhook sync records `crm.record_created|updated|deleted` activities
