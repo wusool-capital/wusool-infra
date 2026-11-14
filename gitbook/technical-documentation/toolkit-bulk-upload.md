@@ -25,7 +25,7 @@ Cell rules follow the Slack forms:
 
 - Lists, such as Sector focus, are separated by `;`.
 - Money is a plain USD number. Dates are `YYYY-MM-DD`. Booleans are Yes or No.
-- A value outside a select field's options is a problem, so nothing is dropped silently.
+- A value outside a select field's options is a problem, so nothing is dropped silently. Dropdown values match ignoring case.
 - An empty cell means the field is not set.
 
 ## Two kinds of failure
