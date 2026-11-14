@@ -54,6 +54,7 @@ class PublishMixin(ServiceBase):
                     meeting.transcript or "",
                     companies=companies,
                     meeting_date=meeting.occurred_at.date().isoformat(),
+                    user_notes=meeting.user_notes,
                 )
         except Exception as exc:
             logger.warning(

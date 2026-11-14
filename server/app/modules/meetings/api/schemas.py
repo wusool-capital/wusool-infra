@@ -25,6 +25,9 @@ from app.modules.meetings.domain.meeting_record import MeetingRecord, MeetingSyn
 from app.modules.meetings.domain.organization_ref import OrganizationRef
 from app.modules.meetings.domain.summary import MeetingSummary, SummaryNote
 
+# Generous for typed notes; bounds prompt size and row size.
+USER_NOTES_MAX_CHARS = 50_000
+
 
 class DesktopTranscriptTurn(BaseModel):
     speaker: str
@@ -66,6 +69,13 @@ class DesktopMeetingSubmitRequest(BaseModel):
     return_summary: bool = True
     # Dev-only switch from the desktop settings: process normally but file no Attio note.
     skip_attio: bool = False
+    user_notes: str | None = Field(default=None, max_length=USER_NOTES_MAX_CHARS)
+
+
+class DesktopMeetingUserNotesRequest(BaseModel):
+    """Replaces a pushed meeting's notes; `None` or "" clears them."""
+
+    user_notes: str | None = Field(default=None, max_length=USER_NOTES_MAX_CHARS)
 
 
 class DesktopMeetingSubmitResponse(BaseModel):

@@ -54,6 +54,7 @@ def to_meeting_record(meeting: Meeting) -> MeetingRecord:
         summary_started_at=meeting.summary_started_at,
         note_id=meeting.note_id,
         removed_at=meeting.removed_at,
+        user_notes=meeting.user_notes,
     )
 
 

@@ -79,6 +79,7 @@ class SummarizationService:
         *,
         companies: Mapping[MeetingRole, str] | None,
         meeting_date: str | None,
+        user_notes: str | None = None,
     ) -> MeetingSummary:
         """Summarize *transcript_text*.
 
@@ -90,6 +91,10 @@ class SummarizationService:
         dates, and (only when an external counterparty role is present)
         judge deal_momentum. Neither is ever treated as part of the
         transcript.
+
+        *user_notes* steer emphasis in the single-pass and merge prompts
+        only; chunks stay fragment-local. A too-short transcript still
+        skips the LLM, notes or not.
         """
         transcript_words = len(transcript_text.split())
         if transcript_words < _MIN_TRANSCRIPT_WORDS:
@@ -105,7 +110,11 @@ class SummarizationService:
             single = chunks[0] if chunks else ""
             summary = await self._call_llm(
                 build_single_pass_summary_prompt(
-                    single, budget=budget, companies=companies, meeting_date=meeting_date
+                    single,
+                    budget=budget,
+                    companies=companies,
+                    meeting_date=meeting_date,
+                    user_notes=user_notes,
                 ),
                 check_limits=True,
             )
@@ -137,6 +146,7 @@ class SummarizationService:
                 budget=budget,
                 companies=companies,
                 meeting_date=meeting_date,
+                user_notes=user_notes,
             ),
             check_limits=True,
         )
