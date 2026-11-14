@@ -73,3 +73,4 @@ class ActivitySource(StrEnum):
     MEETINGS = "meetings"
     LEAD_MAGNET = "lead_magnet"
     ENRICHMENT = "enrichment"
+    MCP = "mcp"

@@ -58,7 +58,7 @@ are not verified, see [Volume and quality](#volume-and-quality).
 | CRM record created, updated, deleted (Attio webhook) | `ddl_commands/persistence/attio_sync.py` | Yes, generic, create/update only | `attio_raw_events` | `crm.record_created`, `crm.record_updated`, `crm.record_deleted` |
 | Deal stage change | `sync_deal`, `matching_engine/application/approvals.py` | No | `deal_stage_events` | `deal.stage_changed` |
 | Slack `/add-seller`, `/add-buyer` | `ddl_commands/api/slack/handlers/actions.py`, `api/seller_write.py` | Echo only, no actor | `command_runs` | `seller.added`, `buyer.added` |
-| Slack `/edit-seller`, `/edit-buyer` | same | Echo only, no actor | `command_runs` | `seller.edited`, `buyer.edited` |
+| Slack `/edit-seller`, `/edit-buyer` | `ddl_commands/api/seller_edit.py`, `api/buyer_edit.py` | Echo only, no actor | `command_runs` | `seller.edited`, `buyer.edited` |
 | Discovery auto-create seller | `discovery/providers/discovery/seller_writer_adapter.py` | Echo only | `command_runs` | `seller.added` |
 | Match run | `matching_engine/application/matching/use_cases.py` | No | `match_results` | `match.run_completed` |
 | Match approve, reject | `matching_engine/application/approvals.py` | No | `match_results` | `match.approved`, `match.rejected` |

@@ -1,7 +1,7 @@
 """Selection-modal, field-picker, edit-form, and add-form submissions for
 sellers and buyers. Every write goes to SOURCE Attio *first*, then Postgres, in
 the same submission — if the Attio write fails, nothing is written to
-Postgres at all (see `write_seller_edit`/`_write_buyer_edit` and
+Postgres at all (see `write_seller_edit`/`write_buyer_edit` and
 `write_seller_add`/`_write_buyer_add`). Slack payload state is never
 trusted on its own; the write targets (org record ID, role entry ID) are
 always re-resolved from the currently-loaded row, not from the payload.
@@ -21,16 +21,14 @@ from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import AttioError, attio_is_test, get_attio_client
 from app.modules.attio.providers.attio.entries import (
-    RoleEntryNotFoundError,
     ScopeMismatchError,
     assert_organization_in_scope,
     create_organization,
     create_role_entry,
     patch_organization,
-    patch_role_entry,
-    resolve_role_entry_id,
 )
 from app.modules.attio.providers.attio.options import OptionNotFoundError
+from app.modules.ddl_commands.api.buyer_edit import write_buyer_edit
 from app.modules.ddl_commands.api.buyers import (
     BUYER_FORM_FIELDS,
     BUYER_ROLE_FIELDS_BY_NAME,
@@ -40,7 +38,6 @@ from app.modules.ddl_commands.api.buyers import (
 from app.modules.ddl_commands.api.command_tracking import (
     CommandTracker,
     track_command,
-    uuid_or_none,
 )
 from app.modules.ddl_commands.api.dependencies import (
     ddl_commands_service,
@@ -54,7 +51,7 @@ from app.modules.ddl_commands.api.organizations import (
     ORGANIZATION_FIELDS_BY_NAME,
     OrganizationUpdate,
 )
-from app.modules.ddl_commands.api.seller_edit import OrgRemovedError, write_seller_edit
+from app.modules.ddl_commands.api.seller_edit import write_seller_edit
 from app.modules.ddl_commands.api.seller_write import write_seller_add
 from app.modules.ddl_commands.api.sellers import (
     GATED_SELLER_ROLE_FIELDS,
@@ -93,7 +90,11 @@ from app.modules.ddl_commands.api.slack.views.organization_selection import (
 )
 from app.modules.ddl_commands.api.slack.views.seller_add_form import build_seller_add_form_modal
 from app.modules.ddl_commands.api.slack.views.seller_form import build_seller_edit_form_modal
-from app.modules.ddl_commands.api.write_errors import PartialWriteError, partial_write_message
+from app.modules.ddl_commands.api.write_errors import (
+    OrgRemovedError,
+    PartialWriteError,
+    partial_write_message,
+)
 from app.modules.ddl_commands.application.buyers import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
@@ -585,7 +586,7 @@ def register(app: AsyncApp) -> None:
         await _notify_gate(gate, saving=True)
         try:
             try:
-                await _write_buyer_edit(
+                await write_buyer_edit(
                     buyer_role_id=buyer_role_id,
                     org_attio_id=org_attio_id,
                     org_extracted=org_extracted,
@@ -899,113 +900,6 @@ def register(app: AsyncApp) -> None:
         await client.chat_postEphemeral(
             channel=channel_id, user=requested_by, text=f"*Added* buyer profile for *{org_name}*."
         )
-
-
-async def _write_buyer_edit(
-    *,
-    buyer_role_id: str,
-    org_attio_id: str,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
-    requested_by: str | None,
-) -> None:
-    async with track_command(
-        "edit_buyer",
-        invoked_via="slack",
-        requested_by=requested_by,
-        org_attio_id=org_attio_id,
-        buyer_role_id=uuid_or_none(buyer_role_id),
-    ) as run:
-        await _buyer_edit(
-            buyer_role_id=buyer_role_id,
-            org_attio_id=org_attio_id,
-            org_extracted=org_extracted,
-            role_extracted=role_extracted,
-            run=run,
-        )
-
-
-async def _buyer_edit(
-    *,
-    buyer_role_id: str,
-    org_attio_id: str,
-    org_extracted: dict[str, Any],
-    role_extracted: dict[str, Any],
-    run: CommandTracker,
-) -> None:
-    role = await resolve_buyer_by_id(buyer_role_id)
-    if role is None:
-        raise BuyerNotFoundError(buyer_role_id)
-    if role.organization.removed_at is not None:
-        raise OrgRemovedError(org_attio_id)
-
-    landed: list[str] = []
-    run.landed = landed
-    attio_client = get_attio_client()
-    is_test = attio_is_test()
-    try:
-        await assert_organization_in_scope(attio_client, org_attio_id, is_test=is_test)
-        if org_extracted:
-            org_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="objects",
-                target_slug="organizations",
-                table="organizations",
-                fields=ORGANIZATION_FIELDS_BY_NAME,
-                extracted=org_extracted,
-            )
-            if org_attio_values:
-                await patch_organization(attio_client, org_attio_id, org_attio_values)
-                landed.append("organization fields (Attio)")
-        if role_extracted:
-            role_attio_values = await build_attio_values(
-                attio_client,
-                target_kind="lists",
-                target_slug="buyer_role",
-                table="buyer_role",
-                fields=BUYER_ROLE_FIELDS_BY_NAME,
-                extracted=role_extracted,
-            )
-            if role_attio_values:
-                # An org holds several buyer roles now, so the org alone no
-                # longer identifies the entry to patch.
-                entry_id = await resolve_role_entry_id(
-                    attio_client,
-                    "buyer_role",
-                    org_attio_id,
-                    is_test=is_test,
-                    only_entry_id=role.legacy_entry_id,
-                )
-                await patch_role_entry(attio_client, "buyer_role", entry_id, role_attio_values)
-                landed.append("buyer profile fields (Attio)")
-    except (AttioError, OptionNotFoundError, RoleEntryNotFoundError, ScopeMismatchError) as exc:
-        raise PartialWriteError(landed, exc) from exc
-
-    org_postgres_fields = (
-        build_postgres_values(
-            table="organizations", fields=ORGANIZATION_FIELDS_BY_NAME, extracted=org_extracted
-        )
-        if org_extracted
-        else None
-    )
-    role_postgres_fields = (
-        build_postgres_values(
-            table="buyer_role", fields=BUYER_ROLE_FIELDS_BY_NAME, extracted=role_extracted
-        )
-        if role_extracted
-        else {}
-    )
-    run.changed_fields = [*role_postgres_fields, *(org_postgres_fields or {})]
-    try:
-        await ddl_commands_service().update_buyer(
-            buyer_role_id,
-            role_postgres_fields,
-            context=run.context,
-            org_attio_id=org_attio_id,
-            org_fields=org_postgres_fields,
-        )
-    except Exception as exc:
-        raise PartialWriteError(landed, exc) from exc
 
 
 # One lock per (org, vertical) being added. Process-local, which is enough

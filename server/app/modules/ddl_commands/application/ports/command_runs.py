@@ -9,7 +9,7 @@ from typing import Literal, Protocol
 from uuid import UUID
 
 CommandName = Literal["add_seller", "add_buyer", "edit_seller", "edit_buyer"]
-InvokedVia = Literal["slack", "discovery"]
+InvokedVia = Literal["slack", "discovery", "mcp"]
 CommandStatus = Literal["running", "succeeded", "failed", "partial"]
 
 

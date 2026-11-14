@@ -56,8 +56,9 @@ shape with an extra org-selection step (see `README.md`'s "The add flow").
 
 `api/slack/handlers/actions.py` is the single biggest file in this module
 (~960 lines) because it holds all four submit handlers
-(`_write_buyer_edit`, `_write_seller_add`, `_write_buyer_add`, and the
-call into `api/seller_edit.py`'s `write_seller_edit`) plus every modal-to-modal transition in between. If
+(`_write_seller_add`, `_write_buyer_add`, and the calls into
+`api/seller_edit.py`'s `write_seller_edit` and `api/buyer_edit.py`'s
+`write_buyer_edit`) plus every modal-to-modal transition in between. If
 you're debugging a specific submit path, jump straight to that function —
 you don't need to read the whole file.
 
