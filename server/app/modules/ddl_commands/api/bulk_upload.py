@@ -11,15 +11,17 @@ updated: our data wins.
 import asyncio
 import logging
 import uuid
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from app.modules.ddl_commands.api.bulk_columns import routes_for
 from app.modules.ddl_commands.api.bulk_store import (
     MAX_ROWS,
     CommitProgress,
     InMemoryPreviewStore,
+    InvokedVia,
     PlannedRow,
     PreviewStore,
     RowOutcome,
@@ -27,19 +29,16 @@ from app.modules.ddl_commands.api.bulk_store import (
     UploadKind,
 )
 from app.modules.ddl_commands.api.buyer_write import write_buyer_add
-from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS_BY_NAME, BuyerUpdate
+from app.modules.ddl_commands.api.buyers import BuyerUpdate
 from app.modules.ddl_commands.api.dependencies import (
     ddl_commands_service,
     find_organization_by_domains,
     resolve_organization,
 )
-from app.modules.ddl_commands.api.organizations import (
-    ORGANIZATION_FIELDS_BY_NAME,
-    OrganizationUpdate,
-)
+from app.modules.ddl_commands.api.organizations import OrganizationUpdate
 from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.seller_write import write_seller_add
-from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS_BY_NAME, SellerUpdate
+from app.modules.ddl_commands.api.sellers import SellerUpdate
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import normalize_prefill
 from app.modules.ddl_commands.api.write_errors import PartialWriteError
 from app.modules.ddl_commands.application.buyers import BuyerAlreadyExistsError
@@ -51,9 +50,8 @@ from app.modules.utilities.domain.safe_errors import describe_error
 logger = logging.getLogger(__name__)
 
 UploadRow = dict[str, PrefillValue | None]
+OnDone = Callable[[CommitProgress], Awaitable[None]]
 
-# `domains` is set from the single `domain` column, so it is not accepted as a field.
-_ORG_FIELDS = {n: s for n, s in ORGANIZATION_FIELDS_BY_NAME.items() if n != "domains"}
 _ROW_KEYS = frozenset({"org_name", "domain"})
 
 _store: PreviewStore = InMemoryPreviewStore()
@@ -76,7 +74,7 @@ class PreviewNotFoundError(BulkUploadError):
 class RowProblem(BaseModel):
     model_config = ConfigDict(frozen=True)
 
-    row: int  # 1-based position in the uploaded list
+    row: int  # 1-based position in the list, or the spreadsheet line for a file
     message: str
 
 
@@ -91,18 +89,49 @@ class PreviewResult(BaseModel):
     problems: tuple[RowProblem, ...]
 
 
+class RejectedUpload(BaseModel):
+    """A strict preview found invalid rows: nothing was stored, so there is no
+    preview id and nothing to commit."""
+
+    model_config = ConfigDict(frozen=True)
+
+    invalid: int
+    problems: tuple[RowProblem, ...]
+
+
 @dataclass(frozen=True)
 class _Match:
     org_attio_id: str | None
     exists: bool
 
 
+@dataclass(frozen=True)
+class _Checked:
+    valid: tuple[PlannedRow, ...]
+    problems: tuple[RowProblem, ...]
+    invalid: int
+
+
 async def preview_buyers(rows: Sequence[UploadRow]) -> PreviewResult:
-    return await _preview("buyer", rows)
+    return await _finish("buyer", _validate("buyer", rows, None), "mcp")
 
 
 async def preview_sellers(rows: Sequence[UploadRow]) -> PreviewResult:
-    return await _preview("seller", rows)
+    return await _finish("seller", _validate("seller", rows, None), "mcp")
+
+
+async def preview_buyers_strict(
+    rows: Sequence[UploadRow], *, row_numbers: Sequence[int], invoked_via: InvokedVia
+) -> PreviewResult | RejectedUpload:
+    """All or nothing, for a file a person uploaded: any invalid row rejects the
+    whole upload. `row_numbers` are the spreadsheet lines to report."""
+    return await _strict("buyer", rows, row_numbers, invoked_via)
+
+
+async def preview_sellers_strict(
+    rows: Sequence[UploadRow], *, row_numbers: Sequence[int], invoked_via: InvokedVia
+) -> PreviewResult | RejectedUpload:
+    return await _strict("seller", rows, row_numbers, invoked_via)
 
 
 def status(preview_id: uuid.UUID) -> CommitProgress:
@@ -112,10 +141,13 @@ def status(preview_id: uuid.UUID) -> CommitProgress:
     return progress
 
 
-def commit(preview_id: uuid.UUID, *, requested_by: str | None) -> CommitProgress:
-    """Starts the add in the background and returns at once; poll `status`.
-    A commit already running is not started twice. After it finishes, calling
-    again re-checks every row, so only rows still missing are added.
+def commit(
+    preview_id: uuid.UUID, *, requested_by: str | None, on_done: OnDone | None = None
+) -> CommitProgress:
+    """Starts the add in the background and returns at once; poll `status`, or
+    pass `on_done` to be called with the final progress. A commit already running
+    is not started twice. After it finishes, calling again re-checks every row,
+    so only rows still missing are added.
     """
     preview = _store.get(preview_id)
     if preview is None:
@@ -126,66 +158,106 @@ def commit(preview_id: uuid.UUID, *, requested_by: str | None) -> CommitProgress
     started = CommitProgress(state="running", total=len(preview.rows))
     _store.set_progress(preview_id, started)
     get_shared_task_runner().run(
-        lambda: run_commit(preview, requested_by), name=f"bulk-upload-{preview_id}"
+        lambda: run_commit(preview, requested_by, on_done), name=f"bulk-upload-{preview_id}"
     )
     return started
 
 
-async def run_commit(preview: StoredPreview, requested_by: str | None) -> None:
+async def run_commit(
+    preview: StoredPreview, requested_by: str | None, on_done: OnDone | None = None
+) -> None:
     progress = CommitProgress(state="running", total=len(preview.rows))
     try:
         for row in preview.rows:
-            progress = progress.record(await _commit_row(preview.kind, row, requested_by))
+            outcome = await _commit_row(preview.kind, row, requested_by, preview.invoked_via)
+            progress = progress.record(outcome)
             _store.set_progress(preview.id, progress)
     except BaseException:
         # Cancelled mid-batch (shutdown): mark it so a new commit may resume.
         _store.set_progress(preview.id, progress.model_copy(update={"state": "interrupted"}))
         raise
-    _store.set_progress(preview.id, progress.model_copy(update={"state": "done"}))
+    finished = progress.model_copy(update={"state": "done"})
+    _store.set_progress(preview.id, finished)
+    if on_done is not None:
+        try:
+            await on_done(finished)
+        except Exception:
+            # The rows are already added; a failed notice must not look like a failed commit.
+            logger.exception("bulk_upload_on_done_failed preview_id=%s", preview.id)
 
 
-async def _preview(kind: UploadKind, rows: Sequence[UploadRow]) -> PreviewResult:
+def _validate(
+    kind: UploadKind, rows: Sequence[UploadRow], row_numbers: Sequence[int] | None
+) -> _Checked:
+    """Pure: no database. Rows are numbered 1..n unless the caller says which
+    spreadsheet line each came from."""
     if not 1 <= len(rows) <= MAX_ROWS:
         raise InvalidUploadError(f"send between 1 and {MAX_ROWS} rows, got {len(rows)}")
+    numbers = row_numbers if row_numbers is not None else range(1, len(rows) + 1)
+    if len(numbers) != len(rows):
+        raise InvalidUploadError("row_numbers must have one number per row")
 
-    planned: list[PlannedRow] = []
-    existing_rows: list[int] = []
+    valid: list[PlannedRow] = []
     problems: list[RowProblem] = []
     invalid = 0
     seen: dict[tuple[str, str | None], int] = {}
-    for index, raw in enumerate(rows, start=1):
-        parsed = _parse(kind, index, raw)
+    for number, raw in zip(numbers, rows, strict=True):
+        parsed = _parse(kind, number, raw)
         if isinstance(parsed, list):
             invalid += 1
-            problems.extend(RowProblem(row=index, message=m) for m in parsed)
+            problems.extend(RowProblem(row=number, message=m) for m in parsed)
             continue
         key = (parsed.domain, _vertical(parsed) if kind == "buyer" else None)
         if key in seen:
             invalid += 1
-            problems.append(RowProblem(row=index, message=f"duplicate of row {seen[key]}"))
+            problems.append(RowProblem(row=number, message=f"duplicate of row {seen[key]}"))
             continue
-        seen[key] = index
-        # shortcut: one lookup per row (indexed), fine at the 1,000-row cap; batch if it grows.
-        if (await _match(kind, parsed)).exists:
-            existing_rows.append(index)
-        else:
-            planned.append(parsed)
+        seen[key] = number
+        valid.append(parsed)
+    return _Checked(tuple(valid), tuple(problems), invalid)
 
-    preview = StoredPreview(id=uuid.uuid4(), kind=kind, rows=tuple(planned))
+
+async def _finish(kind: UploadKind, checked: _Checked, invoked_via: InvokedVia) -> PreviewResult:
+    """Splits the valid rows into new and already in the CRM, and stores the new ones."""
+    planned: list[PlannedRow] = []
+    existing_rows: list[int] = []
+    for row in checked.valid:
+        # shortcut: one lookup per row (indexed), fine at the 1,000-row cap; batch if it grows.
+        if (await _match(kind, row)).exists:
+            existing_rows.append(row.index)
+        else:
+            planned.append(row)
+
+    preview = StoredPreview(
+        id=uuid.uuid4(), kind=kind, rows=tuple(planned), invoked_via=invoked_via
+    )
     _store.save(preview)
     return PreviewResult(
         preview_id=preview.id,
         new=len(planned),
         existing=len(existing_rows),
-        invalid=invalid,
+        invalid=checked.invalid,
         existing_rows=tuple(existing_rows),
-        problems=tuple(problems),
+        problems=checked.problems,
     )
 
 
+async def _strict(
+    kind: UploadKind,
+    rows: Sequence[UploadRow],
+    row_numbers: Sequence[int],
+    invoked_via: InvokedVia,
+) -> PreviewResult | RejectedUpload:
+    checked = _validate(kind, rows, row_numbers)
+    if checked.invalid:
+        # Before any database lookup: the upload is already rejected.
+        return RejectedUpload(invalid=checked.invalid, problems=checked.problems)
+    return await _finish(kind, checked, invoked_via)
+
+
 def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[str]:
-    role_fields = BUYER_ROLE_FIELDS_BY_NAME if kind == "buyer" else SELLER_ROLE_FIELDS_BY_NAME
-    fields = {**_ORG_FIELDS, **role_fields}
+    routes = routes_for(kind)
+    fields = {key: route.spec for key, route in routes.items()}
     problems: list[str] = []
 
     org_name = raw.get("org_name")
@@ -202,10 +274,18 @@ def _parse(kind: UploadKind, index: int, raw: UploadRow) -> PlannedRow | list[st
 
     given = {k: v for k, v in raw.items() if k in fields and v is not None}
     normalized = normalize_prefill(given, fields, warn_on_drop=False)
-    # A silently dropped value would be lost data, so say so.
-    problems.extend(f"value not allowed for '{k}'" for k in given if k not in normalized)
-    org_extracted: UploadRow = {n: v for n, v in normalized.items() if n in _ORG_FIELDS}
-    role_extracted: UploadRow = {n: v for n, v in normalized.items() if n in role_fields}
+    # A silently dropped value, or a trimmed list, would be lost data, so say so.
+    problems.extend(
+        f"value not allowed for '{k}'"
+        for k, v in given.items()
+        if k not in normalized or (isinstance(v, list) and normalized[k] != v)
+    )
+    org_extracted: UploadRow = {
+        routes[k].name: v for k, v in normalized.items() if routes[k].target == "org"
+    }
+    role_extracted: UploadRow = {
+        routes[k].name: v for k, v in normalized.items() if routes[k].target == "role"
+    }
     try:
         OrganizationUpdate.model_validate(org_extracted)
         (BuyerUpdate if kind == "buyer" else SellerUpdate).model_validate(role_extracted)
@@ -252,13 +332,15 @@ async def _match(kind: UploadKind, row: PlannedRow) -> _Match:
     return _Match(org.attio_id, has_role)
 
 
-async def _commit_row(kind: UploadKind, row: PlannedRow, requested_by: str | None) -> RowOutcome:
+async def _commit_row(
+    kind: UploadKind, row: PlannedRow, requested_by: str | None, invoked_via: InvokedVia
+) -> RowOutcome:
     async with _write_lock:
         try:
             match = await _match(kind, row)
             if match.exists:
                 return RowOutcome(row=row.index, kind="skipped", reason="already in the CRM")
-            await _add(kind, row, match, requested_by)
+            await _add(kind, row, match, requested_by, invoked_via)
         except (BuyerAlreadyExistsError, SellerAlreadyExistsError):
             return RowOutcome(row=row.index, kind="skipped", reason="already in the CRM")
         except PartialWriteError as exc:
@@ -271,7 +353,13 @@ async def _commit_row(kind: UploadKind, row: PlannedRow, requested_by: str | Non
     return RowOutcome(row=row.index, kind="added")
 
 
-async def _add(kind: UploadKind, row: PlannedRow, match: _Match, requested_by: str | None) -> None:
+async def _add(
+    kind: UploadKind,
+    row: PlannedRow,
+    match: _Match,
+    requested_by: str | None,
+    invoked_via: InvokedVia,
+) -> None:
     is_new_org = match.org_attio_id is None
     # An existing organization is left as it is: our data wins.
     org_extracted: UploadRow = {**row.org_extracted, "domains": [row.domain]} if is_new_org else {}
@@ -283,7 +371,7 @@ async def _add(kind: UploadKind, row: PlannedRow, match: _Match, requested_by: s
             org_extracted=org_extracted,
             role_extracted=row.role_extracted,
             requested_by=requested_by,
-            invoked_via="mcp",
+            invoked_via=invoked_via,
         )
     else:
         await write_seller_add(
@@ -293,5 +381,5 @@ async def _add(kind: UploadKind, row: PlannedRow, match: _Match, requested_by: s
             org_extracted=org_extracted,
             role_extracted=row.role_extracted,
             requested_by=requested_by,
-            invoked_via="mcp",
+            invoked_via=invoked_via,
         )

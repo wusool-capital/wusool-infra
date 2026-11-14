@@ -31,6 +31,7 @@ dependencies = [
     "posthog[async]>=7.45.0",
     "pydantic-ai-slim[bedrock]>=2.66,<3",
     "google-auth>=2.62.1",
+    "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]

@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict
 from app.modules.ddl_commands.api.schemas import PrefillValue
 
 UploadKind = Literal["buyer", "seller"]
+InvokedVia = Literal["slack", "mcp"]
 CommitState = Literal["ready", "running", "done", "interrupted"]
 OutcomeKind = Literal["added", "skipped", "failed"]
 
@@ -44,6 +45,7 @@ class StoredPreview(BaseModel):
     id: uuid.UUID
     kind: UploadKind
     rows: tuple[PlannedRow, ...]
+    invoked_via: InvokedVia = "mcp"
 
 
 class RowOutcome(BaseModel):

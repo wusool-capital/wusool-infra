@@ -15,15 +15,22 @@ from app.modules.ddl_commands.api.bulk_store import (
     MAX_ROWS,
     CommitProgress,
     InMemoryPreviewStore,
+    InvokedVia,
     PlannedRow,
+    RowOutcome,
     StoredPreview,
 )
 from app.modules.ddl_commands.api.buyers import BUYER_ROLE_FIELDS_BY_NAME
+from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.schemas import PrefillValue
+from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.write_errors import PartialWriteError
 
 VERTICAL = BUYER_ROLE_FIELDS_BY_NAME["target_vertical"].options[0]
 OTHER_VERTICAL = BUYER_ROLE_FIELDS_BY_NAME["target_vertical"].options[1]
+SELLER_STATUS = SELLER_ROLE_FIELDS_BY_NAME["relationship_status"].options[0]
+ORG_STATUS = ORGANIZATION_FIELDS_BY_NAME["relationship_status"].options[0]
+SECTORS = ORGANIZATION_FIELDS_BY_NAME["sector_focus"].options
 
 
 @dataclass(frozen=True)
@@ -45,6 +52,7 @@ class FakeCrm:
         self.sellers: set[str] = set()
         self.calls: list[AddCall] = []
         self.fail_hosts: set[str] = set()
+        self.lookups = 0
 
     @staticmethod
     def _host(org_attio_id: str) -> str:
@@ -59,6 +67,7 @@ class FakeCrm:
         return self._host(call.org_attio_id)
 
     async def find_organization_by_domains(self, hosts: list[str]) -> SimpleNamespace | None:
+        self.lookups += 1
         for host in hosts:
             if host in self.orgs:
                 return SimpleNamespace(attio_id=f"org-{host}")
@@ -322,10 +331,12 @@ async def test_a_cancelled_commit_is_marked_interrupted_so_it_can_resume(
     assert preview is not None
     original = bulk._commit_row
 
-    async def cancel_on_second(kind: bulk.UploadKind, row: PlannedRow, by: str | None):  # noqa: ANN202
+    async def cancel_on_second(
+        kind: bulk.UploadKind, row: PlannedRow, by: str | None, via: InvokedVia
+    ) -> RowOutcome:
         if row.index == 2:
             raise asyncio.CancelledError
-        return await original(kind, row, by)
+        return await original(kind, row, by, via)
 
     monkeypatch.setattr(bulk, "_commit_row", cancel_on_second)
     with pytest.raises(asyncio.CancelledError):
@@ -371,3 +382,138 @@ def test_store_drops_the_oldest_preview_past_its_cap() -> None:
 
     assert store.get(previews[0].id) is None
     assert store.get(previews[-1].id) is not None
+
+
+async def test_strict_preview_rejects_the_whole_file_and_looks_nothing_up(crm: FakeCrm) -> None:
+    rows: list[bulk.UploadRow] = [
+        buyer_row(1),
+        {"org_name": "Bad", "domain": "bad.com"},
+        buyer_row(3),
+    ]
+
+    result = await bulk.preview_buyers_strict(rows, row_numbers=[2, 3, 4], invoked_via="slack")
+
+    assert isinstance(result, bulk.RejectedUpload)
+    assert result.invalid == 1
+    assert [(p.row, p.message) for p in result.problems] == [(3, "target_vertical is required")]
+    assert crm.lookups == 0  # rejected before any database work
+    assert crm.calls == []
+
+
+async def test_strict_preview_reports_every_bad_row_by_its_spreadsheet_line() -> None:
+    rows: list[bulk.UploadRow] = [
+        buyer_row(1),
+        {"org_name": "No domain", "target_vertical": VERTICAL},
+        buyer_row(3),
+        buyer_row(3),  # same domain and vertical as the row above
+        {"org_name": "Bad model", "domain": "m.com", "target_vertical": VERTICAL, "model": "x"},
+    ]
+
+    result = await bulk.preview_buyers_strict(
+        rows, row_numbers=[2, 3, 4, 5, 6], invoked_via="slack"
+    )
+
+    assert isinstance(result, bulk.RejectedUpload)
+    assert {p.row for p in result.problems} == {3, 5, 6}
+    assert next(p.message for p in result.problems if p.row == 5) == "duplicate of row 4"
+    assert result.invalid == 3
+
+
+async def test_strict_preview_of_a_clean_file_skips_existing_and_records_slack(
+    crm: FakeCrm,
+) -> None:
+    crm.orgs["co1.com"] = {VERTICAL}
+
+    result = await bulk.preview_buyers_strict(
+        [buyer_row(1), buyer_row(2)], row_numbers=[2, 3], invoked_via="slack"
+    )
+
+    assert isinstance(result, bulk.PreviewResult)
+    assert (result.new, result.existing, result.existing_rows) == (1, 1, (2,))
+    progress = await commit_and_wait(result.preview_id)
+    assert progress.added == 1
+    assert crm.calls[0].invoked_via == "slack"
+
+
+async def test_row_numbers_must_have_one_number_per_row() -> None:
+    with pytest.raises(bulk.InvalidUploadError):
+        await bulk.preview_buyers_strict([buyer_row(1)], row_numbers=[2, 3], invoked_via="slack")
+
+
+async def test_commit_hands_the_final_progress_to_the_done_callback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeRunner()
+    monkeypatch.setattr(bulk, "get_shared_task_runner", lambda: runner)
+    result = await bulk.preview_buyers([buyer_row(1), buyer_row(2)])
+    reported: list[CommitProgress] = []
+
+    async def on_done(progress: CommitProgress) -> None:
+        reported.append(progress)
+
+    bulk.commit(result.preview_id, requested_by="U1", on_done=on_done)
+    await runner.started[0]()
+
+    assert [(p.state, p.added) for p in reported] == [("done", 2)]
+
+
+async def test_a_failing_done_callback_does_not_fail_the_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeRunner()
+    monkeypatch.setattr(bulk, "get_shared_task_runner", lambda: runner)
+    result = await bulk.preview_buyers([buyer_row(1)])
+
+    async def on_done(progress: CommitProgress) -> None:
+        raise RuntimeError("slack is down")
+
+    bulk.commit(result.preview_id, requested_by="U1", on_done=on_done)
+    await runner.started[0]()
+
+    assert bulk.status(result.preview_id).state == "done"
+    assert bulk.status(result.preview_id).added == 1
+
+
+async def test_a_sellers_status_goes_to_the_role_and_the_org_status_to_the_org(
+    crm: FakeCrm,
+) -> None:
+    row: bulk.UploadRow = {
+        "org_name": "S",
+        "domain": "s.com",
+        "relationship_status": SELLER_STATUS,
+        "org_relationship_status": ORG_STATUS,
+    }
+
+    result = await bulk.preview_sellers([row])
+    await commit_and_wait(result.preview_id)
+
+    assert crm.calls[0].role_extracted == {"relationship_status": SELLER_STATUS}
+    assert crm.calls[0].org_extracted["relationship_status"] == ORG_STATUS
+
+
+async def test_a_sellers_status_alone_is_not_copied_to_the_organization(crm: FakeCrm) -> None:
+    row: bulk.UploadRow = {"org_name": "S", "domain": "s.com", "relationship_status": SELLER_STATUS}
+
+    result = await bulk.preview_sellers([row])
+    await commit_and_wait(result.preview_id)
+
+    assert crm.calls[0].role_extracted == {"relationship_status": SELLER_STATUS}
+    assert "relationship_status" not in crm.calls[0].org_extracted
+
+
+async def test_an_org_only_status_in_the_role_key_is_refused() -> None:
+    row: bulk.UploadRow = {"org_name": "S", "domain": "s.com", "relationship_status": ORG_STATUS}
+
+    result = await bulk.preview_sellers([row])
+
+    assert result.problems[0].message == "value not allowed for 'relationship_status'"
+
+
+async def test_a_list_with_some_unknown_options_is_refused_not_trimmed() -> None:
+    row = buyer_row(1)
+    row["sector_focus"] = [SECTORS[0], "Not a sector"]
+
+    result = await bulk.preview_buyers([row])
+
+    assert (result.new, result.invalid) == (0, 1)
+    assert result.problems[0].message == "value not allowed for 'sector_focus'"
