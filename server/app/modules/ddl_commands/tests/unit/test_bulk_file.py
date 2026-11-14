@@ -251,3 +251,70 @@ def test_a_file_over_the_size_cap_is_rejected_before_it_is_read(
 
     with pytest.raises(TemplateError, match="the file is larger than"):
         parse_upload("buyer", "list.csv", content)
+
+
+def test_blank_rows_between_data_rows_do_not_use_up_the_row_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bulk_file, "MAX_ROWS", 3)
+    blank = ["", "", ""]
+    rows = [
+        ["A", "a.com", VERTICAL],
+        blank,
+        ["B", "b.com", VERTICAL],
+        blank,
+        ["C", "c.com", VERTICAL],
+    ]
+
+    parsed = parse_upload("buyer", "list.csv", csv_bytes(BUYER_HEADER, rows))
+
+    assert [r["org_name"] for r in parsed.rows] == ["A", "B", "C"]
+    assert parsed.lines == (2, 4, 6)  # nothing after the blanks was cut off
+
+
+def test_one_row_over_the_cap_is_refused_even_with_blank_rows_between(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bulk_file, "MAX_ROWS", 3)
+    blank = ["", "", ""]
+    rows = [
+        ["A", "a.com", VERTICAL],
+        blank,
+        ["B", "b.com", VERTICAL],
+        blank,
+        ["C", "c.com", VERTICAL],
+        ["D", "d.com", VERTICAL],
+    ]
+
+    with pytest.raises(TemplateError, match="more than 3 rows"):
+        parse_upload("buyer", "list.csv", csv_bytes(BUYER_HEADER, rows))
+
+
+def test_the_same_cap_rules_hold_for_an_excel_file(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bulk_file, "MAX_ROWS", 2)
+    within = xlsx_bytes(
+        [BUYER_HEADER, ["A", "a.com", VERTICAL], [None, None, None], ["B", "b.com", VERTICAL]]
+    )
+    over = xlsx_bytes(
+        [
+            BUYER_HEADER,
+            ["A", "a.com", VERTICAL],
+            [None, None, None],
+            ["B", "b.com", VERTICAL],
+            ["C", "c.com", VERTICAL],
+        ]
+    )
+
+    assert parse_upload("buyer", "list.xlsx", within).lines == (2, 4)
+    with pytest.raises(TemplateError, match="more than 2 rows"):
+        parse_upload("buyer", "list.xlsx", over)
+
+
+def test_a_sheet_padded_with_blank_lines_is_refused_not_cut_short(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(bulk_file, "_MAX_SCANNED_LINES", 5)
+    rows = [["A", "a.com", VERTICAL], *[["", "", ""]] * 10, ["Z", "z.com", VERTICAL]]
+
+    with pytest.raises(TemplateError, match="Remove blank rows"):
+        parse_upload("buyer", "list.csv", csv_bytes(BUYER_HEADER, rows))

@@ -8,7 +8,7 @@ whole; a `CellProblem` is one bad value in an otherwise good file.
 import csv
 import io
 import zipfile
-from collections.abc import Iterator, Sequence
+from collections.abc import Generator, Iterator, Sequence
 from dataclasses import dataclass
 
 from openpyxl import load_workbook
@@ -29,6 +29,8 @@ from app.modules.notifications import sanitize_mrkdwn
 
 MAX_FILE_BYTES = 5 * 1024 * 1024
 _HEADER_LINE = 1
+# Blank lines count here, so a sheet padded with them is refused, not silently cut short.
+_MAX_SCANNED_LINES = 10 * MAX_ROWS
 _EXTENSIONS = (".csv", ".xlsx")
 
 
@@ -56,23 +58,15 @@ def parse_upload(kind: UploadKind, filename: str, content: bytes) -> ParsedUploa
     if len(content) > MAX_FILE_BYTES:
         raise TemplateError(f"the file is larger than {MAX_FILE_BYTES // (1024 * 1024)} MB")
 
-    # One extra row past the cap is enough to know the file is too long.
-    limit = _HEADER_LINE + MAX_ROWS + 1
-    if filename.lower().endswith(".csv"):
-        sheet = list(_csv_rows(content, limit))
-    else:
-        sheet = list(_xlsx_rows(content, limit))
-    if not sheet:
-        raise TemplateError("the file is empty")
-
-    header_cells = sheet[0]
-    columns = _match_columns(kind, header_cells)
-    data = [(line, cells) for line, cells in enumerate(sheet[1:], start=_HEADER_LINE + 1)]
-    data = [(line, cells) for line, cells in data if any(_present(c) for c in cells)]
-    if not data:
-        raise TemplateError("the file has no data rows")
-    if len(data) > MAX_ROWS:
-        raise TemplateError(f"the file has more than {MAX_ROWS} rows")
+    sheet = _csv_rows(content) if filename.lower().endswith(".csv") else _xlsx_rows(content)
+    try:
+        header_cells = next(sheet, None)
+        if header_cells is None:
+            raise TemplateError("the file is empty")
+        columns = _match_columns(kind, header_cells)
+        data = _data_lines(sheet)
+    finally:
+        sheet.close()
 
     rows: list[UploadRow] = []
     lines: list[int] = []
@@ -91,6 +85,25 @@ def parse_upload(kind: UploadKind, filename: str, content: bytes) -> ParsedUploa
         rows.append(row)
         lines.append(line)
     return ParsedUpload(tuple(rows), tuple(lines), tuple(problems))
+
+
+def _data_lines(rows: Iterator[list[CellValue]]) -> list[tuple[int, list[CellValue]]]:
+    """The non-blank rows after the header, with their spreadsheet lines. Only
+    those count against the row cap, and a file is refused, never cut short."""
+    data: list[tuple[int, list[CellValue]]] = []
+    for line, cells in enumerate(rows, start=_HEADER_LINE + 1):
+        if line > _MAX_SCANNED_LINES:
+            raise TemplateError(
+                f"the file has more than {_MAX_SCANNED_LINES} lines. Remove blank rows"
+            )
+        if not any(_present(c) for c in cells):
+            continue
+        data.append((line, cells))
+        if len(data) > MAX_ROWS:
+            raise TemplateError(f"the file has more than {MAX_ROWS} rows")
+    if not data:
+        raise TemplateError("the file has no data rows")
+    return data
 
 
 def _cell(column: Column, raw: CellValue) -> PrefillValue | None:
@@ -123,7 +136,7 @@ def _match_columns(kind: UploadKind, header_cells: Sequence[CellValue]) -> list[
     return matched
 
 
-def _csv_rows(content: bytes, limit: int) -> Iterator[list[CellValue]]:
+def _csv_rows(content: bytes) -> Generator[list[CellValue]]:
     try:
         text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
@@ -131,20 +144,17 @@ def _csv_rows(content: bytes, limit: int) -> Iterator[list[CellValue]]:
     first_line = text.split("\n", 1)[0]
     # Excel in some locales writes `;` between cells instead of `,`.
     delimiter = ";" if first_line.count(";") > first_line.count(",") else ","
-    reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-    for number, cells in enumerate(reader, start=1):
-        if number > limit:
-            return
+    for cells in csv.reader(io.StringIO(text), delimiter=delimiter):
         yield list(cells)
 
 
-def _xlsx_rows(content: bytes, limit: int) -> Iterator[list[CellValue]]:
+def _xlsx_rows(content: bytes) -> Generator[list[CellValue]]:
     try:
         workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except (zipfile.BadZipFile, InvalidFileException, KeyError, ValueError, OSError):
         raise TemplateError("the file could not be read as an Excel workbook") from None
     try:
-        for row in workbook.worksheets[0].iter_rows(max_row=limit):
+        for row in workbook.worksheets[0].iter_rows():
             yield [_xlsx_value(cell.value, cell.number_format) for cell in row]
     finally:
         workbook.close()
