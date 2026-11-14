@@ -103,7 +103,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   const pathname = usePathname()
-  const isPopupWindow = pathname === '/meeting-popup' || pathname === '/recording-pill'
+  const isPopupWindow =
+    pathname === '/meeting-popup' || pathname === '/recording-pill' || pathname === '/notepad'
 
   const [showOnboarding, setShowOnboarding] = useState(false)
   const [onboardingCompleted, setOnboardingCompleted] = useState(false)

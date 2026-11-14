@@ -5,13 +5,14 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, FileText, ListChecks, Mic, Copy, RefreshCw } from 'lucide-react';
+import { FolderOpen, FileText, ListChecks, Mic, Copy, RefreshCw, NotebookPen } from 'lucide-react';
 import { toast } from 'sonner';
 import { Transcript, TranscriptSegmentData } from '@/types';
 import { TranscriptPanel } from './TranscriptPanel';
 import { SummaryView } from './SummaryView';
 import { summaryToPlainText } from '@/lib/pushedSummary';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { MeetingNotesEditor } from '@/components/notes/MeetingNotesEditor';
 
 interface PushedMeetingViewProps {
   meetingId: string;
@@ -118,6 +119,9 @@ export function PushedMeetingView({
       <Tabs value={tab} onValueChange={setTab} className="flex flex-col h-full">
         <div className="flex items-center justify-between gap-3 border-b border-border p-4">
           <TabsList>
+            <TabsTrigger value="notes" className="gap-1.5">
+              <NotebookPen size={14} /> Notes
+            </TabsTrigger>
             <TabsTrigger value="summary" className="gap-1.5">
               <ListChecks size={14} /> Summary
             </TabsTrigger>
@@ -136,6 +140,10 @@ export function PushedMeetingView({
             </Button>
           )}
         </div>
+
+        <TabsContent value="notes" className="flex-1 min-h-0 mt-0">
+          <MeetingNotesEditor meetingId={meetingId} isPushed />
+        </TabsContent>
 
         <TabsContent value="summary" className="flex-1 min-h-0 mt-0">
           <ScrollArea className="h-full">
