@@ -8,6 +8,11 @@
 # that prefix, and nothing sensitive anywhere in this bucket: a public read
 # policy can't tell one file from another.
 #
+# Expect Security Hub to flag this bucket (AWS Foundational Security Best
+# Practices, the S3 "block public access" controls) once it is applied. The
+# account stack alerts on new HIGH findings, so the first apply may page. The
+# public read is intended: suppress those findings with a note saying so.
+#
 # The template files are owned by the server code (the field definitions build
 # them), so this stack uploads the committed copies and a unit test fails when
 # they drift. After changing a field, regenerate and commit them, then apply
