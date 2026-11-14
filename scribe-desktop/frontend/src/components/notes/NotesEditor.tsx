@@ -60,6 +60,8 @@ export default function NotesEditor({
   const initialBlocks = useMemo(() => parseBlocks(initial?.notes_json), [initial]);
   const editor = useCreateBlockNote({
     initialContent: initialBlocks,
+    // WebKit's caret can't animate, so an animated resize leaves it lagging behind the text.
+    animations: false,
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: placeholder } },
   });
 
@@ -116,7 +118,7 @@ export default function NotesEditor({
   }, [editor, autoFocus]);
 
   return (
-    <div className={cn('select-text [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent', className)}>
+    <div className={cn('select-text [&_.bn-container]:!bg-transparent [&_.bn-editor]:!bg-transparent [&_.bn-block-content]:!transition-none', className)}>
       <BlockNoteView editor={editor} editable={editable} theme={dark ? 'dark' : 'light'} />
     </div>
   );

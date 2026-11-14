@@ -11,6 +11,11 @@ What changed in each version of the WusoolScribe desktop app, newest first. Entr
 * Your notes are sent with the push. The summary gives weight to what you noted, and the Attio note shows your notes under **Advisor notes**.
 * Notes stay editable after a push, in the meeting's **Notes** tab. Changes update the Attio note.
 
+### Changed
+
+* Dropping an audio file on the Scribe window no longer opens **Import Audio**, so notes can be reordered by dragging. Use the **Import Audio** button in the sidebar instead.
+* Scribe opens in a larger window, and a meeting's **Summarize** button stays visible however you split transcript and notes.
+
 ## 0.8.6
 
 ### What's new

@@ -92,6 +92,9 @@ mod panel {
                     .accept_first_mouse(true)
                     // Keep overlays out of screen shares.
                     .content_protected(true)
+                    // The native file-drop handler swallows every drop, which
+                    // breaks in-page drag and drop (moving notepad blocks).
+                    .disable_drag_drop_handler()
             })
             .build();
 
@@ -190,6 +193,7 @@ fn create_window<R: Runtime>(app: &AppHandle<R>, spec: &'static OverlaySpec) {
     // Keep overlays out of screen shares and visible on every Space.
     .content_protected(true)
     .visible_on_all_workspaces(true)
+    .disable_drag_drop_handler()
     .build()
     {
         Ok(window) => window,
