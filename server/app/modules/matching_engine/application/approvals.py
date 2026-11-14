@@ -23,7 +23,7 @@ from app.modules.matching_engine.application.errors import (
     PartialWriteError,
 )
 from app.modules.matching_engine.domain.matching.deals import (
-    INBOUND_STAGE,
+    LEAD_STAGE,
     QUALIFIED_STAGE,
     DealRecord,
     DealResolution,
@@ -171,8 +171,8 @@ class ApprovalsMixin(ServiceBase):
                 raise ExistingDealsFoundError(existing)
 
         if chosen is not None:
-            # Only Inbound moves up; a deal already further along must not regress.
-            if chosen.stage == INBOUND_STAGE:
+            # Only Lead moves up; a deal already further along must not regress.
+            if chosen.stage == LEAD_STAGE:
                 await self._deal_gateway.promote_to_qualified(chosen.attio_id)
                 chosen = replace(chosen, stage=QUALIFIED_STAGE)
             return chosen, [f"deal '{chosen.name}' in Attio (record_id={chosen.attio_id})"]

@@ -186,7 +186,7 @@ function DealChoice({
       <AlertDescription>
         <p>
           Promote an existing deal to Qualified, or create a new one. Only an
-          Inbound deal moves.
+          Lead deal moves.
         </p>
         <ul className="mt-xs flex flex-col">
           {deals.slice(0, MAX_PROMOTABLE_DEALS).map((deal) => (

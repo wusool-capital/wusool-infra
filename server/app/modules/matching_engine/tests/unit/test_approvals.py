@@ -94,7 +94,7 @@ async def test_approve_creates_deal_then_stamps_match() -> None:
 
 @pytest.mark.asyncio
 async def test_existing_deals_require_a_choice() -> None:
-    existing = [ExistingDeal("deal-1", "Old", "Inbound", None)]
+    existing = [ExistingDeal("deal-1", "Old", "Lead", None)]
     gateway = _gateway(existing=existing)
     service, _, _, _ = _service(update_result=_updated(), gateway=gateway)
 
@@ -106,8 +106,8 @@ async def test_existing_deals_require_a_choice() -> None:
 
 
 @pytest.mark.asyncio
-async def test_promote_moves_inbound_deal_to_qualified() -> None:
-    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
+async def test_promote_moves_lead_deal_to_qualified() -> None:
+    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Lead", None)])
     service, repo, deals, _ = _service(update_result=_updated(), gateway=gateway)
 
     await service.approve_match(
@@ -135,7 +135,7 @@ async def test_promote_does_not_regress_a_later_stage() -> None:
 
 @pytest.mark.asyncio
 async def test_create_new_skips_lookup() -> None:
-    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
+    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Lead", None)])
     service, _, _, _ = _service(update_result=_updated(), gateway=gateway)
 
     await service.approve_match(uuid4(), "U_TEST", resolution="create_new")
@@ -191,7 +191,7 @@ async def test_terminal_match_is_rejected_before_any_attio_write() -> None:
 
 @pytest.mark.asyncio
 async def test_promote_of_a_vanished_deal_reprompts_instead_of_creating() -> None:
-    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Inbound", None)])
+    gateway = _gateway(existing=[ExistingDeal("deal-1", "Old", "Lead", None)])
     service, _, _, _ = _service(update_result=_updated(), gateway=gateway)
 
     with pytest.raises(ExistingDealsFoundError):

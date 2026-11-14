@@ -23,6 +23,9 @@ for current production evidence and open handover items.
 - Lead magnets now create their Attio deal at stage Lead with status Active
   (AZM-172). They wrote the old Inbound stage, so new lead-magnet deals failed
   to save after the stage change.
+- Match approval now promotes a Lead deal to Qualified (AZM-172). It looked for
+  the old Inbound stage, so it never found one and left Lead deals where they
+  were. A deal it creates also gets status Active.
 
 ### Added
 
