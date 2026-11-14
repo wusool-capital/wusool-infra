@@ -3,3 +3,4 @@ pub mod setting;
 pub mod summary;
 pub mod transcript;
 pub mod speaker;
+pub mod meeting_notes;

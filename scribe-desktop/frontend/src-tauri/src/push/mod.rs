@@ -33,6 +33,7 @@ use uuid::Uuid;
 
 use crate::database::models::MeetingModel;
 use crate::database::repositories::meeting::MeetingsRepository;
+use crate::database::repositories::meeting_notes::MeetingNotesRepository;
 use crate::database::repositories::speaker::SpeakerRepository;
 use crate::diarization::SpeakerLabel;
 use crate::database::repositories::transcript::TranscriptsRepository;
@@ -263,6 +264,14 @@ struct DesktopMeetingSubmitRequest {
     /// default, since that default could change independently.
     return_summary: bool,
     skip_attio: bool,
+    /// Markdown the user typed; later edits go through sync_meeting_notes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user_notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct DesktopMeetingUserNotesRequest {
+    user_notes: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -619,6 +628,12 @@ pub async fn push_meeting<R: Runtime>(
         })
         - Duration::milliseconds((duration_seconds * 1000.0) as i64);
 
+    let user_notes = MeetingNotesRepository::get(pool, &meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load notes for {}: {}", meeting_id, e))?
+        .and_then(|notes| notes.notes_markdown)
+        .filter(|markdown| !markdown.trim().is_empty());
+
     let request_body = DesktopMeetingSubmitRequest {
         install_id: config.install_id.clone(),
         local_recording_id: meeting_id.clone(),
@@ -640,6 +655,7 @@ pub async fn push_meeting<R: Runtime>(
         client_version: Some(env!("CARGO_PKG_VERSION").to_string()),
         return_summary: true,
         skip_attio: config.skip_attio,
+        user_notes: user_notes.clone(),
     };
 
     let url = format!("{}/desktop/meetings", config.server_url.trim_end_matches('/'));
@@ -683,8 +699,94 @@ pub async fn push_meeting<R: Runtime>(
     if let Err(e) = MeetingsRepository::mark_meeting_pushed(pool, &meeting_id).await {
         warn!("Pushed meeting {} but failed to record pushed_at: {}", meeting_id, e);
     }
+    let sent_notes = MeetingNotesRepository::get(pool, &meeting_id)
+        .await
+        .ok()
+        .flatten()
+        .and_then(|notes| notes.notes_markdown);
+    // Only when the push carried exactly what's stored (blank counts as sent).
+    if sent_notes.as_deref().filter(|m| !m.trim().is_empty()) == user_notes.as_deref() {
+        if let Err(e) = MeetingNotesRepository::mark_synced(pool, &meeting_id, sent_notes.as_deref()).await {
+            warn!("Pushed meeting {} but failed to mark its notes synced: {}", meeting_id, e);
+        }
+    }
 
     Ok(parsed)
+}
+
+// ---------------------------------------------------------------------------
+// Notes edited after a push -- PUT
+// /desktop/meetings/{install_id}/{local_recording_id}/user-notes.
+// ---------------------------------------------------------------------------
+
+/// Sends a pushed meeting's current notes. A 404 (meeting deleted remotely,
+/// or a server without the route) marks them synced so the background loop
+/// stops retrying; the next local edit tries again.
+pub(crate) async fn sync_meeting_notes<R: Runtime>(
+    app: &AppHandle<R>,
+    pool: &SqlitePool,
+    meeting_id: &str,
+) -> Result<(), String> {
+    let config = load_push_config(app);
+    if config.server_url.trim().is_empty() {
+        return Err("Push destination is not configured.".to_string());
+    }
+    let Some(notes) = MeetingNotesRepository::get(pool, meeting_id)
+        .await
+        .map_err(|e| format!("Failed to load notes for {}: {}", meeting_id, e))?
+    else {
+        return Ok(());
+    };
+
+    let url = format!(
+        "{}/desktop/meetings/{}/{}/user-notes",
+        config.server_url.trim_end_matches('/'),
+        config.install_id,
+        meeting_id
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+    let mut request = client.put(&url).json(&DesktopMeetingUserNotesRequest {
+        user_notes: notes.notes_markdown.clone(),
+    });
+    if !config.api_key.trim().is_empty() {
+        request = request.header("Authorization", format!("Bearer {}", config.api_key));
+    }
+
+    let response = request
+        .send()
+        .await
+        .map_err(|e| format!("Failed to reach {}: {}", url, e))?;
+    let status = response.status();
+    if status == reqwest::StatusCode::NOT_FOUND {
+        warn!("Server has no meeting for {}; dropping its pending notes sync", meeting_id);
+    } else if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(format!("Notes sync failed ({}): {}", status, body));
+    }
+    MeetingNotesRepository::mark_synced(pool, meeting_id, notes.notes_markdown.as_deref())
+        .await
+        .map_err(|e| format!("Synced notes for {} but couldn't record it: {}", meeting_id, e))
+}
+
+/// Retries every pushed meeting whose notes changed since their last sync.
+pub(crate) async fn sync_dirty_meeting_notes<R: Runtime>(app: &AppHandle<R>) {
+    let Some(state) = app.try_state::<AppState>() else { return };
+    let pool = state.db_manager.pool();
+    let dirty = match MeetingNotesRepository::list_dirty_pushed(pool).await {
+        Ok(ids) => ids,
+        Err(e) => {
+            warn!("Couldn't list notes awaiting sync: {}", e);
+            return;
+        }
+    };
+    for meeting_id in dirty {
+        if let Err(e) = sync_meeting_notes(app, pool, &meeting_id).await {
+            warn!("Notes sync retry failed for {}: {}", meeting_id, e);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1269,6 +1371,41 @@ pub async fn sync_pushed_meetings<R: Runtime>(app: AppHandle<R>) -> Result<SyncR
 #[cfg(test)]
 mod sync_tests {
     use super::*;
+
+    fn submit_request(user_notes: Option<String>) -> DesktopMeetingSubmitRequest {
+        DesktopMeetingSubmitRequest {
+            install_id: "i".into(),
+            local_recording_id: "r".into(),
+            transcript: vec![],
+            duration_seconds: 0.0,
+            occurred_at: "2026-11-14T00:00:00Z".into(),
+            buyer_query: None,
+            buyer_selection: None,
+            seller_query: None,
+            seller_selection: None,
+            investor_query: None,
+            investor_selection: None,
+            internal_query: None,
+            internal_selection: None,
+            general_query: None,
+            general_selection: None,
+            org_names: HashMap::new(),
+            slack_channel_id: None,
+            client_version: None,
+            return_summary: true,
+            skip_attio: false,
+            user_notes,
+        }
+    }
+
+    #[test]
+    fn submit_request_omits_absent_user_notes() {
+        let without = serde_json::to_value(submit_request(None)).unwrap();
+        assert!(without.get("user_notes").is_none());
+
+        let with = serde_json::to_value(submit_request(Some("- SOC2".into()))).unwrap();
+        assert_eq!(with["user_notes"], "- SOC2");
+    }
 
     #[test]
     fn plan_sync_skips_when_summary_not_available() {

@@ -94,6 +94,19 @@
                     ]
                 },
                 {
+                    "identifier": "notepad",
+                    "description": "Floating notepad: window/event access plus dragging its frameless window",
+                    "windows": [
+                        "notepad"
+                    ],
+                    "permissions": [
+                        "core:event:default",
+                        "core:window:default",
+                        "core:window:allow-start-dragging",
+                        "core:app:default"
+                    ]
+                },
+                {
                     "identifier": "recording-pill",
                     "description": "Recording pill: minimal window/event access only",
                     "windows": [

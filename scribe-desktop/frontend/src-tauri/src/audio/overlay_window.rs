@@ -14,6 +14,7 @@ pub(crate) struct OverlaySpec {
     pub url: &'static str,
     pub width: f64,
     pub height: f64,
+    pub resizable: bool,
 }
 
 const MARGIN: f64 = 12.0;
@@ -81,7 +82,7 @@ mod panel {
             .with_window(|window| {
                 window
                     .title("")
-                    .resizable(false)
+                    .resizable(spec.resizable)
                     .decorations(false)
                     // The webview needs this too, or its white background shows
                     // in the card's rounded corners.
@@ -176,7 +177,7 @@ fn create_window<R: Runtime>(app: &AppHandle<R>, spec: &'static OverlaySpec) {
     )
     .title("")
     .inner_size(spec.width, spec.height)
-    .resizable(false)
+    .resizable(spec.resizable)
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)

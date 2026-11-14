@@ -16,6 +16,7 @@ const PILL_SPEC: OverlaySpec = OverlaySpec {
     url: "recording-pill",
     width: 360.0,
     height: 76.0,
+    resizable: false,
 };
 
 pub const COUNTDOWN_SECS: u64 = 15;
