@@ -116,6 +116,14 @@ are no longer empty (research only proposes empty ones) and returns what
 landed on a `PartialWriteError`. `server/main.py` wires it; the dependency
 edge points `ddl_commands -> matching_engine`.
 
+### Headless buyer edit
+
+`api/buyer_edit.py::write_buyer_edit` is the Attio-first buyer edit the
+`/edit-buyer` submission calls, kept out of the Slack handler so callers
+outside Slack (MCP v1) can call it, as `write_seller_edit` already can. It
+raises `BuyerNotFoundError`, `OrgRemovedError` or `PartialWriteError` with what
+already landed. The `/find-match` edit gate stays in the Slack handler.
+
 ### Headless seller add (discovery)
 
 `api/seller_write.py::write_seller_add` is the Attio-first seller write the
@@ -155,7 +163,9 @@ failed ledger write and the command carries on.
 
 A successful write also records a `seller|buyer.added|edited` activity in the
 same transaction as the Postgres write, linked to the `command_runs` row and
-attributed to the Slack user (`system/discovery` for discovery). The payload
+attributed to the Slack user (`system/discovery` for discovery).
+`command_runs.invoked_via` is `slack`, `discovery` or `mcp`; an `mcp` run is
+attributed to `system/mcp` with activity source `mcp`. The payload
 holds changed field names, never values.
 
 The Attio webhook sync records `crm.record_created|updated|deleted` activities

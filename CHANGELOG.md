@@ -12,6 +12,11 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The buyer edit behind `/edit-buyer` now lives in
+  `ddl_commands/api/buyer_edit.py` (`write_buyer_edit`), so MCP v1 can call it
+  without Slack (AZM-171). `/edit-buyer` behaves as before.
+- `command_runs.invoked_via` accepts `mcp`, and activities have an `mcp`
+  source (AZM-171).
 - Attio deals now have 10 stages instead of 20 (AZM-169): Lead, Qualified,
   Engaged, Mandate signed, Preparation, Outreach, Non-binding offers, Due
   diligence, Closing, Closed. A new `deal_status` field says whether the deal is

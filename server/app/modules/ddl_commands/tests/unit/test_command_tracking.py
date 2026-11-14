@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import app.modules.ddl_commands.api.command_tracking as tracking
-from app.modules.activities import ActorType
+from app.modules.activities import ActivitySource, ActorType
 from app.modules.ddl_commands.api.write_errors import PartialWriteError
 
 
@@ -88,6 +88,16 @@ async def test_a_discovery_run_has_a_system_actor_and_no_requester(service) -> N
     assert run.context.actor.type is ActorType.SYSTEM
     assert run.context.actor.ref == "discovery"
     assert service.started[0]["requested_by"] is None
+
+
+async def test_an_mcp_run_has_the_mcp_source_and_a_system_actor(service) -> None:
+    async with tracking.track_command("edit_buyer", invoked_via="mcp", requested_by=None) as run:
+        pass
+
+    assert run.context.source is ActivitySource.MCP
+    assert run.context.actor.type is ActorType.SYSTEM
+    assert run.context.actor.ref == "mcp"
+    assert service.started[0]["invoked_via"] == "mcp"
 
 
 async def test_a_failing_ledger_never_fails_the_write(service) -> None:

@@ -18,6 +18,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
+import app.modules.ddl_commands.api.buyer_edit as buyer_edit_module
 import app.modules.ddl_commands.api.command_tracking as command_tracking_module
 import app.modules.ddl_commands.api.seller_edit as seller_edit_module
 import app.modules.ddl_commands.api.seller_write as seller_write_module
@@ -770,7 +771,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(
     org = _fake_org(attio_id="org-attio-2", name="Blue Horizon")
     role = _fake_buyer_role(buyer_id, org=org)
     role.legacy_entry_id = "entry-of-this-vertical"
-    monkeypatch.setattr(actions_module, "resolve_buyer_by_id", _async_returning(role))
+    monkeypatch.setattr(buyer_edit_module, "resolve_buyer_by_id", _async_returning(role))
 
     async def fake_build_attio_values(*_args, **_kwargs):
         return {"model": "opt-model-1"}
@@ -780,7 +781,7 @@ def test_buyer_edit_form_writes_attio_before_postgres(
     async def fake_resolve_role_entry_id(*_args, only_entry_id=None, **_kwargs):
         return only_entry_id
 
-    monkeypatch.setattr(actions_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
+    monkeypatch.setattr(buyer_edit_module, "resolve_role_entry_id", fake_resolve_role_entry_id)
     patched_entries: list[str] = []
 
     async def fake_patch_role_entry(_client, _list_slug, entry_id, _values):
@@ -792,12 +793,12 @@ def test_buyer_edit_form_writes_attio_before_postgres(
         postgres_use_case.calls.append((args, kwargs))
         return None
 
-    monkeypatch.setattr(actions_module, "build_attio_values", fake_build_attio_values)
-    monkeypatch.setattr(actions_module, "patch_role_entry", fake_patch_role_entry)
-    monkeypatch.setattr(actions_module, "get_attio_client", lambda: object())
-    monkeypatch.setattr(actions_module, "assert_organization_in_scope", _async_returning(None))
+    monkeypatch.setattr(buyer_edit_module, "build_attio_values", fake_build_attio_values)
+    monkeypatch.setattr(buyer_edit_module, "patch_role_entry", fake_patch_role_entry)
+    monkeypatch.setattr(buyer_edit_module, "get_attio_client", lambda: object())
+    monkeypatch.setattr(buyer_edit_module, "assert_organization_in_scope", _async_returning(None))
     monkeypatch.setattr(
-        actions_module,
+        buyer_edit_module,
         "ddl_commands_service",
         lambda: SimpleNamespace(update_buyer=fake_execute),
     )
@@ -1675,7 +1676,7 @@ def test_saving_from_the_popup_locks_it_then_refreshes_it(monkeypatch, fails: bo
             raise PartialWriteError([], RuntimeError("attio down"))
 
     monkeypatch.setattr(actions_module, "edit_gate_port", lambda: gate)
-    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    monkeypatch.setattr(actions_module, "write_buyer_edit", fake_write)
     token = encode_gate_ref(GateRef(view_id="V_GATE", state='{"buyer_role_id": "b1"}'))
 
     response = _post_interactivity(_gate_buyer_edit_payload(token))
@@ -1693,7 +1694,7 @@ def test_a_plain_edit_never_touches_the_popup(monkeypatch) -> None:
         events.append("write")
 
     monkeypatch.setattr(actions_module, "edit_gate_port", lambda: _RecordingGate(events))
-    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    monkeypatch.setattr(actions_module, "write_buyer_edit", fake_write)
 
     response = _post_interactivity(_gate_buyer_edit_payload(None))
 
@@ -1717,7 +1718,7 @@ def test_a_failing_popup_update_does_not_stop_the_save(monkeypatch) -> None:
         events.append("write")
 
     monkeypatch.setattr(actions_module, "edit_gate_port", lambda: _BrokenGate())
-    monkeypatch.setattr(actions_module, "_write_buyer_edit", fake_write)
+    monkeypatch.setattr(actions_module, "write_buyer_edit", fake_write)
     token = encode_gate_ref(GateRef(view_id="V_GATE", state="{}"))
 
     response = _post_interactivity(_gate_buyer_edit_payload(token))
