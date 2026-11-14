@@ -17,6 +17,7 @@ const PILL_SPEC: OverlaySpec = OverlaySpec {
     width: 360.0,
     height: 76.0,
     resizable: false,
+    min_size: None,
 };
 
 pub const COUNTDOWN_SECS: u64 = 15;

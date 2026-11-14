@@ -16,6 +16,8 @@ const NOTEPAD_SPEC: OverlaySpec = OverlaySpec {
     width: 360.0,
     height: 480.0,
     resizable: true,
+    // Header, a few lines of notes and the save status stay visible.
+    min_size: Some((280.0, 240.0)),
 };
 
 static OPEN: AtomicBool = AtomicBool::new(false);

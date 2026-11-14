@@ -36,6 +36,7 @@ const POPUP_SPEC: OverlaySpec = OverlaySpec {
     width: 360.0,
     height: 76.0,
     resizable: false,
+    min_size: None,
 };
 
 fn show_popup<R: Runtime>(app: &AppHandle<R>) {

@@ -15,6 +15,8 @@ pub(crate) struct OverlaySpec {
     pub width: f64,
     pub height: f64,
     pub resizable: bool,
+    /// Smallest (width, height) a resizable overlay may be dragged to.
+    pub min_size: Option<(f64, f64)>,
 }
 
 const MARGIN: f64 = 12.0;
@@ -83,6 +85,10 @@ mod panel {
                 window
                     .title("")
                     .resizable(spec.resizable)
+                    .min_inner_size(
+                        spec.min_size.map_or(spec.width, |(w, _)| w),
+                        spec.min_size.map_or(spec.height, |(_, h)| h),
+                    )
                     .decorations(false)
                     // The webview needs this too, or its white background shows
                     // in the card's rounded corners.
@@ -181,6 +187,10 @@ fn create_window<R: Runtime>(app: &AppHandle<R>, spec: &'static OverlaySpec) {
     .title("")
     .inner_size(spec.width, spec.height)
     .resizable(spec.resizable)
+    .min_inner_size(
+        spec.min_size.map_or(spec.width, |(w, _)| w),
+        spec.min_size.map_or(spec.height, |(_, h)| h),
+    )
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
