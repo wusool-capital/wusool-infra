@@ -47,7 +47,7 @@ def keys(monkeypatch: pytest.MonkeyPatch, private_key: rsa.RSAPrivateKey) -> _Ke
     resolver = _Keys([jwt.PyJWK.from_dict(jwk)])
     monkeypatch.setattr(cloudflare_access, "_key_resolver", lambda _team: resolver)
     # Each test starts with the refresh allowance unspent.
-    monkeypatch.setattr(cloudflare_access, "_last_refresh", 0.0)
+    monkeypatch.setattr(cloudflare_access, "_last_refresh", None)
     return resolver
 
 
@@ -145,3 +145,15 @@ async def test_a_key_fetch_outage_is_not_reported_as_a_bad_token(
 
     with pytest.raises(AccessKeysUnavailableError):
         await verify_access_jwt(_token(private_key))
+
+
+async def test_the_first_refresh_is_allowed_on_a_freshly_booted_host(
+    monkeypatch: pytest.MonkeyPatch, private_key: rsa.RSAPrivateKey, keys: _Keys
+) -> None:
+    """A monotonic clock under a minute must not count as a refresh a moment ago."""
+    monkeypatch.setattr(cloudflare_access.time, "monotonic", lambda: 5.0)
+
+    with pytest.raises(AccessSignInError):
+        await verify_access_jwt(_token(private_key, kid="rotated-away"))
+
+    assert keys.refreshes == 1

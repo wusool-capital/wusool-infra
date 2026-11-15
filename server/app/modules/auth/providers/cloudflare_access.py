@@ -52,13 +52,14 @@ def _key_resolver(team_domain: str) -> _KeyResolver:
 # Unknown key ids can be spammed, so keys are refetched at most once a minute.
 _MIN_REFRESH_SECONDS = 60.0
 _refresh_lock = threading.Lock()
-_last_refresh = 0.0
+# None until the first refresh: a fresh host's monotonic clock can be under a minute.
+_last_refresh: float | None = None
 
 
 def _may_refresh() -> bool:
     global _last_refresh
     with _refresh_lock:
-        if time.monotonic() - _last_refresh < _MIN_REFRESH_SECONDS:
+        if _last_refresh is not None and time.monotonic() - _last_refresh < _MIN_REFRESH_SECONDS:
             return False
         _last_refresh = time.monotonic()
         return True

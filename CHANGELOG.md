@@ -15,12 +15,13 @@ for current production evidence and open handover items.
 - The Engine's Buyers and Sellers pages can run on live Toolkit data. A new `crm`
   module serves buyer and seller roles under `/api/v1`. It filters, searches and
   pages on the server. Edits go through the same Attio-first write path as Slack
-  and the MCP. A new `engine` module returns each page's payload. Sign-in is
-  Cloudflare Access: the Toolkit checks the Access token and finds the person in
-  `users` by email. The Engine's Worker proxies `/api/v1/*` to the Toolkit, and
-  `VITE_DATA=live` switches the pages over. Add to deal, New lead and the owner
-  approach stay greyed out until their phases. Engine writes appear in
-  `command_runs` as `engine`.
+  and the MCP.
+- A new `engine` module returns each page's payload. Add to deal, New lead and
+  the owner approach stay greyed out until their phases.
+- Engine sign-in is Cloudflare Access. The Toolkit checks the Access token and
+  finds the person in `users` by email. The Engine's Worker proxies `/api/v1/*`
+  to the Toolkit, and `VITE_DATA=live` switches the pages over.
+- Engine writes appear in `command_runs` as `engine`.
 - Four read-only MCP tools. `get_buyer` and `get_seller` show every field of a
   record. `list_buyers` and `list_sellers` filter by vertical, region, check
   size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
