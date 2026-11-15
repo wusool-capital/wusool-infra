@@ -25,6 +25,13 @@ static-analysis drafts, not from a live-DB reflection — see
 from app.models.activity import Activity
 from app.models.attio_raw_event import AttioRawEvent
 from app.models.attio_sync_state import AttioSyncState
+from app.models.benchmark_data import (
+    BenchmarkAnchor,
+    BenchmarkBand,
+    BenchmarkDatasetVersion,
+    BenchmarkMetric,
+    BenchmarkPeerCut,
+)
 from app.models.buyer_intel import BuyerIntel
 from app.models.buyer_role import BuyerRole
 from app.models.command_run import CommandRun
@@ -57,6 +64,11 @@ __all__ = [
     "Activity",
     "AttioRawEvent",
     "AttioSyncState",
+    "BenchmarkAnchor",
+    "BenchmarkBand",
+    "BenchmarkDatasetVersion",
+    "BenchmarkMetric",
+    "BenchmarkPeerCut",
     "BuyerIntel",
     "BuyerRole",
     "CommandRun",
