@@ -12,6 +12,7 @@ import { LeadDrawer } from "../pipeline/lead-drawer";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { AmountInput } from "../ui/amount-input";
 import { DetailFields } from "../ui/detail-fields";
+import { DetailValues } from "../ui/detail-values";
 import { Drawer } from "../ui/drawer";
 import { useRouteAction, useSaveAction } from "../ui/toast";
 import { OpenToSellingPill } from "./open-to-selling-pill";
@@ -89,6 +90,8 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{seller.notes}</p>
       </section>
 
+      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} />
+
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
         {contacts.length === 0 ? (
@@ -98,7 +101,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
             {contacts.map((person, index) => (
               <li key={person.id}>
                 <span className="cell-title">{person.name}{index === 0 && <span className="muted"> (owner contact)</span>}</span>
-                <span className="cell-sub">{person.title ?? "Title not set"}</span>
+                <span className="cell-sub">{[person.title ?? "Title not set", person.email].filter(Boolean).join(" · ")}</span>
               </li>
             ))}
           </ul>

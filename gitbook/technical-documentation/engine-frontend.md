@@ -51,6 +51,8 @@ production Toolkit, so its edits change the real CRM.
   the Toolkit refuses it with 412. The check is not atomic with the write, and an
   Attio webhook echo can also change the version. Errors use the RFC 9457 problem
   format.
+* The record drawer shows the same extra fields as the Edit form, read only, and leaves out
+  any field with no value. They load from the single-record read when the drawer opens.
 * Range filters (check size, EBITDA, revenue) are a two-handle slider with named steps
   from Any to $1B+. The URL keeps the range in millions of dollars, such as `checkSize=0.2-5`.
 * Counts, filter options and the team list come with the first page of a list.
