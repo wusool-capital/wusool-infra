@@ -92,9 +92,16 @@ Escalate any plan that proposes replacing RDS, changing state, or deleting resou
 
 ## Stacks applied by hand
 
-`account`, `peering`, and `scribe-updates` span environments, so no deploy
-applies them. An operator plans and applies them from their stack folders
-after review.
+`account`, `peering`, `scribe-updates`, and `engine-frontend` span environments,
+so no deploy applies them. An operator plans and applies them from their stack
+folders after review. Apply `engine-frontend` before the first engine deploy,
+then set the repository variable `ENGINE_ACCESS_APPLIED` to `true`. The live
+Engine has its own variable, `ENGINE_PROD_ACCESS_APPLIED`.
+
+## Release the Engine
+
+The Engine has its own steps, including the first release of the live Engine. See
+[Release the Engine](release-the-engine.md).
 
 ## Release WusoolScribe
 

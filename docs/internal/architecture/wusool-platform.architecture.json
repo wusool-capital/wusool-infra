@@ -9,7 +9,7 @@
       "url": "https://github.com/wusool-capital/wusool-infra.git",
       "provider": "github",
       "link_mode": "web",
-      "revision": "6a8da07a34c41f3c90127bc7f878746b0114129e"
+      "revision": "e51ed7f3cef5624cad89d932e09a24595a48b659"
     },
     "viewBox": [
       1240,
@@ -58,6 +58,30 @@
         {
           "path": "server/app/modules/matching_engine/api/http/routes.py",
           "label": "Web API routes"
+        }
+      ]
+    },
+    {
+      "id": "engine",
+      "type": "external",
+      "label": "Advisors (Engine)",
+      "sublabel": "Cloudflare Worker + Access",
+      "pos": [
+        300,
+        84
+      ],
+      "size": [
+        180,
+        56
+      ],
+      "sources": [
+        {
+          "path": "gitbook/technical-documentation/engine-frontend.md",
+          "label": "Engine frontend"
+        },
+        {
+          "path": "server/app/modules/crm/README.md",
+          "label": "CRM module"
         }
       ]
     },
@@ -475,6 +499,14 @@
       ]
     },
     {
+      "from": "engine",
+      "to": "toolkit",
+      "label": "Worker proxy /api/v1 (Access token)",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
       "from": "claude",
       "to": "toolkit",
       "label": "HTTPS /mcp (OAuth, Slack sign-in)",
@@ -691,7 +723,7 @@
       "dot": "cyan",
       "title": "One Toolkit process",
       "items": [
-        "Serves Slack, the web find-match app, the Claude MCP connector, Scribe, the lead tools, and Attio and Sanity webhooks",
+        "Serves Slack, the web find-match app, the Engine's Buyers and Sellers pages (behind Cloudflare Access), the Claude MCP connector, Scribe, the lead tools, and Attio and Sanity webhooks",
         "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards",
         "Optionally reads Gmail and Calendar metadata into PostgreSQL (the interactions loop, off by default)"
       ]

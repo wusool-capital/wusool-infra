@@ -4,8 +4,6 @@ handler so both callers share one Attio-then-Postgres ordering and one
 `PartialWriteError` shape.
 """
 
-from typing import Literal
-
 from app.modules.attio import AttioError, attio_is_test, get_attio_client
 from app.modules.attio.providers.attio.entries import (
     RoleEntryNotFoundError,
@@ -26,6 +24,7 @@ from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NA
 from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.sellers import SELLER_ROLE_FIELDS_BY_NAME
 from app.modules.ddl_commands.api.write_errors import PartialWriteError, check_role_organization
+from app.modules.ddl_commands.application.ports.command_runs import InvokedVia
 from app.modules.ddl_commands.application.sellers import SellerNotFoundError
 from app.modules.ddl_commands.providers.attio.write_payload import (
     build_attio_values,
@@ -40,7 +39,7 @@ async def write_seller_edit(
     org_extracted: dict[str, PrefillValue | None],
     role_extracted: dict[str, PrefillValue | None],
     requested_by: str | None,
-    invoked_via: Literal["slack", "mcp"] = "slack",
+    invoked_via: InvokedVia = "slack",
 ) -> None:
     async with track_command(
         "edit_seller",

@@ -277,8 +277,9 @@ failed ledger write and the command carries on.
 A successful write also records a `seller|buyer.added|edited` activity in the
 same transaction as the Postgres write, linked to the `command_runs` row and
 attributed to the Slack user (`system/discovery` for discovery).
-`command_runs.invoked_via` is `slack`, `discovery` or `mcp`; an `mcp` run is
-attributed to the signed-in person's Slack user with activity source `mcp`. The payload
+`command_runs.invoked_via` is `slack`, `discovery`, `mcp` or `engine`; an `mcp` run is
+attributed to the signed-in person's Slack user with activity source `mcp`, and an
+`engine` run to the signed-in person's Attio user with activity source `engine`. The payload
 holds changed field names, never values.
 
 The Attio webhook sync records `crm.record_created|updated|deleted` activities

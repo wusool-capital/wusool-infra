@@ -119,6 +119,9 @@ async def track_command(
     elif invoked_via == "mcp":
         # MCP calls carry the signed-in person's Slack user id.
         actor, source = ActivityActor.slack(requested_by), ActivitySource.MCP
+    elif invoked_via == "engine":
+        # Engine calls carry the signed-in person's Attio user id.
+        actor, source = ActivityActor.member(requested_by), ActivitySource.ENGINE
     else:
         actor, source = ActivityActor.slack(requested_by), ActivitySource.SLACK
     tracker = CommandTracker(run_id=run_id, context=WriteContext(actor, source, run_id))

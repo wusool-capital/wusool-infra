@@ -1,7 +1,7 @@
 """Slack CRM commands. Public names: the read-only Person lookup other modules
 use, and the find, get, list, add, edit and bulk-upload calls the Wusool MCP (`mcp`) makes."""
 
-from app.modules.ddl_commands.api.bulk_columns import Column, columns_for
+from app.modules.ddl_commands.api.bulk_columns import Column, columns_for, routes_for
 from app.modules.ddl_commands.api.bulk_store import (
     MAX_ROWS,
     CommitProgress,
@@ -81,6 +81,7 @@ __all__ = [
     "list_buyer_records",
     "list_live_person_emails",
     "list_seller_records",
+    "routes_for",
     "preview_buyers",
     "preview_sellers",
     "status",

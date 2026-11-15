@@ -100,6 +100,19 @@ async def test_an_mcp_run_has_the_mcp_source_and_the_person_as_actor(service) ->
     assert service.started[0]["invoked_via"] == "mcp"
 
 
+async def test_an_engine_run_has_the_engine_source_and_the_attio_member_as_actor(service) -> None:
+    async with tracking.track_command(
+        "edit_buyer", invoked_via="engine", requested_by="user-1"
+    ) as run:
+        pass
+
+    assert run.context.source is ActivitySource.ENGINE
+    assert run.context.actor.type is ActorType.ATTIO_MEMBER
+    assert run.context.actor.ref == "user-1"
+    assert run.context.actor.attio_member_id == "user-1"
+    assert service.started[0]["invoked_via"] == "engine"
+
+
 async def test_a_failing_ledger_never_fails_the_write(service) -> None:
     service.start_error = RuntimeError("ledger down")
     service.finish_error = RuntimeError("ledger down")

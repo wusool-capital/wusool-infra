@@ -1,0 +1,87 @@
+# Deploys the Engine SPA to Cloudflare Workers: a push to `dev` deploys engine-dev,
+# a push to `prod` deploys the live Engine (`wrangler deploy --env production`).
+# The Access applications that gate the hostnames, the deploy role and the token's
+# secret live in infrastructure/terraform/stacks/engine-frontend, applied out of
+# band before the first run for each environment.
+name: Deploy engine
+
+on:
+  push:
+    branches: [dev, prod]
+    paths:
+      - 'engine-frontend/**'
+      - '.github/workflows/deploy-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-engine-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  ENGINE_HOSTNAME: ${{ github.ref_name == 'prod' && 'engine.wusoolcapital.com' || 'engine-dev.wusoolcapital.com' }}
+  # Empty selects the top-level (dev) config in wrangler.jsonc.
+  WRANGLER_ENV: ${{ github.ref_name == 'prod' && 'production' || '' }}
+  # The Buyers and Sellers pages read the Toolkit; local work and tests stay on VITE_DATA=demo.
+  VITE_DATA: live
+  # Not secret: an account identifier, not a credential.
+  CLOUDFLARE_ACCOUNT_ID: aa28a40954cce378e48680c2b5588dda
+
+jobs:
+  deploy:
+    name: Deploy engine to Cloudflare
+    # Off until the Access stack is applied; set the repository variable
+    # ENGINE_ACCESS_APPLIED (dev) or ENGINE_PROD_ACCESS_APPLIED (prod) to true
+    # afterwards. Stops a merge from publishing the app without a login in front of it.
+    if: >-
+      (github.ref_name == 'prod' && vars.ENGINE_PROD_ACCESS_APPLIED == 'true') ||
+      (github.ref_name != 'prod' && vars.ENGINE_ACCESS_APPLIED == 'true')
+    runs-on: ubuntu-latest
+    # Only an OIDC trust label for the deploy role; it needs no protection rules.
+    environment: ${{ github.ref_name == 'prod' && 'engine-prod' || 'engine-dev' }}
+    defaults:
+      run:
+        working-directory: engine-frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: engine-frontend/package-lock.json
+
+      # checks.sh api regenerates the client from the server's OpenAPI spec.
+      - uses: astral-sh/setup-uv@v9.0.0
+        with: { version: latest }
+
+      - run: ./checks.sh all
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-engine-deploy
+
+      - name: Load Cloudflare token
+        run: |
+          token=$(aws secretsmanager get-secret-value \
+            --secret-id /wusool/engine-frontend/cloudflare-deploy \
+            --query SecretString --output text)
+          echo "::add-mask::$token"
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Deploy Worker
+        run: npx wrangler deploy --env="${WRANGLER_ENV}"
+
+      # A deploy that exposes the app without the Access redirect must fail the run.
+      - name: Verify Access gate
+        run: |
+          result=$(curl -sS -o /dev/null --retry 6 --retry-delay 10 --retry-all-errors \
+            -w '%{http_code} %{redirect_url}' "https://${ENGINE_HOSTNAME}/")
+          echo "$result"
+          [[ "$result" == 302\ https://*.cloudflareaccess.com/* ]]
+          # The API proxy sits behind the same gate.
+          api=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "https://${ENGINE_HOSTNAME}/api/v1/me")
+          echo "$api"
+          [[ "$api" == 302\ https://*.cloudflareaccess.com/* ]]
