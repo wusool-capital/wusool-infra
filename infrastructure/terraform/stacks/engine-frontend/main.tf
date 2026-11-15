@@ -14,13 +14,6 @@ resource "cloudflare_zero_trust_access_policy" "engine" {
   }]
 }
 
-# The live application was first created through the Cloudflare API, so this adopts it into state on the
-# next apply instead of creating a second one. Once an apply has run, this block can be deleted.
-import {
-  to = cloudflare_zero_trust_access_application.engine_prod
-  id = "${var.cloudflare_account_id}/f5769f14-2e87-4c53-a757-73d4afbdce67"
-}
-
 # The live Engine. It reuses the policy above, so one change to who may sign in covers both.
 resource "cloudflare_zero_trust_access_application" "engine_prod" {
   account_id = var.cloudflare_account_id
