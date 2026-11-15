@@ -35,7 +35,9 @@ from Cloudflare Workers at **engine-dev.wusoolcapital.com**.
   `CF_ACCESS_TEAM_DOMAIN` (for example `wusoolcapital.cloudflareaccess.com`) and
   `CF_ACCESS_ENGINE_AUD` (the `access_aud` output of the `engine-frontend`
   stack). Until both are set, `/api/v1` answers 503.
-* `crm` serves `/api/v1/buyer-roles`, `/api/v1/seller-roles` and `/api/v1/me`.
+* `crm` serves `/api/v1/buyer-roles`, `/api/v1/seller-roles` and `/api/v1/me`. Adding a
+  buyer or seller uses the same Attio-first write as Slack's `/add-buyer` and `/add-seller`.
+  A duplicate domain is refused, and the HQ is picked from Attio's list of countries.
   `engine` serves the page payloads, `/api/v1/views/buyers` and
   `/api/v1/views/sellers`. Filters, search and order run on the Toolkit. Pages hold
   up to 100 rows, and the "Show more" button loads the next page.

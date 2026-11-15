@@ -6,6 +6,7 @@ import { getBuyersUniverse as fetchBuyers } from "../gen/clients/getBuyersUniver
 import { getCurrentUser as fetchMe } from "../gen/clients/getCurrentUser";
 import { getSellersUniverse as fetchSellers } from "../gen/clients/getSellersUniverse";
 import { updateBuyer as patchBuyer } from "../gen/clients/updateBuyer";
+import { addSeller as postSeller } from "../gen/clients/addSeller";
 import { updateSeller as patchSeller } from "../gen/clients/updateSeller";
 import type { BuyerRoleView } from "../gen/types/BuyerRoleView";
 import type { BuyersUniverseView } from "../gen/types/BuyersUniverseView";
@@ -13,7 +14,7 @@ import type { PersonView } from "../gen/types/PersonView";
 import type { SellerRoleView } from "../gen/types/SellerRoleView";
 import type { SellersUniverseView } from "../gen/types/SellersUniverseView";
 import type { TeamMemberView } from "../gen/types/TeamMemberView";
-import type { BuyerPatch, BuyerRole, BuyersUniverseData, Person, SellerPatch, SellerRole, SellersUniverseData, User, UserId } from "../demo/types";
+import type { BuyerPatch, BuyerRole, BuyersUniverseData, NewSellerInput, Person, SellerPatch, SellerRole, SellersUniverseData, User, UserId } from "../demo/types";
 
 // The version each row had when it was shown, so a save is refused if someone else changed it since.
 const etags = new Map<string, string>();
@@ -53,8 +54,8 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
 
 // The edit form offers every region and country Attio allows, not only those in use.
 function buyerOptions({ options }: BuyersUniverseView): BuyersUniverseData["options"] {
-  const { sectors, geographies, statuses, regions, countries } = options;
-  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort() };
+  const { sectors, geographies, statuses, regions, countries, hqCountries } = options;
+  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort(), hqCountries };
 }
 
 export async function getSellersUniverse(params: URLSearchParams, cursor?: string): Promise<SellersUniverseData> {
@@ -77,6 +78,22 @@ export async function addBuyer(_userId: UserId, fields: Required<BuyerPatch> & P
       checkSizeMaxUsd: fields.checkSizeMaxUsd,
       ebitdaFloorUsd: fields.ebitdaFloorUsd,
       geographies: fields.geographies,
+    },
+  }).unwrap();
+  etags.set(created.id, created.etag);
+}
+
+export async function addSeller(_userId: UserId, fields: NewSellerInput) {
+  const created = await postSeller({
+    body: {
+      name: fields.name,
+      website: fields.website,
+      hq: fields.hq || null,
+      sector: fields.sector,
+      openToSelling: fields.openToSelling,
+      estRevenueUsd: fields.estRevenueUsd,
+      estEbitdaUsd: fields.estEbitdaUsd ?? null,
+      reEngageDate: fields.reEngageDate || null,
     },
   }).unwrap();
   etags.set(created.id, created.etag);

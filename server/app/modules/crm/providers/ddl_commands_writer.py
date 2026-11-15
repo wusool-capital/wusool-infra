@@ -9,6 +9,7 @@ from app.modules.crm.domain.roles import (
     BuyerChanges,
     InvalidRoleFieldsError,
     NewBuyer,
+    NewSeller,
     RoleNotFoundError,
     SellerChanges,
     WriteLandedPartlyError,
@@ -72,6 +73,26 @@ def buyer_add_row(
     return row
 
 
+def seller_add_row(seller: NewSeller) -> UploadRow:
+    # `sector_focus` is the company's sector field in Attio; `hq_country` is its country list.
+    row: UploadRow = {
+        "org_name": seller.name,
+        "domain": seller.website,
+        "sector_focus": [seller.sector],
+    }
+    optional: UploadRow = {
+        "hq_country": seller.hq,
+        "appetite_signal": appetite_signals(seller.open_to_selling)[0]
+        if seller.open_to_selling
+        else None,
+        "est_revenue": seller.est_revenue_usd,
+        "est_ebitda": seller.est_ebitda_usd,
+        "re_engage_date": seller.re_engage_date.isoformat() if seller.re_engage_date else None,
+    }
+    row.update({key: value for key, value in optional.items() if value is not None})
+    return row
+
+
 def buyer_edit_row(
     changes: BuyerChanges, regions: Sequence[str] = (), countries: Sequence[str] = ()
 ) -> UploadRow:
@@ -112,11 +133,15 @@ def _translated(exc: Exception) -> Exception:
     return exc
 
 
-def _buyer_options(field: str) -> tuple[str, ...]:
-    for column in columns_for("buyer"):
+def _field_options(kind: Literal["buyer", "seller"], field: str) -> tuple[str, ...]:
+    for column in columns_for(kind):
         if column.field == field and column.spec is not None:
             return tuple(column.spec.options or ())
     return ()
+
+
+def _buyer_options(field: str) -> tuple[str, ...]:
+    return _field_options("buyer", field)
 
 
 class DdlCommandsRoleWriter:
@@ -128,6 +153,23 @@ class DdlCommandsRoleWriter:
 
     def buyer_countries(self) -> tuple[str, ...]:
         return _buyer_options("target_country")
+
+    def hq_countries(self) -> tuple[str, ...]:
+        return _buyer_options("hq_country")
+
+    def seller_sectors(self) -> tuple[str, ...]:
+        return _field_options("seller", "sector_focus")
+
+    async def add_seller(
+        self, seller: NewSeller, *, requested_by: str
+    ) -> tuple[Literal["added", "existing"], str]:
+        try:
+            outcome = await add_one(
+                "seller", seller_add_row(seller), requested_by=requested_by, invoked_via="engine"
+            )
+        except (InvalidFieldsError, PartialWriteError) as exc:
+            raise _translated(exc) from exc
+        return outcome.status, str(outcome.record.role_id)
 
     async def add_buyer(
         self, buyer: NewBuyer, *, requested_by: str

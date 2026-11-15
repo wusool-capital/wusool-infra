@@ -128,6 +128,13 @@
             "title": "Geographies",
             "type": "array"
           },
+          "hqCountries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hqcountries",
+            "type": "array"
+          },
           "regions": {
             "items": {
               "type": "string"
@@ -155,7 +162,8 @@
           "geographies",
           "statuses",
           "regions",
-          "countries"
+          "countries",
+          "hqCountries"
         ],
         "title": "BuyerFilterOptionsView",
         "type": "object"
@@ -677,13 +685,118 @@
         "title": "ReservedItem",
         "type": "object"
       },
+      "SellerCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "estEbitdaUsd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estebitdausd"
+          },
+          "estRevenueUsd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estrevenueusd"
+          },
+          "hq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "openToSelling": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Unknown",
+                  "Interested",
+                  "Warm intro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opentoselling"
+          },
+          "reEngageDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reengagedate"
+          },
+          "sector": {
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "website": {
+            "minLength": 1,
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "website",
+          "sector"
+        ],
+        "title": "SellerCreate",
+        "type": "object"
+      },
       "SellerFilterOptionsView": {
+        "description": "`sector_choices` and `hq_countries` list everything Attio allows, for the add form.",
         "properties": {
           "geographies": {
             "items": {
               "type": "string"
             },
             "title": "Geographies",
+            "type": "array"
+          },
+          "hqCountries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hqcountries",
+            "type": "array"
+          },
+          "sectorChoices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sectorchoices",
             "type": "array"
           },
           "sectors": {
@@ -696,7 +809,9 @@
         },
         "required": [
           "sectors",
-          "geographies"
+          "geographies",
+          "sectorChoices",
+          "hqCountries"
         ],
         "title": "SellerFilterOptionsView",
         "type": "object"
@@ -2077,6 +2192,135 @@
           }
         },
         "summary": "List Seller Roles",
+        "tags": [
+          "crm"
+        ]
+      },
+      "post": {
+        "operationId": "addSeller",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SellerCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerRoleView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Add Seller",
         "tags": [
           "crm"
         ]

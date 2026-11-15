@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { OPEN_TO_SELLING, type SellerPatch, type SellerRole, type SellersUniverseData } from "../../demo/types";
+import { OPEN_TO_SELLING, type NewSellerInput, type SellerPatch, type SellerRole, type SellersUniverseData } from "../../demo/types";
 import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
 import { isLive } from "../../lib/data-mode";
@@ -31,6 +31,21 @@ export function sellerActions(seller: SellerRole) {
 }
 
 const ROUTE = "/sellers/universe";
+
+/** The empty seller behind "Add seller". */
+export const NEW_SELLER: SellerRole = {
+  id: "new",
+  name: "",
+  hq: "",
+  website: "",
+  sector: "",
+  geography: "",
+  estRevenueUsd: null,
+  openToSelling: "Unknown",
+  ownerId: null,
+  contactIds: [],
+  notes: "",
+};
 
 type Props = {
   seller: SellerRole;
@@ -282,14 +297,32 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
     notes: seller.notes,
   };
   const [draft, setDraft] = useState(initial);
+  // A new seller is the same form with its name, HQ and website first (id "new" until saved).
+  const isNew = seller.id === NEW_SELLER.id;
+  const [identity, setIdentity] = useState({ name: "", hq: "", website: "" });
   const set = <K extends keyof typeof initial>(key: K, value: (typeof initial)[K]) => setDraft({ ...draft, [key]: value });
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
   // Live cannot save these yet. A row's own value is always listed so the select can show it.
-  const sectors = [...new Set([...data.options.sectors, draft.sector])].sort();
+  const sectors = [...new Set([...(isNew ? data.options.sectorChoices : data.options.sectors), draft.sector])].filter(Boolean).sort();
   const geographies = [...new Set([...data.options.geographies, draft.geography])].sort();
-  const blocker = draft.estEbitdaUsd !== undefined && draft.estRevenueUsd !== null && draft.estEbitdaUsd > draft.estRevenueUsd ? "EBITDA cannot be above revenue." : "";
+  const ebitdaTooHigh = draft.estEbitdaUsd !== undefined && draft.estRevenueUsd !== null && draft.estEbitdaUsd > draft.estRevenueUsd;
+  const blocker = isNew && (!identity.name.trim() || !identity.website.trim()) ? "Add the seller's name and website." : isNew && !draft.sector ? "Pick a sector." : ebitdaTooHigh ? "EBITDA cannot be above revenue." : "";
 
   const save = () => {
+    if (isNew) {
+      const added: NewSellerInput = {
+        name: identity.name.trim(),
+        hq: identity.hq.trim(),
+        website: identity.website.trim(),
+        sector: draft.sector,
+        estRevenueUsd: draft.estRevenueUsd,
+        estEbitdaUsd: draft.estEbitdaUsd,
+        openToSelling: draft.openToSelling,
+        reEngageDate: draft.reEngageDate || undefined,
+      };
+      send({ intent: "seller-add", seller: JSON.stringify(added) }, `${added.name} added to Attio as a seller role.`, onClose);
+      return;
+    }
     const changed = changedFields(initial, draft);
     // A missing key means unchanged, so a cleared value goes as null.
     const patch: SellerPatch = {
@@ -302,31 +335,62 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
 
   return (
     <Drawer
-      title={`Edit ${seller.name}`}
-      dirty={dirty}
-      notice={error ?? (dirty && blocker ? blocker : undefined)}
+      title={isNew ? "Add a seller" : `Edit ${seller.name}`}
+      dirty={dirty || Boolean(identity.name)}
+      notice={error ?? ((dirty || isNew) && blocker ? blocker : undefined)}
       onClose={onClose}
       actions={
         <>
-          <BackButton onBack={onBack} />
-          <button type="button" className="button" disabled={saving || !dirty || Boolean(blocker)} onClick={save}>Save to Attio</button>
+          {!isNew && <BackButton onBack={onBack} />}
+          <button type="button" className="button" disabled={saving || (!dirty && !isNew) || Boolean(blocker)} onClick={save}>Save to Attio</button>
         </>
       }
     >
       <section className="drawer__section">
         <div className="form-grid">
+          {isNew && (
+            <>
+              <div className="field">
+                <label htmlFor="seller-name">Name</label>
+                <input id="seller-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
+              </div>
+              <div className="field">
+                {isLive ? (
+                  <>
+                    <label htmlFor="seller-hq">HQ country</label>
+                    <select id="seller-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
+                      <option value="">Not set</option>
+                      {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="seller-hq">HQ city</label>
+                    <input id="seller-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                  </>
+                )}
+              </div>
+              <div className="field">
+                <label htmlFor="seller-website">Website</label>
+                <input id="seller-website" value={identity.website} placeholder="example.com" onChange={(event) => setIdentity({ ...identity, website: event.target.value })} />
+              </div>
+            </>
+          )}
           <div className="field">
             <label htmlFor="seller-sector">Sector</label>
-            <select id="seller-sector" value={draft.sector} disabled={isLive} onChange={(event) => set("sector", event.target.value)}>
+            <select id="seller-sector" value={draft.sector} disabled={isLive && !isNew} onChange={(event) => set("sector", event.target.value)}>
+              {isNew && !draft.sector && <option value="">Pick a sector</option>}
               {sectors.map((value) => <option key={value}>{value}</option>)}
             </select>
           </div>
-          <div className="field">
-            <label htmlFor="seller-geo">Geography</label>
-            <select id="seller-geo" value={draft.geography} disabled={isLive} onChange={(event) => set("geography", event.target.value)}>
-              {geographies.map((value) => <option key={value}>{value}</option>)}
-            </select>
-          </div>
+          {!isNew && (
+            <div className="field">
+              <label htmlFor="seller-geo">Geography</label>
+              <select id="seller-geo" value={draft.geography} disabled={isLive} onChange={(event) => set("geography", event.target.value)}>
+                {geographies.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="seller-revenue">Revenue (USD)</label>
             <AmountInput id="seller-revenue" value={draft.estRevenueUsd ?? undefined} onChange={(value) => set("estRevenueUsd", value ?? null)} />
@@ -345,18 +409,22 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
             <label htmlFor="seller-reengage">Re-engage date</label>
             <input id="seller-reengage" type="date" value={draft.reEngageDate} onChange={(event) => set("reEngageDate", event.target.value)} />
           </div>
+          {!isNew && (
+            <div className="field">
+              <label htmlFor="seller-owner">Owner</label>
+              <select id="seller-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
+                {draft.ownerId === null && <option value="">Not set</option>}
+                {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        {!isNew && (
           <div className="field">
-            <label htmlFor="seller-owner">Owner</label>
-            <select id="seller-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
-              {draft.ownerId === null && <option value="">Not set</option>}
-              {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-            </select>
+            <label htmlFor="seller-notes">Notes</label>
+            <textarea id="seller-notes" rows={3} value={draft.notes} disabled={isLive} onChange={(event) => set("notes", event.target.value)} />
           </div>
-        </div>
-        <div className="field">
-          <label htmlFor="seller-notes">Notes</label>
-          <textarea id="seller-notes" rows={3} value={draft.notes} disabled={isLive} onChange={(event) => set("notes", event.target.value)} />
-        </div>
+        )}
       </section>
     </Drawer>
   );

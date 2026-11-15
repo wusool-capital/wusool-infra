@@ -24,6 +24,7 @@ import type {
   BuyerPatch,
   BuyerRole,
   BuyersSearchData,
+  NewSellerInput,
   SellerPatch,
   SellersSearchData,
   ScorecardsData,
@@ -517,6 +518,7 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
       geographies: sortedUnique(buyers.flatMap((b) => b.geographies)),
       statuses: [...BUYER_STATUSES],
       geographyChoices: sortedUnique(buyers.flatMap((b) => b.geographies)),
+      hqCountries: [],
     },
     unavailable: [],
   });
@@ -685,9 +687,21 @@ export async function getSellersUniverse(params: URLSearchParams, cursor?: strin
     matched: matched.length,
     total: sellers.length,
     nextCursor: page.nextCursor,
-    options: { sectors: sortedUnique(sellers.map((s) => s.sector)), geographies: sortedUnique(sellers.map((s) => s.geography)) },
+    options: {
+      sectors: sortedUnique(sellers.map((s) => s.sector)),
+      geographies: sortedUnique(sellers.map((s) => s.geography)),
+      sectorChoices: sortedUnique(sellers.map((s) => s.sector)),
+      hqCountries: [],
+    },
     unavailable: [],
   });
+}
+
+/** Added by hand from the Sellers universe. Attio matches by website, so a known domain is not added twice. */
+export async function addSeller(userId: UserId, fields: NewSellerInput) {
+  if (fields.website && sellers.some((row) => row.website === fields.website)) return;
+  sellers.push({ ...fields, id: `sr-${Date.now()}`, geography: "", ownerId: userId, contactIds: [], notes: "" });
+  logActivity(userId, `added ${fields.name} to the sellers universe`);
 }
 
 export async function updateSeller(userId: UserId, id: string, patch: SellerPatch) {

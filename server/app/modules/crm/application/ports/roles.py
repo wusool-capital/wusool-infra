@@ -8,6 +8,7 @@ from app.modules.crm.domain.roles import (
     BuyerRole,
     BuyersPage,
     NewBuyer,
+    NewSeller,
     SellerChanges,
     SellerFilters,
     SellerRole,
@@ -52,6 +53,18 @@ class RoleWriterPort(Protocol):
     def buyer_countries(self) -> tuple[str, ...]:
         """The target countries Attio allows."""
         ...
+
+    def hq_countries(self) -> tuple[str, ...]:
+        """The HQ countries Attio allows a company to have."""
+        ...
+
+    def seller_sectors(self) -> tuple[str, ...]:
+        """The sectors Attio allows a company to focus on."""
+        ...
+
+    async def add_seller(
+        self, seller: NewSeller, *, requested_by: str
+    ) -> tuple[Literal["added", "existing"], str]: ...
 
     async def edit_buyer(
         self, role_id: str, changes: BuyerChanges, *, requested_by: str

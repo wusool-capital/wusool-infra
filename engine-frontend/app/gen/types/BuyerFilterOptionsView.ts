@@ -7,6 +7,7 @@
 export type BuyerFilterOptionsView = {
   countries: string[];
   geographies: string[];
+  hqCountries: string[];
   regions: string[];
   sectors: string[];
   statuses: string[];

@@ -136,12 +136,16 @@ class BuyerFilterOptions:
     # Everything Attio allows, for the edit form; the service adds these.
     regions: tuple[str, ...] = ()
     countries: tuple[str, ...] = ()
+    hq_countries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
 class SellerFilterOptions:
     sectors: tuple[str, ...]
     geographies: tuple[str, ...]
+    # Everything Attio allows, for the add form; the service adds these.
+    sector_choices: tuple[str, ...] = ()
+    hq_countries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -178,6 +182,18 @@ class NewBuyer:
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
     geographies: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class NewSeller:
+    name: str
+    website: str
+    sector: str
+    hq: str | None = None
+    open_to_selling: OpenToSelling | None = None
+    est_revenue_usd: float | None = None
+    est_ebitda_usd: float | None = None
+    re_engage_date: date | None = None
 
 
 @dataclass(frozen=True)
@@ -238,9 +254,10 @@ class StaleRoleError(Exception):
 class RoleAlreadyExistsError(Exception):
     """The company already holds this role."""
 
-    def __init__(self, role_id: str) -> None:
-        super().__init__(f"role {role_id} already exists")
+    def __init__(self, role_id: str, kind: RoleKind = "buyer") -> None:
+        super().__init__(f"{kind} role {role_id} already exists")
         self.role_id = role_id
+        self.kind = kind
 
 
 class InvalidRoleFieldsError(Exception):

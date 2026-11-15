@@ -12,6 +12,7 @@ from app.modules.crm.domain.roles import (
     BuyerChanges,
     BuyerFilters,
     NewBuyer,
+    NewSeller,
     OpenToSelling,
     Range,
     SellerChanges,
@@ -103,11 +104,16 @@ class BuyerFilterOptionsView(ApiModel):
     statuses: list[str]
     regions: list[str]
     countries: list[str]
+    hq_countries: list[str]
 
 
 class SellerFilterOptionsView(ApiModel):
+    """`sector_choices` and `hq_countries` list everything Attio allows, for the add form."""
+
     sectors: list[str]
     geographies: list[str]
+    sector_choices: list[str]
+    hq_countries: list[str]
 
 
 class BuyerRolePage(ApiModel):
@@ -214,6 +220,38 @@ class BuyerUpdate(_Update):
             check_size_max_usd=self.check_size_max_usd,
             ebitda_floor_usd=self.ebitda_floor_usd,
             geographies=tuple(self.geographies or ()),
+        )
+
+
+class SellerCreate(ApiModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, frozen=True, extra="forbid"
+    )
+
+    name: str = Field(min_length=1)
+    website: str = Field(min_length=1)
+    sector: str = Field(min_length=1)
+    hq: str | None = None
+    open_to_selling: OpenToSelling | None = None
+    est_revenue_usd: Usd = None
+    est_ebitda_usd: Usd = None
+    re_engage_date: date | None = None
+
+    @model_validator(mode="after")
+    def _ebitda_not_above_revenue(self) -> "SellerCreate":
+        _in_order(self.est_ebitda_usd, self.est_revenue_usd, "EBITDA is above revenue")
+        return self
+
+    def to_domain(self) -> NewSeller:
+        return NewSeller(
+            name=self.name.strip(),
+            website=self.website.strip(),
+            sector=self.sector,
+            hq=self.hq,
+            open_to_selling=self.open_to_selling,
+            est_revenue_usd=self.est_revenue_usd,
+            est_ebitda_usd=self.est_ebitda_usd,
+            re_engage_date=self.re_engage_date,
         )
 
 

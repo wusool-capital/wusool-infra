@@ -188,7 +188,7 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
   const oneSector = isLive && isNew;
   const bothSizes = draft.checkSizeMinUsd !== null && draft.checkSizeMaxUsd !== null;
   const blocker =
-    isNew && (!identity.name.trim() || !identity.hq.trim()) ? "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !isLive && !draft.geographies.length ? "Pick at least one geography." : bothSizes && draft.checkSizeMinUsd! > draft.checkSizeMaxUsd! ? "Check size from must be lower than check size to." : "";
+    isNew && (!identity.name.trim() || !identity.hq.trim()) ? isLive ? "Add the buyer's name and HQ country." : "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !isLive && !draft.geographies.length ? "Pick at least one geography." : bothSizes && draft.checkSizeMinUsd! > draft.checkSizeMaxUsd! ? "Check size from must be lower than check size to." : "";
 
   const save = () => {
     if (isNew) {
@@ -221,8 +221,20 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
                 <input id="buyer-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
               </div>
               <div className="field">
-                <label htmlFor="buyer-hq">HQ city</label>
-                <input id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                {isLive ? (
+                  <>
+                    <label htmlFor="buyer-hq">HQ country</label>
+                    <select id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
+                      <option value="">Pick a country</option>
+                      {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="buyer-hq">HQ city</label>
+                    <input id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                  </>
+                )}
               </div>
               <div className="field">
                 <label htmlFor="buyer-website">Website</label>

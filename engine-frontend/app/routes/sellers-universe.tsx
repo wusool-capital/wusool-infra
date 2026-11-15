@@ -1,12 +1,13 @@
+import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { OpenToSellingPill } from "../components/sellers/open-to-selling-pill";
-import { SELLER_ACTIONS, SellerDrawer, sellerActions, type SellerPanel } from "../components/sellers/seller-drawer";
+import { NEW_SELLER, SELLER_ACTIONS, SellerDrawer, sellerActions, type SellerPanel } from "../components/sellers/seller-drawer";
 import { ActionsMenu } from "../components/ui/actions-menu";
 import { EmptyState } from "../components/ui/empty-state";
 import { TextSearch } from "../components/ui/text-search";
 import { FilterBar } from "../components/ui/filter-bar";
-import { CURRENT_USER_ID, addSellerToDeal, createSellSideLead, getSellersUniverse, sendOwnerApproach, updateSeller } from "../api";
-import { OPEN_TO_SELLING, type SellerPatch } from "../demo/types";
+import { CURRENT_USER_ID, addSeller, addSellerToDeal, createSellSideLead, getSellersUniverse, sendOwnerApproach, updateSeller } from "../api";
+import { OPEN_TO_SELLING, type NewSellerInput, type SellerPatch } from "../demo/types";
 import { attempt } from "../lib/action-result";
 import { byId } from "../lib/by-id";
 import type { FilterDef } from "../lib/filters";
@@ -26,6 +27,8 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
   const field = (name: string) => String(form.get(name) ?? "");
   return attempt(async () => {
     switch (field("intent")) {
+      case "seller-add":
+        return addSeller(CURRENT_USER_ID, JSON.parse(field("seller")) as NewSellerInput);
       case "seller-update":
         return updateSeller(CURRENT_USER_ID, field("id"), JSON.parse(field("patch")) as SellerPatch);
       case "add-to-deal":
@@ -39,6 +42,7 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 }
 
 export default function SellersUniverse({ loaderData: initial }: Route.ComponentProps) {
+  const [adding, setAdding] = useState(false);
   const [params, setParams] = useSearchParams();
   // The Toolkit filters, searches and sorts; "Show more" adds the following pages to the first.
   const { pages, hasMore, loading, failed, showMore } = useMorePages(initial, (cursor) => getSellersUniverse(params, cursor));
@@ -78,7 +82,11 @@ export default function SellersUniverse({ loaderData: initial }: Route.Component
   return (
     <>
       <h1 className="page-title">Sellers universe</h1>
-      <FilterBar before={<TextSearch label="Search sellers" placeholder="Name, owner or note" />} filters={filterDefs} shown={data.matched} total={data.total} />
+      <FilterBar before={<TextSearch label="Search sellers" placeholder="Name, owner or note" />} filters={filterDefs} shown={data.matched} total={data.total}>
+        <button type="button" className="button" onClick={() => setAdding(true)}>
+          Add seller
+        </button>
+      </FilterBar>
       <div className="page-body">
         {sellers.length === 0 ? (
           <EmptyState>No sellers match these filters.</EmptyState>
@@ -156,6 +164,7 @@ export default function SellersUniverse({ loaderData: initial }: Route.Component
           </div>
         )}
       </div>
+      {adding && <SellerDrawer seller={{ ...NEW_SELLER, ownerId: CURRENT_USER_ID }} data={data} panel="edit" onPanel={() => setAdding(false)} onClose={() => setAdding(false)} />}
       {openSeller && (
         <SellerDrawer key={`${openSeller.id}-${panel}`} seller={openSeller} data={data} panel={panel} onPanel={(next) => show(openSeller.id, next)} onClose={close} />
       )}

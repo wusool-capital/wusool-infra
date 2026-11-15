@@ -11,6 +11,7 @@ from app.modules.crm.domain.roles import (
     BuyersPage,
     InvalidRoleFieldsError,
     NewBuyer,
+    NewSeller,
     RoleAlreadyExistsError,
     RoleNotFoundError,
     SellerChanges,
@@ -49,11 +50,26 @@ class CrmService:
             statuses=self._writer.buyer_statuses(),
             regions=self._writer.buyer_regions(),
             countries=self._writer.buyer_countries(),
+            hq_countries=self._writer.hq_countries(),
         )
         return replace(page, options=options)
 
     async def sellers(self, filters: SellerFilters, cursor: str | None, limit: int) -> SellersPage:
-        return await self._reader.sellers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))
+        page = await self._reader.sellers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))
+        if cursor is not None:
+            return page
+        options = replace(
+            page.options,
+            sector_choices=self._writer.seller_sectors(),
+            hq_countries=self._writer.hq_countries(),
+        )
+        return replace(page, options=options)
+
+    async def add_seller(self, user: SignedInUser, seller: NewSeller) -> SellerRole:
+        outcome, role_id = await self._writer.add_seller(seller, requested_by=user.id)
+        if outcome == "existing":
+            raise RoleAlreadyExistsError(role_id, "seller")
+        return await self._seller(role_id)
 
     async def add_buyer(self, user: SignedInUser, buyer: NewBuyer) -> BuyerRole:
         self._check_geographies(buyer.geographies, ())

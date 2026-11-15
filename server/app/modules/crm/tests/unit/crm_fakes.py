@@ -8,6 +8,7 @@ from app.modules.crm.domain.roles import (
     BuyerRole,
     BuyersPage,
     NewBuyer,
+    NewSeller,
     SellerChanges,
     SellerFilterOptions,
     SellerFilters,
@@ -117,6 +118,20 @@ class FakeWriter:
 
     def buyer_countries(self) -> tuple[str, ...]:
         return ("Qatar", "Oman")
+
+    def hq_countries(self) -> tuple[str, ...]:
+        return ("Qatar", "Oman", "Japan")
+
+    def seller_sectors(self) -> tuple[str, ...]:
+        return ("Clinic", "Garage")
+
+    async def add_seller(
+        self, seller_: NewSeller, *, requested_by: str
+    ) -> tuple[Literal["added", "existing"], str]:
+        if self.error:
+            raise self.error
+        self.reader.sellers["s2"] = replace(seller(), id="s2", name=seller_.name)
+        return self.add_outcome, "s2" if self.add_outcome == "added" else "s1"
 
     async def edit_buyer(self, role_id: str, changes: BuyerChanges, *, requested_by: str) -> None:
         if self.error:

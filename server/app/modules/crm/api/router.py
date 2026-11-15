@@ -15,6 +15,7 @@ from app.modules.crm.api.schemas import (
     BuyerUpdate,
     MeView,
     ProblemDetail,
+    SellerCreate,
     SellerFilterOptionsView,
     SellerQuery,
     SellerRolePage,
@@ -111,6 +112,18 @@ async def list_seller_roles(
         next_cursor=page.next_cursor,
         options=SellerFilterOptionsView.model_validate(page.options),
     )
+
+
+@router.post(
+    "/seller-roles", operation_id="addSeller", response_model=SellerRoleView, status_code=201
+)
+async def add_seller(
+    body: SellerCreate, user: CurrentUser, service: Service, response: Response
+) -> SellerRoleView:
+    role = await service.add_seller(user, body.to_domain())
+    response.headers["Location"] = f"/api/v1/seller-roles/{role.id}"
+    _etag(response, role.etag)
+    return SellerRoleView.model_validate(role)
 
 
 @router.get("/seller-roles/{role_id}", operation_id="getSellerRole", response_model=SellerRoleView)

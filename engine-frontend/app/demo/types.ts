@@ -225,7 +225,7 @@ export type BuyersUniverseData = {
   /** Set when more rows match than this page holds. */
   nextCursor: string | null;
   /** Choices for the filters and the edit form, across every buyer. */
-  options: { sectors: string[]; geographies: string[]; statuses: string[]; geographyChoices: string[] };
+  options: { sectors: string[]; geographies: string[]; statuses: string[]; geographyChoices: string[]; hqCountries: string[] };
   /** Blocks whose connector is not live yet; they come back empty. */
   unavailable: string[];
 };
@@ -261,6 +261,12 @@ export type SellerRole = {
   etag?: string;
 };
 
+/** The fields behind "Add seller"; the rest start empty. */
+export type NewSellerInput = Pick<SellerRole, "name" | "hq" | "website" | "sector" | "estRevenueUsd" | "openToSelling"> & {
+  estEbitdaUsd?: number;
+  reEngageDate?: string;
+};
+
 /** A missing key means unchanged, so clearing the EBITDA or the re-engage date sends null. */
 export type SellerPatch = Partial<Pick<SellerRole, "sector" | "geography" | "estRevenueUsd" | "openToSelling" | "ownerId" | "notes">> & {
   estEbitdaUsd?: number | null;
@@ -282,7 +288,7 @@ export type SellersUniverseData = {
   matched: number;
   total: number;
   nextCursor: string | null;
-  options: { sectors: string[]; geographies: string[] };
+  options: { sectors: string[]; geographies: string[]; sectorChoices: string[]; hqCountries: string[] };
   unavailable: string[];
 };
 

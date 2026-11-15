@@ -25,6 +25,10 @@ export type SellersUniverseView = {
    * @type string
    */
   now: string;
+  /**
+   * @description `sector_choices` and `hq_countries` list everything Attio allows, for the add form.
+   * @type object
+   */
   options: SellerFilterOptionsView;
   people: PersonView[];
   sellers: SellerRoleView[];

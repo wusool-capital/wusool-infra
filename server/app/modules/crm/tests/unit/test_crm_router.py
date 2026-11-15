@@ -227,3 +227,30 @@ def test_a_key_fetch_outage_is_a_503_not_a_401(parts, monkeypatch: pytest.Monkey
     response = client.get("/api/v1/me", headers=_TOKEN)
 
     assert (response.status_code, response.json()["code"]) == (503, "access_keys_unavailable")
+
+
+def test_a_new_seller_is_201_with_location_and_etag(parts) -> None:
+    client, _, _ = parts
+
+    response = client.post(
+        "/api/v1/seller-roles",
+        json={"name": "Fresh Co", "website": "fresh.com", "sector": "Clinic"},
+        headers=_TOKEN,
+    )
+
+    assert response.status_code == 201
+    assert response.headers["location"] == "/api/v1/seller-roles/s2"
+    assert response.json()["name"] == "Fresh Co"
+
+
+def test_a_duplicate_seller_is_409_seller_exists(parts) -> None:
+    client, _, writer = parts
+    writer.add_outcome = "existing"
+
+    response = client.post(
+        "/api/v1/seller-roles",
+        json={"name": "Fresh Co", "website": "fresh.com", "sector": "Clinic"},
+        headers=_TOKEN,
+    )
+
+    assert (response.status_code, response.json()["code"]) == (409, "seller_exists")

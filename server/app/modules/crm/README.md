@@ -14,7 +14,8 @@ It reads the existing tables (`buyer_roles`, `seller_roles`, `organizations`, `p
 | `GET /me` | `getCurrentUser` |
 | `GET`, `POST /buyer-roles` | `listBuyerRoles`, `addBuyer` |
 | `GET`, `PATCH /buyer-roles/{id}` | `getBuyerRole`, `updateBuyer` |
-| `GET /seller-roles`, `GET`, `PATCH /seller-roles/{id}` | `listSellerRoles`, `getSellerRole`, `updateSeller` |
+| `GET`, `POST /seller-roles` | `listSellerRoles`, `addSeller` |
+| `GET`, `PATCH /seller-roles/{id}` | `getSellerRole`, `updateSeller` |
 
 - **Sign-in.** Every route needs the `Cf-Access-Jwt-Assertion` token Cloudflare Access adds.
   `auth` verifies it; the token's email must match an active `users` row. 401 for a bad
@@ -30,8 +31,10 @@ It reads the existing tables (`buyer_roles`, `seller_roles`, `organizations`, `p
   is cleared. The check and the write are not atomic, so two saves at the same
   moment can both pass. An Attio webhook that echoes a save back also moves
   `updated_at`, so a later edit can get a 412 until the row is reloaded.
-- **Add.** `POST /buyer-roles` is 201 with `Location` and `ETag`. A company that already
-  holds a buyer role for the sector is refused with 409 `buyer_exists`.
+- **Add.** `POST /buyer-roles` and `POST /seller-roles` are 201 with `Location` and `ETag`. They use
+  the same Attio-first path as Slack's `/add-buyer` and `/add-seller`. A company that already
+  holds the role (a buyer role for the sector, or any seller role) is refused with 409
+  `buyer_exists` or `seller_exists`. The HQ is one of Attio's countries.
 - **Errors.** RFC 9457 problem details with a stable `code`. A write that saved in Attio
   but failed in Postgres is 502 `partial_write`, with `landed` naming what saved; retrying
   the same edit finishes it.
