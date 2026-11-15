@@ -1,5 +1,7 @@
 """The use cases behind the Engine's buyer and seller pages."""
 
+from dataclasses import replace
+
 from app.modules.crm.application.ports.roles import RolesReaderPort, RoleWriterPort
 from app.modules.crm.domain.roles import (
     BuyerChanges,
@@ -20,6 +22,7 @@ from app.modules.crm.domain.roles import (
 MAX_PAGE_SIZE = 100
 
 
+# Read-then-write, not atomic: the write goes to Attio first, then Postgres.
 def _same_version(etag: str, if_match: str) -> bool:
     # Entity tags travel quoted, and a proxy may mark them weak.
     return etag == if_match.removeprefix("W/").strip('"')
@@ -34,7 +37,12 @@ class CrmService:
         return await self._reader.member_by_email(email)
 
     async def buyers(self, filters: BuyerFilters, cursor: str | None, limit: int) -> BuyersPage:
-        return await self._reader.buyers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))
+        page = await self._reader.buyers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))
+        if cursor is not None:
+            return page
+        # The rows only hold statuses in use; the form needs every status Attio allows.
+        options = replace(page.options, statuses=self._writer.buyer_statuses())
+        return replace(page, options=options)
 
     async def sellers(self, filters: SellerFilters, cursor: str | None, limit: int) -> SellersPage:
         return await self._reader.sellers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))

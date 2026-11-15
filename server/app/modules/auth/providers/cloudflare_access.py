@@ -7,6 +7,8 @@ checked against the Access team's public keys.
 
 import asyncio
 import logging
+import threading
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Protocol
@@ -28,8 +30,12 @@ class AccessSignInError(Exception):
     """The token is missing, malformed, expired or not meant for this app."""
 
 
+class AccessKeysUnavailableError(AccessSignInError):
+    """Cloudflare's public keys could not be fetched, so the token cannot be checked."""
+
+
 class _KeyResolver(Protocol):
-    def get_signing_key_from_jwt(self, token: str) -> jwt.PyJWK: ...
+    def get_signing_keys(self, refresh: bool = False) -> list[jwt.PyJWK]: ...
 
 
 def access_configured() -> bool:
@@ -43,9 +49,41 @@ def _key_resolver(team_domain: str) -> _KeyResolver:
     return jwt.PyJWKClient(f"https://{team_domain}/cdn-cgi/access/certs", cache_keys=True)
 
 
+# An unknown key id may mean Cloudflare rotated its keys, but an attacker can send a random one
+# on every request. So the keys are refetched at most once a minute.
+_MIN_REFRESH_SECONDS = 60.0
+_refresh_lock = threading.Lock()
+_last_refresh = 0.0
+
+
+def _may_refresh() -> bool:
+    global _last_refresh
+    with _refresh_lock:
+        if time.monotonic() - _last_refresh < _MIN_REFRESH_SECONDS:
+            return False
+        _last_refresh = time.monotonic()
+        return True
+
+
+def _signing_key(team_domain: str, token: str) -> jwt.PyJWK:
+    key_id = jwt.get_unverified_header(token).get("kid")
+    resolver = _key_resolver(team_domain)
+    try:
+        for key in resolver.get_signing_keys():
+            if key.key_id == key_id:
+                return key
+        if _may_refresh():
+            for key in resolver.get_signing_keys(refresh=True):
+                if key.key_id == key_id:
+                    return key
+    except jwt.PyJWKClientConnectionError as exc:
+        raise AccessKeysUnavailableError(str(exc)) from exc
+    raise AccessSignInError("the token is signed with an unknown key")
+
+
 def _verify(token: str, team_domain: str, audience: str) -> AccessClaims:
     try:
-        signing_key = _key_resolver(team_domain).get_signing_key_from_jwt(token)
+        signing_key = _signing_key(team_domain, token)
         claims = jwt.decode(
             token,
             signing_key,

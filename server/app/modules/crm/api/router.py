@@ -35,7 +35,10 @@ IfMatch = Annotated[str | None, Header()]
 def _require_if_match(if_match: str | None) -> str:
     if not if_match:
         raise problem(
-            428, "if_match_required", "Precondition required", "Send the record's ETag in If-Match."
+            428,
+            "if_match_required",
+            "Precondition required",
+            "Reload the page and try again: this edit has no version to check against.",
         )
     return if_match
 

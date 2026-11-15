@@ -23,10 +23,13 @@ It reads the existing tables (`buyer_roles`, `seller_roles`, `organizations`, `p
 - **Lists.** Filters are the Engine's own URL params (`sector`, `geography`, `checkSize`,
   `minEbitda`, `revenue`, `ebitda`, `openToSelling`, `q`), plus `cursor` and `limit` (at
   most 100). Rows are ordered by company name then id. `matched` counts rows under the
-  filters and search, `total` counts every live row.
+  filters and search, `total` counts every live row. These, the filter options and the team list come with the
+  first page only; later pages hold rows and their contacts.
 - **Edits.** `PATCH` needs `If-Match` with the row's `etag` (428 without, 412 when stale).
   The `etag` is the role's `updated_at`. Only the fields sent change; a field sent as null
-  is cleared. The check and the write are not atomic.
+  is cleared. The check and the write are not atomic, so two saves at the same
+  moment can both pass. An Attio webhook that echoes a save back also moves
+  `updated_at`, so a later edit can get a 412 until the row is reloaded.
 - **Add.** `POST /buyer-roles` is 201 with `Location` and `ETag`. A company that already
   holds a buyer role for the sector is refused with 409 `buyer_exists`.
 - **Errors.** RFC 9457 problem details with a stable `code`. A write that saved in Attio

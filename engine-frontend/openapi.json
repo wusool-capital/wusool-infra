@@ -7,6 +7,7 @@
           "checkSizeMaxUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -18,6 +19,7 @@
           "checkSizeMinUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -29,6 +31,7 @@
           "ebitdaFloorUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -127,7 +130,7 @@
         "type": "object"
       },
       "BuyerRolePage": {
-        "description": "`matched` counts rows under the filters and search; `total` counts every live buyer.",
+        "description": "`matched` counts rows under the filters and search; `total` counts every live buyer.\n\n`matched`, `total` and `options` come with the first page; later pages hold rows only.",
         "properties": {
           "matched": {
             "title": "Matched",
@@ -331,6 +334,7 @@
           "checkSizeMaxUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -342,6 +346,7 @@
           "checkSizeMinUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -353,6 +358,7 @@
           "ebitdaFloorUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -651,6 +657,7 @@
         "type": "object"
       },
       "SellerRolePage": {
+        "description": "Counts and options come with the first page, as for buyers.",
         "properties": {
           "matched": {
             "title": "Matched",
@@ -847,6 +854,7 @@
           "estEbitdaUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {
@@ -858,6 +866,7 @@
           "estRevenueUsd": {
             "anyOf": [
               {
+                "minimum": 0.0,
                 "type": "number"
               },
               {

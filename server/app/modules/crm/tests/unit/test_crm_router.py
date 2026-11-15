@@ -2,7 +2,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.modules.auth import AccessClaims, AccessSignInError
+from app.modules.auth import AccessClaims, AccessKeysUnavailableError, AccessSignInError
 from app.modules.crm.api import dependencies, router
 from app.modules.crm.api.problems import install_problem_handlers
 from app.modules.crm.application.service import CrmService
@@ -89,7 +89,8 @@ def test_the_list_uses_camel_case_and_passes_filters(parts) -> None:
     assert response.status_code == 200
     assert (body["matched"], body["total"], body["nextCursor"]) == (1, 1, None)
     assert body["rows"][0]["checkSizeMinUsd"] == 1e6
-    assert body["options"]["statuses"] == ["Active"]
+    # Attio's allowed statuses, not just the ones the rows hold.
+    assert body["options"]["statuses"] == ["Active", "Dormant"]
     assert reader.seen_filters[0].text == "acme"
 
 
@@ -213,3 +214,16 @@ def test_a_write_that_landed_partly_is_502_and_says_what_saved(parts) -> None:
         ["Attio organization"],
     )
     assert "Retry" in body["detail"]
+
+
+def test_a_key_fetch_outage_is_a_503_not_a_401(parts, monkeypatch: pytest.MonkeyPatch) -> None:
+    client, _, _ = parts
+
+    async def down(_token: str) -> AccessClaims:
+        raise AccessKeysUnavailableError("down")
+
+    monkeypatch.setattr(dependencies, "verify_access_jwt", down)
+
+    response = client.get("/api/v1/me", headers=_TOKEN)
+
+    assert (response.status_code, response.json()["code"]) == (503, "access_keys_unavailable")

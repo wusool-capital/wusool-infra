@@ -41,6 +41,10 @@ class RoleWriterPort(Protocol):
         """Returns the outcome and the id of the role that was added or already existed."""
         ...
 
+    def buyer_statuses(self) -> tuple[str, ...]:
+        """The statuses Attio allows a buyer to have."""
+        ...
+
     async def edit_buyer(
         self, role_id: str, changes: BuyerChanges, *, requested_by: str
     ) -> None: ...

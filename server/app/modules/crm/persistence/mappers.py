@@ -1,22 +1,31 @@
 """ORM rows to the CRM's domain values. Nothing here queries."""
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Literal
+
+from pydantic import BaseModel, JsonValue, StrictFloat, StrictInt, ValidationError
 
 from app.models import BuyerRole as BuyerRoleRow
 from app.models import Organization
 from app.models import Person as PersonRow
 from app.models import SellerRole as SellerRoleRow
 from app.modules.crm.domain.roles import BuyerRole, Person, SellerRole, open_to_selling
-from app.modules.utilities.domain.json_types import JsonObject
 
 
-def amount(value: JsonObject | None) -> float | None:
-    amount = value.get("amount") if value else None
-    return (
-        float(amount) if isinstance(amount, int | float) and not isinstance(amount, bool) else None
-    )
+class _Money(BaseModel):
+    """The `{amount, currency}` blob Attio money fields are stored as."""
+
+    amount: StrictInt | StrictFloat | None = None
+
+
+def amount(value: Mapping[str, JsonValue] | None) -> float | None:
+    """A malformed blob reads as unknown, so one bad row never fails a page."""
+    try:
+        parsed = _Money.model_validate(value or {})
+    except ValidationError:
+        return None
+    return None if parsed.amount is None else float(parsed.amount)
 
 
 def first_email(emails: Sequence[str]) -> str | None:

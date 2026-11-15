@@ -26,6 +26,8 @@ class ReservedItem(ApiModel):
 
 
 class _Universe(ApiModel):
+    """`matched`, `total` and `options` come with the first page; later pages hold rows only."""
+
     now: datetime
     users: list[TeamMemberView]
     people: list[PersonView]

@@ -4,7 +4,12 @@ from typing import Annotated
 
 from fastapi import Depends, Header
 
-from app.modules.auth import AccessSignInError, access_configured, verify_access_jwt
+from app.modules.auth import (
+    AccessKeysUnavailableError,
+    AccessSignInError,
+    access_configured,
+    verify_access_jwt,
+)
 from app.modules.crm.api.problems import problem
 from app.modules.crm.application.service import CrmService
 from app.modules.crm.bootstrap import crm_service
@@ -28,6 +33,13 @@ async def require_user(
         )
     try:
         claims = await verify_access_jwt(cf_access_jwt_assertion)
+    except AccessKeysUnavailableError as exc:
+        raise problem(
+            503,
+            "access_keys_unavailable",
+            "Unavailable",
+            "Sign-in checks are unavailable. Try again.",
+        ) from exc
     except AccessSignInError as exc:
         raise problem(
             401, "invalid_token", "Sign in required", "The sign-in token is not valid."

@@ -22,6 +22,7 @@ from app.modules.ddl_commands import (
     SellerNotFoundError,
     UploadRow,
     add_one,
+    columns_for,
     edit_one,
 )
 from app.modules.utilities.domain.safe_errors import describe_error
@@ -89,6 +90,12 @@ def _translated(exc: Exception) -> Exception:
 
 
 class DdlCommandsRoleWriter:
+    def buyer_statuses(self) -> tuple[str, ...]:
+        for column in columns_for("buyer"):
+            if column.field == "mandate_status" and column.spec is not None:
+                return tuple(column.spec.options or ())
+        return ()
+
     async def add_buyer(
         self, buyer: NewBuyer, *, requested_by: str
     ) -> tuple[Literal["added", "existing"], str]:

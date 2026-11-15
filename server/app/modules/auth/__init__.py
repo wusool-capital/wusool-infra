@@ -4,6 +4,7 @@ check for the Engine."""
 
 from app.modules.auth.providers.cloudflare_access import (
     AccessClaims,
+    AccessKeysUnavailableError,
     AccessSignInError,
     access_configured,
     verify_access_jwt,
@@ -20,6 +21,7 @@ from app.modules.auth.providers.slack_identity import (
 
 __all__ = [
     "AccessClaims",
+    "AccessKeysUnavailableError",
     "AccessSignInError",
     "SlackIdentity",
     "SlackSignInError",

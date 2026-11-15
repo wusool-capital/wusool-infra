@@ -40,7 +40,11 @@ from Cloudflare Workers at **engine-dev.wusoolcapital.com**.
   `/api/v1/views/sellers`. Filters, search and order run on the Toolkit. Pages hold
   up to 100 rows, and the "Show more" button loads the next page.
 * An edit needs the row's `ETag` in `If-Match`. If someone else changed the row,
-  the Toolkit refuses it with 412. Errors use the RFC 9457 problem format.
+  the Toolkit refuses it with 412. The check is not atomic with the write, and an
+  Attio webhook echo can also change the version. Errors use the RFC 9457 problem
+  format.
+* Counts, filter options and the team list come with the first page of a list.
+  "Show more" pages carry rows only.
 * A write goes to Attio first, then Postgres, and is recorded in `command_runs`
   as `engine`. If Attio saves but Postgres fails, the Engine shows what saved and
   the edit can be retried.

@@ -108,6 +108,9 @@ class FakeWriter:
         self.reader.buyers["b2"] = replace(buyer(), id="b2", name=buyer_.name)
         return self.add_outcome, "b2" if self.add_outcome == "added" else "b1"
 
+    def buyer_statuses(self) -> tuple[str, ...]:
+        return ("Active", "Dormant")
+
     async def edit_buyer(self, role_id: str, changes: BuyerChanges, *, requested_by: str) -> None:
         if self.error:
             raise self.error

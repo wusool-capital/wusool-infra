@@ -21,6 +21,17 @@ from app.modules.crm.domain.roles import (
 _MILLION = 1_000_000
 MAX_PAGE_SIZE = 100
 
+# Whole-dollar amounts: never negative, and NaN or Infinity (which JSON parsers accept) are refused.
+Usd = Annotated[float | None, Field(ge=0, allow_inf_nan=False)]
+
+
+_SIZE_ORDER = "check size from is above check size to"
+
+
+def _in_order(low: float | None, high: float | None, message: str) -> None:
+    if low is not None and high is not None and low > high:
+        raise ValueError(message)
+
 
 class ApiModel(BaseModel):
     model_config = ConfigDict(
@@ -96,7 +107,10 @@ class SellerFilterOptionsView(ApiModel):
 
 
 class BuyerRolePage(ApiModel):
-    """`matched` counts rows under the filters and search; `total` counts every live buyer."""
+    """`matched` counts rows under the filters and search; `total` counts every live buyer.
+
+    `matched`, `total` and `options` come with the first page; later pages hold rows only.
+    """
 
     rows: list[BuyerRoleView]
     matched: int
@@ -106,6 +120,8 @@ class BuyerRolePage(ApiModel):
 
 
 class SellerRolePage(ApiModel):
+    """Counts and options come with the first page, as for buyers."""
+
     rows: list[SellerRoleView]
     matched: int
     total: int
@@ -124,9 +140,18 @@ class BuyerCreate(ApiModel):
     hq: str | None = None
     status: str | None = None
     notes: str | None = None
-    check_size_min_usd: float | None = None
-    check_size_max_usd: float | None = None
-    ebitda_floor_usd: float | None = None
+    check_size_min_usd: Usd = None
+    check_size_max_usd: Usd = None
+    ebitda_floor_usd: Usd = None
+
+    @model_validator(mode="after")
+    def _check_size_in_order(self) -> "BuyerCreate":
+        _in_order(
+            self.check_size_min_usd,
+            self.check_size_max_usd,
+            "check size from is above check size to",
+        )
+        return self
 
     def to_domain(self) -> NewBuyer:
         return NewBuyer(
@@ -159,9 +184,18 @@ class BuyerUpdate(_Update):
 
     status: str | None = None
     notes: str | None = None
-    check_size_min_usd: float | None = None
-    check_size_max_usd: float | None = None
-    ebitda_floor_usd: float | None = None
+    check_size_min_usd: Usd = None
+    check_size_max_usd: Usd = None
+    ebitda_floor_usd: Usd = None
+
+    @model_validator(mode="after")
+    def _check_size_in_order(self) -> "BuyerUpdate":
+        _in_order(
+            self.check_size_min_usd,
+            self.check_size_max_usd,
+            "check size from is above check size to",
+        )
+        return self
 
     def to_domain(self) -> BuyerChanges:
         return BuyerChanges(
@@ -175,10 +209,17 @@ class BuyerUpdate(_Update):
 
 
 class SellerUpdate(_Update):
-    est_revenue_usd: float | None = None
-    est_ebitda_usd: float | None = None
+    est_revenue_usd: Usd = None
+    est_ebitda_usd: Usd = None
     open_to_selling: OpenToSelling | None = None
     re_engage_date: date | None = None
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "SellerUpdate":
+        _in_order(self.est_ebitda_usd, self.est_revenue_usd, "EBITDA is above revenue")
+        if "open_to_selling" in self.model_fields_set and self.open_to_selling is None:
+            raise ValueError("open to selling cannot be cleared")
+        return self
 
     def to_domain(self) -> SellerChanges:
         return SellerChanges(

@@ -113,7 +113,8 @@ async def test_only_live_buyers_are_listed_in_name_order_with_counts_and_options
     assert (page.matched, page.total, page.next_cursor) == (3, 3, None)
     assert page.options.sectors == ("Dental", "Veterinary")
     assert page.options.geographies == ("GCC", "Levant", "Saudi Arabia")
-    assert page.options.statuses == ("Active",)
+    # The service adds the statuses Attio allows; the rows alone say nothing about them.
+    assert page.options.statuses == ()
     assert [u.name for u in page.users] == ["Jules"]
     first = page.rows[0]
     assert (first.sectors, first.geographies, first.website) == (("Dental",), ("GCC",), "alpha.com")
@@ -130,7 +131,7 @@ async def test_the_cursor_continues_without_repeating_rows(repo: PostgresRolesRe
     assert first.next_cursor is not None
     assert [r.name for r in second.rows] == ["Gamma Fund"]
     assert second.next_cursor is None
-    assert second.total == 3
+    assert second.total == 0
 
 
 async def test_a_forged_cursor_is_refused(repo: PostgresRolesRepository) -> None:
@@ -219,3 +220,33 @@ async def test_sign_in_matches_email_case_insensitively_and_skips_inactive_peopl
     assert (jules.id, jules.email) == ("u1", "jules@wusoolcapital.com")
     assert await repo.member_by_email("gone@wusoolcapital.com") is None
     assert await repo.member_by_email("nobody@wusoolcapital.com") is None
+
+
+async def test_a_blank_region_falls_back_to_hq_country_in_the_row_the_filter_and_the_options(
+    repo: PostgresRolesRepository, db_session: AsyncSession
+) -> None:
+    db_session.add(
+        Organization(attio_id="blank", name="Zed Holdings", region="", hq_country="Oman")
+    )
+    await db_session.flush()
+    db_session.add(SellerRole(org_attio_id="blank", sector=["Retail"], is_active=True))
+    await db_session.flush()
+
+    by_geography = await repo.sellers_page(SellerFilters(geographies=("Oman",)), None, 10)
+    everything = await repo.sellers_page(SellerFilters(), None, 10)
+
+    assert [(r.name, r.geography) for r in by_geography.rows] == [("Zed Holdings", "Oman")]
+    assert "Oman" in everything.options.geographies
+    assert "" not in everything.options.geographies
+
+
+async def test_later_pages_carry_rows_only(repo: PostgresRolesRepository) -> None:
+    first = await repo.buyers_page(BuyerFilters(), None, 1)
+    later = await repo.buyers_page(BuyerFilters(), first.next_cursor, 1)
+
+    assert (first.matched, first.total) == (3, 3)
+    assert first.users and first.options.sectors
+    assert [r.name for r in later.rows] == ["Beta Partners"]
+    assert (later.matched, later.total, later.users) == (0, 0, ())
+    assert later.options.sectors == ()
+    assert [p.name for p in later.people] == []

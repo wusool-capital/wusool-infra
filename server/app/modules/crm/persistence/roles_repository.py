@@ -10,6 +10,7 @@ import uuid
 from collections.abc import Sequence
 from typing import Final, TypeVar
 
+from pydantic import JsonValue
 from sqlalchemy import (
     ColumnElement,
     Numeric,
@@ -47,11 +48,13 @@ from app.modules.crm.domain.roles import (
     appetite_signals,
 )
 from app.modules.crm.persistence.mappers import to_buyer, to_person, to_seller
-from app.modules.utilities.domain.json_types import JsonObject
 
 _UNKNOWN_SIGNALS: Final = "Unknown"
 
 T = TypeVar("T")
+
+_NO_BUYER_OPTIONS: Final = BuyerFilterOptions((), (), ())
+_NO_SELLER_OPTIONS: Final = SellerFilterOptions((), ())
 
 
 def _encode_cursor(name: str, role_id: uuid.UUID) -> str:
@@ -67,7 +70,9 @@ def _decode_cursor(cursor: str) -> tuple[str, uuid.UUID]:
         raise InvalidCursorError(cursor) from exc
 
 
-def _money(column: InstrumentedAttribute[JsonObject | None]) -> ColumnElement[float | None]:
+def _money(
+    column: InstrumentedAttribute[dict[str, JsonValue] | None],
+) -> ColumnElement[float | None]:
     """The stored amount, or NULL when missing or not a number, so one malformed
     row never fails the whole query."""
     amount = column["amount"]
@@ -143,11 +148,13 @@ class PostgresRolesRepository:
             stmt = stmt.order_by(Organization.name, BuyerRoleRow.id).limit(limit + 1)
             fetched = (await session.execute(stmt)).all()
             rows = fetched[:limit]
-            matched = await _count(session, BuyerRoleRow, conditions)
-            total = await _count(session, BuyerRoleRow, _buyer_live())
+            # Counts, options and the team come with the first page; later pages carry rows only.
+            first = cursor is None
+            matched = await _count(session, BuyerRoleRow, conditions) if first else 0
+            total = await _count(session, BuyerRoleRow, _buyer_live()) if first else 0
             people = await _buyer_people(session, [role for role, _ in rows])
-            users = await _team(session)
-            options = await _buyer_options(session)
+            users = await _team(session) if first else ()
+            options = await _buyer_options(session) if first else _NO_BUYER_OPTIONS
         roles = tuple(to_buyer(role, org) for role, org in rows)
         next_cursor = (
             _encode_cursor(rows[-1][1].name, rows[-1][0].id) if len(fetched) > limit else None
@@ -166,11 +173,12 @@ class PostgresRolesRepository:
             stmt = stmt.order_by(Organization.name, SellerRoleRow.id).limit(limit + 1)
             fetched = (await session.execute(stmt)).all()
             rows = fetched[:limit]
-            matched = await _count(session, SellerRoleRow, conditions)
-            total = await _count(session, SellerRoleRow, _seller_live())
+            first = cursor is None
+            matched = await _count(session, SellerRoleRow, conditions) if first else 0
+            total = await _count(session, SellerRoleRow, _seller_live()) if first else 0
             contacts = await _org_contacts(session, [org.attio_id for _, org in rows])
-            users = await _team(session)
-            options = await _seller_options(session)
+            users = await _team(session) if first else ()
+            options = await _seller_options(session) if first else _NO_SELLER_OPTIONS
         roles = tuple(to_seller(role, org, contacts) for role, org in rows)
         people = tuple(person for group in contacts.values() for person in group)
         next_cursor = (
@@ -266,7 +274,7 @@ def _buyer_conditions(filters: BuyerFilters) -> list[ColumnElement[bool]]:
 
 
 def _seller_geography() -> ColumnElement[str | None]:
-    return func.coalesce(Organization.region, Organization.hq_country)
+    return func.coalesce(func.nullif(Organization.region, ""), Organization.hq_country)
 
 
 def _seller_conditions(filters: SellerFilters) -> list[ColumnElement[bool]]:
@@ -353,12 +361,12 @@ async def _buyer_options(session: AsyncSession) -> BuyerFilterOptions:
     sectors = (await session.execute(scoped(BuyerRoleRow.target_vertical))).scalars()
     regions = (await session.execute(scoped(BuyerRoleRow.target_region))).scalars()
     countries = (await session.execute(scoped(BuyerRoleRow.target_country))).scalars()
-    statuses = (await session.execute(scoped(BuyerRoleRow.mandate_status))).scalars()
     geographies = {g for group in (*regions, *countries) for g in group}
     return BuyerFilterOptions(
         sectors=tuple(sorted(s for s in sectors if s)),
         geographies=tuple(sorted(geographies)),
-        statuses=tuple(sorted(s for s in statuses if s)),
+        # Attio's allowed statuses, which the service adds; the rows hold only the ones in use.
+        statuses=(),
     )
 
 
