@@ -100,3 +100,42 @@ async def test_sellers_filter_on_sector_and_tier(
     )
 
     assert [r.id for r in found] == [match.id]
+
+
+async def test_hq_country_and_region_match_one_item_of_a_joined_value(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    throwaway_org.hq_country = "United Arab Emirates, Saudi Arabia"
+    throwaway_org.region = "GCC,MENA"
+    role = await _buyer(db_session, throwaway_org)
+    seller = SellerRole(org_attio_id=throwaway_org.attio_id, is_active=True, outreach_tier="Tier 2")
+    db_session.add(seller)
+    await db_session.flush()
+
+    buyers = await BuyerRepository(db_session).list_filtered(
+        BuyerFilters(target_vertical=_VERTICAL, hq_country="Saudi Arabia"), limit=50
+    )
+    sellers = await SellerRepository(db_session).list_filtered(
+        SellerFilters(region="MENA", hq_country="United Arab Emirates", outreach_tier="Tier 2"),
+        limit=50,
+    )
+    none = await BuyerRepository(db_session).list_filtered(
+        BuyerFilters(target_vertical=_VERTICAL, hq_country="Saudi"), limit=50
+    )
+
+    assert [r.id for r in buyers] == [role.id]
+    assert seller.id in {r.id for r in sellers}
+    assert none == []
+
+
+async def test_a_role_removed_in_attio_is_left_out(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    live = await _buyer(db_session, throwaway_org)
+    await _buyer(db_session, throwaway_org, removed_at=datetime.now(UTC))
+
+    found = await BuyerRepository(db_session).list_filtered(
+        BuyerFilters(target_vertical=_VERTICAL), limit=50
+    )
+
+    assert [r.id for r in found] == [live.id]

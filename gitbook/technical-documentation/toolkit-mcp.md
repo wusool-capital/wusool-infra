@@ -34,8 +34,9 @@ No tool deletes, sends, spends provider credits or shows fees. Tool and field na
 ## Lists and checks
 
 - Buyer filters: `target_vertical`, `mandate_status`, `model`, `target_region`, `target_country`, `check_size_usd` and `hq_country`. Seller filters: `sector`, `hq_country`, `region`, `relationship_status` and `outreach_tier`.
-- Every filter given must match. Region and country lists match when any value overlaps. A value outside a field's options is refused with the allowed values.
+- Every filter given must match. Region and country lists match when any value overlaps. A company with several HQ countries or regions matches any one of them. A value outside a field's options is refused with the allowed values.
 - `check_size_usd` keeps buyers whose check size range contains it. A buyer with no minimum or maximum set still matches.
+- Records removed in Attio are left out of lists, and `get_*` treats them as not found.
 - Results are ordered by company name. A list returns at most 50 records and says when more match.
 - `check_buyer` runs without an advisor's note, so it never calls the model. It reports what the profile is missing or holds in conflict.
 - Tool descriptions list option values only for short lists. Longer ones, such as verticals and countries, come from `list_field_options`.

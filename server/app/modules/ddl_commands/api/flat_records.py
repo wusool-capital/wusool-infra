@@ -223,15 +223,16 @@ class RecordList(BaseModel):
 
 
 async def get_record(kind: UploadKind, role_id: uuid.UUID) -> RecordDetail:
-    """Raises `BuyerNotFoundError`/`SellerNotFoundError` for an unknown or inactive id."""
+    """Raises `BuyerNotFoundError`/`SellerNotFoundError` for an unknown, inactive or
+    removed record, the same records the lists leave out."""
     role: BuyerRole | SellerRole | None
     if kind == "buyer":
         role = await resolve_buyer_by_id(str(role_id))
-        if role is None or not role.is_active:
+        if role is None or not _is_live(role):
             raise BuyerNotFoundError(str(role_id))
     else:
         role = await resolve_seller_by_id(str(role_id))
-        if role is None or not role.is_active:
+        if role is None or not _is_live(role):
             raise SellerNotFoundError(str(role_id))
     org = role.organization
     fields = {
@@ -280,7 +281,7 @@ async def list_seller_records(
 ) -> RecordList:
     checker = _OptionChecker("seller")
     filters = SellerFilters(
-        sector=checker.one("sector_focus", sector),
+        sector=checker.one("sector_focus", sector, name="sector"),
         hq_country=checker.one("hq_country", hq_country),
         region=checker.one("region", region),
         relationship_status=checker.one("relationship_status", relationship_status),
@@ -291,6 +292,14 @@ async def list_seller_records(
     return _record_list(roles, limit)
 
 
+def _is_live(role: BuyerRole | SellerRole) -> bool:
+    return bool(role.is_active) and role.removed_at is None and role.organization.removed_at is None
+
+
+class InvalidFiltersError(InvalidFieldsError):
+    """A list filter value is not allowed. Nothing was read; `problems` name the filter."""
+
+
 class _OptionChecker:
     """Turns filter values into each field's own spelling, collecting every problem."""
 
@@ -298,15 +307,18 @@ class _OptionChecker:
         self._routes = routes_for(kind)
         self._problems: list[RowProblem] = []
 
-    def one(self, key: str, value: str | None) -> str | None:
+    def one(self, key: str, value: str | None, *, name: str | None = None) -> str | None:
+        """`name` is the filter as the caller knows it, when it differs from the field key."""
         if value is None:
             return None
         spec = self._routes[key].spec
         matched = match_option(spec, value)
         if matched is None:
-            allowed = "; ".join(spec.options)
-            message = f"value not allowed for '{key}'. Allowed: {allowed}"
-            self._problems.append(RowProblem(row=1, kind="not_allowed", field=key, message=message))
+            shown = name or key
+            message = f"'{value}' is not allowed for {shown}. Allowed: {'; '.join(spec.options)}"
+            self._problems.append(
+                RowProblem(row=1, kind="not_allowed", field=shown, message=message)
+            )
         return matched
 
     def many(self, key: str, values: Sequence[str]) -> tuple[str, ...]:
@@ -314,7 +326,7 @@ class _OptionChecker:
 
     def raise_problems(self) -> None:
         if self._problems:
-            raise InvalidFieldsError(self._problems)
+            raise InvalidFiltersError(self._problems)
 
 
 def _record_list(roles: Sequence[BuyerRole | SellerRole], limit: int) -> RecordList:
@@ -336,5 +348,20 @@ def _plain(value: PrefillValue | Decimal | None) -> FieldValue:
         case list():
             return [str(item) for item in value]
         case dict():
-            amount = value.get("amount")
-            return float(amount) if isinstance(amount, int | float) else None
+            return _amount(value.get("amount"))
+        case _:
+            return str(value)
+
+
+def _amount(amount: PrefillValue | None) -> float | None:
+    """A stored money amount; legacy rows can hold it as a numeric string."""
+    if isinstance(amount, bool):
+        return None
+    if isinstance(amount, int | float):
+        return float(amount)
+    if isinstance(amount, str):
+        try:
+            return float(amount)
+        except ValueError:
+            return None
+    return None

@@ -14,6 +14,7 @@ from app.modules.ddl_commands import (
     AddOutcome,
     CommitProgress,
     InvalidFieldsError,
+    InvalidFiltersError,
     PartialWriteError,
     PreviewResult,
     RecordDetail,
@@ -303,17 +304,19 @@ async def test_a_bad_filter_value_names_the_allowed_values(
         row=1,
         kind="not_allowed",
         field="outreach_tier",
-        message="value not allowed for 'outreach_tier'. Allowed: Tier 1; Tier 2",
+        message="'gold' is not allowed for outreach_tier. Allowed: Tier 1; Tier 2",
     )
     monkeypatch.setattr(
-        lookups, "list_seller_records", AsyncMock(side_effect=InvalidFieldsError([problem]))
+        lookups, "list_seller_records", AsyncMock(side_effect=InvalidFiltersError([problem]))
     )
 
     async with Client(_server()) as client:
         result = await client.call_tool("list_sellers", {"outreach_tier": "gold"})
 
     assert result.is_error
+    assert "Fix these filters" in _text(result)
     assert "Allowed: Tier 1; Tier 2" in _text(result)
+    assert "saved" not in _text(result) and "row 1" not in _text(result)
 
 
 async def test_check_buyer_reports_gaps(monkeypatch: pytest.MonkeyPatch) -> None:

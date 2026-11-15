@@ -199,6 +199,8 @@ def test_stored_values_come_back_in_the_shape_edit_accepts() -> None:
     assert flat_records._plain(["UAE"]) == ["UAE"]
     assert flat_records._plain(True) is True
     assert flat_records._plain(None) is None
+    assert flat_records._plain({"amount": "5000000", "currency": "USD"}) == 5000000.0
+    assert flat_records._plain({"amount": "lots"}) is None
 
 
 async def test_get_of_an_inactive_buyer_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -236,3 +238,34 @@ async def test_list_uses_canonical_values_and_reports_truncation(
     assert filters.mandate_status == "Active"
     assert limit == 3  # one extra, to know whether more match
     assert len(found.records) == 2 and found.truncated is True
+
+
+async def test_get_of_a_buyer_whose_company_was_removed_raises_not_found(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from datetime import UTC, datetime
+
+    role = SimpleNamespace(
+        is_active=True,
+        removed_at=None,
+        organization=SimpleNamespace(removed_at=datetime.now(UTC)),
+    )
+    monkeypatch.setattr(flat_records, "resolve_buyer_by_id", AsyncMock(return_value=role))
+
+    with pytest.raises(BuyerNotFoundError):
+        await flat_records.get_record("buyer", _ROLE_ID)
+
+
+async def test_a_bad_filter_names_the_filter_the_caller_used(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        flat_records, "ddl_commands_service", lambda: SimpleNamespace(list_sellers=AsyncMock())
+    )
+
+    with pytest.raises(flat_records.InvalidFiltersError) as caught:
+        await flat_records.list_seller_records(sector="Fintechh")
+
+    (problem,) = caught.value.problems
+    assert problem.field == "sector"
+    assert problem.message.startswith("'Fintechh' is not allowed for sector. Allowed:")

@@ -10,10 +10,11 @@ from typing import Unpack
 from sqlalchemy import ColumnElement, and_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import contains_eager, selectinload
 
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.application.ports.sellers import SellerFilters, SellerRoleFields
+from app.modules.ddl_commands.persistence.repositories.filters import joined_text_has
 from app.modules.organizations import org_name_trigram_predicate
 
 
@@ -103,14 +104,15 @@ class SellerRepository:
         """Active roles of live organizations, ordered by organization name then id."""
         conditions: list[ColumnElement[bool]] = [
             SellerRole.is_active.is_(True),
+            SellerRole.removed_at.is_(None),
             Organization.removed_at.is_(None),
         ]
         if filters.sector is not None:
             conditions.append(Organization.sector_focus.contains([filters.sector]))
         if filters.hq_country is not None:
-            conditions.append(Organization.hq_country == filters.hq_country)
+            conditions.append(joined_text_has(Organization.hq_country, filters.hq_country))
         if filters.region is not None:
-            conditions.append(Organization.region == filters.region)
+            conditions.append(joined_text_has(Organization.region, filters.region))
         if filters.relationship_status is not None:
             conditions.append(SellerRole.relationship_status == filters.relationship_status)
         if filters.outreach_tier is not None:
@@ -119,7 +121,7 @@ class SellerRepository:
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
             .where(and_(*conditions))
-            .options(selectinload(SellerRole.organization))
+            .options(contains_eager(SellerRole.organization))
             .order_by(Organization.name, SellerRole.id)
             .limit(limit)
         )

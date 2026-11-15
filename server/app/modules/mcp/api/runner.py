@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from app.modules.ddl_commands import (
     BuyerNotFoundError,
     InvalidFieldsError,
+    InvalidFiltersError,
     InvalidUploadError,
     OrgMismatchError,
     OrgRemovedError,
@@ -60,6 +61,9 @@ def describe_problems(problems: tuple[RowProblem, ...]) -> str:
 def _message(exc: Exception) -> str | None:
     """The sentence Claude sees for an error we expect, or None for a crash."""
     match exc:
+        case InvalidFiltersError():
+            details = "\n".join(p.message for p in exc.problems[:_MAX_PROBLEMS_SHOWN])
+            return f"Fix these filters and try again:\n{details}"
         case InvalidFieldsError():
             problems = describe_problems(exc.problems)
             return f"Nothing was saved. Fix these fields and try again:\n{problems}"

@@ -11,10 +11,11 @@ from typing import Unpack
 from sqlalchemy import ColumnElement, Numeric, and_, case, func, literal_column, or_, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import InstrumentedAttribute, selectinload
+from sqlalchemy.orm import InstrumentedAttribute, contains_eager, selectinload
 
 from app.models import BuyerRole, Organization
 from app.modules.ddl_commands.application.ports.buyers import BuyerFilters, BuyerRoleFields
+from app.modules.ddl_commands.persistence.repositories.filters import joined_text_has
 from app.modules.organizations import org_name_trigram_predicate
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -124,6 +125,7 @@ class BuyerRepository:
         so the order is stable when an organization holds several roles."""
         conditions: list[ColumnElement[bool]] = [
             BuyerRole.is_active.is_(True),
+            BuyerRole.removed_at.is_(None),
             Organization.removed_at.is_(None),
         ]
         if filters.target_vertical is not None:
@@ -137,7 +139,7 @@ class BuyerRepository:
         if filters.target_country:
             conditions.append(BuyerRole.target_country.overlap(list(filters.target_country)))
         if filters.hq_country is not None:
-            conditions.append(Organization.hq_country == filters.hq_country)
+            conditions.append(joined_text_has(Organization.hq_country, filters.hq_country))
         if filters.check_size_usd is not None:
             amount = filters.check_size_usd
             conditions.append(
@@ -156,7 +158,7 @@ class BuyerRepository:
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
             .where(and_(*conditions))
-            .options(selectinload(BuyerRole.organization))
+            .options(contains_eager(BuyerRole.organization))
             .order_by(Organization.name, BuyerRole.id)
             .limit(limit)
         )
