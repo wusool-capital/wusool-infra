@@ -428,15 +428,17 @@
       for (var i = 0; i < frames.length; i++) post(frames[i]);
     }
 
-    // CTA click counts: only the button's data-form name, never its text. Capture phase, so the modal's own handler can't hide it.
+    // Counts a CTA click by its data-form name only, never its text. Capture phase beats the modal handler.
+    var pendingCta = null;
     document.addEventListener(
       "click",
       function (event) {
         var el = event.target && event.target.closest ? event.target.closest("[data-form]") : null;
         var cta = el && el.getAttribute("data-form");
-        if (site === "ready" && cta && /^[a-z0-9-]{1,40}$/.test(cta)) {
-          window.posthog.capture("cta_clicked", { cta: cta });
-        }
+        if (!cta || !/^[a-z0-9-]{1,40}$/.test(cta)) return;
+        if (site === "ready") window.posthog.capture("cta_clicked", { cta: cta });
+        // A fast click can land while PostHog is still loading; the last one is sent once it is ready.
+        else if (site === "loading") pendingCta = cta;
       },
       true
     );
@@ -468,6 +470,7 @@
             // Consent may have been withdrawn while the library loaded.
             if (store("get", CONSENT_KEY) !== "granted") {
               site = null;
+              pendingCta = null;
               return;
             }
             window.posthog.init(cfg.key, {
@@ -487,6 +490,8 @@
               },
             });
             site = "ready";
+            if (pendingCta) window.posthog.capture("cta_clicked", { cta: pendingCta });
+            pendingCta = null;
           };
           document.head.appendChild(tag);
         })

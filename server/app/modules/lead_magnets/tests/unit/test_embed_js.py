@@ -3,7 +3,13 @@ entry here is invisible until a real embed fails, so it's checked directly
 against `static_dir()` rather than trusted by eye.
 """
 
+import json
 import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
 
 from app.modules.lead_magnets.api.static import static_dir
 
@@ -235,17 +241,88 @@ def test_site_page_views_load_only_after_accept_all_and_never_record_sessions() 
     assert 'if (store("get", CONSENT_KEY) === "granted") trackPages(true);' in js
 
 
-def test_cta_clicks_send_only_the_validated_button_name_after_accept_all() -> None:
-    """The CTA event carries the data-form name and nothing else: no button text,
-    and nothing at all before PostHog is loaded under Accept all."""
+def test_cta_event_never_reads_the_button_text() -> None:
     js = (static_dir() / "embed.js").read_text()
-    block = js[js.index('closest("[data-form]")') - 400 : js.index("function trackPages")]
+    block = js[js.index('closest("[data-form]")') : js.index("function trackPages")]
 
-    assert 'site === "ready"' in block
     assert "/^[a-z0-9-]{1,40}$/.test(cta)" in block
-    assert 'window.posthog.capture("cta_clicked", { cta: cta })' in block
     assert "textContent" not in block and "innerText" not in block
-    assert "true\n    );" in block, "capture phase, so the modal handler cannot hide the click"
+
+
+@pytest.fixture(scope="module")
+def behaviour() -> dict[str, object]:
+    """What embed.js does under each consent flow, run for real in Node with a stub PostHog."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    result = subprocess.run(
+        [node, str(Path(__file__).with_name("embed_behavior.js")), str(static_dir() / "embed.js")],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+def test_no_consent_means_nothing_is_loaded_or_sent(behaviour) -> None:
+    assert behaviour["noConsent"] == []
+
+
+def test_accept_all_loads_posthog_with_is_test_set_before_the_first_page_view(behaviour) -> None:
+    assert behaviour["accept"] == [
+        "init pageview=true replay_off=true",
+        "register is_test",
+        "pageview is_test=true",
+    ]
+
+
+def test_a_stored_opt_out_is_lifted_before_the_first_page_view(behaviour) -> None:
+    assert behaviour["storedOptOut"] == [
+        "init pageview=true replay_off=true",
+        "register is_test",
+        "opt_in captureEventName=false",
+        "pageview is_test=true",
+    ]
+
+
+def test_withdrawing_then_reaccepting_opts_back_in_and_counts_the_open_page(behaviour) -> None:
+    """The second Accept all finds nobody opted out, so it adds no second page view."""
+    assert behaviour["withdrawThenReaccept"] == [
+        "opt_out",
+        "opt_in captureEventName=false",
+        "capture $pageview",
+    ]
+
+
+def test_cta_clicks_are_counted_by_name_and_a_fast_click_waits_for_posthog(behaviour) -> None:
+    cta = behaviour["cta"]
+
+    assert cta["capturePhase"], "capture phase, so the modal's own handler cannot hide the click"
+    assert cta["log"][3:] == [
+        'capture cta_clicked {"cta":"get-started"}',  # the last click made while loading
+        'capture cta_clicked {"cta":"buyers"}',  # after ready; bad names add nothing
+    ]
+
+
+def test_withdrawing_while_posthog_loads_drops_the_waiting_click(behaviour) -> None:
+    assert behaviour["withdrawnWhileLoading"] == []
+
+
+@pytest.mark.parametrize("script", ["embed.js", "shared/analytics.js"])
+def test_both_scripts_share_the_same_posthog_identity_settings(script: str) -> None:
+    """One visitor keeps one id across the website and the tool pages."""
+    js = (static_dir() / script).read_text()
+
+    for setting in (
+        'persistence: "localStorage+cookie"',
+        "cross_subdomain_cookie: true",
+        'person_profiles: "identified_only"',
+        "autocapture: false",
+        "ph.register({ is_test: cfg.is_test })",
+        "opt_in_capturing({ captureEventName: false })",
+    ):
+        assert setting in js, f"{script} is missing {setting}"
 
 
 def test_an_embedded_tool_sends_no_page_view_of_its_own() -> None:
