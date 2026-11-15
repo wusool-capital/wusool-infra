@@ -8,6 +8,18 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-16
+
+### Added
+
+- Postgres tables for the interactions engine's Attio writes (AZM-159 PR 4):
+  `attio_sent_values` (last value sent per record and field, so unchanged
+  values are never resent), `interaction_review_items` (shared domains and
+  emails left for review) and `auto_create_keys` (records the engine created,
+  so a retry never creates twice). Nothing writes to them yet.
+- `connection_strength_score` on `organizations` and `person`: the numeric
+  score behind the label. Postgres-only.
+
 ## 2026-11-15
 
 ### Added

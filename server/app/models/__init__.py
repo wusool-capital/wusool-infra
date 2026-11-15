@@ -24,7 +24,9 @@ static-analysis drafts, not from a live-DB reflection — see
 
 from app.models.activity import Activity
 from app.models.attio_raw_event import AttioRawEvent
+from app.models.attio_sent_value import AttioSentValue
 from app.models.attio_sync_state import AttioSyncState
+from app.models.auto_create_key import AutoCreateKey
 from app.models.benchmark_data import BenchmarkPeerCut, BenchmarkRule
 from app.models.buyer_intel import BuyerIntel
 from app.models.buyer_role import BuyerRole
@@ -37,6 +39,7 @@ from app.models.feedback_submission import FeedbackSubmission
 from app.models.graph_edge import GraphEdge
 from app.models.interaction import Interaction
 from app.models.interaction_participant import InteractionParticipant
+from app.models.interaction_review_item import InteractionReviewItem
 from app.models.investor_lender_role import InvestorLenderRole
 from app.models.linkedin_scan import LinkedInScan
 from app.models.mailbox_sync_cursor import MailboxSyncCursor
@@ -57,7 +60,9 @@ from app.models.vertical_kb import VerticalKb
 __all__ = [
     "Activity",
     "AttioRawEvent",
+    "AttioSentValue",
     "AttioSyncState",
+    "AutoCreateKey",
     "BenchmarkPeerCut",
     "BenchmarkRule",
     "BuyerIntel",
@@ -72,6 +77,7 @@ __all__ = [
     "GraphEdge",
     "Interaction",
     "InteractionParticipant",
+    "InteractionReviewItem",
     "InvestorLenderRole",
     "MailboxSyncCursor",
     "MatchResult",
