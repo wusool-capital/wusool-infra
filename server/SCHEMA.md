@@ -55,6 +55,7 @@ computed in Postgres and could not be rebuilt from Attio, and
 | categories | text[] | no | `{}` | |
 | relationship_status | text | yes | | |
 | connection_strength | text | yes | | |
+| connection_strength_score | numeric | yes | | Postgres only; score behind the label, written by the interactions engine (AZM-159) |
 | owner_attio_id | text | yes | | FK → users.attio_id |
 | last_interaction_at | timestamptz | yes | | |
 | first_interaction_at / next_interaction_at | timestamptz | yes | | AZM-159 interactions engine, mirrored from Attio |
@@ -93,6 +94,7 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | linkedin | text | yes | | |
 | relationship_status | text | yes | | |
 | connection_strength | text | yes | | |
+| connection_strength_score | numeric | yes | | Postgres only; score behind the label, written by the interactions engine (AZM-159) |
 | owner_attio_id | text | yes | | FK → users.attio_id |
 | past_employers | jsonb | no | `[]` | |
 | education | jsonb | no | `[]` | |
@@ -514,6 +516,50 @@ Sync position per mailbox and source, so each poll reads only new changes.
 | backfill_completed_at | timestamptz | yes | | |
 | last_synced_at | timestamptz | yes | | drives the 30-minute stale-mailbox alert |
 | created_at / updated_at | timestamptz | no | `now()` | |
+
+### `attio_sent_values` (`attio_sent_value.py`) — new, AZM-159 PR 4
+
+The last value the interactions engine sent to Attio, per record and field. A
+write is skipped when the value is unchanged, so a lagging mirror never causes
+a resend. Never pruned. No FK, because the record can be an organization, a
+person or a deal.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| object | text | no | | `organizations`, `person` or `deal` |
+| record_attio_id | text | no | | unique with object and field |
+| field | text | no | | Attio attribute slug |
+| value | text | yes | | the value as sent; NULL means the engine cleared it |
+| created_at / updated_at | timestamptz | no | `now()` | |
+
+### `interaction_review_items` (`interaction_review_item.py`) — new, AZM-159 PR 4
+
+A shared domain or shared email the engine would not link on its own, kept for
+a person to review. At most one open item per value.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| kind | text | no | | `shared_domain` or `shared_email` |
+| value | text | no | | the shared domain or address; unique with kind while open |
+| subject | text | yes | | subject of the email that raised it |
+| record_attio_ids | text[] | no | `{}` | the records it could belong to |
+| status | text | no | `open` | `open`, `resolved` or `dismissed` |
+| created_at / updated_at | timestamptz | no | `now()` | |
+
+### `auto_create_keys` (`auto_create_key.py`) — new, AZM-159
+
+The email or domain of each Person or Organization the engine created in Attio.
+Written right after the create, so a retry never creates the record twice.
+
+| Column | Type | Nullable | Default | Notes |
+|---|---|---|---|---|
+| id | uuid | no | `gen_random_uuid()` | PK |
+| kind | text | no | | `person` or `organization`; unique with key |
+| key | text | no | | lower-cased email or domain |
+| record_attio_id | text | no | | the record created in Attio |
+| created_at | timestamptz | no | `now()` | |
 
 ---
 

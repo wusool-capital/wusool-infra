@@ -1,9 +1,10 @@
 """`person` — renamed from `people` 2026-08-30; see `002_core_attio_mirror.sql`."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, text
+from sqlalchemy import ForeignKey, Index, Integer, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -28,6 +29,8 @@ class Person(Base):
     linkedin: Mapped[str | None] = mapped_column(Text)
     relationship_status: Mapped[str | None] = mapped_column(Text)
     connection_strength: Mapped[str | None] = mapped_column(Text)
+    # AZM-159: numeric score behind the label; Postgres-only, written by the interactions engine.
+    connection_strength_score: Mapped[Decimal | None] = mapped_column(Numeric)
     owner_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("users.attio_id", name="person_owner_attio_id_fkey")
     )
