@@ -51,6 +51,8 @@ production Toolkit, so its edits change the real CRM.
   the Toolkit refuses it with 412. The check is not atomic with the write, and an
   Attio webhook echo can also change the version. Errors use the RFC 9457 problem
   format.
+* Range filters (check size, EBITDA, revenue) are a two-handle slider with named steps
+  from Any to $1B+. The URL keeps the range in millions of dollars, such as `checkSize=0.2-5`.
 * Counts, filter options and the team list come with the first page of a list.
   "Show more" pages carry rows only.
 * A write goes to Attio first, then Postgres, and is recorded in `command_runs`

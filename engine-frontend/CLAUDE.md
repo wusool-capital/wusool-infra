@@ -68,6 +68,7 @@ The code must be easy to follow for a software engineer and for another LLM.
 
 Newest first. One line per tab or change: date, what was built, PR link, open feedback.
 
+- 15 Nov 2026: range filters (Check size, Min. EBITDA, Revenue, EBITDA) use a two-handle slider (`ui/range-slider.tsx`, Radix Slider styled with Engine tokens; shadcn needs Tailwind) with named steps from Any to $1B+, replacing Min and Max boxes in $M that read as $50000M. URL params unchanged. Open: awaiting Jules's feedback.
 - 15 Nov 2026: Buyers and Sellers universes can run on live Toolkit data (AZM-180, decision 0008): the folder is now `engine-frontend/`; `VITE_DATA=demo|live` switch in `app/api.ts`; filters, search, order and paging run on the server (a "Show more" row loads the next 100); a save waits for the answer and keeps the drawer open with the reason when it fails; Add to deal, New lead and Owner approach grey out in live; fields with no source show "Not set". Open: Add to deal, New lead and the owner approach go live with mandates and outreach.
 - 11 Nov 2026: table header goes light in the Engine (muted 12px labels on white, a hairline below, sorted column in ink); the navy brand header stays for client-facing exports. CLAUDE.md design rule and DESIGN.md updated. PR: feat/light-table-header.
 - 11 Nov 2026: left nav hover fades in (150ms ease-in-out, off for reduced motion); the current-page highlight does not move. PR: feat/nav-hover-fade.
