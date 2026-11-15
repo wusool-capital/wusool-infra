@@ -263,7 +263,7 @@ are linked from `activities` (`ledger_type='command_run'`).
 |---|---|---|---|---|
 | id | uuid | no | `gen_random_uuid()` | PK |
 | command | text | no | | CHECK: `add_seller`, `add_buyer`, `edit_seller`, `edit_buyer` |
-| invoked_via | text | no | | CHECK: `slack`, `discovery` |
+| invoked_via | text | no | | CHECK: `slack`, `discovery`, `mcp`, `engine` |
 | requested_by | text | yes | | Slack user id; NULL for discovery |
 | status | text | no | | CHECK: `running`, `succeeded`, `failed`, `partial` |
 | org_attio_id | text | yes | | FK → organizations.attio_id; indexed. NULL when the org has no Postgres row yet |

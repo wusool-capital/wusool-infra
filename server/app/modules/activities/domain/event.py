@@ -29,6 +29,13 @@ class ActivityActor:
         return cls(ActorType.SLACK_USER, user_id)
 
     @classmethod
+    def member(cls, attio_user_id: str | None) -> "ActivityActor":
+        """An Attio workspace member acting through the Engine."""
+        if not attio_user_id:
+            return cls(ActorType.UNKNOWN)
+        return cls(ActorType.ATTIO_MEMBER, attio_user_id, attio_user_id)
+
+    @classmethod
     def system(cls, name: str) -> "ActivityActor":
         return cls(ActorType.SYSTEM, name)
 
