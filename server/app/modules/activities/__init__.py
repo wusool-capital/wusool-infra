@@ -16,10 +16,12 @@ from app.modules.activities.application.ports.recorder import ActivityRecorderPo
 from app.modules.activities.domain.event import ActivityActor, ActivityEvent, LedgerRef
 from app.modules.activities.domain.payloads import (
     ActivityPayload,
+    BenchmarkEditPayload,
     CrmRecordPayload,
     LinkedInScanPayload,
     MatchDecisionPayload,
     MatchRunPayload,
+    McpToolCallPayload,
     MeetingPayload,
     NoPayload,
     ProfileWritePayload,
@@ -42,6 +44,7 @@ __all__ = [
     "ActivityRecorderPort",
     "ActivitySource",
     "ActorType",
+    "BenchmarkEditPayload",
     "CrmRecordPayload",
     "EventType",
     "LedgerRef",
@@ -49,6 +52,7 @@ __all__ = [
     "LinkedInScanPayload",
     "MatchDecisionPayload",
     "MatchRunPayload",
+    "McpToolCallPayload",
     "MeetingPayload",
     "NoPayload",
     "ProfileWritePayload",

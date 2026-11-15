@@ -132,6 +132,9 @@ Compose mounts `~/.aws` into the container and passes `AWS_PROFILE` (default
   desktop app (transcript ingestion, summarization, status polling), a
   separate Bearer-token-authenticated surface with no Slack command of its
   own. See `app/modules/meetings/README.md`.
+- `/mcp` — the Wusool MCP for Claude, plus its OAuth endpoints (`/register`,
+  `/authorize`, `/token`, `/.well-known/*`, `/mcp/oauth/callback`). Mounted only
+  once `MCP_PUBLIC_URL` and `MCP_TOKEN_SECRET` are set. See `app/modules/mcp/README.md`.
 
 ### Configuring the Slack app
 
@@ -171,6 +174,8 @@ server/
 │       ├── discrepancies/       # /check-buyer
 │       ├── ddl_commands/        # /edit-seller, /edit-buyer, /add-seller, /add-buyer
 │       ├── meetings/              # /desktop/* — desktop-app transcript summarization
+│       ├── mcp/                     # /mcp — Wusool MCP for Claude (find/add/edit/bulk import)
+│       ├── auth/                    # Sign in with Slack, shared by the web app and the MCP
 │       ├── organizations/           # shared Organization persistence
 │       ├── activities/                # business-event history (activities index, vocabulary, recorder)
 │       ├── google_workspace/            # Gmail and Calendar access (service account, delegation)

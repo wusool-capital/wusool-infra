@@ -28,6 +28,7 @@ from app.modules.ddl_commands.application.errors import (
     BuyerAlreadyExistsError,
     BuyerNotFoundError,
 )
+from app.modules.ddl_commands.application.ports.buyers import BuyerFilters
 from app.modules.ddl_commands.application.write_context import WriteContext
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -56,6 +57,10 @@ class BuyerService(ServiceBase):
 
         status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return BuyerResolution(status=status, candidates=matches)
+
+    async def list_buyers(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]:
+        async with self._uow_factory() as uow:
+            return await uow.buyers.list_filtered(filters, limit)
 
     async def resolve_buyer_by_id(self, buyer_role_id: str) -> BuyerRole | None:
         """Used after a Slack buyer-selection modal submission. Returns the

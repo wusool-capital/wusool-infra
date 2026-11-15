@@ -8,6 +8,65 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-15
+
+### Added
+
+- Four read-only MCP tools. `get_buyer` and `get_seller` show every field of a
+  record. `list_buyers` and `list_sellers` filter by vertical, region, check
+  size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
+  check, and `list_field_options` gives each field's allowed values.
+- Benchmark peer dataset in Postgres. The GCC SME Benchmark's peer anchors, revenue
+  bands and metric weights moved from code into two tables (new `benchmark_data`
+  module), seeded from the original dataset. Scores don't change. Each row says who
+  last changed it, by name, and when. There is no version history yet.
+- Advisors can read and edit that dataset from Claude: `get_benchmark_overview`,
+  `get_peer_cut`, `edit_benchmark_peer_cut`, `edit_revenue_band` and
+  `set_metric_weights`. Edits are checked, saved straight away and applied to the
+  public benchmark. Claude reads a row first and tells the person what it held.
+- If the peer dataset tables can't be read, benchmark scoring uses the original dataset
+  instead of failing, and the page script is served uncached. A submission is scored
+  once, so the visitor's report, the Attio write and the emails always agree. The page
+  script is kept for 30 seconds on the server.
+- Benchmark rows keep the editor's Slack user id and their name when they edited, so
+  "who made that change" is unambiguous.
+- A benchmark peer set's anchors can be edited one percentile at a time, for example
+  just the median. `edit_buyer` and `edit_seller` no longer need `fields` in the
+  schema: an edit with none still gets the same "send at least one field" answer.
+- MCP add, edit and bulk-import descriptions now mark the required keys. The benchmark
+  edit descriptions list the valid metric keys for each mode.
+- Every MCP tool call, read or write, now leaves an `mcp.tool_called` activity for the
+  signed-in person (tool, result and duration, never the arguments). Benchmark edits
+  also leave `benchmark.peer_cut_edited` or `benchmark.rule_edited` activities.
+- The benchmark page loads its data from `GET /benchmark/20-data.js`, built from the
+  tables. If the database can't be read it serves the original static copy.
+- Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
+  sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
+- Adds and edits from Claude are saved straight away, Attio first. A bulk list is
+  saved only after the person confirms the preview. A company that already holds
+  the role comes back as the existing record.
+- MCP sign-in is OAuth 2.1 with PKCE and stateless signed tokens. Only active,
+  non-guest members of the Wusool Slack workspace get in. A refresh refuses
+  someone who has left, and every write is attributed to the person.
+- The MCP is served at `/mcp` once `MCP_PUBLIC_URL` and `MCP_TOKEN_SECRET` are
+  set. The Slack app must list `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a
+  redirect URL.
+
+### Changed
+
+- Sign in with Slack moved from `matching_engine` to a new `auth` module, shared
+  by the web app and the MCP. The web sign-in behaves as before.
+- `mcp` activities are now attributed to the person's Slack user instead of
+  `system/mcp`.
+- Page views and time on page now go to PostHog, only after a visitor chooses
+  Accept all. `embed.js` adds `$pageview` and `$pageleave` to the Webflow pages
+  with no replay or autocapture. Tool pages send them only when opened
+  directly, so an embedded tool is not counted twice.
+  `GET /analytics/config` sends a CORS header for `wusoolcapital.com` so the
+  website can read it. Clicks on the Get Started and Buyers buttons are counted
+  as `cta_clicked`, with the button name only. A Website Metrics dashboard in PostHog shows traffic,
+  tool funnels, leads, bookings, reports and consent choices.
+
 ## 2026-11-14
 
 ### Changed

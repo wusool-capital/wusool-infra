@@ -12,6 +12,14 @@ or leave a tool, and how many book a call. Reports use the same project. See
   abandoned, plus Book a Call clicks inside a tool. They are sent only after
   the visitor accepts tracking. They carry the tool, the step, the language and
   a random submission id, and never a form value.
+- **Page views** are counted on the website, with the time spent on each page.
+  A tool inside a website page is counted by that page. A tool opened on its own
+  address counts itself. They are sent only after the visitor chooses Accept all.
+  Cookies only and Decline send none. The website sends no session replay.
+  PostHog's Web analytics tab and the Website Metrics dashboard read them.
+- **CTA clicks** count each click on a Get Started or Buyers button on the
+  website, with only the button's name and the page. They are sent only after
+  Accept all and never carry button text or a form value.
 - **Session replay** records how a visitor moves through a tool, including what
   they type and the results they see. Name, email, phone and LinkedIn show as
   blocked boxes. It runs only after the visitor accepts
@@ -55,11 +63,12 @@ calendar, never the link.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /analytics/config` | The public PostHog key and host a page loads PostHog with, after the visitor accepts tracking |
+| `GET /analytics/config` | The public PostHog key and host a page loads PostHog with, after the visitor accepts tracking. The website may read it from `wusoolcapital.com`; no other origin may |
 | `GET /analytics/consent` | Counts a consent banner click anonymously |
 | `GET /go/book-call/{tool}` | Redirects to the tool's calendar and counts the click |
 
 ## Code
 
 `server/app/modules/lead_magnets`: `static/shared/analytics.js`,
-`api/analytics.py`, and `providers/posthog`.
+`static/embed.js` (website page views), `api/analytics.py`, and
+`providers/posthog`.

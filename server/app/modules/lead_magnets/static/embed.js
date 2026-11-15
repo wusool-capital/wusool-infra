@@ -428,6 +428,78 @@
       for (var i = 0; i < frames.length; i++) post(frames[i]);
     }
 
+    // Counts a CTA click by its data-form name only, never its text. Capture phase beats the modal handler.
+    var pendingCta = null;
+    document.addEventListener(
+      "click",
+      function (event) {
+        var el = event.target && event.target.closest ? event.target.closest("[data-form]") : null;
+        var cta = el && el.getAttribute("data-form");
+        if (!cta || !/^[a-z0-9-]{1,40}$/.test(cta)) return;
+        if (site === "ready") window.posthog.capture("cta_clicked", { cta: cta });
+        // A fast click can land while PostHog is still loading; the last one is sent once it is ready.
+        else if (site === "loading") pendingCta = cta;
+      },
+      true
+    );
+
+    // Page views and time on page for the site itself. No replay: the banner promises that only for the tools.
+    var site = null; // null = off, "loading", "ready"
+    function trackPages(granted) {
+      if (site === "ready") {
+        if (!granted) return window.posthog.opt_out_capturing();
+        // Re-accepting on an open page: the opt-in captures no page view of its own.
+        if (window.posthog.has_opted_out_capturing()) {
+          window.posthog.opt_in_capturing({ captureEventName: false });
+          window.posthog.capture("$pageview");
+        }
+        return;
+      }
+      if (!granted || site) return;
+      site = "loading";
+      fetch(origin + "/analytics/config")
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (cfg) {
+          if (!cfg || !cfg.enabled) return;
+          var tag = document.createElement("script");
+          tag.async = true;
+          tag.src = cfg.assets_host + "/static/array.js";
+          tag.onload = function () {
+            // Consent may have been withdrawn while the library loaded.
+            if (store("get", CONSENT_KEY) !== "granted") {
+              site = null;
+              pendingCta = null;
+              return;
+            }
+            window.posthog.init(cfg.key, {
+              api_host: cfg.host,
+              autocapture: false,
+              capture_pageview: true,
+              capture_pageleave: true,
+              disable_session_recording: true,
+              // Same settings as the tool pages, so one visitor keeps one id across both.
+              persistence: "localStorage+cookie",
+              cross_subdomain_cookie: true,
+              person_profiles: "identified_only",
+              // Runs before the first page view, so it carries is_test; also lifts an opt-out stored by an earlier withdrawal.
+              loaded: function (ph) {
+                ph.register({ is_test: cfg.is_test });
+                if (ph.has_opted_out_capturing()) ph.opt_in_capturing({ captureEventName: false });
+              },
+            });
+            site = "ready";
+            if (pendingCta) window.posthog.capture("cta_clicked", { cta: pendingCta });
+            pendingCta = null;
+          };
+          document.head.appendChild(tag);
+        })
+        .catch(function () {
+          site = null;
+        });
+    }
+
     window.addEventListener("message", function (event) {
       if (event.origin !== origin) return;
       if (!event.data || event.data.type !== "wusool-analytics-ready") return;
@@ -449,8 +521,10 @@
         if (granted !== true) store("remove", UTM_KEY);
         countChoice(granted === true);
         broadcast();
+        trackPages(granted === true);
       },
     };
+    if (store("get", CONSENT_KEY) === "granted") trackPages(true);
     return window.WusoolAnalytics;
   }
 })();

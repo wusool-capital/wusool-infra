@@ -163,8 +163,9 @@
           window.posthog.init(cfg.key, {
             api_host: cfg.host,
             autocapture: false,
-            capture_pageview: false,
-            capture_pageleave: false,
+            // Direct visits only: an embedded tool is already counted by its Webflow page (embed.js).
+            capture_pageview: !framed,
+            capture_pageleave: !framed,
             // Replay shows the page as the visitor saw it; requests and console output stay unrecorded.
             session_recording: {
               maskAllInputs: false,
@@ -177,8 +178,12 @@
             persistence: "localStorage+cookie",
             cross_subdomain_cookie: true,
             person_profiles: "identified_only",
+            // Runs before the first page view, so it carries is_test; also lifts an opt-out stored by an earlier withdrawal.
+            loaded: function (ph) {
+              ph.register({ is_test: cfg.is_test });
+              if (ph.has_opted_out_capturing()) ph.opt_in_capturing({ captureEventName: false });
+            },
           });
-          window.posthog.register({ is_test: cfg.is_test });
           ready = true;
           if (consent === true) flush();
         };

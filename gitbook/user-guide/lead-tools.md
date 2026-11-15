@@ -72,7 +72,8 @@ waiting.
 - **Readiness** depends on AI judgment and has no substitute score. If the AI
   service is unavailable, the page asks the visitor to retry; their details
   are kept.
-- **Benchmark** is calculated from a peer dataset without AI.
+- **Benchmark** is calculated from a peer dataset without AI. Advisors can update
+  the dataset from Claude.
 - **Buyer Network** accepts the application straight away.
 
 These are indicative decision-support outputs, not a formal valuation,

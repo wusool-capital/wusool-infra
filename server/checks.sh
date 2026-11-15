@@ -61,8 +61,10 @@ integration() {
   uv run alembic upgrade head
   uv run pytest \
     app/modules/activities/tests/integration \
+    app/modules/benchmark_data/tests/integration \
     app/modules/ddl_commands/tests/integration \
     app/modules/lead_magnets/tests/integration \
+    app/modules/mcp/tests/integration \
     app/modules/matching_engine/tests/integration \
     app/modules/meetings/tests/integration \
     app/modules/enrichment/tests/integration \

@@ -129,6 +129,8 @@ benchmark/
   index.html
   00-styles.css
   10-config.js  20-data.js  30-helpers.js  40-scoring.js  50-narrative.js  60-render.js
+                # 20-data.js is the fallback copy: GET /benchmark/20-data.js serves the
+                # page's data from the benchmark_data tables and shadows this file
 readiness/
   index.html
   00-styles.css
@@ -394,6 +396,13 @@ script has no code that reads a form field.
 | `tool_completed` | A lead submit returns 2xx | plus the last `step` |
 | `tool_abandoned` | The page closes after a start and before completing (sent by beacon) | plus the last `step` |
 | `book_call_clicked` | A click on a `calendar.app.google` link in the page | plus `source: "tool"` |
+| `$pageview`, `$pageleave` | The page loads, and closes, on a direct visit only; an embedded tool is counted by its Webflow page (PostHog's own events, for Web analytics and time on page) | PostHog's page properties, plus `is_test` |
+
+`embed.js` also sends `cta_clicked` with the `data-form` name (letters, digits and dashes, up to 40) when a visitor who chose Accept all clicks a website button marked `data-form`. It never sends the button's text.
+
+`embed.js` does the same for the Webflow pages (`trackPages`): after Accept all it
+loads PostHog on the page with page views and page leaves on, and replay and
+autocapture off. Withdrawing consent opts the visitor out.
 
 The script also wraps `fetch` for the lead submit routes (`SUBMIT_PATHS`, kept in
 step with the server by `test_static_contract.py`) and the report unlock. It adds
