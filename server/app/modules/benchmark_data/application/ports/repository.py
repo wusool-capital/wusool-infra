@@ -3,7 +3,14 @@
 from collections.abc import Mapping
 from typing import Protocol
 
-from app.modules.benchmark_data.domain.dataset import Band, BenchmarkDataset, Metric, Mode, PeerCut
+from app.modules.benchmark_data.domain.dataset import (
+    Band,
+    BenchmarkDataset,
+    Editor,
+    Metric,
+    Mode,
+    PeerCut,
+)
 
 
 class BenchmarkDataRepository(Protocol):
@@ -12,14 +19,14 @@ class BenchmarkDataRepository(Protocol):
         can't each merge onto the same snapshot and overwrite one another."""
         ...
 
-    async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> PeerCut:
-        """Writes the cut and returns it as stored, with the new `updated_by`/`updated_at`."""
+    async def save_peer_cut(self, cut: PeerCut, *, editor: Editor) -> PeerCut:
+        """Writes the cut and returns it as stored, with who changed it and when."""
         ...
 
-    async def save_band(self, band: Band, *, edited_by: str) -> Band: ...
+    async def save_band(self, band: Band, *, editor: Editor) -> Band: ...
 
     async def save_weights(
-        self, mode: Mode, weights: Mapping[str, int], *, edited_by: str
+        self, mode: Mode, weights: Mapping[str, int], *, editor: Editor
     ) -> Mapping[str, Metric]:
         """Updates the weights that differ and returns all of the mode's metrics."""
         ...

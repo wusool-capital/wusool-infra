@@ -19,8 +19,10 @@ Two tables, current values only (`app/models/benchmark_data.py`):
   (`kind = 'metric'`). Each kind fills its own columns; a CHECK enforces it.
 
 Both have a uuid `id`, `created_at`/`created_by` and `updated_at`/`updated_by`.
-`updated_by` is the editor's name (their Slack id when the name is unknown, and
-`seed` for the loaded dataset). A row therefore says who last changed it.
+`updated_by` is the editor's Slack user id (`seed` for the loaded dataset), which is
+unique and can later be matched to a user. `updated_by_name` is the name they had
+when they edited, so a row reads as a person. The `users` table holds Attio workspace
+members and has no Slack link yet, so there is no foreign key to it.
 
 There is no history table. An edit overwrites the old value; the audit tables
 will keep history. Until then the activity names which fields changed.

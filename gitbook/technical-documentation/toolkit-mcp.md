@@ -30,7 +30,7 @@ The benchmark tools change what visitors to the public benchmark are scored agai
 
 For anchors, a call sends either a metric's five numbers or only the percentiles to change, such as `{"p50": 67}`. The rest keep their value, and the merged result must still rise from p10 to p90.
 
-Each changed row stores the editor's name and the time. Old values are not kept yet, so Claude reads a row first and tells the person what it held and who last changed it. The tools' own descriptions say so.
+Each changed row stores the editor's Slack user id, their name and the time. The tools show the name, with the id beside it. Old values are not kept yet, so Claude reads a row first and tells the person what it held and who last changed it. The tools' own descriptions say so.
 
 Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them.
 

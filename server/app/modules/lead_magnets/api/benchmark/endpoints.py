@@ -20,16 +20,12 @@ from app.modules.lead_magnets.api.schemas import (
     ImpliedEvOut,
     MetricOut,
 )
-from app.modules.lead_magnets.bootstrap import (
-    build_submission_service,
-    load_peer_dataset,
-    run_completion,
-)
+from app.modules.lead_magnets.application.shared.pipelines import score_benchmark
+from app.modules.lead_magnets.bootstrap import build_submission_service, run_completion
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
-    BenchmarkInputs,
     BenchmarkResult,
-    evaluate,
 )
+from app.modules.lead_magnets.providers.benchmark_data.peer_dataset import load_peer_dataset
 
 router = APIRouter(
     tags=["lead-magnets"],
@@ -76,30 +72,13 @@ async def benchmark(
     )
 
     # Scored after the row exists, so even an unexpected failure here leaves
-    # the lead recorded rather than losing it to a 500.
-    result = evaluate(
-        BenchmarkInputs(
-            mode=request.mode,
-            peer_key=request.peer_key,
-            revenue=request.revenue,
-            prev_revenue=request.prev_revenue,
-            ebitda_reported=request.ebitda_reported,
-            owner_salary=request.owner_salary,
-            salary_deducted=request.salary_deducted,
-            gross_margin_pct=request.gross_margin_pct,
-            headcount=request.headcount,
-            rent_cost=request.rent_cost,
-            capital_raised=request.capital_raised,
-            top_customer_pct=request.top_customer_pct,
-            recurring_pct=request.recurring_pct,
-            years_active=request.years_active,
-            outlets=request.outlets,
-            days_to_get_paid=request.days_to_get_paid,
-            email=request.email,
-            geography=request.geography,
-        ),
-        await load_peer_dataset(),
-    )
+    # the lead recorded rather than losing it to a 500. Scored once: the output
+    # is stored on the run, so the Attio write and the emails use exactly the
+    # figures the visitor sees, even if an advisor edits the dataset meanwhile.
+    scored = score_benchmark(request.model_dump(), await load_peer_dataset())
+    await service.store_ai(run_id, scored.output)
+    await session.commit()
+    result = scored.result
     return _benchmark_response(str(run_id), result)
 
 

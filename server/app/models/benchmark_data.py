@@ -3,9 +3,9 @@
 
 `benchmark_peer_cuts` holds one row per sector (`sme`) or funding stage
 (`tech`) with its percentile anchors. `benchmark_rules` holds the revenue bands
-and the metric weights. Both keep only the current values: `updated_by` (the
-editor's name) and `updated_at` say who last changed a row; the Slack id is on the
-row's `activities` event. Version history
+and the metric weights. Both keep only the current values: `updated_by` (the editor's
+Slack user id), `updated_by_name` (their name at the time) and `updated_at` say who last
+changed a row. Version history
 belongs to the audit tables.
 """
 
@@ -57,7 +57,9 @@ class BenchmarkPeerCut(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
+    # Slack user id (`seed` for the loaded dataset), and the name they had when they edited.
     updated_by: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by_name: Mapped[str | None] = mapped_column(Text)
 
 
 class BenchmarkRule(Base):
@@ -117,4 +119,6 @@ class BenchmarkRule(Base):
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )
+    # Slack user id (`seed` for the loaded dataset), and the name they had when they edited.
     updated_by: Mapped[str] = mapped_column(Text, nullable=False)
+    updated_by_name: Mapped[str | None] = mapped_column(Text)

@@ -55,7 +55,7 @@ class BenchmarkDataService:
         changed = changed_peer_cut_fields(cut, updated)
         if not changed:
             return cut
-        saved = await self._repository.save_peer_cut(updated, edited_by=editor.label)
+        saved = await self._repository.save_peer_cut(updated, editor=editor)
         await self._record(
             SubjectType.BENCHMARK_PEER_CUT,
             EventType.BENCHMARK_PEER_CUT_EDITED,
@@ -76,7 +76,7 @@ class BenchmarkDataService:
         changed = changed_band_fields(before, after)
         if not changed:
             return dataset.bands
-        saved = await self._repository.save_band(after, edited_by=editor.label)
+        saved = await self._repository.save_band(after, editor=editor)
         await self._record(
             SubjectType.BENCHMARK_RULE,
             EventType.BENCHMARK_RULE_EDITED,
@@ -96,7 +96,7 @@ class BenchmarkDataService:
         changed = [key for key, weight in weights.items() if current[key].weight != weight]
         if not changed:
             return current
-        saved = await self._repository.save_weights(mode, weights, edited_by=editor.label)
+        saved = await self._repository.save_weights(mode, weights, editor=editor)
         for key in changed:
             await self._record(
                 SubjectType.BENCHMARK_RULE,

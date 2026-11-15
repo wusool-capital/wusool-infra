@@ -80,7 +80,8 @@ def _band(band: Band) -> BandOut:
         ebitda_adj=band.ebitda_adj,
         rev_emp_mult=band.rev_emp_mult,
         rent_mult=band.rent_mult,
-        updated_by=band.updated_by,
+        updated_by=band.updated_by_name or band.updated_by,
+        updated_by_slack_id=band.updated_by,
         updated_at=band.updated_at,
     )
 
@@ -91,7 +92,8 @@ def _metric(metric: Metric) -> MetricOut:
         label=metric.label,
         unit=metric.unit,
         weight=metric.weight,
-        updated_by=metric.updated_by,
+        updated_by=metric.updated_by_name or metric.updated_by,
+        updated_by_slack_id=metric.updated_by,
         updated_at=metric.updated_at,
     )
 
@@ -104,7 +106,8 @@ def _summary(cut: PeerCut) -> PeerCutSummary:
         sample_size=cut.sample_size,
         multi_site=cut.multi_site,
         b2b=cut.b2b,
-        updated_by=cut.updated_by,
+        updated_by=cut.updated_by_name or cut.updated_by,
+        updated_by_slack_id=cut.updated_by,
         updated_at=cut.updated_at,
     )
 

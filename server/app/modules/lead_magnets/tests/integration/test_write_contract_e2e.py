@@ -147,6 +147,28 @@ async def test_benchmark_submission_completes_and_satisfies_every_fk(db_session)
     assert after.idempotency_key == "dana@acmegroup.ae|acmegroup.ae"
 
 
+async def test_a_stored_benchmark_output_is_reused_not_computed_again(db_session) -> None:
+    """The endpoint scores once and stores the output. The completion must use it as it is,
+    or an edit to the dataset in between could change the figures sent to Attio."""
+    repo = ToolRunsRepository(db_session)
+    attio, ai = _FakeAttio(), _Spy(output={"score": 99})
+    service = _service(db_session, attio, ai)
+
+    run_id = await service.record(
+        tool="benchmark",
+        payload={"company_name": _CO, "contact_name": "Dana"},
+        email="Dana@AcmeGroup.ae",
+        domain="https://www.acmegroup.ae/about",
+    )
+    await service.store_ai(run_id, {"score": 55})
+    await service.complete(await repo.get(run_id))
+
+    after = await _row(db_session, run_id)
+    assert after.status == "succeeded"
+    assert after.payload["ai"] == {"score": 55}
+    assert ai.calls(_CO) == 0
+
+
 async def test_readiness_ai_failure_keeps_the_lead(db_session) -> None:
     """The live defect this module exists to close: the readiness tool has no
     fallback, so a failed model call means no report — but the submission and

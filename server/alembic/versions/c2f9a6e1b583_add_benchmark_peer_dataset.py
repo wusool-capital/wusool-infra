@@ -495,6 +495,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_by", sa.Text(), nullable=False),
+        sa.Column("updated_by_name", sa.Text(), nullable=True),
         sa.CheckConstraint("mode IN ('sme','tech')", name="benchmark_peer_cuts_mode_check"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("mode", "key", name="uq_benchmark_peer_cuts_mode_key"),
@@ -529,6 +530,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("updated_by", sa.Text(), nullable=False),
+        sa.Column("updated_by_name", sa.Text(), nullable=True),
         sa.CheckConstraint("kind IN ('band','metric')", name="benchmark_rules_kind_check"),
         sa.CheckConstraint(
             "mode IS NULL OR mode IN ('sme','tech')", name="benchmark_rules_mode_check"

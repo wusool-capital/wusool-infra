@@ -7,8 +7,8 @@ import pytest
 
 from app.modules.benchmark_data import BenchmarkDataset
 from app.modules.benchmark_data.domain.dataset import Band, Metric, PeerCut
-from app.modules.lead_magnets import bootstrap
 from app.modules.lead_magnets.domain.benchmark.peer_dataset import BUILT_IN_PEER_DATASET
+from app.modules.lead_magnets.providers.benchmark_data import peer_dataset as provider
 
 _AT = datetime(2026, 11, 15, tzinfo=UTC)
 _STORED = BenchmarkDataset(
@@ -44,8 +44,8 @@ async def test_the_stored_dataset_is_used_when_it_can_be_read(
     async def load() -> BenchmarkDataset:
         return _STORED
 
-    monkeypatch.setattr(bootstrap, "load_dataset", load)
-    dataset = await bootstrap.load_peer_dataset()
+    monkeypatch.setattr(provider, "load_dataset", load)
+    dataset = await provider.load_peer_dataset()
     assert dataset is not BUILT_IN_PEER_DATASET
     assert dataset.cuts["sme"]["salon"].sample_size == 9
 
@@ -56,8 +56,8 @@ async def test_the_built_in_dataset_is_used_when_the_database_fails(
     async def load() -> BenchmarkDataset:
         raise ConnectionError("database down")
 
-    monkeypatch.setattr(bootstrap, "load_dataset", load)
-    dataset = await bootstrap.load_peer_dataset()
+    monkeypatch.setattr(provider, "load_dataset", load)
+    dataset = await provider.load_peer_dataset()
     assert dataset is BUILT_IN_PEER_DATASET
     assert "benchmark_peer_dataset_fallback" in caplog.text
 
@@ -66,5 +66,5 @@ async def test_the_port_adapter_falls_back_too(monkeypatch: pytest.MonkeyPatch) 
     async def load() -> BenchmarkDataset:
         raise ConnectionError("database down")
 
-    monkeypatch.setattr(bootstrap, "load_dataset", load)
-    assert await bootstrap._BenchmarkDataPeers().load() is BUILT_IN_PEER_DATASET
+    monkeypatch.setattr(provider, "load_dataset", load)
+    assert await provider.BenchmarkDataPeerDatasets().load() is BUILT_IN_PEER_DATASET

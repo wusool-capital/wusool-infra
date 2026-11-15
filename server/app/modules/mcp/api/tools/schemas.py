@@ -224,7 +224,12 @@ class PercentileEditIn(BaseModel):
 
 
 AnchorsIn = AnchorList | PercentileEditIn
-UpdatedBy = Annotated[str, Field(description="Who last changed this, by name ('seed' if never)")]
+UpdatedBy = Annotated[
+    str, Field(description="Who last changed this: their name ('seed' if never changed)")
+]
+UpdatedBySlackId = Annotated[
+    str, Field(description="Their Slack user id, which tells two people with one name apart")
+]
 UpdatedAt = Annotated[datetime, Field(description="When it was last changed")]
 
 
@@ -236,6 +241,7 @@ class BandOut(BaseModel):
     rev_emp_mult: float = Field(description="Multiplies the revenue-per-employee anchors")
     rent_mult: float = Field(description="Multiplies the premises-cost anchors")
     updated_by: UpdatedBy
+    updated_by_slack_id: UpdatedBySlackId
     updated_at: UpdatedAt
 
 
@@ -245,6 +251,7 @@ class MetricOut(BaseModel):
     unit: str
     weight: int = Field(description="Share of the score; a mode's weights add up to 100")
     updated_by: UpdatedBy
+    updated_by_slack_id: UpdatedBySlackId
     updated_at: UpdatedAt
 
 
@@ -256,6 +263,7 @@ class PeerCutSummary(BaseModel):
     multi_site: bool
     b2b: bool
     updated_by: UpdatedBy
+    updated_by_slack_id: UpdatedBySlackId
     updated_at: UpdatedAt
 
 

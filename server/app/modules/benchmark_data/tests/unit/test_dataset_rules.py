@@ -89,20 +89,30 @@ class FakeRepository:
         self.locked = self.locked or for_update
         return self.dataset
 
-    async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> PeerCut:
-        self.saved.append(f"cut:{cut.key}:{edited_by}")
-        return replace(cut, updated_by=edited_by, updated_at=_NOW)
+    async def save_peer_cut(self, cut: PeerCut, *, editor: Editor) -> PeerCut:
+        self.saved.append(f"cut:{cut.key}:{editor.slack_user_id}")
+        return replace(
+            cut, updated_by=editor.slack_user_id, updated_by_name=editor.name, updated_at=_NOW
+        )
 
-    async def save_band(self, band: Band, *, edited_by: str) -> Band:
-        self.saved.append(f"band:{band.code}:{edited_by}")
-        return replace(band, updated_by=edited_by, updated_at=_NOW)
+    async def save_band(self, band: Band, *, editor: Editor) -> Band:
+        self.saved.append(f"band:{band.code}:{editor.slack_user_id}")
+        return replace(
+            band, updated_by=editor.slack_user_id, updated_by_name=editor.name, updated_at=_NOW
+        )
 
     async def save_weights(
-        self, mode: Mode, weights: Mapping[str, int], *, edited_by: str
+        self, mode: Mode, weights: Mapping[str, int], *, editor: Editor
     ) -> Mapping[str, Metric]:
-        self.saved.append(f"weights:{mode}:{edited_by}")
+        self.saved.append(f"weights:{mode}:{editor.slack_user_id}")
         return {
-            key: replace(m, weight=weights[key], updated_by=edited_by, updated_at=_NOW)
+            key: replace(
+                m,
+                weight=weights[key],
+                updated_by=editor.slack_user_id,
+                updated_by_name=editor.name,
+                updated_at=_NOW,
+            )
             if m.weight != weights[key]
             else m
             for key, m in self.dataset.metrics[mode].items()
@@ -147,18 +157,18 @@ async def test_peer_cut_edit_changes_only_the_fields_sent(
     assert cut.anchors["ebitda"] == (4, 9, 15, 22, 29)
     assert cut.anchors["dso"] == (0, 2, 5, 12, 25)
     assert cut.multi_site is True
-    assert (cut.updated_by, cut.updated_at) == ("Alice Jones", _NOW)
-    assert repo.saved == ["cut:salon:Alice Jones"]
+    assert (cut.updated_by, cut.updated_by_name, cut.updated_at) == ("U_ALICE", "Alice Jones", _NOW)
+    assert repo.saved == ["cut:salon:U_ALICE"]
 
 
-async def test_the_row_shows_the_persons_name_and_the_activity_their_slack_id(
+async def test_the_row_keeps_the_slack_id_and_the_name_and_the_activity_the_id(
     service: BenchmarkDataService, activities: FakeActivities
 ) -> None:
     cut = await service.edit_peer_cut(
         "sme", "salon", PeerCutEdit(sample_size=60), editor=_ALICE, source=ActivitySource.MCP
     )
     (event,) = activities.events
-    assert cut.updated_by == "Alice Jones"
+    assert (cut.updated_by, cut.updated_by_name) == ("U_ALICE", "Alice Jones")
     assert event.actor.type is ActorType.SLACK_USER
     assert event.actor.ref == "U_ALICE"
     assert event.source is ActivitySource.MCP
@@ -168,7 +178,7 @@ async def test_the_row_shows_the_persons_name_and_the_activity_their_slack_id(
     assert event.payload == BenchmarkEditPayload(changed_fields=("sample_size",))
 
 
-async def test_without_a_name_the_row_falls_back_to_the_slack_id(
+async def test_without_a_name_the_row_keeps_the_id_and_no_name(
     service: BenchmarkDataService,
 ) -> None:
     cut = await service.edit_peer_cut(
@@ -178,7 +188,7 @@ async def test_without_a_name_the_row_falls_back_to_the_slack_id(
         editor=Editor(slack_user_id="U_BOB"),
         source=ActivitySource.MCP,
     )
-    assert cut.updated_by == "U_BOB"
+    assert (cut.updated_by, cut.updated_by_name) == ("U_BOB", None)
 
 
 async def test_the_activity_names_each_changed_anchor_and_nothing_else(
@@ -256,9 +266,9 @@ async def test_band_edit_saves_only_that_band_and_records_it(
         "micro", BandEdit(max_usd=900_000), editor=_ALICE, source=ActivitySource.MCP
     )
     assert bands[0].max_usd == 900_000
-    assert bands[0].updated_by == "Alice Jones"
+    assert (bands[0].updated_by, bands[0].updated_by_name) == ("U_ALICE", "Alice Jones")
     assert bands[1].updated_by == "seed"
-    assert repo.saved == ["band:micro:Alice Jones"]
+    assert repo.saved == ["band:micro:U_ALICE"]
     (event,) = activities.events
     assert event.subject_type is SubjectType.BENCHMARK_RULE
     assert event.event_type is EventType.BENCHMARK_RULE_EDITED
@@ -300,8 +310,8 @@ async def test_weights_record_one_event_per_changed_weight(
     metrics = await service.set_weights(
         "sme", {"ebitda": 70, "growth": 30}, editor=_ALICE, source=ActivitySource.MCP
     )
-    assert metrics["ebitda"].updated_by == "Alice Jones"
-    assert repo.saved == ["weights:sme:Alice Jones"]
+    assert metrics["ebitda"].updated_by == "U_ALICE"
+    assert repo.saved == ["weights:sme:U_ALICE"]
     assert {e.subject_uuid for e in activities.events} == {
         metrics["ebitda"].id,
         metrics["growth"].id,

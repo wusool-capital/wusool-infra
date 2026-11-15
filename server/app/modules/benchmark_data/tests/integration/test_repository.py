@@ -71,9 +71,10 @@ async def test_every_seeded_row_says_it_came_from_the_seed(db_session) -> None:
     rows += [m for mode in dataset.metrics.values() for m in mode.values()]
     rows += [c for mode in dataset.cuts.values() for c in mode.values()]
     assert {r.updated_by for r in rows} == {"seed"}
+    assert {r.updated_by_name for r in rows} == {None}
 
 
-async def test_an_edit_is_stored_under_the_persons_name_and_leaves_an_activity(
+async def test_an_edit_is_stored_with_the_slack_id_and_name_and_leaves_an_activity(
     service: BenchmarkDataService, db_session
 ) -> None:
     before = await service.dataset()
@@ -89,7 +90,8 @@ async def test_an_edit_is_stored_under_the_persons_name_and_leaves_an_activity(
     assert after.sample_size == 99
     assert after.anchors["gm"] == (60, 66, 72, 77, 82)
     assert after.anchors["ebitda"] == before.cuts["sme"]["salon"].anchors["ebitda"]
-    assert (after.updated_by, after.updated_at) == ("Alice Jones", cut.updated_at)
+    assert (after.updated_by, after.updated_by_name) == ("U_ALICE", "Alice Jones")
+    assert after.updated_at == cut.updated_at
     assert cut.updated_at > before.cuts["sme"]["salon"].updated_at
 
     (activity,) = await _activities(db_session, cut.id)
@@ -113,7 +115,11 @@ async def test_a_band_edit_is_stored_and_recorded(
         "micro", BandEdit(ebitda_adj=-2.5), editor=_ALICE, source=ActivitySource.MCP
     )
     stored = (await service.dataset()).bands[0]
-    assert (stored.ebitda_adj, stored.updated_by) == (-2.5, "Alice Jones")
+    assert (stored.ebitda_adj, stored.updated_by, stored.updated_by_name) == (
+        -2.5,
+        "U_ALICE",
+        "Alice Jones",
+    )
     (activity,) = await _activities(db_session, bands[0].id)
     assert activity.event_type == "benchmark.rule_edited"
     assert activity.subject_type == "BenchmarkRule"
@@ -128,8 +134,8 @@ async def test_only_changed_weights_get_a_new_editor_and_an_activity(
         editor=_ALICE,
         source=ActivitySource.MCP,
     )
-    assert (metrics["growth"].weight, metrics["growth"].updated_by) == (30, "Alice Jones")
-    assert (metrics["gm"].weight, metrics["gm"].updated_by) == (10, "Alice Jones")
+    assert (metrics["growth"].weight, metrics["growth"].updated_by) == (30, "U_ALICE")
+    assert (metrics["gm"].weight, metrics["gm"].updated_by) == (10, "U_ALICE")
     assert metrics["capEff"].updated_by == "seed"
     assert len(await _activities(db_session, metrics["growth"].id)) == 1
     assert await _activities(db_session, metrics["capEff"].id) == []

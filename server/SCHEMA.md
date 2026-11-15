@@ -389,7 +389,8 @@ The GCC SME Benchmark's peer dataset, owned by the `benchmark_data` module and
 edited from the Wusool MCP. Two tables, current values only; seeded from
 `benchmark_dataset.py` (`created_by`/`updated_by = 'seed'`). Both have `id` (uuid,
 `gen_random_uuid()`), `created_at`/`updated_at` (timestamptz, `now()`) and
-`created_by`/`updated_by` (text, not null: the editor's name).
+`created_by`/`updated_by` (text, not null: the editor's Slack user id, or `seed`) and
+`updated_by_name` (text, null: their name when they edited).
 
 `benchmark_peer_cuts`: unique `(mode, key)`; `mode` CHECK `sme`/`tech`.
 

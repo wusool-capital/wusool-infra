@@ -39,15 +39,11 @@ class UnknownRecordError(LookupError):
 
 @dataclass(frozen=True)
 class Editor:
-    """The signed-in person making an edit."""
+    """The signed-in person making an edit. Rows keep their Slack user id (unique, so it can
+    later be matched to a user) and the name they had at the time (so it reads as a person)."""
 
     slack_user_id: str
     name: str | None = None
-
-    @property
-    def label(self) -> str:
-        """What rows show as `updated_by`: their name, so it reads as a person."""
-        return self.name or self.slack_user_id
 
 
 @dataclass(frozen=True)
@@ -61,9 +57,11 @@ class Band:
     ebitda_adj: float
     rev_emp_mult: float
     rent_mult: float
-    # Who last changed the row, by name, and when.
+    # Who last changed the row: their Slack user id (`seed` if never), and when. The name
+    # they had then is kept beside it.
     updated_by: str
     updated_at: datetime
+    updated_by_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +75,7 @@ class Metric:
     observed: bool | None
     updated_by: str
     updated_at: datetime
+    updated_by_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -94,6 +93,7 @@ class PeerCut:
     anchors: Mapping[str, Anchors]
     updated_by: str
     updated_at: datetime
+    updated_by_name: str | None = None
 
 
 @dataclass(frozen=True)

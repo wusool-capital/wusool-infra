@@ -3,6 +3,7 @@ the fallback when they cannot be read."""
 
 import json
 from datetime import UTC, datetime
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -12,8 +13,8 @@ from fastapi.testclient import TestClient
 from app.modules.benchmark_data import BenchmarkDataset
 from app.modules.benchmark_data.domain.dataset import Band, Metric, PeerCut
 from app.modules.lead_magnets.api.benchmark import dataset_script
+from app.modules.lead_magnets.api.benchmark.dataset_js import render_dataset_js
 from app.modules.lead_magnets.api.static import static_dir
-from app.modules.lead_magnets.domain.benchmark.dataset_js import render_dataset_js
 
 _AT = datetime(2026, 11, 15, tzinfo=UTC)
 
@@ -102,6 +103,11 @@ def test_the_script_has_the_shape_the_page_reads() -> None:
     assert data["techCurrency"] == "USD"
 
 
+@pytest.fixture(autouse=True)
+def _fresh_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(dataset_script, "_cached", None)
+
+
 @pytest.fixture
 def client() -> TestClient:
     app = FastAPI()
@@ -132,3 +138,36 @@ def test_the_route_falls_back_to_the_static_file_when_the_database_fails(
     assert response.status_code == 200
     assert response.text == (static_dir() / "benchmark" / "20-data.js").read_text(encoding="utf-8")
     assert response.headers["cache-control"] == "no-store"
+
+
+def test_a_burst_of_requests_reads_the_database_once(client: TestClient, monkeypatch) -> None:
+    load = AsyncMock(return_value=_dataset())
+    monkeypatch.setattr(dataset_script, "load_dataset", load)
+    monkeypatch.setattr(dataset_script, "_clock", lambda: 100.0)
+    for _ in range(5):
+        assert client.get("/benchmark/20-data.js").status_code == 200
+    assert load.await_count == 1
+
+
+def test_the_script_is_rendered_again_once_the_cache_expires(
+    client: TestClient, monkeypatch
+) -> None:
+    load = AsyncMock(return_value=_dataset())
+    monkeypatch.setattr(dataset_script, "load_dataset", load)
+    now = [100.0]
+    monkeypatch.setattr(dataset_script, "_clock", lambda: now[0])
+    client.get("/benchmark/20-data.js")
+    now[0] += dataset_script._CACHE_SECONDS + 1
+    client.get("/benchmark/20-data.js")
+    assert load.await_count == 2
+
+
+def test_a_failed_render_is_not_cached(client: TestClient, monkeypatch) -> None:
+    load = AsyncMock(side_effect=[ConnectionError("down"), _dataset()])
+    monkeypatch.setattr(dataset_script, "load_dataset", load)
+    monkeypatch.setattr(dataset_script, "_clock", lambda: 100.0)
+    first = client.get("/benchmark/20-data.js")
+    second = client.get("/benchmark/20-data.js")
+    assert first.headers["cache-control"] == "no-store"
+    assert second.headers["cache-control"] == "public, max-age=60"
+    assert load.await_count == 2

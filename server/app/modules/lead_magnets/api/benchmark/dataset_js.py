@@ -1,10 +1,10 @@
 """The `DATA` script the benchmark page scores against in the browser, rendered
-from the same tables the server scores against. Pure."""
+from the same tables the server scores against."""
 
 import json
 from collections.abc import Sequence
 
-from app.modules.benchmark_data.domain.dataset import BenchmarkDataset, Metric, PeerCut
+from app.modules.benchmark_data import BenchmarkDataset, Metric, PeerCut
 
 TECH_CURRENCY = "USD"
 

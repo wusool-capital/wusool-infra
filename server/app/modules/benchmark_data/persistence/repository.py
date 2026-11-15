@@ -13,6 +13,7 @@ from app.modules.benchmark_data.domain.dataset import (
     Anchors,
     Band,
     BenchmarkDataset,
+    Editor,
     Metric,
     Mode,
     PeerCut,
@@ -50,6 +51,7 @@ def _band(row: BenchmarkRule) -> Band:
         rent_mult=_num(row.rent_mult),
         updated_by=row.updated_by,
         updated_at=row.updated_at,
+        updated_by_name=row.updated_by_name,
     )
 
 
@@ -66,6 +68,7 @@ def _metric(row: BenchmarkRule) -> Metric:
         observed=row.observed,
         updated_by=row.updated_by,
         updated_at=row.updated_at,
+        updated_by_name=row.updated_by_name,
     )
 
 
@@ -81,6 +84,7 @@ def _cut(row: BenchmarkPeerCut) -> PeerCut:
         anchors=AnchorSet.model_validate(row.anchors).root,
         updated_by=row.updated_by,
         updated_at=row.updated_at,
+        updated_by_name=row.updated_by_name,
     )
 
 
@@ -108,7 +112,7 @@ class PostgresBenchmarkDataRepository:
             cuts={mode: {c.key: _cut(c) for c in cuts if c.mode == mode} for mode in _MODES},
         )
 
-    async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> PeerCut:
+    async def save_peer_cut(self, cut: PeerCut, *, editor: Editor) -> PeerCut:
         result = await self._session.execute(
             update(BenchmarkPeerCut)
             .where(BenchmarkPeerCut.id == cut.id)
@@ -117,14 +121,15 @@ class PostgresBenchmarkDataRepository:
                 multi_site=cut.multi_site,
                 b2b=cut.b2b,
                 anchors=AnchorSet(dict(cut.anchors)).model_dump(mode="json"),
-                updated_by=edited_by,
+                updated_by=editor.slack_user_id,
+                updated_by_name=editor.name,
                 updated_at=datetime.now(UTC),
             )
             .returning(BenchmarkPeerCut)
         )
         return _cut(result.scalar_one())
 
-    async def save_band(self, band: Band, *, edited_by: str) -> Band:
+    async def save_band(self, band: Band, *, editor: Editor) -> Band:
         result = await self._session.execute(
             update(BenchmarkRule)
             .where(BenchmarkRule.id == band.id)
@@ -134,7 +139,8 @@ class PostgresBenchmarkDataRepository:
                 ebitda_adj=band.ebitda_adj,
                 rev_emp_mult=band.rev_emp_mult,
                 rent_mult=band.rent_mult,
-                updated_by=edited_by,
+                updated_by=editor.slack_user_id,
+                updated_by_name=editor.name,
                 updated_at=datetime.now(UTC),
             )
             .returning(BenchmarkRule)
@@ -142,7 +148,7 @@ class PostgresBenchmarkDataRepository:
         return _band(result.scalar_one())
 
     async def save_weights(
-        self, mode: Mode, weights: Mapping[str, int], *, edited_by: str
+        self, mode: Mode, weights: Mapping[str, int], *, editor: Editor
     ) -> Mapping[str, Metric]:
         now = datetime.now(UTC)
         for key, weight in weights.items():
@@ -154,7 +160,12 @@ class PostgresBenchmarkDataRepository:
                     BenchmarkRule.code == key,
                     BenchmarkRule.weight != weight,
                 )
-                .values(weight=weight, updated_by=edited_by, updated_at=now)
+                .values(
+                    weight=weight,
+                    updated_by=editor.slack_user_id,
+                    updated_by_name=editor.name,
+                    updated_at=now,
+                )
             )
         rows = await self._session.scalars(
             select(BenchmarkRule)

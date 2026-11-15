@@ -33,10 +33,20 @@ _CALLER = Caller(slack_user_id="U_ALICE", team_id="T1", name="Alice Jones", scop
 _THEN = datetime(2026, 11, 1, tzinfo=UTC)
 _NOW = datetime(2026, 11, 15, tzinfo=UTC)
 _SALON = PeerCut(
-    uuid4(), "sme", "salon", "Salon", 48, True, False, {"gm": (62, 68, 74, 79, 84)}, "Ramzy", _NOW
+    uuid4(),
+    "sme",
+    "salon",
+    "Salon",
+    48,
+    True,
+    False,
+    {"gm": (62, 68, 74, 79, 84)},
+    "U_RAMZY",
+    _NOW,
+    "Ramzy",
 )
 _BAND = Band(uuid4(), "micro", "Under 1m", 1_000_000, -3, 0.8, 1.25, "seed", _THEN)
-_GM = Metric(uuid4(), "gm", "Gross margin", "%", True, 100, None, "Jules", _NOW)
+_GM = Metric(uuid4(), "gm", "Gross margin", "%", True, 100, None, "U_JULES", _NOW, "Jules")
 _DATASET = BenchmarkDataset(
     updated_at=_NOW,
     bands=(_BAND, Band(uuid4(), "top", "Top", None, 4, 1.4, 0.8, "seed", _THEN)),
@@ -75,12 +85,14 @@ async def test_overview_shows_who_last_changed_each_row(monkeypatch: pytest.Monk
     assert out["dataset_updated_at"].startswith("2026-11-15")
     assert out["sme_metrics"][0]["weight"] == 100
     assert out["sme_metrics"][0]["updated_by"] == "Jules"
+    assert out["sme_metrics"][0]["updated_by_slack_id"] == "U_JULES"
     assert [(b["code"], b["updated_by"]) for b in out["bands"]] == [
         ("micro", "seed"),
         ("top", "seed"),
     ]
     assert out["peer_cuts"][0]["key"] == "salon"
     assert out["peer_cuts"][0]["updated_by"] == "Ramzy"
+    assert out["peer_cuts"][0]["updated_by_slack_id"] == "U_RAMZY"
 
 
 async def test_get_peer_cut_returns_the_anchors_and_the_last_editor(
@@ -93,6 +105,7 @@ async def test_get_peer_cut_returns_the_anchors_and_the_last_editor(
     assert result.structured_content is not None
     assert result.structured_content["anchors"] == {"gm": [62, 68, 74, 79, 84]}
     assert result.structured_content["updated_by"] == "Ramzy"
+    assert result.structured_content["updated_by_slack_id"] == "U_RAMZY"
     assert result.structured_content["updated_at"].startswith("2026-11-15")
 
 

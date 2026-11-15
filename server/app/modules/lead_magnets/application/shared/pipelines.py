@@ -12,10 +12,15 @@ not need one.
 """
 
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 
 from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, PeerDatasetPort
-from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkInputs, evaluate
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
+    BenchmarkInputs,
+    BenchmarkResult,
+    evaluate,
+)
+from app.modules.lead_magnets.domain.benchmark.peer_dataset import PeerDataset
 from app.modules.lead_magnets.domain.readiness.readiness import (
     ReadinessAnswers,
     build_advisory_content,
@@ -57,6 +62,38 @@ logger = logging.getLogger(__name__)
 def readiness_answers(payload: JsonObject) -> ReadinessAnswers:
     parsed = ReadinessPayload.model_validate(payload)
     return ReadinessAnswers(**parsed.answers.model_dump())
+
+
+@dataclass(frozen=True)
+class BenchmarkScore:
+    """One benchmark scored once: what the visitor sees, and what the run stores."""
+
+    result: BenchmarkResult
+    output: JsonObject
+
+
+def score_benchmark(payload: JsonObject, dataset: PeerDataset) -> BenchmarkScore:
+    """Scores a stored benchmark payload against `dataset`.
+
+    The endpoint calls this once and stores `output` on the run, so the visitor's result, the
+    Attio write and the emails all come from the same scoring even if the dataset is edited
+    in between.
+    """
+    parsed = BenchmarkPayload.model_validate(payload)
+    # `consent` lives on the stored payload for the write contract's own
+    # sake (Attio) but has no place on `BenchmarkInputs` — it isn't a
+    # scoring input, same reason `valuation_values()` takes `consent` as
+    # a separate keyword rather than off `ValuationInputs`.
+    inputs = BenchmarkInputs(**parsed.model_dump(exclude={"consent"}))
+    result = evaluate(inputs, dataset)
+    return BenchmarkScore(
+        result=result,
+        output={
+            "entry_values": benchmark_values(result, inputs, consent=parsed.consent),
+            "score": result.score,
+            "band": result.band,
+        },
+    )
 
 
 class Pipelines:
@@ -109,18 +146,7 @@ class Pipelines:
         return {"entry_values": get_started_values(GetStartedPayload.model_validate(payload))}
 
     async def _benchmark(self, payload: JsonObject) -> JsonObject:
-        parsed = BenchmarkPayload.model_validate(payload)
-        # `consent` lives on the stored payload for the write contract's own
-        # sake (Attio) but has no place on `BenchmarkInputs` — it isn't a
-        # scoring input, same reason `valuation_values()` takes `consent` as
-        # a separate keyword rather than off `ValuationInputs`.
-        inputs = BenchmarkInputs(**parsed.model_dump(exclude={"consent"}))
-        result = evaluate(inputs, await self._peer_datasets.load())
-        return {
-            "entry_values": benchmark_values(result, inputs, consent=parsed.consent),
-            "score": result.score,
-            "band": result.band,
-        }
+        return score_benchmark(payload, await self._peer_datasets.load()).output
 
     def _valuation(self, payload: JsonObject) -> JsonObject:
         """The blended valuation, computed from the submission alone.
