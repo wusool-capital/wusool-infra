@@ -25,6 +25,8 @@ dependencies = [
     "alembic>=1.13",
     # Runtime, not dev: lead_magnets' Sanity and Webflow clients call it.
     "httpx>=0.27.0",
+    # Verifies the Cloudflare Access token the Engine's requests carry (`auth` module).
+    "pyjwt[crypto]>=2.10",
     # Flattens script-built report exports on publish; the browser is installed in the Dockerfile.
     "playwright>=1.49",
     "nh3>=0.3.7",
