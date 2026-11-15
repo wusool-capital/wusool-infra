@@ -12,11 +12,13 @@ for current production evidence and open handover items.
 
 ### Added
 
-- Postgres tables for the interactions engine's Attio writes (AZM-159 PR 4):
-  `attio_sent_values` (last value sent per record and field, so unchanged
-  values are never resent), `interaction_review_items` (shared domains and
-  emails left for review) and `auto_create_keys` (records the engine created,
-  so a retry never creates twice). Nothing writes to them yet.
+- Three Postgres tables for the interactions engine's Attio writes
+  (AZM-159 PR 4). Nothing writes to them yet.
+  - `attio_sent_values` keeps the last value sent per record and field, so
+    unchanged values are never resent.
+  - `interaction_review_items` keeps shared domains and emails for review.
+  - `auto_create_keys` keeps records the engine created, so a retry never
+    creates twice.
 - `connection_strength_score` on `organizations` and `person`: the numeric
   score behind the label. Postgres-only.
 
