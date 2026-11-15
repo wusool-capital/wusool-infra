@@ -19,6 +19,10 @@ To bring up the live Engine for the first time:
    `/api/v1/me` on the Toolkit answers 401 without a token. An advisor can sign
    in and see the Buyers page.
 
+The live Access application was first created through the Cloudflare API. The
+stack adopts it with an `import` block, so the next apply imports it instead of
+creating a second one. Delete the block after that apply.
+
 **Roll back** the Toolkit as described in
 [Deployment and rollback](deployment-and-rollback.md). To take the Engine offline,
 set `ENGINE_PROD_ACCESS_APPLIED` to `false`, which stops new deploys, and remove
