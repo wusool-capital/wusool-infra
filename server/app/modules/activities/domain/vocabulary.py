@@ -19,6 +19,9 @@ class SubjectType(StrEnum):
     SELLER_ROLE = "SellerRole"
     NOTE = "Note"
     MEETING = "Meeting"
+    BENCHMARK_PEER_CUT = "BenchmarkPeerCut"
+    BENCHMARK_RULE = "BenchmarkRule"
+    MCP_CALL = "McpCall"
 
 
 class EventType(StrEnum):
@@ -37,6 +40,9 @@ class EventType(StrEnum):
     MEETING_DELETED = "meeting.deleted"
     LEAD_MAGNET_SUBMITTED = "lead_magnet.submitted"
     LINKEDIN_SCAN_COMPLETED = "linkedin.scan_completed"
+    BENCHMARK_PEER_CUT_EDITED = "benchmark.peer_cut_edited"
+    BENCHMARK_RULE_EDITED = "benchmark.rule_edited"
+    MCP_TOOL_CALLED = "mcp.tool_called"
     # Written only by the AZM-150 migration and the one-off backfill script.
     LEGACY_RECORD_SYNCED = "legacy.record_synced"
     LEGACY_INTERACTION = "legacy.interaction"

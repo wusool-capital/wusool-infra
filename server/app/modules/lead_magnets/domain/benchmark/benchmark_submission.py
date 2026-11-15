@@ -12,18 +12,10 @@ from dataclasses import dataclass
 from app.modules.lead_magnets.domain.benchmark.benchmark import (
     Band,
     MetricResult,
-    MetricSpec,
     Mode,
     PeerCut,
     band_for,
     score_metrics,
-)
-from app.modules.lead_magnets.domain.benchmark.benchmark_dataset import (
-    BANDS,
-    SECTORS,
-    SME_METRICS,
-    STAGES,
-    TECH_METRICS,
 )
 from app.modules.lead_magnets.domain.benchmark.benchmark_narrative import Flag, flag_for
 from app.modules.lead_magnets.domain.benchmark.benchmark_routing import (
@@ -34,6 +26,7 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_routing import (
     route,
     score_band,
 )
+from app.modules.lead_magnets.domain.benchmark.peer_dataset import PeerDataset
 
 
 @dataclass(frozen=True)
@@ -162,16 +155,15 @@ def implied_enterprise_value(
     )
 
 
-def evaluate(inputs: BenchmarkInputs) -> BenchmarkResult:
-    """Score, rank, narrate and triage one submission."""
-    tech = inputs.mode == "tech"
-    cuts: dict[str, PeerCut] = STAGES if tech else SECTORS
-    specs: dict[str, MetricSpec] = TECH_METRICS if tech else SME_METRICS
+def evaluate(inputs: BenchmarkInputs, dataset: PeerDataset) -> BenchmarkResult:
+    """Score, rank, narrate and triage one submission against `dataset`."""
+    cuts = dataset.cuts[inputs.mode]
+    specs = dataset.metrics[inputs.mode]
 
     cut = cuts[inputs.peer_key]
     # In startup mode the funding stage is the peer cut, so no revenue band
     # is applied; a band is still resolved for reporting.
-    band = band_for(inputs.revenue, BANDS)
+    band = band_for(inputs.revenue, dataset.bands)
 
     values = metric_values(inputs)
     metrics, score, weight_covered = score_metrics(

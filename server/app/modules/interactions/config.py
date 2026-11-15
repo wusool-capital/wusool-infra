@@ -13,6 +13,7 @@ from pydantic_settings import SettingsConfigDict
 from app.modules.google_workspace import normalize_address
 from app.modules.interactions.domain.model import ScoringRules
 from app.modules.utilities import SecretsManagerSettings
+from app.modules.utilities.domain.database_url import asyncpg_url
 
 
 class InteractionsSettings(SecretsManagerSettings):
@@ -46,9 +47,7 @@ class InteractionsSettings(SecretsManagerSettings):
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
         """Deploy and CI pass a plain `postgresql://` URL; the async engine needs asyncpg."""
-        if value.startswith("postgresql://"):
-            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return value
+        return asyncpg_url(value)
 
     @field_validator("interactions_mailboxes")
     @classmethod

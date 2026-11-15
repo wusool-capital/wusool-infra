@@ -89,6 +89,11 @@ class SubmissionService:
             idempotency_key=idempotency_key(email=email, domain=domain),
         )
 
+    async def store_ai(self, run_id: UUID, ai: JsonObject) -> None:
+        """Saves a run's computed output as its `ai` stage, so `complete` reuses it untouched
+        rather than computing it again."""
+        await self._tool_runs.set_stage(run_id, stage="ai", output=ai)
+
     async def complete(self, run: ToolRunRecord) -> None:
         """Steps 3-7. Never raises: a failure here is recorded on the row and
         left for the sweeper, because the lead is already safe.

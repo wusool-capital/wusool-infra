@@ -2,9 +2,10 @@
 add fields, never rename one or change what it means. A breaking change is a new tool."""
 
 import uuid
+from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.ddl_commands import (
     AddOutcome,
@@ -163,15 +164,130 @@ def _describe(column: Column) -> str:
     return f"{line}: one of {' | '.join(spec.options)}"
 
 
-def field_guide(kind: UploadKind) -> str:
-    """Every key `fields` accepts, from the same specs the Slack forms use."""
-    lines = [
-        _describe(c) for c in columns_for(kind) if c.field not in _ROW_KEYS - {"target_vertical"}
+def field_guide(kind: UploadKind, *, editing: bool = False) -> str:
+    """Which keys a tool takes, which are required, and the allowed values, from the same
+    specs the Slack forms use. Adding (and each bulk row) needs the row keys at the top
+    level of the record; editing needs only the `role_id` and the fields to change."""
+    columns = columns_for(kind)
+    optional = [_describe(c) for c in columns if c.field not in _ROW_KEYS]
+    values = (
+        "(lists for multi-select; money in USD; dates as YYYY-MM-DD). "
+        "Allowed values match ignoring case:\n"
+    )
+    if editing:
+        cannot = ", ".join(c.field for c in columns if c.field in _ROW_KEYS)
+        return (
+            f"Required: role_id only. Send just the fields to change; every key below is "
+            f"optional ({cannot} can't be edited).\n"
+            f"Keys for `fields` {values}" + "\n".join(optional)
+        )
+    required = [
+        _describe(c) if c.spec else c.field for c in columns if c.field in _ROW_KEYS and c.required
     ]
     return (
-        "Field keys for `fields` (lists for multi-select; money in USD; dates as YYYY-MM-DD). "
-        "Allowed values match ignoring case:\n" + "\n".join(lines)
+        "Required, at the top level of the record (not inside `fields`):\n"
+        + "\n".join(f"- {line.removeprefix('- ')}" for line in required)
+        + f"\nEverything in `fields` is optional. Keys for `fields` {values}"
+        + "\n".join(optional)
     )
+
+
+# --- Benchmark peer dataset --------------------------------------------------
+
+BenchmarkMode = Literal["sme", "tech"]
+ModeParam = Annotated[
+    BenchmarkMode,
+    Field(description="'sme' for the sector peer sets, 'tech' for the funding-stage peer sets"),
+]
+AnchorList = Annotated[
+    list[float],
+    Field(min_length=5, max_length=5, description="[p10, p25, p50, p75, p90], rising"),
+]
+
+
+class PercentileEditIn(BaseModel):
+    """Some of one metric's five anchors. The ones left out keep their value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    p10: float | None = None
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+    p90: float | None = None
+
+    @model_validator(mode="after")
+    def _names_one(self) -> "PercentileEditIn":
+        if all(v is None for v in (self.p10, self.p25, self.p50, self.p75, self.p90)):
+            raise ValueError("name at least one of p10, p25, p50, p75, p90")
+        return self
+
+
+AnchorsIn = AnchorList | PercentileEditIn
+UpdatedBy = Annotated[
+    str, Field(description="Who last changed this: their name ('seed' if never changed)")
+]
+UpdatedBySlackId = Annotated[
+    str, Field(description="Their Slack user id, which tells two people with one name apart")
+]
+UpdatedAt = Annotated[datetime, Field(description="When it was last changed")]
+
+
+class BandOut(BaseModel):
+    code: str
+    label: str
+    max_usd: float | None = Field(description="Revenue ceiling in USD; null on the top band")
+    ebitda_adj: float = Field(description="Points added to the sector's EBITDA margin anchors")
+    rev_emp_mult: float = Field(description="Multiplies the revenue-per-employee anchors")
+    rent_mult: float = Field(description="Multiplies the premises-cost anchors")
+    updated_by: UpdatedBy
+    updated_by_slack_id: UpdatedBySlackId
+    updated_at: UpdatedAt
+
+
+class MetricOut(BaseModel):
+    key: str
+    label: str
+    unit: str
+    weight: int = Field(description="Share of the score; a mode's weights add up to 100")
+    updated_by: UpdatedBy
+    updated_by_slack_id: UpdatedBySlackId
+    updated_at: UpdatedAt
+
+
+class PeerCutSummary(BaseModel):
+    mode: BenchmarkMode
+    key: str
+    label: str
+    sample_size: int | None
+    multi_site: bool
+    b2b: bool
+    updated_by: UpdatedBy
+    updated_by_slack_id: UpdatedBySlackId
+    updated_at: UpdatedAt
+
+
+class PeerCutOut(PeerCutSummary):
+    anchors: dict[str, AnchorList] = Field(
+        description="Percentile anchors [p10, p25, p50, p75, p90] by metric key"
+    )
+
+
+class BenchmarkOverview(BaseModel):
+    dataset_updated_at: datetime = Field(description="The most recent change to any row")
+    sme_metrics: list[MetricOut]
+    tech_metrics: list[MetricOut]
+    bands: list[BandOut]
+    peer_cuts: list[PeerCutSummary]
+
+
+class BandList(BaseModel):
+    bands: list[BandOut]
+
+
+class MetricList(BaseModel):
+    mode: BenchmarkMode
+    metrics: list[MetricOut]
 
 
 class RecordDetail(Record):

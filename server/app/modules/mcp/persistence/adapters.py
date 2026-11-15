@@ -6,6 +6,7 @@ from collections import OrderedDict
 from collections.abc import Callable
 
 from app.modules.mcp.domain.access import Caller, Permission
+from app.modules.mcp.domain.calls import ToolCall
 
 RESULT_TTL_SECONDS = 24 * 3600.0
 _MAX_RESULTS = 5_000
@@ -41,3 +42,13 @@ class InMemoryIdempotencyStore:
         self._entries.move_to_end(key)
         while len(self._entries) > _MAX_RESULTS:
             self._entries.popitem(last=False)
+
+
+class InMemoryToolCallAudit:
+    """Keeps the calls it is given, for tests."""
+
+    def __init__(self) -> None:
+        self.calls: list[ToolCall] = []
+
+    async def record(self, call: ToolCall) -> None:
+        self.calls.append(call)

@@ -51,7 +51,8 @@ lead_magnets/
       data/valuation.json          # 1000 M&A deals, 127 VC rounds, 31 comp sectors
     benchmark/
       benchmark.py                 # the percentile engine + js_round
-      benchmark_dataset.py         # generated peer dataset; do not hand-edit
+      benchmark_dataset.py         # generated seed + fallback copy of the peer dataset; do not hand-edit
+      peer_dataset.py              # PeerDataset: what one score reads, and the built-in fallback
       benchmark_submission.py      # one submission end to end: ratios, score, implied EV
       benchmark_routing.py         # internal triage: priority, reason, quality gates
       benchmark_narrative.py       # which metrics earn a paragraph, and how it is filled
@@ -93,10 +94,12 @@ lead_magnets/
     tool_runs_repository.py         # the write-ahead ledger — one, for every tool
   providers/
     bedrock/ firecrawl/ attio/
+    benchmark_data/peer_dataset.py  # the benchmark_data module as PeerDatasetPort, with the fallback
   api/
     router.py, schemas.py, dependencies.py, static.py   # shared
     valuation/endpoints.py          # /enrich /analyze /compare /submit-lead
     benchmark/endpoints.py          # /benchmark
+    benchmark/dataset_script.py     # /benchmark/20-data.js, rendered by dataset_js.py
     readiness/endpoints.py          # /readiness/score
     buyer_network/endpoints.py      # /buyer/apply
     get_started/endpoints.py        # /get-started

@@ -30,5 +30,8 @@ class LeadMagnetService(ServiceBase):
             domain=domain,
         )
 
+    async def store_ai(self, run_id: UUID, ai: JsonObject) -> None:
+        await self._submissions.store_ai(run_id, ai)
+
     async def complete(self, run: ToolRunRecord) -> None:
         await self._submissions.complete(run)

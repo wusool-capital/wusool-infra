@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 from weakref import WeakValueDictionary
@@ -14,6 +15,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
+from app.modules.benchmark_data import InvalidEditError, UnknownRecordError
 from app.modules.ddl_commands import (
     BuyerNotFoundError,
     InvalidFieldsError,
@@ -26,8 +28,10 @@ from app.modules.ddl_commands import (
     RowProblem,
     SellerNotFoundError,
 )
+from app.modules.mcp.application.ports.audit import ToolCallAudit
 from app.modules.mcp.application.ports.stores import IdempotencyStore, PermissionChecker
 from app.modules.mcp.domain.access import Caller, Permission
+from app.modules.mcp.domain.calls import ToolCall
 from app.modules.utilities import FixedWindowRateLimiter
 from app.modules.utilities.domain.safe_errors import describe_error
 
@@ -79,6 +83,10 @@ def _message(exc: Exception) -> str | None:
             return "That company was deleted in Attio, so it can't be edited."
         case OrgMismatchError():
             return "That record no longer belongs to the same company. Look it up again."
+        case InvalidEditError():
+            return f"Nothing was saved: {exc}"
+        case UnknownRecordError():
+            return f"{exc}. Use get_benchmark_overview to see what exists."
         case PartialWriteError():
             cause = describe_error(exc.cause)
             if not exc.landed:
@@ -94,11 +102,13 @@ class ToolRunner:
         permissions: PermissionChecker,
         results: IdempotencyStore,
         limiter: FixedWindowRateLimiter,
+        audit: ToolCallAudit,
         caller_source: CallerSource = caller_from_token,
     ) -> None:
         self._permissions = permissions
         self._results = results
         self._limiter = limiter
+        self._audit = audit
         self._caller_source = caller_source
         self._locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 
@@ -148,6 +158,9 @@ class ToolRunner:
             if result_code == "ok":
                 result_code = "refused"
             raise
+        except asyncio.CancelledError:
+            result_code = "cancelled"
+            raise
         except Exception as exc:
             message = _message(exc)
             if message is None:
@@ -156,10 +169,23 @@ class ToolRunner:
             result_code = type(exc).__name__
             raise ToolError(message) from exc
         finally:
+            duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(
                 "mcp_tool_call tool=%s user=%s duration_ms=%d result=%s",
                 tool,
                 caller.slack_user_id,
-                (time.monotonic() - started) * 1000,
+                duration_ms,
                 result_code,
+            )
+            # Shielded so a cancelled request still leaves its audit row.
+            await asyncio.shield(
+                self._audit.record(
+                    ToolCall(
+                        call_id=uuid.uuid4(),
+                        tool=tool,
+                        caller=caller,
+                        result=result_code,
+                        duration_ms=duration_ms,
+                    )
+                )
             )

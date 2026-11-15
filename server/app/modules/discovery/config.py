@@ -6,6 +6,7 @@ from pydantic import field_validator
 from pydantic_settings import SettingsConfigDict
 
 from app.modules.utilities import SecretsManagerSettings
+from app.modules.utilities.domain.database_url import asyncpg_url
 
 
 class Settings(SecretsManagerSettings):
@@ -33,11 +34,7 @@ class Settings(SecretsManagerSettings):
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
         """Ensure the URL uses the asyncpg driver scheme regardless of input form."""
-        if value.startswith("postgresql+asyncpg://"):
-            return value
-        if value.startswith("postgresql://"):
-            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return value
+        return asyncpg_url(value)
 
 
 @lru_cache
