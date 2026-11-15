@@ -26,9 +26,11 @@ served as static files from Cloudflare Workers at
 * **Merging to `dev`** runs `deploy-engine.yml`: build, `wrangler deploy`, then
   a check that the hostname answers with an Access sign-in redirect. The run
   fails if it does not.
-* The deploy token and Cloudflare account ID are secrets of the GitHub
-  environment `engine-dev`. The deploy job stays off until the repository
-  variable `ENGINE_ACCESS_APPLIED` is `true`.
+* The Cloudflare deploy token is in AWS Secrets Manager. The job reads it
+  through a GitHub OIDC role that only `deploy-engine.yml` on `dev` can assume.
+  GitHub holds no Cloudflare secret.
+* The deploy job stays off until the repository variable
+  `ENGINE_ACCESS_APPLIED` is `true`.
 
 ## Access stack
 

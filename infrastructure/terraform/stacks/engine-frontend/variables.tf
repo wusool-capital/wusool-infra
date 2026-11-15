@@ -27,3 +27,24 @@ variable "session_duration" {
   type        = string
   default     = "24h"
 }
+
+variable "project" {
+  type    = string
+  default = "wusool"
+}
+
+variable "aws_region" {
+  type    = string
+  default = "eu-central-1"
+}
+
+variable "owner" {
+  type    = string
+  default = "wusool-infra"
+}
+
+variable "github_repo" {
+  description = "owner/repo trusted by the engine deploy OIDC role."
+  type        = string
+  default     = "wusool-capital/wusool-infra"
+}

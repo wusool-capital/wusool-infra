@@ -13,5 +13,5 @@ The Engine moved into the `engine/` folder of the wusool-infra monorepo. The fir
 
 ## Consequences
 - Apply the Access stack before the first deploy. The deploy job stays off until the repository variable `ENGINE_ACCESS_APPLIED` is `true`.
-- The deploy token lives in the GitHub environment `engine-dev`. The Access token is used locally only.
+- The Cloudflare deploy token lives in AWS Secrets Manager (`/wusool/engine-frontend/cloudflare-deploy`). The workflow reads it through a GitHub OIDC role pinned to `deploy-engine.yml` on `dev`. No Cloudflare secret is stored in GitHub. The Access token is used locally only.
 - The old Worker and its Workers Builds trigger keep running until the advisors' team retires them.

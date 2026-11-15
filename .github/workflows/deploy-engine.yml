@@ -1,6 +1,7 @@
 # Deploys the Engine SPA to Cloudflare Workers. The Access application that
-# gates the hostname lives in infrastructure/terraform/stacks/engine-frontend
-# and is applied out of band, before the first run of this workflow.
+# gates the hostname, the deploy role and the token's secret live in
+# infrastructure/terraform/stacks/engine-frontend, applied out of band before
+# the first run of this workflow.
 name: Deploy engine
 
 on:
@@ -13,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: deploy-engine
@@ -20,6 +22,8 @@ concurrency:
 
 env:
   ENGINE_HOSTNAME: engine-dev.wusoolcapital.com
+  # Not secret: an account identifier, not a credential.
+  CLOUDFLARE_ACCOUNT_ID: aa28a40954cce378e48680c2b5588dda
 
 jobs:
   deploy:
@@ -29,6 +33,7 @@ jobs:
     # workflow from publishing the app without a login in front of it.
     if: vars.ENGINE_ACCESS_APPLIED == 'true'
     runs-on: ubuntu-latest
+    # Only an OIDC trust label for the deploy role; it needs no protection rules.
     environment: engine-dev
     defaults:
       run:
@@ -43,11 +48,20 @@ jobs:
 
       - run: ./checks.sh all
 
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-engine-deploy
+
+      - name: Load Cloudflare token
+        run: |
+          token=$(aws secretsmanager get-secret-value \
+            --secret-id /wusool/engine-frontend/cloudflare-deploy \
+            --query SecretString --output text)
+          echo "::add-mask::$token"
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
+
       - name: Deploy Worker
         run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       # A deploy that exposes the app without the Access redirect must fail the run.
       - name: Verify Access gate
