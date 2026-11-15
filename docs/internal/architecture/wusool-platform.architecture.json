@@ -303,7 +303,7 @@
       "id": "posthog",
       "type": "external",
       "label": "PostHog",
-      "sublabel": "tool + report events",
+      "sublabel": "page, tool + report events",
       "pos": [
         740,
         600
