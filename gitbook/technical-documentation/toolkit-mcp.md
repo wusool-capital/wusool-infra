@@ -18,33 +18,23 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `list_buyers`, `list_sellers` | Active records matching filters, up to 50, with `truncated` when more match | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
 | `list_field_options` | Every field's type and allowed values | Read only |
-| `get_benchmark_overview` | Revenue bands, metric weights, and every peer set with its sample size. Every row shows who last changed it and when | Read only |
-| `get_peer_cut` | One peer set with its percentile anchors, and who last changed it | Read only |
-| `edit_benchmark_peer_cut` | Change a peer set's sample size, flags or anchors. Only the fields sent change | Straight away |
-| `edit_revenue_band` | Change a revenue band's label, ceiling or adjustment factors | Straight away |
-| `set_metric_weights` | Set every metric's weight for a mode. They must add up to 100 | Straight away |
 
 No tool deletes, sends, spends provider credits or shows fees.
 
-The benchmark tools change what visitors to the public benchmark are scored against, as soon as they are saved. Each edit is checked first. Anchors must rise from p10 to p90. Band ceilings must keep rising, and only the top band is open-ended. Weights must add up to 100. A refused edit saves nothing.
-
-For anchors, a call sends either a metric's five numbers or only the percentiles to change, such as `{"p50": 67}`. The rest keep their value, and the merged result must still rise from p10 to p90.
-
-Each changed row stores the editor's Slack user id, their name and the time. The tools show the name, with the id beside it. Old values are not kept yet, so Claude reads a row first and tells the person what it held and who last changed it. The tools' own descriptions say so.
+The five benchmark tools, which edit the public benchmark's peer dataset, are described in [Benchmark tools](toolkit-mcp-benchmark.md).
 
 Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them.
 
 ## How a call runs
 
 - The tools call `ddl_commands`' public functions: `add_one`, `edit_one`, `find_records`, `preview_buyers`, `preview_sellers`, `commit` and `status`. Writes go to Attio first, then the database, as in [Profile commands](toolkit-profile-commands.md) and [Bulk upload](toolkit-bulk-upload.md).
-- A single add follows the bulk-upload row rules: `org_name`, `domain`, `target_vertical` for buyers, and optional `fields` keyed like the template columns. Each add, edit and bulk-import description says which keys are required. It then lists the optional keys with their types and allowed values, built from the same field definitions as the Slack forms. Long value lists point to `list_field_options`. The benchmark edit descriptions list the valid metric keys for each mode.
+- A single add follows the bulk-upload row rules: `org_name`, `domain`, `target_vertical` for buyers, and optional `fields` keyed like the template columns. Each add, edit and bulk-import description says which keys are required. It then lists the optional keys with their types and allowed values, built from the same field definitions as the Slack forms. Long value lists point to `list_field_options`.
 - Every add, edit and confirm carries a `request_id`. A retry with the same id returns the first result and never writes twice. The same id with different arguments is refused.
 - A bulk preview belongs to the person who made it. Only they can confirm it or read its progress.
 - Edits apply only to active records. An inactive duplicate is treated as not found.
 - One wrapper handles every call. It finds the signed-in person, checks the permission the tool declares, replays a repeated `request_id`, and applies a per-person hourly limit (`MCP_CALLS_PER_HOUR`). It writes one log line per call (tool, Slack user, duration, result, never record contents) and turns errors into plain sentences. A crash returns a generic error, never a stack trace.
 - Every write leaves a `command_runs` row and an activity with source `mcp`, attributed to the person's Slack user.
 - Every tool call, read or write, also leaves one `mcp.tool_called` activity. It holds the person's Slack user, the tool, how it ended (`ok`, `replayed`, `refused`, `rate_limited`, `error` and so on) and the duration. It never holds arguments or records. A failure to write it is logged and never fails the tool.
-- A benchmark edit leaves one `benchmark.peer_cut_edited` or `benchmark.rule_edited` activity per changed row, naming the fields that changed.
 
 ## Lists and checks
 
@@ -81,4 +71,3 @@ Until the settings are present, `/mcp` isn't mounted.
 - Stored results for `request_id`, used codes and rate limits are kept in memory. That is correct for the single Toolkit instance, and a restart clears them. Phase 0 moves them to Postgres behind the same interfaces.
 - Every active member passes the permission check in v1. Each tool already declares the permission it needs (`buyers.read`, `buyers.write`, `sellers.read`, `sellers.write`, `imports.write`, `benchmark.read`, `benchmark.write`), so phase 0 can add roles without changing tools.
 - The company name, domain and a buyer's `target_vertical` can't be edited.
-- The benchmark tools use the same `crm` token scope as the CRM tools, so one connection covers both. Adding or removing sectors and stages isn't offered.

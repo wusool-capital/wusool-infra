@@ -30,6 +30,7 @@
   * [Profile commands](technical-documentation/toolkit-profile-commands.md)
   * [Bulk upload](technical-documentation/toolkit-bulk-upload.md)
   * [Wusool MCP](technical-documentation/toolkit-mcp.md)
+  * [Benchmark tools in the MCP](technical-documentation/toolkit-mcp-benchmark.md)
   * [Enrichment](technical-documentation/toolkit-enrichment.md)
   * [Seller discovery](technical-documentation/toolkit-discovery.md)
 * [WusoolScribe](technical-documentation/scribe.md)
