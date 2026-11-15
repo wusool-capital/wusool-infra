@@ -17,6 +17,9 @@ or leave a tool, and how many book a call. Reports use the same project. See
   address counts itself. They are sent only after the visitor chooses Accept all.
   Cookies only and Decline send none. The website sends no session replay.
   PostHog's Web analytics tab and the Website Metrics dashboard read them.
+- **CTA clicks** count each click on a Get Started or Buyers button on the
+  website, with only the button's name and the page. They are sent only after
+  Accept all and never carry button text or a form value.
 - **Session replay** records how a visitor moves through a tool, including what
   they type and the results they see. Name, email, phone and LinkedIn show as
   blocked boxes. It runs only after the visitor accepts

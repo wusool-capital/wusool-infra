@@ -39,7 +39,8 @@ for current production evidence and open handover items.
   with no replay or autocapture. Tool pages send them only when opened
   directly, so an embedded tool is not counted twice.
   `GET /analytics/config` sends a CORS header for `wusoolcapital.com` so the
-  website can read it. A Website Metrics dashboard in PostHog shows traffic,
+  website can read it. Clicks on the Get Started and Buyers buttons are counted
+  as `cta_clicked`, with the button name only. A Website Metrics dashboard in PostHog shows traffic,
   tool funnels, leads, bookings, reports and consent choices.
 
 ## 2026-11-14

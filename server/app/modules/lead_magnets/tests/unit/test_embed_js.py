@@ -235,6 +235,19 @@ def test_site_page_views_load_only_after_accept_all_and_never_record_sessions() 
     assert 'if (store("get", CONSENT_KEY) === "granted") trackPages(true);' in js
 
 
+def test_cta_clicks_send_only_the_validated_button_name_after_accept_all() -> None:
+    """The CTA event carries the data-form name and nothing else: no button text,
+    and nothing at all before PostHog is loaded under Accept all."""
+    js = (static_dir() / "embed.js").read_text()
+    block = js[js.index('closest("[data-form]")') - 400 : js.index("function trackPages")]
+
+    assert 'site === "ready"' in block
+    assert "/^[a-z0-9-]{1,40}$/.test(cta)" in block
+    assert 'window.posthog.capture("cta_clicked", { cta: cta })' in block
+    assert "textContent" not in block and "innerText" not in block
+    assert "true\n    );" in block, "capture phase, so the modal handler cannot hide the click"
+
+
 def test_an_embedded_tool_sends_no_page_view_of_its_own() -> None:
     """The Webflow page already counts the visit, so the iframe would double it."""
     js = (static_dir() / "shared" / "analytics.js").read_text()

@@ -371,6 +371,7 @@ server adds the events a browser can't be trusted to send.
 |---|---|---|---|
 | `tool_opened`, `tool_started`, `tool_step_completed`, `tool_completed`, `tool_abandoned` | Browser, after consent | The visitor opens, starts, moves through, finishes or leaves a tool | `tool`, `step`, `language`, `submission_id` |
 | `$pageview`, `$pageleave` | Browser, after Accept all | A page loads or closes, on the website (`static/embed.js`) and on a tool opened directly. An embedded tool sends none, since its Webflow page counts the visit | PostHog's own page properties, plus `is_test`. They feed Web analytics and time on page |
+| `cta_clicked` | Browser, after Accept all | A click on a website button marked `data-form` (Get Started, Buyers) | `cta` (the `data-form` name), plus the page's own `$pathname` and `is_test`. No button text |
 | `book_call_clicked` (`source: tool`) | Browser, after consent | A click on an in-page Book a Call link | `tool`, `source` |
 | `lead_submitted` | Server | The lead is saved | `tool`, `submission_id`, `is_test`. Names the person only with consent |
 | `book_call_clicked` (`source: email`) | Server | A click on the email button | `tool`, `submission_id`, `source`, `is_test` |

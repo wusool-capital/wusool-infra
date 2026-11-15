@@ -396,6 +396,8 @@ script has no code that reads a form field.
 | `book_call_clicked` | A click on a `calendar.app.google` link in the page | plus `source: "tool"` |
 | `$pageview`, `$pageleave` | The page loads, and closes, on a direct visit only; an embedded tool is counted by its Webflow page (PostHog's own events, for Web analytics and time on page) | PostHog's page properties, plus `is_test` |
 
+`embed.js` also sends `cta_clicked` with the `data-form` name (letters, digits and dashes, up to 40) when a visitor who chose Accept all clicks a website button marked `data-form`. It never sends the button's text.
+
 `embed.js` does the same for the Webflow pages (`trackPages`): after Accept all it
 loads PostHog on the page with page views and page leaves on, and replay and
 autocapture off. Withdrawing consent opts the visitor out.

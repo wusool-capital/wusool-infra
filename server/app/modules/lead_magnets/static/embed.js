@@ -428,6 +428,19 @@
       for (var i = 0; i < frames.length; i++) post(frames[i]);
     }
 
+    // CTA click counts: only the button's data-form name, never its text. Capture phase, so the modal's own handler can't hide it.
+    document.addEventListener(
+      "click",
+      function (event) {
+        var el = event.target && event.target.closest ? event.target.closest("[data-form]") : null;
+        var cta = el && el.getAttribute("data-form");
+        if (site === "ready" && cta && /^[a-z0-9-]{1,40}$/.test(cta)) {
+          window.posthog.capture("cta_clicked", { cta: cta });
+        }
+      },
+      true
+    );
+
     // Page views and time on page for the site itself. No replay: the banner promises that only for the tools.
     var site = null; // null = off, "loading", "ready"
     function trackPages(granted) {
