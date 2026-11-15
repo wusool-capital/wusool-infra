@@ -74,6 +74,12 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's Check size, Min. EBITDA, Revenue and EBITDA filters use a two-handle slider
+  with named steps ($200K, $5M, $1B+) instead of Min and Max boxes in $M. This stops 200K
+  and 200M being mixed up. Rows with no value stay hidden while a range is set.
+- The documentation check in CI and in `checks.sh docs` now lints every page a branch
+  changes, not only the lines it adds. A page that grows past its length limit fails the PR
+  instead of failing the push to `dev` afterwards.
 - The Engine frontend folder was renamed from `engine/` to `engine-frontend/`.
 - Sign in with Slack moved from `matching_engine` to a new `auth` module, shared
   by the web app and the MCP. The web sign-in behaves as before.

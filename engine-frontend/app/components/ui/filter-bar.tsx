@@ -3,6 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { formatMoney } from "../../lib/format";
 import { optionLabel, optionValue, readList, readRange, writeList, writeRange, type FilterDef, type ListFilter, type Range, type RangeFilter } from "../../lib/filters";
+import { RangeSlider } from "./range-slider";
 import { useDismiss } from "./use-dismiss";
 
 type Props = {
@@ -114,9 +115,9 @@ function summaryOf(filter: FilterDef, params: URLSearchParams) {
 }
 
 function rangeSummary({ min, max }: Range) {
-  if (min !== undefined && max !== undefined) return `${formatMoney(min)} to ${formatMoney(max)}`;
-  if (min !== undefined) return `from ${formatMoney(min)}`;
-  if (max !== undefined) return `up to ${formatMoney(max)}`;
+  if (min !== undefined && max !== undefined) return `${stopLabel(min)} to ${stopLabel(max)}`;
+  if (min !== undefined) return `${stopLabel(min)} and over`;
+  if (max !== undefined) return `Up to ${stopLabel(max)}`;
   return "";
 }
 
@@ -178,31 +179,37 @@ function ListPanel({ filter, initial, onApply }: { filter: ListFilter; initial: 
   );
 }
 
-// Min and max in $M: typed numbers are more precise than a slider over $1M to $100M.
+// Positions the thumbs snap to, in USD. The first reads "Any" and the last "No limit", so an open end
+// needs no empty box, and a value is always one the screen names ($200K, never "0.2").
+const STOPS = [
+  0, 100_000, 200_000, 300_000, 400_000, 500_000, 750_000, 1_000_000, 1_500_000, 2_000_000, 3_000_000, 4_000_000, 5_000_000,
+  7_500_000, 10_000_000, 15_000_000, 20_000_000, 25_000_000, 30_000_000, 40_000_000, 50_000_000, 75_000_000, 100_000_000,
+  150_000_000, 250_000_000, 500_000_000, 1_000_000_000,
+];
+const LAST = STOPS.length - 1;
+
+const stopLabel = (usd: number) => (usd >= 1_000_000_000 ? "$1B" : formatMoney(usd));
+
+/** The stop closest to a value from the URL; an open end sits on its end stop. */
+function stopFor(usd: number | undefined, openEnd: number) {
+  if (usd === undefined) return openEnd;
+  return STOPS.reduce((best, stop, index) => (Math.abs(stop - usd) < Math.abs(STOPS[best] - usd) ? index : best), 0);
+}
+
 function RangePanel({ filter, initial, onApply }: { filter: RangeFilter; initial: Range; onApply: (range: Range) => void }) {
-  const toText = (usd: number | undefined) => (usd === undefined ? "" : String(usd / 1_000_000));
-  const [min, setMin] = useState(toText(initial.min));
-  const [max, setMax] = useState(toText(initial.max));
-  const parse = (text: string) => (text.trim() === "" ? undefined : Number(text) * 1_000_000);
-  const range = { min: parse(min), max: parse(max) };
-  const invalid = [range.min, range.max].some((value) => value !== undefined && Number.isNaN(value));
-  const error = invalid ? "Use numbers only." : range.min !== undefined && range.max !== undefined && range.min > range.max ? "Min must be lower than max." : "";
-  const id = `range-${filter.key}`;
+  const [thumbs, setThumbs] = useState<[number, number]>([stopFor(initial.min, 0), stopFor(initial.max, LAST)]);
+  const range: Range = { min: thumbs[0] === 0 ? undefined : STOPS[thumbs[0]], max: thumbs[1] === LAST ? undefined : STOPS[thumbs[1]] };
 
   return (
     <div className="filter__panel" role="dialog" aria-label={filter.label}>
-      <div className="filter__range">
-        <div className="field">
-          <label htmlFor={`${id}-min`}>Min ($M)</label>
-          <input id={`${id}-min`} inputMode="decimal" value={min} autoFocus onChange={(event) => setMin(event.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor={`${id}-max`}>Max ($M)</label>
-          <input id={`${id}-max`} inputMode="decimal" value={max} onChange={(event) => setMax(event.target.value)} />
-        </div>
+      <p className="filter__readout" aria-live="polite">{rangeSummary(range) || "Any"}</p>
+      <RangeSlider label={filter.label} stops={STOPS} value={thumbs} onChange={setThumbs} format={(usd) => (usd === 0 ? "Any" : stopLabel(usd))} />
+      <div className="filter__ends" aria-hidden="true">
+        <span>Any</span>
+        <span>{stopLabel(STOPS[LAST])}+</span>
       </div>
-      {error && <p className="field-error">{error}</p>}
-      <PanelFooter onClear={() => (setMin(""), setMax(""))} onApply={() => onApply(range)} disabled={Boolean(error)} />
+      <p className="muted filter__note">Rows with no value here are hidden while a range is set.</p>
+      <PanelFooter onClear={() => setThumbs([0, LAST])} onApply={() => onApply(range)} />
     </div>
   );
 }

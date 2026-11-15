@@ -31,7 +31,7 @@ quality() {
 }
 
 docs() {
-  python3 ../.github/scripts/vale-added-lines.py
+  python3 ../.github/scripts/vale-changed-pages.py
 }
 
 unit() {

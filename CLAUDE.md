@@ -119,7 +119,7 @@ comments clean, clear, and concise, and only add ones that add value. (Max 20 wo
 ### Run the checks before every commit and PR
 
 Before every PR, run the full CI suite from `server/` — the same gates GitHub
-runs (ruff/ty, Vale on added doc lines, unit, Alembic schema, integration,
+runs (ruff/ty, Vale on changed doc pages, unit, Alembic schema, integration,
 shell):
 
 ```bash
