@@ -375,3 +375,28 @@ async def test_list_field_options_has_every_column_and_long_lists_leave_descript
     assert "see list_field_options" in description
     assert "Fintech |" not in description
     assert "one of Active | Paused" in description
+
+
+async def test_add_and_bulk_descriptions_say_which_keys_are_required() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t.description or "" for t in (await client.list_tools()).tools}
+
+    for name in ("add_buyer", "bulk_import_buyers"):
+        required = tools[name].split("Everything in `fields` is optional")[0]
+        assert "Required, at the top level of the record" in required
+        assert all(key in required for key in ("org_name", "domain", "target_vertical"))
+    for name in ("add_seller", "bulk_import_sellers"):
+        required = tools[name].split("Everything in `fields` is optional")[0]
+        assert "org_name" in required and "domain" in required
+        assert "target_vertical" not in required
+
+
+async def test_edit_descriptions_say_only_the_role_id_is_required() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t.description or "" for t in (await client.list_tools()).tools}
+
+    assert "Required: role_id only" in tools["edit_buyer"]
+    assert "org_name, domain, target_vertical can't be edited" in tools["edit_buyer"]
+    assert "Required: role_id only" in tools["edit_seller"]
+    assert "org_name, domain can't be edited" in tools["edit_seller"]
+    assert "Required, at the top level" not in tools["edit_buyer"]

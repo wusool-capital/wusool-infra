@@ -24,6 +24,8 @@ for current production evidence and open handover items.
   `get_peer_cut`, `edit_benchmark_peer_cut`, `edit_revenue_band` and
   `set_metric_weights`. Edits are checked, saved straight away and applied to the
   public benchmark. Claude reads a row first and tells the person what it held.
+- MCP add, edit and bulk-import descriptions now mark the required keys. The benchmark
+  edit descriptions list the valid metric keys for each mode.
 - Every MCP tool call, read or write, now leaves an `mcp.tool_called` activity for the
   signed-in person (tool, result and duration, never the arguments). Benchmark edits
   also leave `benchmark.peer_cut_edited` or `benchmark.rule_edited` activities.

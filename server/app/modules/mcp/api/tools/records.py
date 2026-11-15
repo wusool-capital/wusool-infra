@@ -180,7 +180,7 @@ def _register_edit(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> N
             + (", and neither can target_vertical" if kind == "buyer" else "")
             + ".\n"
             'Example: {"role_id": "0b6e...", "fields": {"notes": "Met in Riyadh"}, '
-            '"request_id": "6f1c..."}\n\n' + field_guide(kind)
+            '"request_id": "6f1c..."}\n\n' + field_guide(kind, editing=True)
         ),
         annotations=_EDIT,
     )(edit)

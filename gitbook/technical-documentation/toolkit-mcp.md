@@ -33,7 +33,7 @@ Tool and field names only grow. A breaking change becomes a new tool, because co
 ## How a call runs
 
 - The tools call `ddl_commands`' public functions: `add_one`, `edit_one`, `find_records`, `preview_buyers`, `preview_sellers`, `commit` and `status`. Writes go to Attio first, then the database, as in [Profile commands](toolkit-profile-commands.md) and [Bulk upload](toolkit-bulk-upload.md).
-- A single add follows the bulk-upload row rules: `org_name`, `domain`, `target_vertical` for buyers, and optional `fields` keyed like the template columns. Each tool description lists the keys and allowed values, built from the same field definitions as the Slack forms.
+- A single add follows the bulk-upload row rules: `org_name`, `domain`, `target_vertical` for buyers, and optional `fields` keyed like the template columns. Each add, edit and bulk-import description says which keys are required. It then lists the optional keys with their types and allowed values, built from the same field definitions as the Slack forms. Long value lists point to `list_field_options`. The benchmark edit descriptions list the valid metric keys for each mode.
 - Every add, edit and confirm carries a `request_id`. A retry with the same id returns the first result and never writes twice. The same id with different arguments is refused.
 - A bulk preview belongs to the person who made it. Only they can confirm it or read its progress.
 - Edits apply only to active records. An inactive duplicate is treated as not found.

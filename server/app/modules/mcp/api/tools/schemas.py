@@ -164,14 +164,31 @@ def _describe(column: Column) -> str:
     return f"{line}: one of {' | '.join(spec.options)}"
 
 
-def field_guide(kind: UploadKind) -> str:
-    """Every key `fields` accepts, from the same specs the Slack forms use."""
-    lines = [
-        _describe(c) for c in columns_for(kind) if c.field not in _ROW_KEYS - {"target_vertical"}
+def field_guide(kind: UploadKind, *, editing: bool = False) -> str:
+    """Which keys a tool takes, which are required, and the allowed values, from the same
+    specs the Slack forms use. Adding (and each bulk row) needs the row keys at the top
+    level of the record; editing needs only the `role_id` and the fields to change."""
+    columns = columns_for(kind)
+    optional = [_describe(c) for c in columns if c.field not in _ROW_KEYS]
+    values = (
+        "(lists for multi-select; money in USD; dates as YYYY-MM-DD). "
+        "Allowed values match ignoring case:\n"
+    )
+    if editing:
+        cannot = ", ".join(c.field for c in columns if c.field in _ROW_KEYS)
+        return (
+            f"Required: role_id only. Send just the fields to change; every key below is "
+            f"optional ({cannot} can't be edited).\n"
+            f"Keys for `fields` {values}" + "\n".join(optional)
+        )
+    required = [
+        _describe(c) if c.spec else c.field for c in columns if c.field in _ROW_KEYS and c.required
     ]
     return (
-        "Field keys for `fields` (lists for multi-select; money in USD; dates as YYYY-MM-DD). "
-        "Allowed values match ignoring case:\n" + "\n".join(lines)
+        "Required, at the top level of the record (not inside `fields`):\n"
+        + "\n".join(f"- {line.removeprefix('- ')}" for line in required)
+        + f"\nEverything in `fields` is optional. Keys for `fields` {values}"
+        + "\n".join(optional)
     )
 
 

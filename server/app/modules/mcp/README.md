@@ -39,6 +39,11 @@ duration) to a `ToolCallAudit`; `persistence/audit.py` writes it as one `mcp.too
 activity whose subject is the call. Arguments and results are never kept. A failed audit is
 logged and never fails the tool.
 
+**Tool descriptions carry the field rules.** Add, bulk and edit descriptions mark the required
+keys and list the others with their types and allowed values (`field_guide`); long value lists
+point to `list_field_options`. The benchmark edit tools list the metric keys per mode from
+`benchmark_data`'s `METRIC_KEYS`, which an integration test checks against the tables.
+
 **The contract only grows.** Claude conversations and skills depend on tool and
 field names: add, never rename or change a meaning. A breaking change is a new tool.
 

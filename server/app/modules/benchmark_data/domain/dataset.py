@@ -17,6 +17,17 @@ Anchors = tuple[float, float, float, float, float]
 WEIGHT_TOTAL = 100
 
 
+# The metric keys the scoring code computes per mode. A new metric is a code change, so
+# these are fixed. An integration test checks them against the stored rules and anchors.
+METRIC_KEYS: Mapping[Mode, tuple[str, ...]] = {
+    "sme": ("ebitda", "growth", "revEmp", "conc", "gm", "rent", "recur"),
+    "tech": ("growth", "capEff", "revScale", "gm", "recur", "conc"),
+}
+# Peer cuts also carry anchors for these, but nothing scores them and they have no weight:
+# `dso` (sme) and `fwdMult` (tech, the forward revenue multiple behind the implied value).
+ANCHOR_ONLY_KEYS: Mapping[Mode, tuple[str, ...]] = {"sme": ("dso",), "tech": ("fwdMult",)}
+
+
 class InvalidEditError(ValueError):
     """An edit that would leave the dataset inconsistent."""
 

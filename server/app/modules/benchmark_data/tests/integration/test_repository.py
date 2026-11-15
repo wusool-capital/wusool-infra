@@ -8,6 +8,8 @@ from app.models.activity import Activity
 from app.modules.activities import ActivitySource, SqlAlchemyActivityRecorder
 from app.modules.benchmark_data.application.service import BenchmarkDataService
 from app.modules.benchmark_data.domain.dataset import (
+    ANCHOR_ONLY_KEYS,
+    METRIC_KEYS,
     BandEdit,
     Editor,
     InvalidEditError,
@@ -139,3 +141,13 @@ async def test_a_refused_edit_changes_and_records_nothing(
     with pytest.raises(InvalidEditError):
         await service.set_weights("sme", {"ebitda": 1}, editor=_ALICE, source=ActivitySource.MCP)
     assert (await service.dataset()) == before
+
+
+async def test_the_metric_keys_in_code_match_the_stored_rules_and_anchors(db_session) -> None:
+    """The MCP tells callers these keys, so they must be what the tables hold."""
+    dataset = await PostgresBenchmarkDataRepository(db_session).load()
+    for mode in ("sme", "tech"):
+        assert tuple(dataset.metrics[mode]) == METRIC_KEYS[mode]
+        allowed = {*METRIC_KEYS[mode], *ANCHOR_ONLY_KEYS[mode]}
+        for cut in dataset.cuts[mode].values():
+            assert set(cut.anchors) == allowed, cut.key

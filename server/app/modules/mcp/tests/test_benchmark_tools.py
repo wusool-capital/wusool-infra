@@ -12,6 +12,7 @@ from mcp.types import CallToolResult, TextContent
 
 from app.modules.activities import ActivitySource
 from app.modules.benchmark_data import (
+    METRIC_KEYS,
     Band,
     BandEdit,
     BenchmarkDataset,
@@ -222,3 +223,16 @@ async def test_the_edit_tools_tell_claude_to_read_first_and_name_the_person() ->
     for name in ("edit_benchmark_peer_cut", "edit_revenue_band", "set_metric_weights"):
         assert "signed-in person's name" in tools[name]
         assert "who last changed" in tools[name]
+
+
+async def test_the_edit_tools_list_the_valid_metric_keys_and_required_arguments() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t.description or "" for t in (await client.list_tools()).tools}
+
+    for name in ("edit_benchmark_peer_cut", "set_metric_weights"):
+        for mode, keys in METRIC_KEYS.items():
+            assert f"{mode} = {', '.join(keys)}" in tools[name]
+    assert "Required: mode, key and request_id" in tools["edit_benchmark_peer_cut"]
+    assert "dso (sme)" in tools["edit_benchmark_peer_cut"]
+    assert "fwdMult (tech" in tools["edit_benchmark_peer_cut"]
+    assert "Required: code and request_id" in tools["edit_revenue_band"]

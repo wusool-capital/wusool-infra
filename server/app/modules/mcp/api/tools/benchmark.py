@@ -12,6 +12,8 @@ from pydantic import Field
 
 from app.modules.activities import ActivitySource
 from app.modules.benchmark_data import (
+    ANCHOR_ONLY_KEYS,
+    METRIC_KEYS,
     Anchors,
     Band,
     BandEdit,
@@ -52,6 +54,20 @@ _READ = ToolAnnotations(read_only_hint=True, open_world_hint=False)
 _EDIT = ToolAnnotations(
     read_only_hint=False, destructive_hint=True, idempotent_hint=True, open_world_hint=False
 )
+
+
+def _metric_keys_note() -> str:
+    """The valid metric keys per mode, so a caller can name them without a lookup."""
+    sme, tech = ", ".join(METRIC_KEYS["sme"]), ", ".join(METRIC_KEYS["tech"])
+    return f"Metric keys: sme = {sme}; tech = {tech}."
+
+
+def _anchor_only_note() -> str:
+    return (
+        f"Anchors can also be set for {ANCHOR_ONLY_KEYS['sme'][0]} (sme) and "
+        f"{ANCHOR_ONLY_KEYS['tech'][0]} (tech, the forward revenue multiple behind a startup's "
+        "implied value). They aren't scored and have no weight."
+    )
 
 
 def _band(band: Band) -> BandOut:
@@ -216,7 +232,9 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
             "signed-in person's name and changes what visitors are scored against on the "
             "public benchmark. Anchors must rise from p10 to p90. The old values are not kept: "
             "read the peer set with get_peer_cut first, and tell the person what it held and "
-            "who last changed it.\n"
+            "who last changed it. Required: mode, key and request_id; everything else is "
+            "optional and only what you send changes. The peer set's key comes from "
+            "get_benchmark_overview. " + _metric_keys_note() + " " + _anchor_only_note() + "\n"
             'Example: {"mode": "sme", "key": "restaurant", "anchors": {"gm": [57, 62, 67, 71, '
             '75]}, "request_id": "6f1c..."}'
         ),
@@ -268,7 +286,8 @@ def _register_edit_band(server: MCPServer, runner: ToolRunner) -> None:
             "under the signed-in person's name. Ceilings must keep rising from the smallest band "
             "up, and the top band stays open-ended. The old values are not kept: read the band "
             "with get_benchmark_overview first, and tell the person what it held and who last "
-            "changed it.\n"
+            "changed it. Required: code and request_id; the rest is optional and only what you "
+            "send changes. Band codes come from get_benchmark_overview.\n"
             'Example: {"code": "micro", "ebitda_adj": -2.5, "request_id": "6f1c..."}'
         ),
         annotations=_EDIT,
@@ -306,7 +325,8 @@ def _register_set_weights(server: MCPServer, runner: ToolRunner) -> None:
             "metric of the mode (see get_benchmark_overview); they must add up to 100. Saved "
             "straight away under the signed-in person's name and changes every visitor's score. "
             "The old weights are not kept: read them with get_benchmark_overview first, and tell "
-            "the person what they were and who last changed them.\n"
+            "the person what they were and who last changed them. Send every metric of the mode "
+            "and no others. " + _metric_keys_note() + "\n"
             'Example: {"mode": "tech", "weights": {"growth": 30, "capEff": 20, "revScale": 15, '
             '"gm": 10, "recur": 15, "conc": 10}, "request_id": "6f1c..."}'
         ),

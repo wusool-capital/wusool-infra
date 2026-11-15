@@ -11,6 +11,8 @@ from app.modules.benchmark_data.bootstrap import (
     set_weights,
 )
 from app.modules.benchmark_data.domain.dataset import (
+    ANCHOR_ONLY_KEYS,
+    METRIC_KEYS,
     Anchors,
     Band,
     BandEdit,
@@ -25,6 +27,8 @@ from app.modules.benchmark_data.domain.dataset import (
 )
 
 __all__ = [
+    "ANCHOR_ONLY_KEYS",
+    "METRIC_KEYS",
     "Anchors",
     "Band",
     "BandEdit",
