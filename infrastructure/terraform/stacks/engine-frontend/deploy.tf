@@ -42,6 +42,36 @@ data "aws_iam_policy_document" "deploy_trust" {
       values   = ["${var.github_repo}/.github/workflows/deploy-engine.yml@refs/heads/dev"]
     }
   }
+
+  # The live Engine deploys from `prod` into its own GitHub environment. A separate statement, so a
+  # dev run can never present the prod environment, or the other way round.
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [data.aws_iam_openid_connect_provider.github.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = ["repo:${var.github_repo}:environment:engine-prod"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:job_workflow_ref"
+      values   = ["${var.github_repo}/.github/workflows/deploy-engine.yml@refs/heads/prod"]
+    }
+  }
 }
 
 resource "aws_iam_role" "gha_engine_deploy" {

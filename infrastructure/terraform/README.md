@@ -39,7 +39,7 @@ out of sync with each other without it.
 | `peering` | The dev↔prod VPC peering connection and its routes | **No** — spans both environments |
 | `scribe-updates` | S3 + CloudFront update feed for the WusoolScribe desktop app, and the GitHub OIDC role that publishes to it | **No** — one public feed, not per-environment (see [`docs/internal/dev/SCRIBE_UPDATE_FEED.md`](../../docs/internal/dev/SCRIBE_UPDATE_FEED.md)) |
 | `assets` | Public S3 bucket for download files; today the two `/bulk-buyer` and `/bulk-seller` template CSVs, under `templates/` only | **No** — one shared bucket, not per-environment; applied out of band like `scribe-updates` |
-| `engine-frontend` | Cloudflare Access application and policy in front of the Engine SPA (`engine-frontend/`, Worker `wusool-engine-dev`) | **No** — one Cloudflare deployment; applied out of band with a Cloudflare API token, before the first `deploy-engine.yml` run |
+| `engine-frontend` | Cloudflare Access applications and the shared policy in front of the Engine SPA (`engine-frontend/`, Workers `wusool-engine-dev` and `wusool-engine-prod`) | **No** — one Cloudflare deployment; applied out of band with a Cloudflare API token, before the first `deploy-engine.yml` run |
 
 Every per-environment stack reads `stacks/base`'s network/alarm outputs via
 `terraform_remote_state`; `postgres` also reads `toolkit`'s security

@@ -17,5 +17,16 @@
     "directory": "./build/client",
     // Any path that is not a file (/pipeline, /deals/d-falcon) gets index.html, so reloads and links work.
     "not_found_handling": "single-page-application"
+  },
+  "env": {
+    // The live Engine: `wrangler deploy --env production`. Its own Worker name, because `wusool-engine` is the advisors' team's.
+    "production": {
+      "name": "wusool-engine-prod",
+      // Stated again so the production Worker can never be reached outside Access.
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{ "pattern": "engine.wusoolcapital.com", "custom_domain": true }],
+      "vars": { "TOOLKIT_ORIGIN": "https://toolkit-3-69-122-231.sslip.io" }
+    }
   }
 }

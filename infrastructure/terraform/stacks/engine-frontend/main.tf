@@ -14,6 +14,23 @@ resource "cloudflare_zero_trust_access_policy" "engine" {
   }]
 }
 
+# The live Engine. It reuses the policy above, so one change to who may sign in covers both.
+resource "cloudflare_zero_trust_access_application" "engine_prod" {
+  account_id = var.cloudflare_account_id
+  name       = "wusool-engine-prod"
+  type       = "self_hosted"
+  domain     = var.prod_hostname
+
+  session_duration          = var.session_duration
+  allowed_idps              = [var.identity_provider_id]
+  auto_redirect_to_identity = true
+
+  policies = [{
+    id         = cloudflare_zero_trust_access_policy.engine.id
+    precedence = 1
+  }]
+}
+
 resource "cloudflare_zero_trust_access_application" "engine" {
   account_id = var.cloudflare_account_id
   name       = "wusool-engine-dev"

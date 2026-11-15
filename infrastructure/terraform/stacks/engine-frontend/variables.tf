@@ -10,6 +10,12 @@ variable "hostname" {
   default     = "engine-dev.wusoolcapital.com"
 }
 
+variable "prod_hostname" {
+  description = "Public hostname of the live Engine Worker. Must match the production route in engine-frontend/wrangler.jsonc."
+  type        = string
+  default     = "engine.wusoolcapital.com"
+}
+
 variable "allowed_email_domains" {
   description = "Only addresses at these domains can sign in. The team's mail is on both while it moves."
   type        = list(string)

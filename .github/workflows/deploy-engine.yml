@@ -1,12 +1,13 @@
-# Deploys the Engine SPA to Cloudflare Workers. The Access application that
-# gates the hostname, the deploy role and the token's secret live in
-# infrastructure/terraform/stacks/engine-frontend, applied out of band before
-# the first run of this workflow.
+# Deploys the Engine SPA to Cloudflare Workers: a push to `dev` deploys engine-dev,
+# a push to `prod` deploys the live Engine (`wrangler deploy --env production`).
+# The Access applications that gate the hostnames, the deploy role and the token's
+# secret live in infrastructure/terraform/stacks/engine-frontend, applied out of
+# band before the first run for each environment.
 name: Deploy engine
 
 on:
   push:
-    branches: [dev]
+    branches: [dev, prod]
     paths:
       - 'engine-frontend/**'
       - '.github/workflows/deploy-engine.yml'
@@ -17,11 +18,13 @@ permissions:
   id-token: write
 
 concurrency:
-  group: deploy-engine
+  group: deploy-engine-${{ github.ref_name }}
   cancel-in-progress: false
 
 env:
-  ENGINE_HOSTNAME: engine-dev.wusoolcapital.com
+  ENGINE_HOSTNAME: ${{ github.ref_name == 'prod' && 'engine.wusoolcapital.com' || 'engine-dev.wusoolcapital.com' }}
+  # Empty selects the top-level (dev) config in wrangler.jsonc.
+  WRANGLER_ENV: ${{ github.ref_name == 'prod' && 'production' || '' }}
   # The Buyers and Sellers pages read the Toolkit; local work and tests stay on VITE_DATA=demo.
   VITE_DATA: live
   # Not secret: an account identifier, not a credential.
@@ -31,12 +34,14 @@ jobs:
   deploy:
     name: Deploy engine to Cloudflare
     # Off until the Access stack is applied; set the repository variable
-    # ENGINE_ACCESS_APPLIED=true afterwards. Stops the merge that adds this
-    # workflow from publishing the app without a login in front of it.
-    if: vars.ENGINE_ACCESS_APPLIED == 'true'
+    # ENGINE_ACCESS_APPLIED (dev) or ENGINE_PROD_ACCESS_APPLIED (prod) to true
+    # afterwards. Stops a merge from publishing the app without a login in front of it.
+    if: >-
+      (github.ref_name == 'prod' && vars.ENGINE_PROD_ACCESS_APPLIED == 'true') ||
+      (github.ref_name != 'prod' && vars.ENGINE_ACCESS_APPLIED == 'true')
     runs-on: ubuntu-latest
     # Only an OIDC trust label for the deploy role; it needs no protection rules.
-    environment: engine-dev
+    environment: ${{ github.ref_name == 'prod' && 'engine-prod' || 'engine-dev' }}
     defaults:
       run:
         working-directory: engine-frontend
@@ -67,7 +72,7 @@ jobs:
           echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
 
       - name: Deploy Worker
-        run: npx wrangler deploy
+        run: npx wrangler deploy --env="${WRANGLER_ENV}"
 
       # A deploy that exposes the app without the Access redirect must fail the run.
       - name: Verify Access gate
