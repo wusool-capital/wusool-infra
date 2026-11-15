@@ -14,6 +14,10 @@ Slack. It is served from the Toolkit app at `/mcp` (Streamable HTTP, stateless).
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows: new, existing, invalid | Nothing |
 | `confirm_import` | After the person says go, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
+| `get_buyer`, `get_seller` | Every field of one record, keyed like the edit tools' `fields` | Read only |
+| `list_buyers`, `list_sellers` | Active records matching filters, up to 50, with `truncated` when more match | Read only |
+| `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
+| `list_field_options` | Every field's type and allowed values | Read only |
 | `get_benchmark_overview`, `get_peer_cut` | The benchmark peer dataset in brief, and one peer set's anchors | Read only |
 | `edit_benchmark_peer_cut`, `edit_revenue_band`, `set_metric_weights` | Change anchors, sample sizes, band factors or weights. Checked first; saved straight away | Straight away |
 
@@ -24,7 +28,8 @@ The benchmark tools call only `benchmark_data`'s public functions (`load_dataset
 second scope would sign every connected advisor out.
 
 The CRM tools call only `ddl_commands`' public functions (`add_one`, `edit_one`,
-`find_records`, `preview_*`, `commit`, `status`). A field map follows the
+`find_records`, `get_record`, `list_*_records`, `preview_*`, `commit`,
+`status`) and `discrepancies.check_buyer_by_id`. A field map follows the
 bulk-upload row rules, and the field list in each tool description comes from
 the same `FieldSpec`s the Slack forms use, so it can't drift.
 
@@ -44,7 +49,8 @@ mcp/
     oauth.py         # the OAuth 2.1 authorization server and the Slack callback
     tokens.py        # what each signed client id, code and token carries
     runner.py        # the one wrapper every tool call goes through
-    tools/           # records.py (find/add/edit), imports.py (bulk), schemas.py (contract)
+    tools/           # records.py (find/add/edit), lookups.py (get/list/check/options),
+                     # imports.py (bulk), schemas.py (contract)
 ```
 
 A new tool is its models in `tools/schemas.py` plus a thin function calling

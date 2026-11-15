@@ -145,7 +145,11 @@ organization and role fields with `route_fields` and calls `write_buyer_edit` /
 name (a dotted name like `Booking.com` falls back to the name search). Edits
 refuse an inactive role. A preview made with an `owner` can be confirmed and
 read only by that person. Bad fields raise `InvalidFieldsError` with structured problems, and nothing
-is written. Both edits take `invoked_via` (`slack` by default, `mcp` here).
+is written. `get_record` returns every field of an active role, keyed like
+`edit_one`'s fields (money as a USD amount, dates as ISO). `list_buyer_records` /
+`list_seller_records` turn filter values into each field's own spelling, then call
+the repositories' `list_filtered` (active roles of live organizations, ordered by
+name, one extra row fetched to report `truncated`). Both edits take `invoked_via` (`slack` by default, `mcp` here).
 
 ### Headless seller add (discovery)
 

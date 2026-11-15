@@ -18,6 +18,9 @@ The Wusool connector lets you find, add and edit buyers and sellers from a Claud
 | Ask Claude to… | What happens |
 | --- | --- |
 | Find a buyer or seller by name or website | Lists matching records |
+| Show everything about a buyer or seller | Shows every field of the record |
+| List buyers or sellers that fit some criteria | For example, active Fintech buyers in the UAE whose check size fits a $5M deal. Shows up to 50 |
+| Check a buyer's profile | Shows what's missing or in conflict, as `/check-buyer` does in Slack |
 | Add a buyer or seller | Saved at once. If the company already has that record, Claude shows the existing one instead |
 | Change some fields of a record | Saved at once. Only the fields you name change |
 | Add a list of buyers or sellers | Claude checks the list first and shows how many are new and how many already exist. Nothing is saved until you say go |
@@ -25,7 +28,7 @@ The Wusool connector lets you find, add and edit buyers and sellers from a Claud
 | Show the benchmark's peer data | Lists the peer sets, revenue bands and metric weights, or one peer set's numbers |
 | Change a benchmark peer set, band or weights | Saved at once, and visitors are scored against the new numbers straight away |
 
-For example: "Add Acme Capital (acme.com) as a Fintech buyer with mandate status Active". Or: "Here are 140 sellers from my research: add the new ones".
+For example: "Which active buyers would write a $5M check in the UAE?" Or: "Add Acme Capital (acme.com) as a Fintech buyer with mandate status Active". Or: "Here are 140 sellers from my research: add the new ones".
 
 ## Adding a list
 

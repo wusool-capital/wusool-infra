@@ -12,6 +12,10 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Four read-only MCP tools. `get_buyer` and `get_seller` show every field of a
+  record. `list_buyers` and `list_sellers` filter by vertical, region, check
+  size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
+  check, and `list_field_options` gives each field's allowed values.
 - Benchmark peer dataset in Postgres. The GCC SME Benchmark's peer anchors, revenue
   bands and metric weights moved from code into five tables (new `benchmark_data`
   module), seeded from the original dataset. Scores don't change.
