@@ -55,6 +55,7 @@ class MeetingsRepository:
         local_recording_id: str | None,
         status: MeetingStatus = "summarizing",
         metadata_: JsonObject | None = None,
+        user_notes: str | None = None,
     ) -> MeetingRecord:
         meeting = Meeting(
             id=id,
@@ -88,6 +89,7 @@ class MeetingsRepository:
             # off an ORM instance.
             summary_started_at=datetime.now(UTC) if status == "summarizing" else None,
             metadata_=metadata_ or {},
+            user_notes=user_notes,
         )
         self._session.add(meeting)
         await self._session.flush()
@@ -186,6 +188,17 @@ class MeetingsRepository:
                 Meeting.removed_at.is_(None),
             )
             .values(removed_at=func.now())
+            .returning(Meeting.id)
+        )
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
+    async def update_user_notes(self, meeting_id: UUID, *, user_notes: str | None) -> bool:
+        """False when the meeting is gone (missing or soft-deleted)."""
+        stmt = (
+            update(Meeting)
+            .where(Meeting.id == meeting_id, Meeting.removed_at.is_(None))
+            .values(user_notes=user_notes)
             .returning(Meeting.id)
         )
         result = await self._session.execute(stmt)

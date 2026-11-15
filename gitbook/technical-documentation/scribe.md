@@ -56,8 +56,8 @@ microphone and system audio, or an imported file
   → local recording (mixed track, plus a meeting-audio-only track)
   → local Whisper transcription, tagged "me" (mic) or "others" (system)
   → local speaker diarization of the meeting audio after saving
-  → user edits the transcript and names speakers
-  → local SQLite meeting
+  → user edits the transcript and names speakers, and types notes
+  → local SQLite meeting and its notes
   → optional push to the Toolkit server
   → server-side Bedrock summary and Attio note
 ```
@@ -65,6 +65,11 @@ microphone and system audio, or an imported file
 Audio and transcription stay on the Mac. Scribe has no local summary model:
 the transcript leaves the Mac only when the user pushes it, and the Toolkit
 server writes the summary.
+
+## Meeting notes
+
+Users type notes while recording, and the notes travel with the push. See
+[meeting notes](scribe-notes.md).
 
 ## Speaker separation
 
@@ -76,8 +81,8 @@ on request. See [speaker separation](scribe-speakers.md).
 
 ![How a push reaches Attio](../.gitbook/assets/scribe-push.svg)
 
-1. `POST /desktop/meetings` stores the transcript and returns at once with
-   status `summarizing`.
+1. `POST /desktop/meetings` stores the transcript and the user's notes, then
+   returns at once with status `summarizing`.
 2. In the background, Bedrock writes a structured summary.
 3. The server **always** creates an Attio note, with or without an
    organization. The note links to the organization and, when the role has
@@ -101,6 +106,7 @@ compared in constant time.
 | `GET /desktop/meetings?install_id=…` | Meetings for an installation; 200 by default, at most 500. |
 | `GET /desktop/companies/search` | Searches CRM organizations to link a meeting to. |
 | `DELETE /desktop/meetings/{install_id}/{local_recording_id}` | Removes a meeting from the server and Attio; returns 204. |
+| `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes` | Replaces a pushed meeting's notes and rewrites the **Advisor notes** section of its note, Attio first; returns 204. A missing or deleted meeting returns 404. Doesn't rerun the summary. |
 | `POST /desktop/transcripts/corrections` | Sends transcript lines, with speaker names and optional `context` (title, names, the user's vocabulary), to Bedrock for spelling suggestions. Returns each fix with a category, plus `failed_segment_ids` for lines in batches that errored. Nothing is stored. |
 | `POST /desktop/feedback` | Records in-app feedback and emails the team. |
 

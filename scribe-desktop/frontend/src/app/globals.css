@@ -104,6 +104,8 @@
     --background: 228 20% 98%;
     --foreground: 228 25% 12%;
     --card: 0 0% 100%;
+    /* Notes paper: one step off both transcript surfaces (background, card). */
+    --notes: 228 20% 96%;
     --card-foreground: 228 25% 12%;
     --popover: 0 0% 100%;
     --popover-foreground: 228 25% 12%;
@@ -138,6 +140,7 @@
     --background: 228 30% 7%;
     --foreground: 228 15% 94%;
     --card: 228 26% 10%;
+    --notes: 228 24% 12.5%;
     --card-foreground: 228 15% 94%;
     --popover: 228 26% 10%;
     --popover-foreground: 228 15% 94%;

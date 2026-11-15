@@ -18,6 +18,12 @@ transcript's word count:
 | Up to 8,000 words | ~13–53 minutes | 3–4 | ~350 words at most |
 | More | over ~53 minutes | 6–8 | ~700 words at most |
 
+When the user typed notes, they go into the single-pass and merge prompts
+in their own delimited block. The prompt treats them as data that marks
+what the user found important, never as instructions or as facts the
+transcript lacks. Chunk prompts don't get them. A transcript under 20 words
+still gets the "no content" summary, notes or not.
+
 The budget is a ceiling: a long meeting with little substance still gets a
 short summary. Decisions, action items and claims to verify are never cut to
 fit it. The prompt also sets the writing style: British spelling, sentences

@@ -10,8 +10,30 @@ for current production evidence and open handover items.
 
 ## 2026-11-15
 
+### Added
+
+- Four read-only MCP tools. `get_buyer` and `get_seller` show every field of a
+  record. `list_buyers` and `list_sellers` filter by vertical, region, check
+  size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
+  check, and `list_field_options` gives each field's allowed values.
+- Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
+  sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
+- Adds and edits from Claude are saved straight away, Attio first. A bulk list is
+  saved only after the person confirms the preview. A company that already holds
+  the role comes back as the existing record.
+- MCP sign-in is OAuth 2.1 with PKCE and stateless signed tokens. Only active,
+  non-guest members of the Wusool Slack workspace get in. A refresh refuses
+  someone who has left, and every write is attributed to the person.
+- The MCP is served at `/mcp` once `MCP_PUBLIC_URL` and `MCP_TOKEN_SECRET` are
+  set. The Slack app must list `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a
+  redirect URL.
+
 ### Changed
 
+- Sign in with Slack moved from `matching_engine` to a new `auth` module, shared
+  by the web app and the MCP. The web sign-in behaves as before.
+- `mcp` activities are now attributed to the person's Slack user instead of
+  `system/mcp`.
 - Page views and time on page now go to PostHog, only after a visitor chooses
   Accept all. The tool pages turn on `$pageview` and `$pageleave`, and
   `embed.js` adds them to the Webflow pages with no replay or autocapture.
@@ -23,6 +45,13 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Scribe meeting notes (AZM-173). While recording, the screen splits into
+  the transcript and a notes editor, with a draggable divider. A floating
+  notepad, opened from the app or the menu bar, stays on top of other apps.
+  Notes are saved per meeting and sent with the push, and the summary prompt
+  gives weight to them. The Attio note shows them under "Advisor notes". Notes stay editable after a push and sync through
+  `PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes`.
+  Migration `b7e1c4d8a203` adds `meetings.user_notes`.
 - The buyer add behind `/add-buyer` now lives in `ddl_commands/api/buyer_write.py`
   (`write_buyer_add`), so MCP v1 can call it without Slack (AZM-167).
   `/add-buyer` behaves as before.

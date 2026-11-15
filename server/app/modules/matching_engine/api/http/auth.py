@@ -12,6 +12,7 @@ from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, Request, Response, status
 
+from app.modules.auth import is_active_member
 from app.modules.matching_engine.api.http.schemas import ApiError
 from app.modules.matching_engine.api.http.session import (
     RECHECK_AFTER,
@@ -21,7 +22,6 @@ from app.modules.matching_engine.api.http.session import (
     encode_session,
     renewed,
 )
-from app.modules.matching_engine.api.http.slack_identity import is_active_member
 from app.modules.matching_engine.config import get_settings
 
 _BEARER_PREFIX = "Bearer "

@@ -14,6 +14,7 @@ import { useMemo } from 'react';
 import { useMeetingSpeakers } from '@/hooks/useMeetingSpeakers';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 /**
  * TranscriptPanel Component
@@ -27,12 +28,15 @@ interface TranscriptPanelProps {
   isProcessingStop: boolean;
   isStopping: boolean;
   showModal: (name: ModalType, message?: string) => void;
+  /** Sharing the screen with live notes: fill the pane, the split draws the divider. */
+  split?: boolean;
 }
 
 export function TranscriptPanel({
   isProcessingStop,
   isStopping,
-  showModal
+  showModal,
+  split = false,
 }: TranscriptPanelProps) {
   // Contexts
   const { transcripts, transcriptContainerRef, copyTranscript } = useTranscripts();
@@ -67,7 +71,7 @@ export function TranscriptPanel({
   return (
     <ScrollArea
       viewportRef={transcriptContainerRef}
-      className="w-full h-full border-r border-border bg-background min-h-0 [&>div>div]:!block"
+      className={cn('w-full h-full bg-background min-h-0 [&>div>div]:!block', !split && 'border-r border-border')}
     >
       {hasToolbar ? (
         <div className="sticky top-0 z-10 flex justify-center bg-background p-4">
@@ -114,7 +118,7 @@ export function TranscriptPanel({
       {/* Transcript content */}
       <div className="pb-20">
         <div className="flex justify-center">
-          <div className="w-2/3 max-w-[750px]">
+          <div className={split ? 'w-full max-w-[750px] px-6' : 'w-2/3 max-w-[750px]'}>
             <VirtualizedTranscriptView
               segments={segments}
               isRecording={isRecording}

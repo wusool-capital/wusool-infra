@@ -63,6 +63,7 @@ class MeetingRecord:
     summary_started_at: datetime | None
     note_id: UUID | None
     removed_at: datetime | None
+    user_notes: str | None = None
 
     @property
     def skip_attio(self) -> bool:

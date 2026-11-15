@@ -1194,6 +1194,7 @@ pub async fn api_save_transcript<R: Runtime>(
     }
 
     let pool = state.db_manager.pool();
+    let draft_folder = folder_path.clone();
 
     // Now, call the repository with the correctly typed data.
     match TranscriptsRepository::save_transcript(
@@ -1205,6 +1206,10 @@ pub async fn api_save_transcript<R: Runtime>(
     .await
     {
         Ok(meeting_id) => {
+            if let Some(folder) = draft_folder {
+                crate::notes::live::attach_draft(pool, std::path::Path::new(&folder), &meeting_id)
+                    .await;
+            }
             // Runs in the background so saving never waits on minutes of diarization.
             let (diarize_app, diarize_pool, diarize_id) = (app.clone(), pool.clone(), meeting_id.clone());
             if crate::diarization::commands::load_auto_separate(&diarize_app) {

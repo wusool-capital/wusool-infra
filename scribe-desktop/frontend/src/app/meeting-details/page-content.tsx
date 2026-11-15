@@ -17,6 +17,8 @@ import { useMeetingData } from '@/hooks/meeting-details/useMeetingData';
 import { useCopyOperations } from '@/hooks/meeting-details/useCopyOperations';
 import { useMeetingOperations } from '@/hooks/meeting-details/useMeetingOperations';
 import { useTranscriptEditor } from '@/hooks/meeting-details/useTranscriptEditor';
+import { ResizableSplit } from '@/components/notes/ResizableSplit';
+import { MeetingNotesEditor } from '@/components/notes/MeetingNotesEditor';
 
 function formatDate(value: string | null | undefined, options: Intl.DateTimeFormatOptions): string | null {
   if (!value) return null;
@@ -161,29 +163,39 @@ export default function PageContent({
             onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
           />
         ) : (
-          <TranscriptPanel
-            transcripts={meetingData.transcripts}
-            onCopyTranscript={copyOperations.handleCopyTranscript}
-            onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
-            isRecording={isRecording}
-            disableAutoScroll={true}
-            // Pagination props for efficient loading
-            usePagination={true}
-            segments={segments}
-            hasMore={hasMore}
-            isLoadingMore={isLoadingMore}
-            totalCount={totalCount}
-            loadedCount={loadedCount}
-            onLoadMore={onLoadMore}
-            // Retranscription props
-            meetingId={meeting.id}
-            meetingFolderPath={meeting.folder_path}
-            onRefetchTranscripts={onRefetchTranscripts}
-            // Editable pre-push, summarize opens the push/summary popup
-            editable={!isPushed}
-            editor={transcriptEditor}
-            onSummarize={() => setShowSummaryDialog(true)}
-            onUnnamedSpeakersChange={setUnnamedSpeakers}
+          <ResizableSplit
+            storageKey="wusoolscribe-meeting-notes-split"
+            // Before a push the transcript is the work surface; notes ride alongside.
+            defaultRatio={0.6}
+            leftLabel="Transcript"
+            rightLabel="Notes"
+            left={
+              <TranscriptPanel
+                transcripts={meetingData.transcripts}
+                onCopyTranscript={copyOperations.handleCopyTranscript}
+                onOpenMeetingFolder={meetingOperations.handleOpenMeetingFolder}
+                isRecording={isRecording}
+                disableAutoScroll={true}
+                // Pagination props for efficient loading
+                usePagination={true}
+                segments={segments}
+                hasMore={hasMore}
+                isLoadingMore={isLoadingMore}
+                totalCount={totalCount}
+                loadedCount={loadedCount}
+                onLoadMore={onLoadMore}
+                // Retranscription props
+                meetingId={meeting.id}
+                meetingFolderPath={meeting.folder_path}
+                onRefetchTranscripts={onRefetchTranscripts}
+                // Editable pre-push, summarize opens the push/summary popup
+                editable={!isPushed}
+                editor={transcriptEditor}
+                onSummarize={() => setShowSummaryDialog(true)}
+                onUnnamedSpeakersChange={setUnnamedSpeakers}
+              />
+            }
+            right={<MeetingNotesEditor meetingId={meeting.id} isPushed={false} className="bg-notes" />}
           />
         )}
       </div>

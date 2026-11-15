@@ -50,6 +50,17 @@ meeting is actively `summarizing` — a *stalled* `summarizing` row is deleted
 anyway, matching `application/status.py`'s own stall cutoff. See
 `application/delete.py`.
 
+`PUT /desktop/meetings/{install_id}/{local_recording_id}/user-notes` stores
+notes the user edits after the first push (`meetings.user_notes`, migration
+`b7e1c4d8a203`). The push itself carries the first copy as `user_notes`,
+which the summary prompts read as a delimited, untrusted block (see
+`domain/prompts.py`). The CRM note gets them under "Advisor notes"
+(`render_note_content`); `meetings.summary` stays the summary alone, as
+matching_engine reads it. A later edit rewrites that note, Attio first and
+then Postgres, so an Attio failure raises and the desktop retries. The
+summary isn't rerun.
+404 for a missing or soft-deleted meeting. See `application/user_notes.py`.
+
 `POST /desktop/transcripts/corrections` returns speech-to-text fix
 suggestions for the desktop transcript editor. Stateless (no DB writes):
 `CorrectionService` batches segments, asks Bedrock (forced tool call, via

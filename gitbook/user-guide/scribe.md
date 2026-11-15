@@ -57,6 +57,11 @@ Auto-stop When Meeting Ends**.
 If only your voice is captured, or no speech appears, see
 [Troubleshooting](troubleshooting.md).
 
+## Take notes during a meeting
+
+Type notes beside the transcript or in a floating notepad, and send them with
+the meeting. See [Take notes in Scribe](scribe-notes.md).
+
 ## Work with the transcript
 
 Name speakers, fix lines, proofread, and re-transcribe in

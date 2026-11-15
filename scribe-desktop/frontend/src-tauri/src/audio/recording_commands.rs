@@ -286,6 +286,8 @@ pub async fn start_recording_with_meeting_name<R: Runtime>(
         info!("✅ Transcript-update event listener registered for history persistence");
     }
 
+    crate::notes::live::forget_last_folder();
+
     // Emit success event
     app.emit("recording-started", serde_json::json!({
         "message": "Recording started successfully with parallel processing",
@@ -453,6 +455,8 @@ pub async fn start_recording_with_devices_and_meeting<R: Runtime>(
         *global_listener = Some(listener_id);
         info!("✅ Transcript-update event listener registered for history persistence");
     }
+
+    crate::notes::live::forget_last_folder();
 
     // Emit success event
     app.emit("recording-started", serde_json::json!({
@@ -870,6 +874,8 @@ pub async fn stop_recording<R: Runtime>(
             "progress": 100
         }),
     );
+
+    crate::notes::notepad::hide(&app);
 
     // Emit final stop event with folder_path and meeting_name for frontend to save
     app.emit(

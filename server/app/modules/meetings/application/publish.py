@@ -15,7 +15,7 @@ from app.modules.activities import EventType
 from app.modules.meetings.application.activity_events import meeting_event
 from app.modules.meetings.application.base import ServiceBase
 from app.modules.meetings.domain.meeting_record import MeetingRecord
-from app.modules.meetings.domain.rendering import render_summary_text
+from app.modules.meetings.domain.rendering import render_note_content, render_summary_text
 from app.modules.meetings.domain.role_ref import ActiveRoleRef
 from app.modules.meetings.domain.roles import MeetingRole, decode_role_metadata, try_role
 from app.modules.utilities.domain.json_types import JsonObject
@@ -54,6 +54,7 @@ class PublishMixin(ServiceBase):
                     meeting.transcript or "",
                     companies=companies,
                     meeting_date=meeting.occurred_at.date().isoformat(),
+                    user_notes=meeting.user_notes,
                 )
         except Exception as exc:
             logger.warning(
@@ -78,7 +79,8 @@ class PublishMixin(ServiceBase):
 
         # Deleted while summarizing (a stalled row can be deleted): its row is
         # gone to us, so don't create an orphan Attio note for it.
-        if await self._meetings_repository.get_by_id(meeting_id) is None:
+        latest = await self._meetings_repository.get_by_id(meeting_id)
+        if latest is None:
             logger.info("summarize_and_publish_meeting_removed meeting_id=%s", meeting_id)
             return
 
@@ -88,8 +90,11 @@ class PublishMixin(ServiceBase):
         # nullable specifically for this case (see migration
         # e0c1e7522181), and `primary_role` now gives an org-less note a
         # way to be found/filtered that didn't exist before.
+        # `latest`, not `meeting`: notes edited while summarizing must reach the note.
         note_attio_id = await self._write_note(
-            org_id=meeting.org_id, content=rendered, meeting=meeting
+            org_id=meeting.org_id,
+            content=render_note_content(rendered, latest.user_notes),
+            meeting=meeting,
         )
         await self._activity_recorder.record(
             meeting_event(

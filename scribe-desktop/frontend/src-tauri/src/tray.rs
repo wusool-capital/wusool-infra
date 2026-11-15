@@ -57,6 +57,7 @@ fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, item_id: &str) {
         "pause_recording" => pause_recording_handler(app),
         "resume_recording" => resume_recording_handler(app),
         "stop_recording" => stop_recording_handler(app),
+        "open_notepad" => crate::notes::notepad::open(app),
         "open_window" => focus_main_window(app),
         "settings" => {
             focus_main_window(app);
@@ -457,7 +458,8 @@ fn build_menu<R: Runtime>(
             RecordingState::Recording => {
                 builder = builder
                     .item(&MenuItemBuilder::with_id("pause_recording", "⏸ Pause Recording").build(app)?)
-                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?)
+                    .item(&MenuItemBuilder::with_id("open_notepad", "Open Notepad").build(app)?);
             }
             RecordingState::Pausing => {
                 builder = builder
@@ -474,7 +476,8 @@ fn build_menu<R: Runtime>(
                         &MenuItemBuilder::with_id("resume_recording", "▶ Resume Recording")
                             .build(app)?,
                     )
-                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?);
+                    .item(&MenuItemBuilder::with_id("stop_recording", "⏹ Stop Recording").build(app)?)
+                    .item(&MenuItemBuilder::with_id("open_notepad", "Open Notepad").build(app)?);
             }
             RecordingState::Resuming => {
                 builder = builder

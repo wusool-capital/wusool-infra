@@ -12,6 +12,7 @@ from app.modules.ddl_commands.application.errors import (
     SellerAlreadyExistsError,
     SellerNotFoundError,
 )
+from app.modules.ddl_commands.application.ports.sellers import SellerFilters
 from app.modules.ddl_commands.application.write_context import WriteContext
 from app.modules.utilities.domain.json_types import JsonObject
 
@@ -36,6 +37,10 @@ class SellerService(ServiceBase):
 
         status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return SellerResolution(status=status, candidates=matches)
+
+    async def list_sellers(self, filters: SellerFilters, limit: int) -> list[SellerRole]:
+        async with self._uow_factory() as uow:
+            return await uow.sellers.list_filtered(filters, limit)
 
     async def resolve_seller_by_id(self, seller_role_id: str) -> SellerRole | None:
         async with self._uow_factory() as uow:

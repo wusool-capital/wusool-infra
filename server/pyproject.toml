@@ -32,6 +32,7 @@ dependencies = [
     "pydantic-ai-slim[bedrock]>=2.66,<3",
     "google-auth>=2.62.1",
     "openpyxl>=3.1.5",
+    "mcp>=2.3,<2.4",
 ]
 
 [dependency-groups]
@@ -64,6 +65,10 @@ select = ["E", "F", "I", "UP", "B", "ANN"]
 # kwargs whose keys are allowlisted upstream (FieldSpec) but whose values
 # span str/bool/float/list/date depending on which field was picked.
 ignore = ["ANN401"]
+
+[tool.ruff.lint.isort]
+# `app/modules/mcp` would otherwise make ruff file the `mcp` SDK as first-party.
+known-third-party = ["mcp"]
 
 [tool.ruff.lint.per-file-ignores]
 # Alembic's own `--autogenerate` renderer emits one long line per column/

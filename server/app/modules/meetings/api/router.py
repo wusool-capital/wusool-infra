@@ -13,6 +13,7 @@ from app.modules.meetings.api.feedback import router as feedback_router
 from app.modules.meetings.api.ingest import router as ingest_router
 from app.modules.meetings.api.status import router as status_router
 from app.modules.meetings.api.sync import router as sync_router
+from app.modules.meetings.api.user_notes import router as user_notes_router
 from app.modules.meetings.api.verify import router as verify_router
 
 router = APIRouter()
@@ -24,5 +25,6 @@ router.include_router(verify_router)
 router.include_router(feedback_router)
 router.include_router(delete_router)
 router.include_router(corrections_router)
+router.include_router(user_notes_router)
 
 __all__ = ["router"]

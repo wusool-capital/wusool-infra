@@ -59,6 +59,7 @@ class IngestMixin(ServiceBase):
         role_selections: dict[MeetingRole, str],
         role_queries: dict[MeetingRole, str],
         skip_attio: bool = False,
+        user_notes: str | None = None,
     ) -> MeetingRecord:
         """Create the `meetings` row for a desktop-pushed transcript.
 
@@ -145,6 +146,7 @@ class IngestMixin(ServiceBase):
             local_recording_id=local_recording_id,
             status="summarizing",
             metadata_=metadata_,
+            user_notes=user_notes,
         )
 
     async def _resolve_role_selection(

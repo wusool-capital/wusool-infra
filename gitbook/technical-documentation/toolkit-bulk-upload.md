@@ -2,7 +2,7 @@
 
 ## What it does
 
-Bulk upload adds many buyers or sellers in one go. There are two ways in: a file uploaded in Slack with `/bulk-buyer` or `/bulk-seller`, and Claude through the MCP tools (planned).
+Bulk upload adds many buyers or sellers in one go. There are two ways in: a file uploaded in Slack with `/bulk-buyer` or `/bulk-seller`, and Claude through the [Wusool MCP](toolkit-mcp.md) tools `bulk_import_buyers`, `bulk_import_sellers`, `confirm_import` and `get_import`.
 
 Both use the same three steps in the `ddl_commands` module: preview, commit, and status. Nothing is created until the person confirms the preview.
 

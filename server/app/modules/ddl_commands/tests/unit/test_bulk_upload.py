@@ -638,3 +638,13 @@ async def test_a_row_from_claude_matches_dropdown_values_ignoring_case() -> None
     assert role["target_vertical"] == VERTICAL  # stored in the field's own spelling
     assert role["model"] == BUYER_ROLE_FIELDS_BY_NAME["model"].options[0]
     assert stored.rows[0].org_extracted["sector_focus"] == [SECTORS[0], SECTORS[1]]
+
+
+async def test_an_owned_preview_reads_as_missing_to_anyone_else() -> None:
+    result = accepted(await bulk.preview_buyers([buyer_row(1)], owner="U_ALICE"))
+
+    assert bulk.status(result.preview_id, requested_by="U_ALICE").state == "ready"
+    with pytest.raises(bulk.PreviewNotFoundError):
+        bulk.status(result.preview_id, requested_by="U_BOB")
+    with pytest.raises(bulk.PreviewNotFoundError):
+        bulk.commit(result.preview_id, requested_by="U_BOB")

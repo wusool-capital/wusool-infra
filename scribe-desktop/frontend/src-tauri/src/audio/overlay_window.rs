@@ -14,6 +14,9 @@ pub(crate) struct OverlaySpec {
     pub url: &'static str,
     pub width: f64,
     pub height: f64,
+    pub resizable: bool,
+    /// Smallest (width, height) a resizable overlay may be dragged to.
+    pub min_size: Option<(f64, f64)>,
 }
 
 const MARGIN: f64 = 12.0;
@@ -81,7 +84,11 @@ mod panel {
             .with_window(|window| {
                 window
                     .title("")
-                    .resizable(false)
+                    .resizable(spec.resizable)
+                    .min_inner_size(
+                        spec.min_size.map_or(spec.width, |(w, _)| w),
+                        spec.min_size.map_or(spec.height, |(_, h)| h),
+                    )
                     .decorations(false)
                     // The webview needs this too, or its white background shows
                     // in the card's rounded corners.
@@ -91,6 +98,9 @@ mod panel {
                     .accept_first_mouse(true)
                     // Keep overlays out of screen shares.
                     .content_protected(true)
+                    // The native file-drop handler swallows every drop, which
+                    // breaks in-page drag and drop (moving notepad blocks).
+                    .disable_drag_drop_handler()
             })
             .build();
 
@@ -176,7 +186,11 @@ fn create_window<R: Runtime>(app: &AppHandle<R>, spec: &'static OverlaySpec) {
     )
     .title("")
     .inner_size(spec.width, spec.height)
-    .resizable(false)
+    .resizable(spec.resizable)
+    .min_inner_size(
+        spec.min_size.map_or(spec.width, |(w, _)| w),
+        spec.min_size.map_or(spec.height, |(_, h)| h),
+    )
     .decorations(false)
     .always_on_top(true)
     .skip_taskbar(true)
@@ -189,6 +203,7 @@ fn create_window<R: Runtime>(app: &AppHandle<R>, spec: &'static OverlaySpec) {
     // Keep overlays out of screen shares and visible on every Space.
     .content_protected(true)
     .visible_on_all_workspaces(true)
+    .disable_drag_drop_handler()
     .build()
     {
         Ok(window) => window,

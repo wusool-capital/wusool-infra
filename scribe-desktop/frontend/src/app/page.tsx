@@ -12,6 +12,8 @@ import { StatusOverlays } from '@/app/_components/StatusOverlays';
 import Analytics from '@/lib/analytics';
 import { SettingsModals } from './_components/SettingsModal';
 import { TranscriptPanel } from './_components/TranscriptPanel';
+import { LiveNotesPanel } from './_components/LiveNotesPanel';
+import { ResizableSplit } from '@/components/notes/ResizableSplit';
 import { useModalState } from '@/hooks/useModalState';
 import { useRecordingStateSync } from '@/hooks/useRecordingStateSync';
 import { useRecordingStart } from '@/hooks/useRecordingStart';
@@ -171,6 +173,8 @@ export default function Home() {
 
   // Computed values using global status
   const isProcessingStop = status === RecordingStatus.PROCESSING_TRANSCRIPTS || isProcessing;
+  // Notes sit beside the transcript for the whole live meeting, through stop and save.
+  const showNotes = recordingState.isRecording || isStopping || isProcessingStop || isSaving;
 
   return (
     <motion.div
@@ -196,11 +200,28 @@ export default function Home() {
         onLoadPreview={loadMeetingTranscripts}
       />
       <div className="relative flex flex-1 overflow-hidden">
-        <TranscriptPanel
-          isProcessingStop={isProcessingStop}
-          isStopping={isStopping}
-          showModal={showModal}
-        />
+        {showNotes ? (
+          <ResizableSplit
+            storageKey="wusoolscribe-live-notes-split"
+            leftLabel="Transcript"
+            rightLabel="Notes"
+            left={
+              <TranscriptPanel
+                isProcessingStop={isProcessingStop}
+                isStopping={isStopping}
+                showModal={showModal}
+                split
+              />
+            }
+            right={<LiveNotesPanel locked={!recordingState.isRecording || isStopping} />}
+          />
+        ) : (
+          <TranscriptPanel
+            isProcessingStop={isProcessingStop}
+            isStopping={isStopping}
+            showModal={showModal}
+          />
+        )}
 
         {/* Recording controls - only show when permissions are granted or already recording and not showing status messages */}
         {(hasMicrophone || isRecording) &&

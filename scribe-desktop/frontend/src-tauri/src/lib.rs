@@ -45,6 +45,7 @@ pub mod database;
 pub mod diarization;
 pub mod feedback;
 pub mod meeting_title;
+pub mod notes;
 pub mod notifications;
 pub mod onboarding;
 pub mod parakeet_engine;
@@ -553,6 +554,7 @@ pub fn run() {
                         Ok(_) => {}
                         Err(e) => log::warn!("Background sync failed: {}", e),
                     }
+                    push::sync_dirty_meeting_notes(&sync_app_handle).await;
                 }
             });
 
@@ -586,6 +588,14 @@ pub fn run() {
             audio::recording_pill::recording_pill_state,
             audio::recording_pill::recording_pill_stop,
             audio::recording_pill::recording_pill_keep_recording,
+            notes::get_meeting_notes,
+            notes::save_meeting_notes,
+            notes::live::get_live_notes,
+            notes::live::save_live_notes,
+            notes::notepad::open_notepad,
+            notes::notepad::close_notepad,
+            notes::notepad::is_notepad_open,
+            notes::notepad::notepad_exists,
             save_transcript,
             analytics::commands::init_analytics,
             analytics::commands::disable_analytics,

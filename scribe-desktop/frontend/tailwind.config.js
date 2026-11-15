@@ -19,6 +19,7 @@ module.exports = {
   		},
   		colors: {
   			background: 'hsl(var(--background))',
+  			notes: 'hsl(var(--notes))',
   			foreground: 'hsl(var(--foreground))',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',

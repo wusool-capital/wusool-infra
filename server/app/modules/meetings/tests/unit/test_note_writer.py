@@ -17,11 +17,17 @@ from app.modules.meetings import bootstrap
 
 class _FakeClient:
     def __init__(
-        self, response: dict | None = None, *, delete_error: AttioError | None = None
+        self,
+        response: dict | None = None,
+        *,
+        delete_error: AttioError | None = None,
+        patch_error: AttioError | None = None,
     ) -> None:
         self.post_calls: list[tuple[str, dict]] = []
+        self.patch_calls: list[tuple[str, dict]] = []
         self.delete_calls: list[str] = []
         self._delete_error = delete_error
+        self._patch_error = patch_error
         self._response = response or {
             "data": {"id": {"record_id": "3f1d2c4e-0000-4000-8000-000000000001"}}
         }
@@ -29,6 +35,12 @@ class _FakeClient:
     async def post(self, path: str, json_body: dict) -> dict:
         self.post_calls.append((path, json_body))
         return self._response
+
+    async def patch(self, path: str, json_body: dict) -> dict:
+        self.patch_calls.append((path, json_body))
+        if self._patch_error is not None:
+            raise self._patch_error
+        return {}
 
     async def delete(self, path: str) -> None:
         self.delete_calls.append(path)
@@ -154,3 +166,37 @@ async def test_delete_note_raises_on_any_other_error() -> None:
 
     with pytest.raises(AttioError):
         await AttioNoteWriter(client, is_test=False, note_type="Meeting").delete_note(uuid4())
+
+
+async def test_update_note_content_patches_only_the_content() -> None:
+    client = _FakeClient()
+    record_id = uuid4()
+
+    updated = await AttioNoteWriter(client, is_test=False, note_type="Meeting").update_note_content(
+        record_id, "Summary\n\nAdvisor notes:\n- x"
+    )
+
+    assert updated is True
+    assert client.patch_calls == [
+        (
+            f"/objects/note/records/{record_id}",
+            {"data": {"values": {"content": "Summary\n\nAdvisor notes:\n- x"}}},
+        )
+    ]
+
+
+async def test_update_note_content_treats_404_as_not_in_attio() -> None:
+    client = _FakeClient(patch_error=AttioError(404, "gone"))
+
+    writer = AttioNoteWriter(client, is_test=False, note_type="Meeting")
+
+    assert await writer.update_note_content(uuid4(), "x") is False
+
+
+async def test_update_note_content_raises_other_attio_errors() -> None:
+    client = _FakeClient(patch_error=AttioError(500, "boom"))
+
+    with pytest.raises(AttioError):
+        await AttioNoteWriter(client, is_test=False, note_type="Meeting").update_note_content(
+            uuid4(), "x"
+        )

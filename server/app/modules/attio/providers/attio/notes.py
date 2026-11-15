@@ -133,3 +133,19 @@ class AttioNoteWriter:
             if exc.status == 404:
                 return
             raise
+
+    async def update_note_content(self, record_id: UUID, content: str) -> bool:
+        """PATCH a note's `content`. Raises like `delete_note`, so the caller
+        can retry rather than let Postgres claim text Attio never got. Returns
+        False on a 404: the note never reached Attio, or was deleted there.
+        """
+        try:
+            await self._client.patch(
+                f"/objects/{_NOTE_OBJECT_SLUG}/records/{record_id}",
+                {"data": {"values": {"content": content}}},
+            )
+        except AttioError as exc:
+            if exc.status == 404:
+                return False
+            raise
+        return True
