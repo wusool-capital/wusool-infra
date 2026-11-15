@@ -17,6 +17,8 @@ from app.modules.ddl_commands import (
     UploadRow,
     columns_for,
 )
+from app.modules.ddl_commands import RecordDetail as DdlRecordDetail
+from app.modules.ddl_commands import RecordList as DdlRecordList
 
 FieldValue = str | float | bool | list[str] | None
 Fields = Annotated[
@@ -145,26 +147,90 @@ class ImportProgress(BaseModel):
         )
 
 
+# Longer option lists stay out of tool descriptions; list_field_options returns them.
+_INLINE_OPTIONS_MAX = 8
+
+
 def _describe(column: Column) -> str:
     spec = column.spec
     if spec is None:
         return column.field
     line = f"- {column.field} ({spec.kind})"
-    return f"{line}: one of {' | '.join(spec.options)}" if spec.options else line
+    if not spec.options:
+        return line
+    if len(spec.options) > _INLINE_OPTIONS_MAX:
+        return f"{line}: {len(spec.options)} options, see list_field_options"
+    return f"{line}: one of {' | '.join(spec.options)}"
 
 
 def field_guide(kind: UploadKind) -> str:
     """Every key `fields` accepts, from the same specs the Slack forms use."""
-    columns = [c for c in columns_for(kind) if c.field not in _ROW_KEYS]
-    target = next((c for c in columns_for(kind) if c.field == "target_vertical"), None)
-    lines = [_describe(c) for c in columns]
-    vertical = (
-        f"\ntarget_vertical: one of {' | '.join(target.spec.options)}"
-        if target and target.spec
-        else ""
-    )
+    lines = [
+        _describe(c) for c in columns_for(kind) if c.field not in _ROW_KEYS - {"target_vertical"}
+    ]
     return (
-        "Field keys for `fields` (lists for multi-select; dates as YYYY-MM-DD):\n"
-        + "\n".join(lines)
-        + vertical
+        "Field keys for `fields` (lists for multi-select; money in USD; dates as YYYY-MM-DD). "
+        "Allowed values match ignoring case:\n" + "\n".join(lines)
     )
+
+
+class RecordDetail(Record):
+    fields: dict[str, FieldValue] = Field(
+        description="Every field, keyed like edit_buyer/edit_seller's `fields`; null when unset"
+    )
+
+    @classmethod
+    def of_detail(cls, detail: DdlRecordDetail) -> "RecordDetail":
+        return cls(**Record.of(detail).model_dump(), fields=dict(detail.fields))
+
+
+class RecordList(BaseModel):
+    records: list[Record]
+    truncated: bool = Field(description="True when more records match: narrow the filters")
+
+    @classmethod
+    def of(cls, found: DdlRecordList) -> "RecordList":
+        return cls(records=[Record.of(r) for r in found.records], truncated=found.truncated)
+
+
+class Gap(BaseModel):
+    criterion: str
+    stored: str = Field(description="What the profile holds")
+    stated: str | None = None
+
+
+class BuyerCheck(BaseModel):
+    role_id: uuid.UUID
+    clear: bool = Field(description="True when nothing is missing or in conflict")
+    conflicts: list[Gap]
+    missing: list[Gap]
+    message: str = Field(description="The same summary /check-buyer shows in Slack")
+
+
+class FieldOption(BaseModel):
+    key: str
+    label: str
+    kind: str
+    required: bool
+    options: list[str] = Field(description="Allowed values; empty for free-form fields")
+
+
+class FieldOptions(BaseModel):
+    kind: UploadKind
+    fields: list[FieldOption]
+
+    @classmethod
+    def of(cls, kind: UploadKind) -> "FieldOptions":
+        return cls(
+            kind=kind,
+            fields=[
+                FieldOption(
+                    key=c.field,
+                    label=c.label,
+                    kind=c.spec.kind if c.spec else "text",
+                    required=c.required,
+                    options=list(c.spec.options) if c.spec else [],
+                )
+                for c in columns_for(kind)
+            ],
+        )

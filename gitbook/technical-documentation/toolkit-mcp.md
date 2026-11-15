@@ -14,6 +14,10 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows. Returns new, existing and invalid rows | Nothing |
 | `confirm_import` | After the person agrees, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
+| `get_buyer`, `get_seller` | Every field of one record, keyed like the edit tools' `fields` | Read only |
+| `list_buyers`, `list_sellers` | Active records matching filters, up to 50, with `truncated` when more match | Read only |
+| `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
+| `list_field_options` | Every field's type and allowed values | Read only |
 
 No tool deletes, sends, spends provider credits or shows fees. Tool and field names only grow: a breaking change becomes a new tool, because conversations and skills depend on them.
 
@@ -26,6 +30,16 @@ No tool deletes, sends, spends provider credits or shows fees. Tool and field na
 - Edits apply only to active records. An inactive duplicate is treated as not found.
 - One wrapper handles every call. It finds the signed-in person, checks the permission the tool declares, replays a repeated `request_id`, and applies a per-person hourly limit (`MCP_CALLS_PER_HOUR`). It writes one log line per call (tool, Slack user, duration, result, never record contents) and turns errors into plain sentences. A crash returns a generic error, never a stack trace.
 - Every write leaves a `command_runs` row and an activity with source `mcp`, attributed to the person's Slack user.
+
+## Lists and checks
+
+- Buyer filters: `target_vertical`, `mandate_status`, `model`, `target_region`, `target_country`, `check_size_usd` and `hq_country`. Seller filters: `sector`, `hq_country`, `region`, `relationship_status` and `outreach_tier`.
+- Every filter given must match. Region and country lists match when any value overlaps. A company with several HQ countries or regions matches any one of them. A value outside a field's options is refused with the allowed values.
+- `check_size_usd` keeps buyers whose check size range contains it. A buyer with no minimum or maximum set still matches.
+- Records removed in Attio are left out of lists, and `get_*` treats them as not found.
+- Results are ordered by company name. A list returns at most 50 records and says when more match.
+- `check_buyer` runs without an advisor's note, so it never calls the model. It reports what the profile is missing or holds in conflict.
+- Tool descriptions list option values only for short lists. Longer ones, such as verticals and countries, come from `list_field_options`.
 
 ## Sign-in
 

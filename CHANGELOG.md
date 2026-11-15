@@ -12,6 +12,10 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Four read-only MCP tools. `get_buyer` and `get_seller` show every field of a
+  record. `list_buyers` and `list_sellers` filter by vertical, region, check
+  size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
+  check, and `list_field_options` gives each field's allowed values.
 - Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
   sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
 - Adds and edits from Claude are saved straight away, Attio first. A bulk list is
