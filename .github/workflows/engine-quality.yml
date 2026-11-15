@@ -19,9 +19,14 @@ jobs:
       - id: filter
         uses: dorny/paths-filter@v3
         with:
+          # server/** too: an API change must regenerate engine-frontend/app/gen.
           filters: |
             engine:
               - 'engine-frontend/**'
+              - 'server/app/modules/crm/**'
+              - 'server/app/modules/engine/**'
+              - 'server/scripts/export_openapi.py'
+              - 'server/main.py'
               - '.github/workflows/engine-quality.yml'
 
   checks:
@@ -31,7 +36,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [quality, build]
+        target: [quality, api, build]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -39,6 +44,9 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: engine-frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v9.0.0
+        if: matrix.target == 'api'
+        with: { version: latest }
       - run: ./checks.sh ${{ matrix.target }}
         working-directory: engine-frontend
 

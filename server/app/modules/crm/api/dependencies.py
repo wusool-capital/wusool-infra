@@ -15,7 +15,8 @@ Service = Annotated[CrmService, Depends(crm_service)]
 
 async def require_user(
     service: Service,
-    cf_access_jwt_assertion: Annotated[str | None, Header()] = None,
+    # Added by Cloudflare Access, never by the Engine's own code, so it stays out of the spec.
+    cf_access_jwt_assertion: Annotated[str | None, Header(include_in_schema=False)] = None,
 ) -> SignedInUser:
     if not access_configured():
         raise problem(
