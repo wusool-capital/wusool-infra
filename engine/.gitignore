@@ -1,0 +1,10 @@
+node_modules/
+build/
+.react-router/
+.wrangler/
+.env
+.DS_Store
+
+# Local copies of the PRD (docs/PRD.md is the source of truth)
+Wusool Engine PRD and Architecture.md
+Wusool Engine PRD and Architecture.pdf

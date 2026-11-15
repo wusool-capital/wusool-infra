@@ -186,11 +186,13 @@ for `dev` in GitHub:
    - `OpenTofu Validate (infrastructure/terraform/stacks/postgres)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/peering)`
    - `OpenTofu Validate (infrastructure/terraform/stacks/scribe-updates)`
+   - `OpenTofu Validate (infrastructure/terraform/stacks/engine-frontend)`
    - `Python quality (required)`
    - `Python unit tests (required)`
    - `Python integration tests (required)`
    - `Database schema (required)`
    - `Shell tests (required)`
+   - `Engine quality (required)`
 9. Enable **Require branches to be up to date before merging**.
 10. Enable **Require conversation resolution before merging**.
 11. Enable **Block force pushes** and **Block deletions**.

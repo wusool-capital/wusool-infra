@@ -1,0 +1,16 @@
+// Cloudflare Workers, static assets only: the prototype is a single-page app with no server.
+// Deployed by .github/workflows/deploy-engine.yml; Cloudflare Access (infrastructure/terraform/stacks/engine-frontend) gates the hostname.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wusool-engine-dev",
+  "compatibility_date": "2026-10-28",
+  // Access only covers the custom hostname, so every other public address must stay off.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "engine-dev.wusoolcapital.com", "custom_domain": true }],
+  "assets": {
+    "directory": "./build/client",
+    // Any path that is not a file (/pipeline, /deals/d-falcon) gets index.html, so reloads and links work.
+    "not_found_handling": "single-page-application"
+  }
+}

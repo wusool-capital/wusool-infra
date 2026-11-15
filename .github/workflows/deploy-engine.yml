@@ -1,0 +1,72 @@
+# Deploys the Engine SPA to Cloudflare Workers. The Access application that
+# gates the hostname, the deploy role and the token's secret live in
+# infrastructure/terraform/stacks/engine-frontend, applied out of band before
+# the first run of this workflow.
+name: Deploy engine
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - 'engine/**'
+      - '.github/workflows/deploy-engine.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-engine
+  cancel-in-progress: false
+
+env:
+  ENGINE_HOSTNAME: engine-dev.wusoolcapital.com
+  # Not secret: an account identifier, not a credential.
+  CLOUDFLARE_ACCOUNT_ID: aa28a40954cce378e48680c2b5588dda
+
+jobs:
+  deploy:
+    name: Deploy engine to Cloudflare
+    # Off until the Access stack is applied; set the repository variable
+    # ENGINE_ACCESS_APPLIED=true afterwards. Stops the merge that adds this
+    # workflow from publishing the app without a login in front of it.
+    if: vars.ENGINE_ACCESS_APPLIED == 'true'
+    runs-on: ubuntu-latest
+    # Only an OIDC trust label for the deploy role; it needs no protection rules.
+    environment: engine-dev
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+
+      - run: ./checks.sh all
+
+      - uses: ./.github/actions/aws-oidc
+        with:
+          role_arn: arn:aws:iam::030179310793:role/wusool-gha-engine-deploy
+
+      - name: Load Cloudflare token
+        run: |
+          token=$(aws secretsmanager get-secret-value \
+            --secret-id /wusool/engine-frontend/cloudflare-deploy \
+            --query SecretString --output text)
+          echo "::add-mask::$token"
+          echo "CLOUDFLARE_API_TOKEN=$token" >> "$GITHUB_ENV"
+
+      - name: Deploy Worker
+        run: npx wrangler deploy
+
+      # A deploy that exposes the app without the Access redirect must fail the run.
+      - name: Verify Access gate
+        run: |
+          result=$(curl -sS -o /dev/null --retry 6 --retry-delay 10 --retry-all-errors \
+            -w '%{http_code} %{redirect_url}' "https://${ENGINE_HOSTNAME}/")
+          echo "$result"
+          [[ "$result" == 302\ https://*.cloudflareaccess.com/* ]]

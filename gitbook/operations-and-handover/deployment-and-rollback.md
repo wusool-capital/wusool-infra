@@ -92,9 +92,10 @@ Escalate any plan that proposes replacing RDS, changing state, or deleting resou
 
 ## Stacks applied by hand
 
-`account`, `peering`, and `scribe-updates` span environments, so no deploy
-applies them. An operator plans and applies them from their stack folders
-after review.
+`account`, `peering`, `scribe-updates`, and `engine-frontend` span environments,
+so no deploy applies them. An operator plans and applies them from their stack
+folders after review. Apply `engine-frontend` before the first engine deploy,
+then set the repository variable `ENGINE_ACCESS_APPLIED` to `true`.
 
 ## Release WusoolScribe
 
