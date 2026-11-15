@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Runs Vale on the documentation the CI job checks and fails only on
-warnings that sit on lines this branch added or changed, the same way CI's
-reviewdog filter does. Existing warnings elsewhere in a page don't block."""
+"""Runs Vale on the documentation pages this branch changed and fails on any
+warning in them, the same way CI's reviewdog `filter_mode: file` does. Whole
+pages must pass because the push to dev and prod lints whole pages."""
 
 import json
 import os
-import re
 import shutil
 import subprocess
 import sys
@@ -21,7 +20,6 @@ TARGETS = [
     "gitbook/operations-and-handover",
     "gitbook/release-notes",
 ]
-HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 
 
 def git(*args: str) -> str:
@@ -40,20 +38,11 @@ def merge_base() -> str:
     sys.exit("vale check: cannot find origin/dev or dev to compare against")
 
 
-def added_lines(base: str) -> dict[str, set[int]]:
-    """Lines added since `base`, including uncommitted and untracked files."""
-    added: dict[str, set[int]] = {}
-    path = ""
-    for line in git("diff", "-U0", base, "--", *TARGETS).splitlines():
-        if line.startswith("+++ b/"):
-            path = line[6:]
-        elif match := HUNK.match(line):
-            start, count = int(match[1]), int(match[2] or 1)
-            added.setdefault(path, set()).update(range(start, start + count))
-    for path in git("ls-files", "--others", "--exclude-standard", "--", *TARGETS).split():
-        total = len(Path(path).read_text(encoding="utf-8").splitlines())
-        added[path] = set(range(1, total + 1))
-    return added
+def changed_pages(base: str) -> list[str]:
+    """Pages changed since `base`, including uncommitted and untracked files."""
+    changed = git("diff", "--name-only", "--diff-filter=d", base, "--", *TARGETS).split()
+    changed += git("ls-files", "--others", "--exclude-standard", "--", *TARGETS).split()
+    return sorted({path for path in changed if path.endswith(".md")})
 
 
 def main() -> int:
@@ -63,12 +52,12 @@ def main() -> int:
     root = Path(git("rev-parse", "--show-toplevel").strip())
     try:
         os.chdir(root)
-        added = added_lines(merge_base())
-        if not added:
+        pages = changed_pages(merge_base())
+        if not pages:
             print("vale: no documentation changes to check")
             return 0
         run = subprocess.run(
-            ["vale", "--output=JSON", "--minAlertLevel=warning", *added],
+            ["vale", "--output=JSON", "--minAlertLevel=warning", *pages],
             capture_output=True,
             text=True,
         )
@@ -80,7 +69,6 @@ def main() -> int:
         f"{path}:{alert['Line']} {alert['Message']} [{alert['Check']}]"
         for path, path_alerts in alerts.items()
         for alert in path_alerts
-        if alert["Line"] in added.get(path, set())
     ]
     for failure in failures:
         print(failure, file=sys.stderr)
