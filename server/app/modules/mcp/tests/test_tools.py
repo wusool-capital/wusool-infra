@@ -27,6 +27,7 @@ from app.modules.mcp.api.runner import caller_from_token
 from app.modules.mcp.api.tools import imports, lookups, records
 from app.modules.mcp.bootstrap import build_server
 from app.modules.mcp.domain.access import Caller
+from app.modules.mcp.persistence.adapters import InMemoryToolCallAudit
 
 _CALLER = Caller(slack_user_id="U_ALICE", team_id="T1", name="Alice", scopes=("crm",))
 _REF = RecordRef(
@@ -39,12 +40,13 @@ _REF = RecordRef(
 _BUYER = {"org_name": "Acme", "domain": "acme.com", "target_vertical": "Fintech"}
 
 
-def _server(calls_per_hour: int = 100) -> MCPServer:
+def _server(calls_per_hour: int = 100, audit: InMemoryToolCallAudit | None = None) -> MCPServer:
     return build_server(
         public_url="https://tools.example",
         token_secret="secret",
         calls_per_hour=calls_per_hour,
         caller_source=lambda: _CALLER,
+        audit=audit or InMemoryToolCallAudit(),
     )
 
 
@@ -67,6 +69,11 @@ async def test_lists_every_tool_with_its_annotations() -> None:
         "bulk_import_sellers",
         "confirm_import",
         "get_import",
+        "get_benchmark_overview",
+        "get_peer_cut",
+        "edit_benchmark_peer_cut",
+        "edit_revenue_band",
+        "set_metric_weights",
         "get_buyer",
         "get_seller",
         "list_buyers",
@@ -368,3 +375,55 @@ async def test_list_field_options_has_every_column_and_long_lists_leave_descript
     assert "see list_field_options" in description
     assert "Fintech |" not in description
     assert "one of Active | Paused" in description
+
+
+async def test_add_and_bulk_descriptions_say_which_keys_are_required() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t.description or "" for t in (await client.list_tools()).tools}
+
+    for name in ("add_buyer", "bulk_import_buyers"):
+        required = tools[name].split("Everything in `fields` is optional")[0]
+        assert "Required, at the top level of the record" in required
+        assert all(key in required for key in ("org_name", "domain", "target_vertical"))
+    for name in ("add_seller", "bulk_import_sellers"):
+        required = tools[name].split("Everything in `fields` is optional")[0]
+        assert "org_name" in required and "domain" in required
+        assert "target_vertical" not in required
+
+
+async def test_edit_descriptions_say_only_the_role_id_is_required() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t.description or "" for t in (await client.list_tools()).tools}
+
+    assert "Required: role_id only" in tools["edit_buyer"]
+    assert "org_name, domain, target_vertical can't be edited" in tools["edit_buyer"]
+    assert "Required: role_id only" in tools["edit_seller"]
+    assert "org_name, domain can't be edited" in tools["edit_seller"]
+    assert "Required, at the top level" not in tools["edit_buyer"]
+
+
+async def test_edit_does_not_require_fields_in_the_schema() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+    for name in ("edit_buyer", "edit_seller"):
+        assert tools[name].input_schema["required"] == ["role_id", "request_id"]
+
+
+async def test_an_edit_with_no_fields_gets_the_server_sentence_not_a_schema_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    edit = AsyncMock(
+        side_effect=InvalidFieldsError(
+            [RowProblem(row=1, kind="required", message="send at least one field")]
+        )
+    )
+    monkeypatch.setattr(records, "edit_one", edit)
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "edit_buyer", {"role_id": str(_REF.role_id), "request_id": "req-00009"}
+        )
+
+    assert result.is_error
+    assert "send at least one field" in _text(result)
+    assert edit.await_args is not None
+    assert edit.await_args.args[2] == {}

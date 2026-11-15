@@ -3,10 +3,11 @@ unmounted rather than serving it half-configured."""
 
 from functools import lru_cache
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import SettingsConfigDict
 
 from app.modules.utilities import SecretsManagerSettings
+from app.modules.utilities.domain.database_url import asyncpg_url
 
 
 class McpSettings(SecretsManagerSettings):
@@ -19,6 +20,25 @@ class McpSettings(SecretsManagerSettings):
     calls_per_hour: int = Field(default=600, gt=0)
 
 
+class McpDatabaseSettings(SecretsManagerSettings):
+    """Only the database the tool-call audit writes to."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    database_url: str
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, value: str) -> str:
+        """Ensure the URL uses the asyncpg driver scheme regardless of input form."""
+        return asyncpg_url(value)
+
+
 @lru_cache
 def get_settings() -> McpSettings:
     return McpSettings()
+
+
+@lru_cache
+def get_database_settings() -> McpDatabaseSettings:
+    return McpDatabaseSettings()

@@ -40,6 +40,9 @@ from app.modules.lead_magnets.providers.attio.deal_writer import AttioDealWriter
 from app.modules.lead_magnets.providers.attio.person_writer import AttioPersonWriter
 from app.modules.lead_magnets.providers.attio.role_writer import AttioRoleWriter
 from app.modules.lead_magnets.providers.bedrock.client import LeadBedrockClient
+from app.modules.lead_magnets.providers.benchmark_data.peer_dataset import (
+    BenchmarkDataPeerDatasets,
+)
 from app.modules.lead_magnets.providers.chromium.renderer import ChromiumReportRenderer
 from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchClient
 from app.modules.lead_magnets.providers.posthog.client import PostHogAnalytics
@@ -359,6 +362,7 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
             build_deal_writer(),
         ),
         llm=build_llm(),
+        peer_datasets=BenchmarkDataPeerDatasets(),
         mailer=build_lead_magnet_mailer(),
         email_from=settings.lead_magnet_email_from,
         email_to=settings.lead_magnet_email_to.split(),

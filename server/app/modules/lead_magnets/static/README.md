@@ -129,6 +129,8 @@ benchmark/
   index.html
   00-styles.css
   10-config.js  20-data.js  30-helpers.js  40-scoring.js  50-narrative.js  60-render.js
+                # 20-data.js is the fallback copy: GET /benchmark/20-data.js serves the
+                # page's data from the benchmark_data tables and shadows this file
 readiness/
   index.html
   00-styles.css

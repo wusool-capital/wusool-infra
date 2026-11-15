@@ -12,6 +12,7 @@ import pytest
 
 from app.modules.lead_magnets.application.shared.submit import SubmissionService
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs, Tool, ToolRunRecord
+from app.modules.lead_magnets.tests.builtin_peer_dataset import BuiltInPeerDatasets
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
@@ -471,7 +472,7 @@ async def test_complete_never_raises_on_a_real_domain_vocabulary_error(
     from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
     tool_runs, attio = _FakeToolRuns(), _FakeAttio()
-    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]  # never reached
+    pipelines = Pipelines(llm=None, peer_datasets=BuiltInPeerDatasets())  # type: ignore[arg-type]  # never reached
     service = SubmissionService(
         tool_runs=tool_runs,
         attio=attio,

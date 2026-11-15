@@ -6,6 +6,7 @@ from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app.modules.utilities import SecretsManagerSettings
+from app.modules.utilities.domain.database_url import asyncpg_url
 
 # Same member `lead_magnets` owns its deals with; the Attio key decides which workspace it lands in.
 _DEFAULT_DEAL_OWNER_ID = "bb40387a-b57b-491e-b8a6-9ba593d6e97d"
@@ -113,11 +114,7 @@ class Settings(SecretsManagerSettings):
     @classmethod
     def normalize_database_url(cls, value: str) -> str:
         """Ensure the URL uses the asyncpg driver scheme regardless of input form."""
-        if value.startswith("postgresql+asyncpg://"):
-            return value
-        if value.startswith("postgresql://"):
-            return value.replace("postgresql://", "postgresql+asyncpg://", 1)
-        return value
+        return asyncpg_url(value)
 
 
 @lru_cache

@@ -9,6 +9,8 @@ Permission = Literal[
     "sellers.read",
     "sellers.write",
     "imports.write",
+    "benchmark.read",
+    "benchmark.write",
 ]
 
 # The one token scope v1 issues. A later area adds its own scope rather than widening this.

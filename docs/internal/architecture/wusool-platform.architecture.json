@@ -65,7 +65,7 @@
       "id": "claude",
       "type": "external",
       "label": "Claude (Wusool MCP)",
-      "sublabel": "find · add · edit · bulk import",
+      "sublabel": "find · add · edit · bulk import · benchmark data",
       "pos": [
         40,
         50
@@ -702,7 +702,8 @@
       "items": [
         "Attio is the CRM of record and is written first",
         "PostgreSQL mirrors it via webhook and nightly resync",
-        "Interaction metadata (headers and subjects, never bodies) is kept 12 months; nothing writes it to Attio yet"
+        "Interaction metadata (headers and subjects, never bodies) is kept 12 months; nothing writes it to Attio yet",
+        "The benchmark peer dataset lives only in PostgreSQL; advisors edit it from Claude and the public benchmark scores against it"
       ]
     },
     {

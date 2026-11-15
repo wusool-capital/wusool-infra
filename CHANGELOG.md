@@ -16,6 +16,30 @@ for current production evidence and open handover items.
   record. `list_buyers` and `list_sellers` filter by vertical, region, check
   size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
   check, and `list_field_options` gives each field's allowed values.
+- Benchmark peer dataset in Postgres. The GCC SME Benchmark's peer anchors, revenue
+  bands and metric weights moved from code into two tables (new `benchmark_data`
+  module), seeded from the original dataset. Scores don't change. Each row says who
+  last changed it, by name, and when. There is no version history yet.
+- Advisors can read and edit that dataset from Claude: `get_benchmark_overview`,
+  `get_peer_cut`, `edit_benchmark_peer_cut`, `edit_revenue_band` and
+  `set_metric_weights`. Edits are checked, saved straight away and applied to the
+  public benchmark. Claude reads a row first and tells the person what it held.
+- If the peer dataset tables can't be read, benchmark scoring uses the original dataset
+  instead of failing, and the page script is served uncached. A submission is scored
+  once, so the visitor's report, the Attio write and the emails always agree. The page
+  script is kept for 30 seconds on the server.
+- Benchmark rows keep the editor's Slack user id and their name when they edited, so
+  "who made that change" is unambiguous.
+- A benchmark peer set's anchors can be edited one percentile at a time, for example
+  just the median. `edit_buyer` and `edit_seller` no longer need `fields` in the
+  schema: an edit with none still gets the same "send at least one field" answer.
+- MCP add, edit and bulk-import descriptions now mark the required keys. The benchmark
+  edit descriptions list the valid metric keys for each mode.
+- Every MCP tool call, read or write, now leaves an `mcp.tool_called` activity for the
+  signed-in person (tool, result and duration, never the arguments). Benchmark edits
+  also leave `benchmark.peer_cut_edited` or `benchmark.rule_edited` activities.
+- The benchmark page loads its data from `GET /benchmark/20-data.js`, built from the
+  tables. If the database can't be read it serves the original static copy.
 - Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
   sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
 - Adds and edits from Claude are saved straight away, Attio first. A bulk list is
