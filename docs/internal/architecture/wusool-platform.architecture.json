@@ -512,7 +512,7 @@
     {
       "from": "website",
       "to": "posthog",
-      "label": "browser events, after consent",
+      "label": "page views + browser events, after consent",
       "variant": "dashed"
     },
     {

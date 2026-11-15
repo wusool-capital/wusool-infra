@@ -8,6 +8,17 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-15
+
+### Changed
+
+- Page views and time on page now go to PostHog, only after a visitor chooses
+  Accept all. The tool pages turn on `$pageview` and `$pageleave`, and
+  `embed.js` adds them to the Webflow pages with no replay or autocapture.
+  `GET /analytics/config` sends a CORS header for `wusoolcapital.com` so the
+  website can read it. A Website Metrics dashboard in PostHog shows traffic,
+  tool funnels, leads, bookings, reports and consent choices.
+
 ## 2026-11-14
 
 ### Changed

@@ -394,6 +394,11 @@ script has no code that reads a form field.
 | `tool_completed` | A lead submit returns 2xx | plus the last `step` |
 | `tool_abandoned` | The page closes after a start and before completing (sent by beacon) | plus the last `step` |
 | `book_call_clicked` | A click on a `calendar.app.google` link in the page | plus `source: "tool"` |
+| `$pageview`, `$pageleave` | The page loads, and closes (PostHog's own events, for Web analytics and time on page) | PostHog's page properties, plus `is_test` |
+
+`embed.js` does the same for the Webflow pages (`trackPages`): after Accept all it
+loads PostHog on the page with page views and page leaves on, and replay and
+autocapture off. Withdrawing consent opts the visitor out.
 
 The script also wraps `fetch` for the lead submit routes (`SUBMIT_PATHS`, kept in
 step with the server by `test_static_contract.py`) and the report unlock. It adds
