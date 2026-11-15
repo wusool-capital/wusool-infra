@@ -29,7 +29,7 @@ will keep history. Until then the activity names which fields changed.
 
 | Edit | Rule |
 | -- | -- |
-| A peer cut's sample size, `multi_site`, `b2b`, or any anchor row | Anchors rise from p10 to p90. Sample size isn't negative |
+| A peer cut's sample size, `multi_site`, `b2b`, or any anchor row (all five percentiles, or just the ones named) | Anchors rise from p10 to p90 after merging. Sample size isn't negative |
 | A revenue band's label, ceiling or three factors | Ceilings keep rising, only the top band is open-ended, multipliers above zero |
 | A mode's metric weights | Every metric of the mode, adding up to 100 |
 

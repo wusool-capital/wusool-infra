@@ -104,13 +104,37 @@ class BenchmarkDataset:
 
 
 @dataclass(frozen=True)
+class PercentileEdit:
+    """New values for some of one metric's five anchors. The rest keep their value."""
+
+    p10: float | None = None
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+    p90: float | None = None
+
+    def onto(self, metric: str, current: Anchors | None) -> Anchors:
+        """`current` with these percentiles replaced, or InvalidEditError."""
+        sent = (self.p10, self.p25, self.p50, self.p75, self.p90)
+        if all(value is None for value in sent):
+            raise InvalidEditError(f"{metric}: name at least one percentile to change")
+        if current is None:
+            raise InvalidEditError(f"{metric}: it has no anchors yet, so send all five")
+        p10, p25, p50, p75, p90 = (
+            old if new is None else new for old, new in zip(current, sent, strict=True)
+        )
+        return (p10, p25, p50, p75, p90)
+
+
+@dataclass(frozen=True)
 class PeerCutEdit:
-    """Fields left None are unchanged."""
+    """Fields left None are unchanged. Anchors are all five values for a metric, or a
+    `PercentileEdit` naming only the ones to change."""
 
     sample_size: int | None = None
     multi_site: bool | None = None
     b2b: bool | None = None
-    anchors: Mapping[str, Anchors] | None = None
+    anchors: Mapping[str, Anchors | PercentileEdit] | None = None
 
 
 @dataclass(frozen=True)
@@ -132,9 +156,14 @@ def check_anchors(metric: str, anchors: Anchors) -> None:
 def apply_peer_cut_edit(cut: PeerCut, edit: PeerCutEdit, metrics: Mapping[str, Metric]) -> PeerCut:
     """The cut after the edit, or InvalidEditError."""
     anchors = dict(cut.anchors)
-    for metric, values in (edit.anchors or {}).items():
+    for metric, change in (edit.anchors or {}).items():
         if metric not in cut.anchors and metric not in metrics:
             raise InvalidEditError(f"{metric}: not a metric of {cut.mode} mode")
+        values = (
+            change.onto(metric, cut.anchors.get(metric))
+            if isinstance(change, PercentileEdit)
+            else change
+        )
         check_anchors(metric, values)
         anchors[metric] = values
     if edit.sample_size is not None and edit.sample_size < 0:

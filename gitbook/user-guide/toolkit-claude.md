@@ -42,14 +42,14 @@ For example: "Which active buyers would write a $5M check in the UAE?" Or: "Add 
 The GCC SME Benchmark on the website scores each visitor against peer sets. You can read and edit those numbers from Claude.
 
 - Ask Claude to show a peer set first, so you see the current numbers.
-- A peer set holds five anchors per metric: the 10th, 25th, 50th, 75th and 90th percentile. They must rise in that order.
+- A peer set holds five anchors per metric: the 10th, 25th, 50th, 75th and 90th percentile. They must rise in that order. You can change just one, such as the median, and the other four stay.
 - Revenue band ceilings must keep rising, and the top band stays open-ended.
 - A metric's weights for a mode must add up to 100, so send all of them together.
 - Every row shows who last changed it, by name, and when. Claude reads the row first and tells you what it held. Old values aren't kept yet, so a change can't be undone from here.
 - If an edit is refused, nothing is saved and Claude explains why.
 - You can't add or remove a sector or stage from Claude.
 
-For example: "Show me the restaurant peer set", then "Change the restaurant gross margin anchors to 57, 62, 67, 71, 75".
+For example: "Show me the restaurant peer set". Then either "Change the restaurant gross margin anchors to 57, 62, 67, 71, 75" or "Set the restaurant gross margin median to 67".
 
 ## Good to know
 

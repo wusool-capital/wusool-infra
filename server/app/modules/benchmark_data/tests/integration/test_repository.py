@@ -14,6 +14,7 @@ from app.modules.benchmark_data.domain.dataset import (
     Editor,
     InvalidEditError,
     PeerCutEdit,
+    PercentileEdit,
 )
 from app.modules.benchmark_data.persistence.repository import PostgresBenchmarkDataRepository
 from app.modules.lead_magnets.domain.benchmark import benchmark_dataset as source
@@ -151,3 +152,21 @@ async def test_the_metric_keys_in_code_match_the_stored_rules_and_anchors(db_ses
         allowed = {*METRIC_KEYS[mode], *ANCHOR_ONLY_KEYS[mode]}
         for cut in dataset.cuts[mode].values():
             assert set(cut.anchors) == allowed, cut.key
+
+
+async def test_one_percentile_is_stored_and_the_other_four_are_untouched(
+    service: BenchmarkDataService, db_session
+) -> None:
+    before = (await service.dataset()).cuts["sme"]["restaurant"].anchors["gm"]
+    cut = await service.edit_peer_cut(
+        "sme",
+        "restaurant",
+        PeerCutEdit(anchors={"gm": PercentileEdit(p50=66)}),
+        editor=_ALICE,
+        source=ActivitySource.MCP,
+    )
+    stored = (await service.dataset()).cuts["sme"]["restaurant"].anchors["gm"]
+    assert stored == (before[0], before[1], 66, before[3], before[4])
+    assert cut.anchors["gm"] == stored
+    (activity,) = await _activities(db_session, cut.id)
+    assert activity.payload["changed_fields"] == ["anchors.gm"]

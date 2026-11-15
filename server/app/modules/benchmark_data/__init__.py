@@ -23,6 +23,7 @@ from app.modules.benchmark_data.domain.dataset import (
     Mode,
     PeerCut,
     PeerCutEdit,
+    PercentileEdit,
     UnknownRecordError,
 )
 
@@ -39,6 +40,7 @@ __all__ = [
     "Mode",
     "PeerCut",
     "PeerCutEdit",
+    "PercentileEdit",
     "UnknownRecordError",
     "edit_band",
     "edit_peer_cut",

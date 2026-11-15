@@ -21,6 +21,7 @@ from app.modules.benchmark_data import (
     Metric,
     PeerCut,
     PeerCutEdit,
+    PercentileEdit,
     UnknownRecordError,
 )
 from app.modules.mcp.api.tools import benchmark
@@ -236,3 +237,41 @@ async def test_the_edit_tools_list_the_valid_metric_keys_and_required_arguments(
     assert "dso (sme)" in tools["edit_benchmark_peer_cut"]
     assert "fwdMult (tech" in tools["edit_benchmark_peer_cut"]
     assert "Required: code and request_id" in tools["edit_revenue_band"]
+
+
+async def test_one_percentile_can_be_sent_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    edit = AsyncMock(return_value=_SALON)
+    monkeypatch.setattr(benchmark, "edit_peer_cut", edit)
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "edit_benchmark_peer_cut",
+            {
+                "mode": "sme",
+                "key": "salon",
+                "anchors": {"gm": {"p50": 67}, "rent": [8, 11, 15, 20, 26]},
+                "request_id": "req-00007",
+            },
+        )
+
+    assert not result.is_error
+    assert edit.await_args is not None
+    assert edit.await_args.args[2] == PeerCutEdit(
+        anchors={"gm": PercentileEdit(p50=67), "rent": (8, 11, 15, 20, 26)}
+    )
+
+
+@pytest.mark.parametrize("anchors", [{"gm": {}}, {"gm": {"p60": 3}}, {"gm": {"p50": "high"}}])
+async def test_a_percentile_edit_must_name_real_percentiles(anchors: dict) -> None:
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "edit_benchmark_peer_cut",
+            {"mode": "sme", "key": "salon", "anchors": anchors, "request_id": "req-00008"},
+        )
+    assert result.is_error
+
+
+async def test_the_description_explains_sending_only_some_percentiles() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t.description or "" for t in (await client.list_tools()).tools}
+    assert "only the percentiles to change" in tools["edit_benchmark_peer_cut"]
+    assert '"p50": 67' in tools["edit_benchmark_peer_cut"]

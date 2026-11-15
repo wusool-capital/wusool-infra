@@ -152,11 +152,13 @@ def _register_edit(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> N
 
     async def edit(
         role_id: Annotated[uuid.UUID, Field(description=f"The record's role_id from find_{kind}s")],
-        fields: Fields,
         request_id: RequestId,
+        fields: Fields | None = None,
     ) -> EditResult:
+        sent = fields or {}
+
         async def call(caller: Caller) -> EditResult:
-            upload: UploadRow = {key: value for key, value in fields.items()}
+            upload: UploadRow = {key: value for key, value in sent.items()}
             changed = await edit_one(
                 kind, role_id, upload, requested_by=caller.slack_user_id, invoked_via="mcp"
             )
@@ -168,7 +170,7 @@ def _register_edit(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> N
             call,
             output=EditResult,
             request_id=request_id,
-            request_args=json.dumps([str(role_id), fields], sort_keys=True),
+            request_args=json.dumps([str(role_id), sent], sort_keys=True),
         )
 
     server.tool(

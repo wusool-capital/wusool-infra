@@ -400,3 +400,30 @@ async def test_edit_descriptions_say_only_the_role_id_is_required() -> None:
     assert "Required: role_id only" in tools["edit_seller"]
     assert "org_name, domain can't be edited" in tools["edit_seller"]
     assert "Required, at the top level" not in tools["edit_buyer"]
+
+
+async def test_edit_does_not_require_fields_in_the_schema() -> None:
+    async with Client(_server()) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+    for name in ("edit_buyer", "edit_seller"):
+        assert tools[name].input_schema["required"] == ["role_id", "request_id"]
+
+
+async def test_an_edit_with_no_fields_gets_the_server_sentence_not_a_schema_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    edit = AsyncMock(
+        side_effect=InvalidFieldsError(
+            [RowProblem(row=1, kind="required", message="send at least one field")]
+        )
+    )
+    monkeypatch.setattr(records, "edit_one", edit)
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "edit_buyer", {"role_id": str(_REF.role_id), "request_id": "req-00009"}
+        )
+
+    assert result.is_error
+    assert "send at least one field" in _text(result)
+    assert edit.await_args is not None
+    assert edit.await_args.args[2] == {}

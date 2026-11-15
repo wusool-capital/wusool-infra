@@ -28,6 +28,7 @@ from app.modules.benchmark_data.domain.dataset import (
     Mode,
     PeerCut,
     PeerCutEdit,
+    PercentileEdit,
     UnknownRecordError,
 )
 
@@ -332,3 +333,75 @@ async def test_bad_weights_are_refused(
 ) -> None:
     with pytest.raises(InvalidEditError, match=message):
         await service.set_weights("sme", weights, editor=_ALICE, source=ActivitySource.MCP)
+
+
+async def test_one_percentile_changes_alone_and_the_rest_keep_their_value(
+    service: BenchmarkDataService, activities: FakeActivities
+) -> None:
+    cut = await service.edit_peer_cut(
+        "sme",
+        "salon",
+        PeerCutEdit(anchors={"ebitda": PercentileEdit(p50=15)}),
+        editor=_ALICE,
+        source=ActivitySource.MCP,
+    )
+    assert cut.anchors["ebitda"] == (3, 8, 15, 21, 28)
+    assert cut.anchors["dso"] == (0, 2, 5, 12, 25)
+    (event,) = activities.events
+    assert event.payload == BenchmarkEditPayload(changed_fields=("anchors.ebitda",))
+
+
+async def test_a_partial_edit_can_mix_with_a_full_list_for_another_metric(
+    service: BenchmarkDataService,
+) -> None:
+    cut = await service.edit_peer_cut(
+        "sme",
+        "salon",
+        PeerCutEdit(
+            anchors={"ebitda": PercentileEdit(p10=2, p90=30), "dso": (1, 2, 5, 12, 25)},
+        ),
+        editor=_ALICE,
+        source=ActivitySource.MCP,
+    )
+    assert cut.anchors["ebitda"] == (2, 8, 14, 21, 30)
+    assert cut.anchors["dso"] == (1, 2, 5, 12, 25)
+
+
+async def test_a_partial_edit_that_breaks_the_order_is_refused(
+    service: BenchmarkDataService, repo: FakeRepository
+) -> None:
+    with pytest.raises(InvalidEditError, match="rise from p10 to p90"):
+        await service.edit_peer_cut(
+            "sme",
+            "salon",
+            PeerCutEdit(anchors={"ebitda": PercentileEdit(p50=25)}),
+            editor=_ALICE,
+            source=ActivitySource.MCP,
+        )
+    assert repo.saved == []
+
+
+async def test_a_partial_edit_needs_the_metric_to_have_anchors_already(
+    service: BenchmarkDataService,
+) -> None:
+    with pytest.raises(InvalidEditError, match="no anchors yet"):
+        await service.edit_peer_cut(
+            "sme",
+            "salon",
+            PeerCutEdit(anchors={"growth": PercentileEdit(p50=9)}),
+            editor=_ALICE,
+            source=ActivitySource.MCP,
+        )
+
+
+async def test_a_partial_edit_naming_no_percentile_is_refused(
+    service: BenchmarkDataService,
+) -> None:
+    with pytest.raises(InvalidEditError, match="at least one percentile"):
+        await service.edit_peer_cut(
+            "sme",
+            "salon",
+            PeerCutEdit(anchors={"ebitda": PercentileEdit()}),
+            editor=_ALICE,
+            source=ActivitySource.MCP,
+        )

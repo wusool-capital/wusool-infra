@@ -22,6 +22,7 @@ from app.modules.benchmark_data import (
     Metric,
     PeerCut,
     PeerCutEdit,
+    PercentileEdit,
     UnknownRecordError,
     edit_band,
     edit_peer_cut,
@@ -30,7 +31,7 @@ from app.modules.benchmark_data import (
 )
 from app.modules.mcp.api.runner import ToolRunner
 from app.modules.mcp.api.tools.schemas import (
-    AnchorList,
+    AnchorsIn,
     BandList,
     BandOut,
     BenchmarkOverview,
@@ -39,6 +40,7 @@ from app.modules.mcp.api.tools.schemas import (
     ModeParam,
     PeerCutOut,
     PeerCutSummary,
+    PercentileEditIn,
     RequestId,
 )
 from app.modules.mcp.domain.access import Caller
@@ -124,7 +126,9 @@ def _overview(dataset: BenchmarkDataset) -> BenchmarkOverview:
     )
 
 
-def _anchors(values: AnchorList) -> Anchors:
+def _anchors(values: AnchorsIn) -> Anchors | PercentileEdit:
+    if isinstance(values, PercentileEditIn):
+        return PercentileEdit(**values.model_dump())
     p10, p25, p50, p75, p90 = values
     return (p10, p25, p50, p75, p90)
 
@@ -197,8 +201,14 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
         multi_site: bool | None = None,
         b2b: bool | None = None,
         anchors: Annotated[
-            dict[str, AnchorList] | None,
-            Field(description="Metric key to new [p10..p90]; metrics not sent are unchanged"),
+            dict[str, AnchorsIn] | None,
+            Field(
+                description=(
+                    "Metric key to either all five [p10..p90], or an object naming only the "
+                    'percentiles to change, e.g. {"p50": 67}. Metrics and percentiles not sent '
+                    "keep their value."
+                )
+            ),
         ] = None,
     ) -> PeerCutOut:
         edit = PeerCutEdit(
@@ -234,9 +244,15 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
             "read the peer set with get_peer_cut first, and tell the person what it held and "
             "who last changed it. Required: mode, key and request_id; everything else is "
             "optional and only what you send changes. The peer set's key comes from "
-            "get_benchmark_overview. " + _metric_keys_note() + " " + _anchor_only_note() + "\n"
-            'Example: {"mode": "sme", "key": "restaurant", "anchors": {"gm": [57, 62, 67, 71, '
-            '75]}, "request_id": "6f1c..."}'
+            "get_benchmark_overview. For anchors, send a metric's five numbers, or only the "
+            "percentiles to change (p10, p25, p50, p75, p90): the others keep their value. "
+            "The result must still rise from p10 to p90. "
+            + _metric_keys_note()
+            + " "
+            + _anchor_only_note()
+            + "\n"
+            'Example: {"mode": "sme", "key": "restaurant", "anchors": {"gm": {"p50": 67}, '
+            '"rent": [8, 11, 15, 20, 26]}, "request_id": "6f1c..."}'
         ),
         annotations=_EDIT,
     )(edit_benchmark_peer_cut)

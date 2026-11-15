@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.modules.ddl_commands import (
     AddOutcome,
@@ -203,6 +203,27 @@ AnchorList = Annotated[
     list[float],
     Field(min_length=5, max_length=5, description="[p10, p25, p50, p75, p90], rising"),
 ]
+
+
+class PercentileEditIn(BaseModel):
+    """Some of one metric's five anchors. The ones left out keep their value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    p10: float | None = None
+    p25: float | None = None
+    p50: float | None = None
+    p75: float | None = None
+    p90: float | None = None
+
+    @model_validator(mode="after")
+    def _names_one(self) -> "PercentileEditIn":
+        if all(v is None for v in (self.p10, self.p25, self.p50, self.p75, self.p90)):
+            raise ValueError("name at least one of p10, p25, p50, p75, p90")
+        return self
+
+
+AnchorsIn = AnchorList | PercentileEditIn
 UpdatedBy = Annotated[str, Field(description="Who last changed this, by name ('seed' if never)")]
 UpdatedAt = Annotated[datetime, Field(description="When it was last changed")]
 
