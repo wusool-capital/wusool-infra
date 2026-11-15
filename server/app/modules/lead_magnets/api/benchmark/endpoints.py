@@ -7,6 +7,7 @@ response can lose the lead.
 
 from fastapi import APIRouter, BackgroundTasks, Depends
 
+from app.modules.benchmark_data import load_dataset
 from app.modules.lead_magnets.api.analytics import track_lead
 from app.modules.lead_magnets.api.dependencies import (
     SessionDep,
@@ -26,6 +27,7 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkResult,
     evaluate,
 )
+from app.modules.lead_magnets.domain.benchmark.peer_dataset import peer_dataset_from
 
 router = APIRouter(
     tags=["lead-magnets"],
@@ -93,7 +95,8 @@ async def benchmark(
             days_to_get_paid=request.days_to_get_paid,
             email=request.email,
             geography=request.geography,
-        )
+        ),
+        peer_dataset_from(await load_dataset()),
     )
     return _benchmark_response(str(run_id), result)
 

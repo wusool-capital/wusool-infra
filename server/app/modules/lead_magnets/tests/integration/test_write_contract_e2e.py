@@ -26,6 +26,7 @@ from app.modules.lead_magnets.application.shared.submit import SubmissionService
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
 from app.modules.lead_magnets.persistence.tool_runs_repository import ToolRunsRepository
+from app.modules.lead_magnets.tests.builtin_peer_dataset import BuiltInPeerDatasets
 from app.modules.utilities.domain.json_types import JsonObject
 from app.modules.utilities.domain.provider_errors import BedrockInvocationError
 
@@ -559,7 +560,7 @@ async def test_get_started_runs_its_real_pipeline_end_to_end(db_session) -> None
 
     repo = ToolRunsRepository(db_session)
     attio = _FakeAttio()
-    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]  # no model is reached
+    pipelines = Pipelines(llm=None, peer_datasets=BuiltInPeerDatasets())  # type: ignore[arg-type]  # no model is reached
     service = _service(db_session, attio, pipelines, fallback=pipelines.fallback)
 
     run_id = await service.record(

@@ -26,10 +26,18 @@ from app.modules.lead_magnets.domain.benchmark.benchmark_routing import (
 )
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
     BenchmarkInputs,
+    BenchmarkResult,
     adjusted_ebitda,
-    evaluate,
     metric_values,
 )
+from app.modules.lead_magnets.domain.benchmark.benchmark_submission import (
+    evaluate as _evaluate,
+)
+from app.modules.lead_magnets.tests.builtin_peer_dataset import BUILT_IN_PEER_DATASET
+
+
+def evaluate(inputs: BenchmarkInputs) -> BenchmarkResult:
+    return _evaluate(inputs, BUILT_IN_PEER_DATASET)
 
 
 def _sme(**kw) -> BenchmarkInputs:

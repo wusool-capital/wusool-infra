@@ -24,6 +24,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     SearchQueries,
 )
 from app.modules.lead_magnets.domain.shared.search import SearchResult
+from app.modules.lead_magnets.tests.builtin_peer_dataset import BuiltInPeerDatasets
 from app.modules.utilities.domain.json_types import JsonObject
 
 # One real model per operation — matches `LeadBedrockClient`'s own dispatch,
@@ -374,7 +375,7 @@ async def test_a_valuation_run_falls_back_without_any_model_call() -> None:
     """
     from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
-    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]
+    pipelines = Pipelines(llm=None, peer_datasets=BuiltInPeerDatasets())  # type: ignore[arg-type]
     result = pipelines.fallback(
         "valuation",
         {
@@ -411,7 +412,10 @@ def test_readiness_still_has_no_fallback() -> None:
     recommendations come only from the model."""
     from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
-    assert Pipelines(llm=None).fallback("readiness", {}) is None  # type: ignore[arg-type]
+    assert (
+        Pipelines(llm=None, peer_datasets=BuiltInPeerDatasets()).fallback("readiness", {})  # type: ignore[arg-type]
+        is None
+    )
 
 
 async def test_a_valuation_resume_applies_stored_ai_output() -> None:
@@ -420,7 +424,7 @@ async def test_a_valuation_resume_applies_stored_ai_output() -> None:
     original request rather than silently reverting to sector defaults."""
     from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 
-    pipelines = Pipelines(llm=None)  # type: ignore[arg-type]
+    pipelines = Pipelines(llm=None, peer_datasets=BuiltInPeerDatasets())  # type: ignore[arg-type]
     base = {
         "revenue": 3_000_000,
         "profit_before_tax": 400_000,

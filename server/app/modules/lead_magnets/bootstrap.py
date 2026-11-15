@@ -15,6 +15,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.attio import attio_is_test, get_attio_client
+from app.modules.benchmark_data import load_dataset
 from app.modules.lead_magnets.application.insights_article.sync import ArticleSync
 from app.modules.lead_magnets.application.insights_report.sync import ReportSync
 from app.modules.lead_magnets.application.insights_report.unlock import ReportUnlock
@@ -22,6 +23,7 @@ from app.modules.lead_magnets.application.shared.service import LeadMagnetServic
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
+from app.modules.lead_magnets.domain.benchmark.peer_dataset import PeerDataset, peer_dataset_from
 from app.modules.lead_magnets.domain.shared.attio_values import DealType, lead_source_detail_label
 from app.modules.lead_magnets.domain.shared.dedup import (
     domain_matches,
@@ -88,6 +90,13 @@ def build_lead_magnet_mailer() -> EmailSenderPort:
     settings = get_settings()
     client = get_ses_client(region_name=settings.aws_region)
     return SesMailer(client)
+
+
+class _BenchmarkDataPeers:
+    """Adapts the `benchmark_data` module to `PeerDatasetPort`."""
+
+    async def load(self) -> PeerDataset:
+        return peer_dataset_from(await load_dataset())
 
 
 class _RoleAttioWriter:
@@ -359,6 +368,7 @@ def build_submission_service(session: AsyncSession) -> LeadMagnetService:
             build_deal_writer(),
         ),
         llm=build_llm(),
+        peer_datasets=_BenchmarkDataPeers(),
         mailer=build_lead_magnet_mailer(),
         email_from=settings.lead_magnet_email_from,
         email_to=settings.lead_magnet_email_to.split(),

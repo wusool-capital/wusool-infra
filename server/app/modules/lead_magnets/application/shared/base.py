@@ -18,6 +18,7 @@ from app.modules.lead_magnets.application.shared.pipelines import Pipelines
 from app.modules.lead_magnets.application.shared.ports import (
     AttioWriterPort,
     LeadLLMPort,
+    PeerDatasetPort,
     ToolRunsPort,
 )
 from app.modules.lead_magnets.application.shared.submit import SubmissionService
@@ -31,12 +32,13 @@ class ServiceBase:
         tool_runs: ToolRunsPort,
         attio: AttioWriterPort,
         llm: LeadLLMPort,
+        peer_datasets: PeerDatasetPort,
         mailer: EmailSenderPort,
         email_from: str,
         email_to: list[str],
         public_base_url: str = "",
     ) -> None:
-        self._pipelines = Pipelines(llm)
+        self._pipelines = Pipelines(llm, peer_datasets)
         self._submissions = SubmissionService(
             tool_runs=tool_runs,
             attio=attio,

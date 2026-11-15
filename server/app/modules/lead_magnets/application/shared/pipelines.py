@@ -14,7 +14,7 @@ not need one.
 import logging
 from dataclasses import asdict
 
-from app.modules.lead_magnets.application.shared.ports import LeadLLMPort
+from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, PeerDatasetPort
 from app.modules.lead_magnets.domain.benchmark.benchmark_submission import BenchmarkInputs, evaluate
 from app.modules.lead_magnets.domain.readiness.readiness import (
     ReadinessAnswers,
@@ -60,12 +60,13 @@ def readiness_answers(payload: JsonObject) -> ReadinessAnswers:
 
 
 class Pipelines:
-    def __init__(self, llm: LeadLLMPort) -> None:
+    def __init__(self, llm: LeadLLMPort, peer_datasets: PeerDatasetPort) -> None:
         self._llm = llm
+        self._peer_datasets = peer_datasets
 
     async def run(self, tool: str, payload: JsonObject) -> JsonObject:
         if tool == "benchmark":
-            return self._benchmark(payload)
+            return await self._benchmark(payload)
         if tool == "valuation":
             return self._valuation(payload)
         if tool == "readiness":
@@ -82,15 +83,13 @@ class Pipelines:
         """`None` means this tool has no fallback and the run is finished for
         good.
 
-        Readiness is the only one: its score, band and recommendations come
-        only from the model, so there is nothing to fall back to. Valuation
-        and benchmark both compute their own figures — the model only picks
-        the comparables that set valuation's trading multiples, so with it
+        Readiness and benchmark have none: readiness comes only from the
+        model, and benchmark uses no model, so a second attempt would only
+        repeat the failure. Valuation computes its own figures — the model
+        only picks the comparables that set its trading multiples, so with it
         gone the DCF, transaction comps and industry research still produce a
         blended range from static sector data.
         """
-        if tool == "benchmark":
-            return self._benchmark(payload)
         if tool == "valuation":
             return self._valuation(payload)
         return None
@@ -109,14 +108,14 @@ class Pipelines:
         """
         return {"entry_values": get_started_values(GetStartedPayload.model_validate(payload))}
 
-    def _benchmark(self, payload: JsonObject) -> JsonObject:
+    async def _benchmark(self, payload: JsonObject) -> JsonObject:
         parsed = BenchmarkPayload.model_validate(payload)
         # `consent` lives on the stored payload for the write contract's own
         # sake (Attio) but has no place on `BenchmarkInputs` — it isn't a
         # scoring input, same reason `valuation_values()` takes `consent` as
         # a separate keyword rather than off `ValuationInputs`.
         inputs = BenchmarkInputs(**parsed.model_dump(exclude={"consent"}))
-        result = evaluate(inputs)
+        result = evaluate(inputs, await self._peer_datasets.load())
         return {
             "entry_values": benchmark_values(result, inputs, consent=parsed.consent),
             "score": result.score,
