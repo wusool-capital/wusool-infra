@@ -74,6 +74,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's buyer and seller drawers now show the extra Slack fields, such as investment
+  strategy and EV ceiling. They also show each contact's email. These were only visible in
+  the Edit form. A field with no value is left out.
 - The Engine's Check size, Min. EBITDA, Revenue and EBITDA filters use a two-handle slider
   with named steps ($200K, $5M, $1B+) instead of Min and Max boxes in $M. This stops 200K
   and 200M being mixed up. Rows with no value stay hidden while a range is set.
