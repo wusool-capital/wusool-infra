@@ -50,6 +50,31 @@ class TeamMember:
     name: str
 
 
+FieldKind = Literal[
+    "text", "multiline", "select", "multi_select", "currency", "percent", "number", "date", "bool"
+]
+FieldGroup = Literal["role", "company"]
+# A text, an option, an amount, a YYYY-MM-DD date, yes or no, or a checklist.
+DetailValue = str | float | bool | tuple[str, ...] | None
+
+
+@dataclass(frozen=True)
+class FieldDef:
+    """One field Attio takes from the Slack and MCP forms, which the Engine form draws by `kind`."""
+
+    key: str
+    label: str
+    kind: FieldKind
+    options: tuple[str, ...]
+    group: FieldGroup
+
+
+@dataclass(frozen=True)
+class Detail:
+    key: str
+    value: DetailValue
+
+
 @dataclass(frozen=True)
 class BuyerRole:
     id: str
@@ -68,6 +93,7 @@ class BuyerRole:
     etag: str
     # No source column yet.
     type: None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -85,6 +111,7 @@ class SellerRole:
     owner_id: str | None
     contact_ids: tuple[str, ...]
     etag: str
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -137,6 +164,7 @@ class BuyerFilterOptions:
     regions: tuple[str, ...] = ()
     countries: tuple[str, ...] = ()
     hq_countries: tuple[str, ...] = ()
+    fields: tuple[FieldDef, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -146,6 +174,7 @@ class SellerFilterOptions:
     # Everything Attio allows, for the add form; the service adds these.
     sector_choices: tuple[str, ...] = ()
     hq_countries: tuple[str, ...] = ()
+    fields: tuple[FieldDef, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -182,6 +211,7 @@ class NewBuyer:
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
     geographies: tuple[str, ...] = ()
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -194,6 +224,7 @@ class NewSeller:
     est_revenue_usd: float | None = None
     est_ebitda_usd: float | None = None
     re_engage_date: date | None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -207,6 +238,7 @@ class BuyerChanges:
     check_size_min_usd: float | None = None
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -216,6 +248,7 @@ class SellerChanges:
     est_ebitda_usd: float | None = None
     open_to_selling: OpenToSelling | None = None
     re_engage_date: date | None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)

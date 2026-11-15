@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { OPEN_TO_SELLING, type NewSellerInput, type SellerPatch, type SellerRole, type SellersUniverseData } from "../../demo/types";
+import { getSellerDetails } from "../../api";
 import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
 import { isLive } from "../../lib/data-mode";
+import { useDetails } from "../../lib/use-details";
 import { formatDate, formatMoney, formatWhen } from "../../lib/format";
 import { ownerApproachBody, summaryOf } from "../../lib/outreach";
 import { StatusPill } from "../mandates/status-pill";
 import { LeadDrawer } from "../pipeline/lead-drawer";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { AmountInput } from "../ui/amount-input";
+import { DetailFields } from "../ui/detail-fields";
 import { Drawer } from "../ui/drawer";
 import { useRouteAction, useSaveAction } from "../ui/toast";
 import { OpenToSellingPill } from "./open-to-selling-pill";
@@ -295,18 +298,22 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
     reEngageDate: seller.reEngageDate ?? "",
     ownerId: seller.ownerId,
     notes: seller.notes,
+    details: [],
   };
   const [draft, setDraft] = useState(initial);
   // A new seller is the same form with its name, HQ and website first (id "new" until saved).
   const isNew = seller.id === NEW_SELLER.id;
   const [identity, setIdentity] = useState({ name: "", hq: "", website: "" });
   const set = <K extends keyof typeof initial>(key: K, value: (typeof initial)[K]) => setDraft({ ...draft, [key]: value });
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  // The sector select already sets a new seller's sector focus, so that field is not offered twice.
+  const detailFields = isNew ? data.options.fields.filter((field) => field.key !== "sector_focus") : data.options.fields;
+  const details = useDetails(detailFields, isNew ? null : () => getSellerDetails(seller.id));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || details.dirty;
   // Live cannot save these yet. A row's own value is always listed so the select can show it.
   const sectors = [...new Set([...(isNew ? data.options.sectorChoices : data.options.sectors), draft.sector])].filter(Boolean).sort();
   const geographies = [...new Set([...data.options.geographies, draft.geography])].sort();
   const ebitdaTooHigh = draft.estEbitdaUsd !== undefined && draft.estRevenueUsd !== null && draft.estEbitdaUsd > draft.estRevenueUsd;
-  const blocker = isNew && (!identity.name.trim() || !identity.website.trim()) ? "Add the seller's name and website." : isNew && !draft.sector ? "Pick a sector." : ebitdaTooHigh ? "EBITDA cannot be above revenue." : "";
+  const blocker = isNew && (!identity.name.trim() || !identity.website.trim()) ? "Add the seller's name and website." : isNew && !draft.sector ? "Pick a sector." : ebitdaTooHigh ? "EBITDA cannot be above revenue." : details.cleared.length ? `Attio cannot empty ${details.cleared.join(", ")}. Put the value back, or clear it in Attio.` : "";
 
   const save = () => {
     if (isNew) {
@@ -319,6 +326,7 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
         estEbitdaUsd: draft.estEbitdaUsd,
         openToSelling: draft.openToSelling,
         reEngageDate: draft.reEngageDate || undefined,
+        details: details.changes,
       };
       send({ intent: "seller-add", seller: JSON.stringify(added) }, `${added.name} added to Attio as a seller role.`, onClose);
       return;
@@ -329,6 +337,7 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
       ...changed,
       ...("estEbitdaUsd" in changed ? { estEbitdaUsd: changed.estEbitdaUsd ?? null } : {}),
       ...("reEngageDate" in changed ? { reEngageDate: changed.reEngageDate || null } : {}),
+      ...(details.changes.length ? { details: details.changes } : {}),
     };
     send({ intent: "seller-update", id: seller.id, patch: JSON.stringify(patch) }, `${seller.name} saved to Attio.`, onBack);
   };
@@ -426,6 +435,7 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
           </div>
         )}
       </section>
+      <DetailFields fields={detailFields} values={details.values} onChange={details.set} roleName="Seller" status={details.status} />
     </Drawer>
   );
 }

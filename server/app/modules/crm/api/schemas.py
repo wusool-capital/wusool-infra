@@ -11,6 +11,9 @@ from pydantic.alias_generators import to_camel
 from app.modules.crm.domain.roles import (
     BuyerChanges,
     BuyerFilters,
+    Detail,
+    FieldGroup,
+    FieldKind,
     NewBuyer,
     NewSeller,
     OpenToSelling,
@@ -34,9 +37,43 @@ def _in_order(low: float | None, high: float | None, message: str) -> None:
         raise ValueError(message)
 
 
+# A field's value on the wire: text, an option, an amount, a date, yes or no, or a checklist.
+DetailScalar = str | float | bool | list[str] | None
+
+
 class ApiModel(BaseModel):
     model_config = ConfigDict(
         alias_generator=to_camel, populate_by_name=True, from_attributes=True, frozen=True
+    )
+
+
+class DetailView(ApiModel):
+    key: str
+    value: DetailScalar
+
+
+class DetailInput(ApiModel):
+    model_config = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, frozen=True, extra="forbid"
+    )
+
+    key: str = Field(min_length=1)
+    value: DetailScalar = None
+
+
+class FieldDefView(ApiModel):
+    """A field the form draws by `kind`: a select or checklist from `options`, an amount, a date."""
+
+    key: str
+    label: str
+    kind: FieldKind
+    options: list[str]
+    group: FieldGroup
+
+
+def _details(inputs: list[DetailInput]) -> tuple[Detail, ...]:
+    return tuple(
+        Detail(d.key, tuple(d.value) if isinstance(d.value, list) else d.value) for d in inputs
     )
 
 
@@ -76,6 +113,8 @@ class BuyerRoleView(ApiModel):
     contact_ids: list[str]
     notes: str | None
     etag: str
+    # Filled by the single-role read only; lists leave it empty.
+    details: list[DetailView] = Field(default_factory=list)
 
 
 class SellerRoleView(ApiModel):
@@ -94,6 +133,7 @@ class SellerRoleView(ApiModel):
     etag: str
     # Sellers have no notes column yet.
     notes: str | None = None
+    details: list[DetailView] = Field(default_factory=list)
 
 
 class BuyerFilterOptionsView(ApiModel):
@@ -105,6 +145,7 @@ class BuyerFilterOptionsView(ApiModel):
     regions: list[str]
     countries: list[str]
     hq_countries: list[str]
+    fields: list[FieldDefView]
 
 
 class SellerFilterOptionsView(ApiModel):
@@ -114,6 +155,7 @@ class SellerFilterOptionsView(ApiModel):
     geographies: list[str]
     sector_choices: list[str]
     hq_countries: list[str]
+    fields: list[FieldDefView]
 
 
 class BuyerRolePage(ApiModel):
@@ -155,6 +197,7 @@ class BuyerCreate(ApiModel):
     ebitda_floor_usd: Usd = None
     # Regions and countries together; the Toolkit sorts them into Attio's two fields.
     geographies: list[str] | None = None
+    details: list[DetailInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_size_in_order(self) -> "BuyerCreate":
@@ -177,6 +220,7 @@ class BuyerCreate(ApiModel):
             check_size_max_usd=self.check_size_max_usd,
             ebitda_floor_usd=self.ebitda_floor_usd,
             geographies=tuple(self.geographies or ()),
+            details=_details(self.details),
         )
 
 
@@ -193,7 +237,7 @@ class _Update(ApiModel):
 
 
 class BuyerUpdate(_Update):
-    """Only the fields sent change; a field sent as null is cleared."""
+    """Only the fields sent change. A value can be changed but not emptied; a null is refused."""
 
     status: str | None = None
     notes: str | None = None
@@ -201,6 +245,7 @@ class BuyerUpdate(_Update):
     check_size_max_usd: Usd = None
     ebitda_floor_usd: Usd = None
     geographies: list[str] | None = None
+    details: list[DetailInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_size_in_order(self) -> "BuyerUpdate":
@@ -220,6 +265,7 @@ class BuyerUpdate(_Update):
             check_size_max_usd=self.check_size_max_usd,
             ebitda_floor_usd=self.ebitda_floor_usd,
             geographies=tuple(self.geographies or ()),
+            details=_details(self.details),
         )
 
 
@@ -236,6 +282,7 @@ class SellerCreate(ApiModel):
     est_revenue_usd: Usd = None
     est_ebitda_usd: Usd = None
     re_engage_date: date | None = None
+    details: list[DetailInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _ebitda_not_above_revenue(self) -> "SellerCreate":
@@ -252,6 +299,7 @@ class SellerCreate(ApiModel):
             est_revenue_usd=self.est_revenue_usd,
             est_ebitda_usd=self.est_ebitda_usd,
             re_engage_date=self.re_engage_date,
+            details=_details(self.details),
         )
 
 
@@ -260,6 +308,7 @@ class SellerUpdate(_Update):
     est_ebitda_usd: Usd = None
     open_to_selling: OpenToSelling | None = None
     re_engage_date: date | None = None
+    details: list[DetailInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> "SellerUpdate":
@@ -275,6 +324,7 @@ class SellerUpdate(_Update):
             est_ebitda_usd=self.est_ebitda_usd,
             open_to_selling=self.open_to_selling,
             re_engage_date=self.re_engage_date,
+            details=_details(self.details),
         )
 
 

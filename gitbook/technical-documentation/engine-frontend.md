@@ -84,6 +84,12 @@ applications and policies, before the first deploy. See
   owner, and a seller's owner and notes. Their edit fields are locked. A buyer's
   sectors, and a seller's sector and geography, are read only. A new buyer takes
   its sector from the form.
+* The edit and add forms also offer every other field the Slack commands take.
+  Examples are a buyer's model, deal structure and EV ceiling, a seller's sell
+  timeline and margins, and a company's description and funding. The Toolkit lists
+  them, and the form draws each by its kind: a select, a checklist, an amount, a
+  date, yes or no, or text. Attio sets values but cannot empty one, so a field
+  cannot be cleared from the Engine. Nothing is saved until you press Save to Attio.
 * A buyer's geography can be edited. The Toolkit sorts the picks into Attio's
   target region and target country fields. As in Slack, a group that has values
   must keep at least one.

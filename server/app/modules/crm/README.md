@@ -27,8 +27,9 @@ It reads the existing tables (`buyer_roles`, `seller_roles`, `organizations`, `p
   filters and search, `total` counts every live row. These, the filter options and the team list come with the
   first page only; later pages hold rows and their contacts.
 - **Edits.** `PATCH` needs `If-Match` with the row's `etag` (428 without, 412 when stale).
-  The `etag` is the role's `updated_at`. Only the fields sent change; a field sent as null
-  is cleared. The check and the write are not atomic, so two saves at the same
+  The `etag` is the role's `updated_at`. Only the fields sent change. A value
+  can be changed but not emptied: a null or empty value is refused with 422, because Attio's
+  edit path sets values and skips empty ones (Slack has the same limit). The check and the write are not atomic, so two saves at the same
   moment can both pass. An Attio webhook that echoes a save back also moves
   `updated_at`, so a later edit can get a 412 until the row is reloaded.
 - **Add.** `POST /buyer-roles` and `POST /seller-roles` are 201 with `Location` and `ETag`. They use
@@ -40,6 +41,17 @@ It reads the existing tables (`buyer_roles`, `seller_roles`, `organizations`, `p
   the same edit finishes it.
 - **Attribution.** Writes run as `invoked_via = "engine"`, attributed to the signed-in
   person's Attio user.
+
+## More fields
+
+Besides the fixed controls, every field the Slack add and edit forms take is available as a
+generic `details` list (`key` and `value`): a select's option, a checklist, an amount, a date,
+yes or no, a number, a percent, or text. The first page of each list carries the catalog
+(`options.fields`: key, label, kind, options and whether the field is on the role or the
+company), built from `ddl_commands.columns_for`. The Engine draws each field by its kind. A single
+`GET /buyer-roles/{id}` or `/seller-roles/{id}` returns the current values (`details`), read with
+`ddl_commands.get_record`; lists do not. The write goes through `edit_one` / `add_one`, which
+checks each value against the field's options and type. Keys outside the catalog are refused.
 
 ## Fields with no source yet
 

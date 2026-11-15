@@ -7,6 +7,10 @@ from typing import Literal
 
 from app.modules.crm.domain.roles import (
     BuyerChanges,
+    Detail,
+    FieldDef,
+    FieldGroup,
+    FieldKind,
     InvalidRoleFieldsError,
     NewBuyer,
     NewSeller,
@@ -27,6 +31,8 @@ from app.modules.ddl_commands import (
     add_one,
     columns_for,
     edit_one,
+    get_record,
+    routes_for,
 )
 from app.modules.utilities.domain.safe_errors import describe_error
 
@@ -70,6 +76,7 @@ def buyer_add_row(
     }
     row.update({key: value for key, value in optional.items() if value is not None})
     row.update(_geography_keys(buyer.geographies, regions, countries))
+    row.update(detail_row(buyer.details))
     return row
 
 
@@ -90,6 +97,7 @@ def seller_add_row(seller: NewSeller) -> UploadRow:
         "re_engage_date": seller.re_engage_date.isoformat() if seller.re_engage_date else None,
     }
     row.update({key: value for key, value in optional.items() if value is not None})
+    row.update(detail_row(seller.details))
     return row
 
 
@@ -103,6 +111,7 @@ def buyer_edit_row(
     }
     if "geographies" in changes.sent:
         row.update(_geography_keys(changes.geographies, regions, countries))
+    row.update(detail_row(changes.details))
     return row
 
 
@@ -133,6 +142,72 @@ def _translated(exc: Exception) -> Exception:
     return exc
 
 
+# Fields the Engine draws with its own controls, or that name the company; the rest are generic.
+_OWN_BUYER_KEYS = frozenset(
+    {
+        "org_name",
+        "domain",
+        "target_vertical",
+        "mandate_status",
+        "notes",
+        "ebitda_floor",
+        "check_size_min",
+        "check_size_max",
+        "target_region",
+        "target_country",
+        "hq_country",
+    }
+)
+_OWN_SELLER_KEYS = frozenset(
+    {
+        "org_name",
+        "domain",
+        "appetite_signal",
+        "est_revenue",
+        "est_ebitda",
+        "re_engage_date",
+        "hq_country",
+    }
+)
+_KIND_BY_SPEC: dict[str, FieldKind] = {
+    "text": "text",
+    "multiline": "multiline",
+    "select": "select",
+    "multi_select_text": "multi_select",
+    "multi_select_as_text": "multi_select",
+    "currency": "currency",
+    "percent": "percent",
+    "number": "number",
+    "date": "date",
+    "bool": "bool",
+}
+
+
+def field_catalog(kind: Literal["buyer", "seller"]) -> tuple[FieldDef, ...]:
+    skipped = _OWN_BUYER_KEYS if kind == "buyer" else _OWN_SELLER_KEYS
+    routes = routes_for(kind)
+    fields = []
+    for column in columns_for(kind):
+        # A kind with no entry here (a list of domains) has no generic control.
+        if column.spec is None or column.field in skipped or column.spec.kind not in _KIND_BY_SPEC:
+            continue
+        group: FieldGroup = "role" if routes[column.field].target == "role" else "company"
+        fields.append(
+            FieldDef(
+                key=column.field,
+                label=column.label,
+                kind=_KIND_BY_SPEC[column.spec.kind],
+                options=tuple(column.spec.options or ()),
+                group=group,
+            )
+        )
+    return tuple(fields)
+
+
+def detail_row(details: Sequence[Detail]) -> UploadRow:
+    return {d.key: list(d.value) if isinstance(d.value, tuple) else d.value for d in details}
+
+
 def _field_options(kind: Literal["buyer", "seller"], field: str) -> tuple[str, ...]:
     for column in columns_for(kind):
         if column.field == field and column.spec is not None:
@@ -156,6 +231,26 @@ class DdlCommandsRoleWriter:
 
     def hq_countries(self) -> tuple[str, ...]:
         return _buyer_options("hq_country")
+
+    def buyer_fields(self) -> tuple[FieldDef, ...]:
+        return field_catalog("buyer")
+
+    def seller_fields(self) -> tuple[FieldDef, ...]:
+        return field_catalog("seller")
+
+    async def record_details(
+        self, kind: Literal["buyer", "seller"], role_id: str
+    ) -> tuple[Detail, ...]:
+        try:
+            record = await get_record(kind, uuid.UUID(role_id))
+        except (BuyerNotFoundError, SellerNotFoundError) as exc:
+            raise _translated(exc) from exc
+        wanted = {field.key for field in field_catalog(kind)}
+        return tuple(
+            Detail(key, tuple(value) if isinstance(value, list) else value)
+            for key, value in record.fields.items()
+            if key in wanted
+        )
 
     def seller_sectors(self) -> tuple[str, ...]:
         return _field_options("seller", "sector_focus")

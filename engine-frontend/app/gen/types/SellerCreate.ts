@@ -1,5 +1,7 @@
 // @ts-nocheck
 
+import type { DetailInput } from './DetailInput'
+
 export const sellerCreateOpenToSelling = {
   Unknown: 'Unknown',
   Interested: 'Interested',
@@ -9,6 +11,7 @@ export const sellerCreateOpenToSelling = {
 export type SellerCreateOpenToSellingKey = (typeof sellerCreateOpenToSelling)[keyof typeof sellerCreateOpenToSelling];
 
 export type SellerCreate = {
+  details?: DetailInput[];
   estEbitdaUsd?: number | (null | null);
   estRevenueUsd?: number | (null | null);
   hq?: string | (null | null);

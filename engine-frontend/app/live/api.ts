@@ -2,7 +2,9 @@
 
 // A refusal from the Toolkit throws the Kubb client's `ResponseError`.
 import { addBuyer as postBuyer } from "../gen/clients/addBuyer";
+import { getBuyerRole as fetchBuyer } from "../gen/clients/getBuyerRole";
 import { getBuyersUniverse as fetchBuyers } from "../gen/clients/getBuyersUniverse";
+import { getSellerRole as fetchSeller } from "../gen/clients/getSellerRole";
 import { getCurrentUser as fetchMe } from "../gen/clients/getCurrentUser";
 import { getSellersUniverse as fetchSellers } from "../gen/clients/getSellersUniverse";
 import { updateBuyer as patchBuyer } from "../gen/clients/updateBuyer";
@@ -14,7 +16,7 @@ import type { PersonView } from "../gen/types/PersonView";
 import type { SellerRoleView } from "../gen/types/SellerRoleView";
 import type { SellersUniverseView } from "../gen/types/SellersUniverseView";
 import type { TeamMemberView } from "../gen/types/TeamMemberView";
-import type { BuyerPatch, BuyerRole, BuyersUniverseData, NewSellerInput, Person, SellerPatch, SellerRole, SellersUniverseData, User, UserId } from "../demo/types";
+import type { BuyerPatch, BuyerRole, BuyersUniverseData, Detail, NewSellerInput, Person, SellerPatch, SellerRole, SellersUniverseData, User, UserId } from "../demo/types";
 
 // The version each row had when it was shown, so a save is refused if someone else changed it since.
 const etags = new Map<string, string>();
@@ -54,8 +56,8 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
 
 // The edit form offers every region and country Attio allows, not only those in use.
 function buyerOptions({ options }: BuyersUniverseView): BuyersUniverseData["options"] {
-  const { sectors, geographies, statuses, regions, countries, hqCountries } = options;
-  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort(), hqCountries };
+  const { sectors, geographies, statuses, regions, countries, hqCountries, fields } = options;
+  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort(), hqCountries, fields };
 }
 
 export async function getSellersUniverse(params: URLSearchParams, cursor?: string): Promise<SellersUniverseData> {
@@ -78,9 +80,19 @@ export async function addBuyer(_userId: UserId, fields: Required<BuyerPatch> & P
       checkSizeMaxUsd: fields.checkSizeMaxUsd,
       ebitdaFloorUsd: fields.ebitdaFloorUsd,
       geographies: fields.geographies,
+      details: fields.details,
     },
   }).unwrap();
   etags.set(created.id, created.etag);
+}
+
+// The values of the extra Slack fields come with the single-role read, not with the lists.
+export async function getBuyerDetails(id: string): Promise<Detail[]> {
+  return (await fetchBuyer({ path: { role_id: id } }).unwrap()).details ?? [];
+}
+
+export async function getSellerDetails(id: string): Promise<Detail[]> {
+  return (await fetchSeller({ path: { role_id: id } }).unwrap()).details ?? [];
 }
 
 export async function addSeller(_userId: UserId, fields: NewSellerInput) {
@@ -94,6 +106,7 @@ export async function addSeller(_userId: UserId, fields: NewSellerInput) {
       estRevenueUsd: fields.estRevenueUsd,
       estEbitdaUsd: fields.estEbitdaUsd ?? null,
       reEngageDate: fields.reEngageDate || null,
+      details: fields.details,
     },
   }).unwrap();
   etags.set(created.id, created.etag);
@@ -111,6 +124,7 @@ export async function updateBuyer(_userId: UserId, id: string, patch: BuyerPatch
       ...("checkSizeMaxUsd" in patch && { checkSizeMaxUsd: patch.checkSizeMaxUsd }),
       ...("ebitdaFloorUsd" in patch && { ebitdaFloorUsd: patch.ebitdaFloorUsd }),
       ...("geographies" in patch && { geographies: patch.geographies }),
+      ...(patch.details?.length && { details: patch.details }),
     },
   }).unwrap();
   etags.set(updated.id, updated.etag);
@@ -125,6 +139,7 @@ export async function updateSeller(_userId: UserId, id: string, patch: SellerPat
       ...("estEbitdaUsd" in patch && { estEbitdaUsd: patch.estEbitdaUsd }),
       ...("openToSelling" in patch && { openToSelling: patch.openToSelling }),
       ...("reEngageDate" in patch && { reEngageDate: patch.reEngageDate ?? null }),
+      ...(patch.details?.length && { details: patch.details }),
     },
   }).unwrap();
   etags.set(updated.id, updated.etag);

@@ -28,6 +28,13 @@
             ],
             "title": "Checksizeminusd"
           },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "ebitdaFloorUsd": {
             "anyOf": [
               {
@@ -121,6 +128,13 @@
             "title": "Countries",
             "type": "array"
           },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefView"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
           "geographies": {
             "items": {
               "type": "string"
@@ -163,7 +177,8 @@
           "statuses",
           "regions",
           "countries",
-          "hqCountries"
+          "hqCountries",
+          "fields"
         ],
         "title": "BuyerFilterOptionsView",
         "type": "object"
@@ -240,6 +255,13 @@
               "type": "string"
             },
             "title": "Contactids",
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailView"
+            },
+            "title": "Details",
             "type": "array"
           },
           "ebitdaFloorUsd": {
@@ -394,6 +416,13 @@
             ],
             "title": "Checksizeminusd"
           },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "ebitdaFloorUsd": {
             "anyOf": [
               {
@@ -546,6 +575,133 @@
         "title": "BuyersUniverseView",
         "type": "object"
       },
+      "DetailInput": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "DetailInput",
+        "type": "object"
+      },
+      "DetailView": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "DetailView",
+        "type": "object"
+      },
+      "FieldDefView": {
+        "description": "A field the form draws by `kind`: a select or checklist from `options`, an amount, a date.",
+        "properties": {
+          "group": {
+            "enum": [
+              "role",
+              "company"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "multiline",
+              "select",
+              "multi_select",
+              "currency",
+              "percent",
+              "number",
+              "date",
+              "bool"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "kind",
+          "options",
+          "group"
+        ],
+        "title": "FieldDefView",
+        "type": "object"
+      },
       "MeView": {
         "properties": {
           "email": {
@@ -688,6 +844,13 @@
       "SellerCreate": {
         "additionalProperties": false,
         "properties": {
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "estEbitdaUsd": {
             "anyOf": [
               {
@@ -778,6 +941,13 @@
       "SellerFilterOptionsView": {
         "description": "`sector_choices` and `hq_countries` list everything Attio allows, for the add form.",
         "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefView"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
           "geographies": {
             "items": {
               "type": "string"
@@ -811,7 +981,8 @@
           "sectors",
           "geographies",
           "sectorChoices",
-          "hqCountries"
+          "hqCountries",
+          "fields"
         ],
         "title": "SellerFilterOptionsView",
         "type": "object"
@@ -866,6 +1037,13 @@
               "type": "string"
             },
             "title": "Contactids",
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailView"
+            },
+            "title": "Details",
             "type": "array"
           },
           "estEbitdaUsd": {
@@ -1011,6 +1189,13 @@
       "SellerUpdate": {
         "additionalProperties": false,
         "properties": {
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "estEbitdaUsd": {
             "anyOf": [
               {

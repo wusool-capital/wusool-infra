@@ -7,6 +7,8 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     BuyerRole,
     BuyersPage,
+    Detail,
+    FieldDef,
     NewBuyer,
     NewSeller,
     SellerChanges,
@@ -121,6 +123,25 @@ class FakeWriter:
 
     def hq_countries(self) -> tuple[str, ...]:
         return ("Qatar", "Oman", "Japan")
+
+    def buyer_fields(self) -> tuple[FieldDef, ...]:
+        return (
+            FieldDef("model", "Model", "select", ("Model 1", "Model 2"), "role"),
+            FieldDef("investment_strategy", "Investment strategy", "multiline", (), "role"),
+            FieldDef("client_type", "Client type", "multi_select", ("M&A", "Project"), "company"),
+        )
+
+    def seller_fields(self) -> tuple[FieldDef, ...]:
+        return (
+            FieldDef(
+                "sell_timeline", "Sell timeline", "select", ("Immediate", "Not Selling"), "role"
+            ),
+        )
+
+    async def record_details(
+        self, kind: Literal["buyer", "seller"], role_id: str
+    ) -> tuple[Detail, ...]:
+        return (Detail("model", "Model 1"), Detail("client_type", ("M&A",)))
 
     def seller_sectors(self) -> tuple[str, ...]:
         return ("Clinic", "Garage")

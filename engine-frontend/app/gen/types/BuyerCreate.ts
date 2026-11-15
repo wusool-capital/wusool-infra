@@ -1,8 +1,11 @@
 // @ts-nocheck
 
+import type { DetailInput } from './DetailInput'
+
 export type BuyerCreate = {
   checkSizeMaxUsd?: number | (null | null);
   checkSizeMinUsd?: number | (null | null);
+  details?: DetailInput[];
   ebitdaFloorUsd?: number | (null | null);
   geographies?: string[] | (null | null);
   hq?: string | (null | null);

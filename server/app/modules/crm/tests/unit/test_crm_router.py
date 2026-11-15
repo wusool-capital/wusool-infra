@@ -254,3 +254,32 @@ def test_a_duplicate_seller_is_409_seller_exists(parts) -> None:
     )
 
     assert (response.status_code, response.json()["code"]) == (409, "seller_exists")
+
+
+def test_the_single_role_read_returns_its_details(parts) -> None:
+    client, _, _ = parts
+
+    body = client.get("/api/v1/buyer-roles/b1", headers=_TOKEN).json()
+
+    assert body["details"] == [
+        {"key": "model", "value": "Model 1"},
+        {"key": "client_type", "value": ["M&A"]},
+    ]
+
+
+def test_a_patch_with_details_and_a_bad_clear_comes_back_as_422(parts) -> None:
+    client, _, writer = parts
+
+    ok = client.patch(
+        "/api/v1/buyer-roles/b1",
+        json={"details": [{"key": "model", "value": "Model 2"}]},
+        headers={**_TOKEN, "If-Match": '"v1"'},
+    )
+    cleared = client.patch(
+        "/api/v1/buyer-roles/b1", json={"notes": None}, headers={**_TOKEN, "If-Match": '"v2"'}
+    )
+
+    assert ok.status_code == 200
+    assert (cleared.status_code, cleared.json()["code"]) == (422, "invalid_fields")
+    assert "Notes cannot be cleared" in cleared.json()["errors"][0]
+    assert len(writer.changes) == 1

@@ -7,6 +7,8 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     BuyerRole,
     BuyersPage,
+    Detail,
+    FieldDef,
     NewBuyer,
     NewSeller,
     SellerChanges,
@@ -60,6 +62,20 @@ class RoleWriterPort(Protocol):
 
     def seller_sectors(self) -> tuple[str, ...]:
         """The sectors Attio allows a company to focus on."""
+        ...
+
+    def buyer_fields(self) -> tuple[FieldDef, ...]:
+        """The buyer and company fields Slack takes that the Engine has no fixed control for."""
+        ...
+
+    def seller_fields(self) -> tuple[FieldDef, ...]:
+        """The same for sellers."""
+        ...
+
+    async def record_details(
+        self, kind: Literal["buyer", "seller"], role_id: str
+    ) -> tuple[Detail, ...]:
+        """Current values of those fields for one role."""
         ...
 
     async def add_seller(
