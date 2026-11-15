@@ -432,7 +432,12 @@
     var site = null; // null = off, "loading", "ready"
     function trackPages(granted) {
       if (site === "ready") {
-        window.posthog[granted ? "opt_in_capturing" : "opt_out_capturing"]();
+        if (!granted) return window.posthog.opt_out_capturing();
+        // Re-accepting on an open page: the opt-in captures no page view of its own.
+        if (window.posthog.has_opted_out_capturing()) {
+          window.posthog.opt_in_capturing({ captureEventName: false });
+          window.posthog.capture("$pageview");
+        }
         return;
       }
       if (!granted || site) return;
@@ -462,8 +467,12 @@
               persistence: "localStorage+cookie",
               cross_subdomain_cookie: true,
               person_profiles: "identified_only",
+              // Runs before the first page view, so it carries is_test; also lifts an opt-out stored by an earlier withdrawal.
+              loaded: function (ph) {
+                ph.register({ is_test: cfg.is_test });
+                if (ph.has_opted_out_capturing()) ph.opt_in_capturing({ captureEventName: false });
+              },
             });
-            window.posthog.register({ is_test: cfg.is_test });
             site = "ready";
           };
           document.head.appendChild(tag);

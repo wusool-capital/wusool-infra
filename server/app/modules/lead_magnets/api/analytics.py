@@ -57,7 +57,7 @@ async def analytics_config(
     settings = get_settings()
     response.headers["Cache-Control"] = "public, max-age=300"
     # The marketing site reads this cross-origin; Vary keeps a cached copy from leaking the header.
-    response.headers["Vary"] = "Origin"
+    response.headers.append("Vary", "Origin")
     if origin in _SITE_ORIGINS:
         response.headers["Access-Control-Allow-Origin"] = origin
     host = settings.lead_magnet_posthog_host

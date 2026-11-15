@@ -35,8 +35,9 @@ for current production evidence and open handover items.
 - `mcp` activities are now attributed to the person's Slack user instead of
   `system/mcp`.
 - Page views and time on page now go to PostHog, only after a visitor chooses
-  Accept all. The tool pages turn on `$pageview` and `$pageleave`, and
-  `embed.js` adds them to the Webflow pages with no replay or autocapture.
+  Accept all. `embed.js` adds `$pageview` and `$pageleave` to the Webflow pages
+  with no replay or autocapture, and tool pages send them only when opened
+  directly, so an embedded tool is not counted twice.
   `GET /analytics/config` sends a CORS header for `wusoolcapital.com` so the
   website can read it. A Website Metrics dashboard in PostHog shows traffic,
   tool funnels, leads, bookings, reports and consent choices.

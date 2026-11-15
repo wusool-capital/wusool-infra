@@ -103,8 +103,8 @@ Bedrock or Firecrawl, then to Attio. Report readers are recorded in
 confirming their code. Test submissions are always flagged.
 
 PostHog (EU Cloud) receives usage events from the tools and reports, and page
-views from the website after Accept all. It never receives a form value. A visitor's name, email and company reach it only if
-they accepted tracking. A visitor who declined is counted anonymously.
+views from the website after Accept all. It never receives a form value. A
+visitor's name, email and company reach it only if they accepted tracking. A visitor who declined is counted anonymously.
 Session replay, when switched on, records only visitors who accepted tracking.
 It shows the page as they saw it, including typed text and results, and records
 no network requests or console output.

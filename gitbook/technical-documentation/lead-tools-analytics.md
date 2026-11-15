@@ -12,8 +12,9 @@ or leave a tool, and how many book a call. Reports use the same project. See
   abandoned, plus Book a Call clicks inside a tool. They are sent only after
   the visitor accepts tracking. They carry the tool, the step, the language and
   a random submission id, and never a form value.
-- **Page views** are counted on the website and inside each tool, with the time
-  spent on each page. They are sent only after the visitor chooses Accept all.
+- **Page views** are counted on the website, with the time spent on each page.
+  A tool inside a website page is counted by that page. A tool opened on its own
+  address counts itself. They are sent only after the visitor chooses Accept all.
   Cookies only and Decline send none. The website sends no session replay.
   PostHog's Web analytics tab and the Website Metrics dashboard read them.
 - **Session replay** records how a visitor moves through a tool, including what

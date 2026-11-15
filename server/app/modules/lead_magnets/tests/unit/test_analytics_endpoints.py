@@ -121,6 +121,14 @@ def test_the_marketing_site_may_read_the_config_cross_origin(client, origin: str
     assert response.headers["vary"] == "Origin"
 
 
+def test_the_cors_allowlist_matches_the_scripts_parent_origins() -> None:
+    """analytics.js trusts the same website origins the server lets read the config."""
+    js = (Path(analytics_api.__file__).parents[1] / "static/shared/analytics.js").read_text()
+    match = re.search(r"var PARENT_ORIGINS = \[(.*?)\];", js, re.S)
+    assert match
+    assert set(re.findall(r'"([^"]+)"', match.group(1))) == analytics_api._SITE_ORIGINS
+
+
 @pytest.mark.parametrize("origin", [None, "https://evil.example"])
 def test_any_other_origin_gets_no_cors_header(client, origin: str | None) -> None:
     headers = {"Origin": origin} if origin else {}

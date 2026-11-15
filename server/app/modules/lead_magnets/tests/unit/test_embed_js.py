@@ -221,11 +221,26 @@ def test_site_page_views_load_only_after_accept_all_and_never_record_sessions() 
 
     assert "if (!granted || site) return;" in block
     assert 'store("get", CONSENT_KEY) !== "granted"' in block, "consent re-checked after load"
+    # is_test is set in `loaded`, which posthog-js runs before the first page view.
+    loaded = block[block.index("loaded: function (ph)") :]
+    assert loaded.index("ph.register({ is_test: cfg.is_test })") < loaded.index("opt_in_capturing")
+    assert "window.posthog.register" not in block
+    # Re-accepting lifts a stored opt-out, and an open page gets its missing page view.
+    assert "opt_in_capturing({ captureEventName: false })" in block
+    assert 'window.posthog.capture("$pageview")' in block
     assert "capture_pageview: true" in block and "capture_pageleave: true" in block
     assert "autocapture: false" in block
     assert "disable_session_recording: true" in block
     assert "trackPages(granted === true);" in js
     assert 'if (store("get", CONSENT_KEY) === "granted") trackPages(true);' in js
+
+
+def test_an_embedded_tool_sends_no_page_view_of_its_own() -> None:
+    """The Webflow page already counts the visit, so the iframe would double it."""
+    js = (static_dir() / "shared" / "analytics.js").read_text()
+
+    assert "capture_pageview: !framed" in js and "capture_pageleave: !framed" in js
+    assert "ph.register({ is_test: cfg.is_test })" in js
 
 
 def test_insight_mode_loads_the_loader_from_the_tools_origin_and_only_cdn_files() -> None:
