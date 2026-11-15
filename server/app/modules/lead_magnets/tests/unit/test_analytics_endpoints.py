@@ -113,6 +113,23 @@ def test_the_config_gives_a_page_what_it_needs_to_load_posthog(client) -> None:
     assert response.headers["cache-control"] == "public, max-age=300"
 
 
+@pytest.mark.parametrize("origin", ["https://www.wusoolcapital.com", "https://wusoolcapital.com"])
+def test_the_marketing_site_may_read_the_config_cross_origin(client, origin: str) -> None:
+    response = client.get("/analytics/config", headers={"Origin": origin})
+
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["vary"] == "Origin"
+
+
+@pytest.mark.parametrize("origin", [None, "https://evil.example"])
+def test_any_other_origin_gets_no_cors_header(client, origin: str | None) -> None:
+    headers = {"Origin": origin} if origin else {}
+    response = client.get("/analytics/config", headers=headers)
+
+    assert "access-control-allow-origin" not in response.headers
+    assert response.headers["vary"] == "Origin"
+
+
 def test_a_blank_key_turns_the_pages_tracking_off(client, world) -> None:
     world.settings.lead_magnet_posthog_api_key = ""
 

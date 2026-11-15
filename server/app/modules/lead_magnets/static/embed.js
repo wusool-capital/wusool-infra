@@ -428,6 +428,51 @@
       for (var i = 0; i < frames.length; i++) post(frames[i]);
     }
 
+    // Page views and time on page for the site itself. No replay: the banner promises that only for the tools.
+    var site = null; // null = off, "loading", "ready"
+    function trackPages(granted) {
+      if (site === "ready") {
+        window.posthog[granted ? "opt_in_capturing" : "opt_out_capturing"]();
+        return;
+      }
+      if (!granted || site) return;
+      site = "loading";
+      fetch(origin + "/analytics/config")
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (cfg) {
+          if (!cfg || !cfg.enabled) return;
+          var tag = document.createElement("script");
+          tag.async = true;
+          tag.src = cfg.assets_host + "/static/array.js";
+          tag.onload = function () {
+            // Consent may have been withdrawn while the library loaded.
+            if (store("get", CONSENT_KEY) !== "granted") {
+              site = null;
+              return;
+            }
+            window.posthog.init(cfg.key, {
+              api_host: cfg.host,
+              autocapture: false,
+              capture_pageview: true,
+              capture_pageleave: true,
+              disable_session_recording: true,
+              // Same settings as the tool pages, so one visitor keeps one id across both.
+              persistence: "localStorage+cookie",
+              cross_subdomain_cookie: true,
+              person_profiles: "identified_only",
+            });
+            window.posthog.register({ is_test: cfg.is_test });
+            site = "ready";
+          };
+          document.head.appendChild(tag);
+        })
+        .catch(function () {
+          site = null;
+        });
+    }
+
     window.addEventListener("message", function (event) {
       if (event.origin !== origin) return;
       if (!event.data || event.data.type !== "wusool-analytics-ready") return;
@@ -449,8 +494,10 @@
         if (granted !== true) store("remove", UTM_KEY);
         countChoice(granted === true);
         broadcast();
+        trackPages(granted === true);
       },
     };
+    if (store("get", CONSENT_KEY) === "granted") trackPages(true);
     return window.WusoolAnalytics;
   }
 })();

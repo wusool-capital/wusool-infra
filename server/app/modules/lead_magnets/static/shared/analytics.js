@@ -163,8 +163,9 @@
           window.posthog.init(cfg.key, {
             api_host: cfg.host,
             autocapture: false,
-            capture_pageview: false,
-            capture_pageleave: false,
+            // Feed PostHog's Web analytics: page views and time on page.
+            capture_pageview: true,
+            capture_pageleave: true,
             // Replay shows the page as the visitor saw it; requests and console output stay unrecorded.
             session_recording: {
               maskAllInputs: false,

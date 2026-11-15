@@ -213,6 +213,21 @@ def test_a_banner_click_is_counted_by_an_anonymous_pixel() -> None:
     assert "countChoice(granted === true);" in js
 
 
+def test_site_page_views_load_only_after_accept_all_and_never_record_sessions() -> None:
+    """The bridge loads PostHog on the Webflow pages for page views and time on
+    page. It waits for the stored choice, and replay stays off outside the tools."""
+    js = (static_dir() / "embed.js").read_text()
+    block = js[js.index("function trackPages") : js.index("window.WusoolAnalytics = {")]
+
+    assert "if (!granted || site) return;" in block
+    assert 'store("get", CONSENT_KEY) !== "granted"' in block, "consent re-checked after load"
+    assert "capture_pageview: true" in block and "capture_pageleave: true" in block
+    assert "autocapture: false" in block
+    assert "disable_session_recording: true" in block
+    assert "trackPages(granted === true);" in js
+    assert 'if (store("get", CONSENT_KEY) === "granted") trackPages(true);' in js
+
+
 def test_insight_mode_loads_the_loader_from_the_tools_origin_and_only_cdn_files() -> None:
     """Webflow serves the article, so a relative path would 404 there; and a page's
     markup must never decide which URL runs inside the frame."""

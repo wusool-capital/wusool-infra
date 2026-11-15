@@ -10,7 +10,7 @@ import logging
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, Query, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["lead-magnets"])
 
+# Kept in step with PARENT_ORIGINS in static/shared/analytics.js.
+_SITE_ORIGINS = frozenset({"https://www.wusoolcapital.com", "https://wusoolcapital.com"})
+
 
 class AnalyticsConfig(BaseModel):
     """Public by design: the project key is meant to sit in page source."""
@@ -47,10 +50,16 @@ class AnalyticsConfig(BaseModel):
     response_model=AnalyticsConfig,
     dependencies=[Depends(rate_limit_reads)],
 )
-async def analytics_config(response: Response) -> AnalyticsConfig:
+async def analytics_config(
+    response: Response, origin: Annotated[str | None, Header()] = None
+) -> AnalyticsConfig:
     """What a page needs to load PostHog, fetched only after the visitor consents."""
     settings = get_settings()
     response.headers["Cache-Control"] = "public, max-age=300"
+    # The marketing site reads this cross-origin; Vary keeps a cached copy from leaking the header.
+    response.headers["Vary"] = "Origin"
+    if origin in _SITE_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
     host = settings.lead_magnet_posthog_host
     return AnalyticsConfig(
         enabled=bool(settings.lead_magnet_posthog_api_key),
