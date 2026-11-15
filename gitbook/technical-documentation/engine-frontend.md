@@ -13,8 +13,9 @@ from Cloudflare Workers at **engine-dev.wusoolcapital.com**.
    `engine-frontend/build/client`, and the Worker `wusool-engine-dev` serves them. Any
    path that is not a file returns `index.html`, so reloads and deep links work.
 2. Cloudflare Access sits in front of the hostname. A visitor enters an
-   `@wusoolcapital.com` address, Access emails a one-time code, and the
-   sign-in lasts 24 hours. Other addresses get no code.
+   `@wusoolcapital.com` or `@dopaminecap.com` address, Access emails a one-time
+   code, and the sign-in lasts 24 hours. Other addresses get no code. The Toolkit
+   then needs the same address on an active Attio member.
 3. A small Worker script serves the app and forwards `/api/v1/*` to the Toolkit
    from the server side. The browser only talks to the Engine hostname, so there
    is no CORS and no cross-site cookie. The Worker's `TOOLKIT_ORIGIN` variable

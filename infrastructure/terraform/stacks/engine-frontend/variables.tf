@@ -10,10 +10,15 @@ variable "hostname" {
   default     = "engine-dev.wusoolcapital.com"
 }
 
-variable "allowed_email_domain" {
-  description = "Only addresses at this domain can sign in."
-  type        = string
-  default     = "wusoolcapital.com"
+variable "allowed_email_domains" {
+  description = "Only addresses at these domains can sign in. The team's mail is on both while it moves."
+  type        = list(string)
+  default     = ["wusoolcapital.com", "dopaminecap.com"]
+
+  validation {
+    condition     = length(var.allowed_email_domains) > 0
+    error_message = "At least one domain must be allowed, or nobody can sign in."
+  }
 }
 
 variable "identity_provider_id" {
