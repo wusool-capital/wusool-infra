@@ -8,7 +8,7 @@ on:
   push:
     branches: [dev]
     paths:
-      - 'engine/**'
+      - 'engine-frontend/**'
       - '.github/workflows/deploy-engine.yml'
   workflow_dispatch:
 
@@ -37,14 +37,14 @@ jobs:
     environment: engine-dev
     defaults:
       run:
-        working-directory: engine
+        working-directory: engine-frontend
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: engine/package-lock.json
+          cache-dependency-path: engine-frontend/package-lock.json
 
       - run: ./checks.sh all
 

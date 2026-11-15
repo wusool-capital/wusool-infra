@@ -5,7 +5,7 @@ variable "cloudflare_account_id" {
 }
 
 variable "hostname" {
-  description = "Public hostname of the Engine Worker. Must match the custom-domain route in engine/wrangler.jsonc."
+  description = "Public hostname of the Engine Worker. Must match the custom-domain route in engine-frontend/wrangler.jsonc."
   type        = string
   default     = "engine-dev.wusoolcapital.com"
 }

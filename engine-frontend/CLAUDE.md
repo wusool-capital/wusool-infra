@@ -50,7 +50,7 @@ Code and APIs by default. An LLM only where language must be read or written, an
 
 - React Router 7 in SPA mode for the prototype, TypeScript strict, Vite, plain CSS from the DESIGN.md tokens, Inter self-hosted.
 - Hosted on Cloudflare Workers (static assets) at engine-dev.wusoolcapital.com, behind Cloudflare Access (email one-time PIN, @wusoolcapital.com only). Deployed from the monorepo by GitHub Actions (decision 0007).
-- Code lives in the `engine/` folder of the wusool-infra monorepo. Feature branches and pull requests into `dev`; root CLAUDE.md rules (commits, docs, CI) also apply here.
+- Code lives in the `engine-frontend/` folder of the wusool-infra monorepo. Feature branches and pull requests into `dev`; root CLAUDE.md rules (commits, docs, CI) also apply here.
 - Production backend (later, built with Raoof): the existing Python Toolkit (FastAPI, AWS eu-central-1 Frankfurt). The front-end calls it through a typed client generated from its OpenAPI schema and never touches a database directly.
 - Prototype data lives in one demo data module, shaped so each export can later be swapped for a Toolkit API call.
 
