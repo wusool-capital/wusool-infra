@@ -386,20 +386,37 @@ Constraint: `uq_match_results_run_header` — unique `run_id` where `rank IS NUL
 ### Benchmark peer dataset (`benchmark_data.py`) — new, 2026-11-15
 
 The GCC SME Benchmark's peer dataset, owned by the `benchmark_data` module and
-edited from the Wusool MCP. Seeded from `benchmark_dataset.py` (version 1,
-`updated_by = 'seed'`). Every table also has `updated_by` (text, not null) and
-`updated_at` (timestamptz, default `now()`).
+edited from the Wusool MCP. Two tables, current values only; seeded from
+`benchmark_dataset.py` (`created_by`/`updated_by = 'seed'`). Both have `id` (uuid,
+`gen_random_uuid()`), `created_at`/`updated_at` (timestamptz, `now()`) and
+`created_by`/`updated_by` (text, not null: the editor's name).
 
-| Table | Key | Columns |
-|---|---|---|
-| `benchmark_bands` | `id` (unique `position`) | `label`, `max_usd` (NULL on the top band), `ebitda_adj`, `rev_emp_mult`, `rent_mult` |
-| `benchmark_metrics` | `mode`, `key` | `position`, `label`, `unit`, `higher_is_better`, `weight` (CHECK >= 0), `observed` (tech only) |
-| `benchmark_peer_cuts` | `mode`, `key` | `label`, `sample_size`, `multi_site`, `b2b` |
-| `benchmark_anchors` | `mode`, `peer_key`, `metric` | `p10`, `p25`, `p50`, `p75`, `p90` (CHECK: rising); FK to `benchmark_peer_cuts` (cascade) |
-| `benchmark_dataset_version` | `id` (CHECK `id = 1`) | `version`, bumped by every edit |
+`benchmark_peer_cuts`: unique `(mode, key)`; `mode` CHECK `sme`/`tech`.
 
-`mode` is `sme` (sector peer cuts) or `tech` (funding-stage peer cuts), enforced by
-a CHECK on `benchmark_metrics` and `benchmark_peer_cuts`.
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| mode | text | no | `sme` (sector) or `tech` (funding stage) |
+| key | text | no | peer cut code, e.g. `restaurant`, `seed` |
+| label | text | no | |
+| sample_size | integer | yes | |
+| multi_site, b2b | boolean | no | default `false` |
+| anchors | jsonb | no | `{metric: [p10, p25, p50, p75, p90]}`, validated by the module |
+
+`benchmark_rules`: a revenue band (`kind = 'band'`) or a metric weight
+(`kind = 'metric'`). A CHECK makes each kind fill its own columns only. Unique
+`code` among bands; unique `(mode, code)` among metrics.
+
+| Column | Type | Nullable | Notes |
+|---|---|---|---|
+| kind | text | no | `band` or `metric` |
+| mode | text | yes | metrics only: `sme` or `tech` |
+| code | text | no | band code or metric key |
+| position | smallint | no | display order |
+| label | text | no | |
+| max_usd | numeric | yes | bands: ceiling; NULL on the top band |
+| ebitda_adj, rev_emp_mult, rent_mult | numeric | yes | bands only |
+| unit, higher_is_better, weight | text, boolean, integer | yes | metrics only; `weight >= 0` |
+| observed | boolean | yes | tech metrics only |
 
 ---
 

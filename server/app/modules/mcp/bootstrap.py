@@ -14,17 +14,22 @@ from app.modules.mcp.api.oauth import CALLBACK_PATH, WusoolOAuthProvider
 from app.modules.mcp.api.runner import CallerSource, ToolRunner, caller_from_token
 from app.modules.mcp.api.tokens import CODE_SECONDS, TokenCodec
 from app.modules.mcp.api.tools import benchmark, imports, lookups, records
+from app.modules.mcp.application.ports.audit import ToolCallAudit
 from app.modules.mcp.config import McpSettings, get_settings
 from app.modules.mcp.domain.access import CRM_SCOPE
 from app.modules.mcp.persistence.adapters import ActiveMemberPermissions, InMemoryIdempotencyStore
+from app.modules.mcp.persistence.audit import ActivityToolCallAudit
 from app.modules.utilities import FixedWindowRateLimiter
 
 _INSTRUCTIONS = (
     "Wusool's CRM of buyers and sellers. Look a company up before adding or editing it. "
     "Every add and edit is saved straight away under the signed-in person's name; a bulk "
     "list is only saved after the person confirms the preview. Nothing here deletes records. "
-    "It also holds the GCC SME Benchmark's peer dataset: read it first, and know that an edit "
-    "changes what visitors to the public benchmark are scored against straight away."
+    "It also holds the GCC SME Benchmark's peer dataset. Read a row before editing it: it shows "
+    "who last changed it, by name, and when. Old values are not kept, so tell the person what "
+    "a row held before you overwrite it. A benchmark edit changes what visitors to the public "
+    "benchmark are scored against straight away. Every change and every tool call is recorded "
+    "against the signed-in person (never against Claude), so refer to them by name."
 )
 
 
@@ -35,7 +40,12 @@ class McpApp:
 
 
 def build_server(
-    *, public_url: str, token_secret: str, calls_per_hour: int, caller_source: CallerSource
+    *,
+    public_url: str,
+    token_secret: str,
+    calls_per_hour: int,
+    caller_source: CallerSource,
+    audit: ToolCallAudit,
 ) -> MCPServer:
     base = public_url.rstrip("/")
     provider = WusoolOAuthProvider(
@@ -63,6 +73,7 @@ def build_server(
         permissions=ActiveMemberPermissions(),
         results=InMemoryIdempotencyStore(),
         limiter=FixedWindowRateLimiter(limit=calls_per_hour),
+        audit=audit,
         caller_source=caller_source,
     )
     records.register(server, runner)
@@ -82,6 +93,7 @@ def build_mcp_app(settings: McpSettings | None = None) -> McpApp | None:
         token_secret=settings.token_secret.get_secret_value(),
         calls_per_hour=settings.calls_per_hour,
         caller_source=caller_from_token,
+        audit=ActivityToolCallAudit(),
     )
     public = urlsplit(settings.public_url)
     app = server.streamable_http_app(

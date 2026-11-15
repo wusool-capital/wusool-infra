@@ -27,6 +27,7 @@ from app.modules.mcp.api.runner import caller_from_token
 from app.modules.mcp.api.tools import imports, lookups, records
 from app.modules.mcp.bootstrap import build_server
 from app.modules.mcp.domain.access import Caller
+from app.modules.mcp.persistence.adapters import InMemoryToolCallAudit
 
 _CALLER = Caller(slack_user_id="U_ALICE", team_id="T1", name="Alice", scopes=("crm",))
 _REF = RecordRef(
@@ -39,12 +40,13 @@ _REF = RecordRef(
 _BUYER = {"org_name": "Acme", "domain": "acme.com", "target_vertical": "Fintech"}
 
 
-def _server(calls_per_hour: int = 100) -> MCPServer:
+def _server(calls_per_hour: int = 100, audit: InMemoryToolCallAudit | None = None) -> MCPServer:
     return build_server(
         public_url="https://tools.example",
         token_secret="secret",
         calls_per_hour=calls_per_hour,
         caller_source=lambda: _CALLER,
+        audit=audit or InMemoryToolCallAudit(),
     )
 
 

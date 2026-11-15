@@ -50,7 +50,7 @@ class Activity(Base):
         # Added NOT VALID in the migration: older rows predate the closed list.
         CheckConstraint(
             "subject_type IN ('Organization','Person','Deal','BuyerRole','SellerRole','Note',"
-            "'Meeting')",
+            "'Meeting','BenchmarkPeerCut','BenchmarkRule','McpCall')",
             name="activities_subject_type_check",
         ),
         CheckConstraint(

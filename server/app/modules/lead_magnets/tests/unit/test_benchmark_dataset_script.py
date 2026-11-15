@@ -3,6 +3,7 @@ the fallback when they cannot be read."""
 
 import json
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 from fastapi import FastAPI
@@ -14,28 +15,51 @@ from app.modules.lead_magnets.api.benchmark import dataset_script
 from app.modules.lead_magnets.api.static import static_dir
 from app.modules.lead_magnets.domain.benchmark.dataset_js import render_dataset_js
 
+_AT = datetime(2026, 11, 15, tzinfo=UTC)
+
 
 def _dataset() -> BenchmarkDataset:
     return BenchmarkDataset(
-        version=7,
-        updated_at=datetime(2026, 11, 15, tzinfo=UTC),
+        updated_at=_AT,
         bands=(
-            Band("micro", "Under 1m", 1_000_000, -3, 0.8, 1.25),
-            Band("top", "Top", None, 4, 1.4, 0.8),
+            Band(uuid4(), "micro", "Under 1m", 1_000_000, -3, 0.8, 1.25, "seed", _AT),
+            Band(uuid4(), "top", "Top", None, 4, 1.4, 0.8, "seed", _AT),
         ),
         metrics={
-            "sme": {"ebitda": Metric("ebitda", "Margin", "%", True, 100, None)},
-            "tech": {"growth": Metric("growth", "Growth", "%", True, 100, True)},
+            "sme": {
+                "ebitda": Metric(uuid4(), "ebitda", "Margin", "%", True, 100, None, "seed", _AT)
+            },
+            "tech": {
+                "growth": Metric(uuid4(), "growth", "Growth", "%", True, 100, True, "seed", _AT)
+            },
         },
         cuts={
             "sme": {
                 "salon": PeerCut(
-                    "sme", "salon", "Salon", 48, True, False, {"ebitda": (3, 8, 14, 21, 28)}
+                    uuid4(),
+                    "sme",
+                    "salon",
+                    "Salon",
+                    48,
+                    True,
+                    False,
+                    {"ebitda": (3, 8, 14, 21, 28)},
+                    "seed",
+                    _AT,
                 )
             },
             "tech": {
                 "seed": PeerCut(
-                    "tech", "seed", "Seed", 15, False, False, {"growth": (76, 117, 150, 267, 400)}
+                    uuid4(),
+                    "tech",
+                    "seed",
+                    "Seed",
+                    15,
+                    False,
+                    False,
+                    {"growth": (76, 117, 150, 267, 400)},
+                    "seed",
+                    _AT,
                 )
             },
         },
@@ -49,7 +73,7 @@ def _data(script: str) -> dict:
 
 def test_the_script_has_the_shape_the_page_reads() -> None:
     data = _data(render_dataset_js(_dataset(), ["AI", "SaaS"]))
-    assert data["version"] == 7
+    assert data["version"] == "2026-11-15T00:00:00+00:00"
     assert data["updated"] == "2026-11-15"
     assert data["bands"][0] == {
         "id": "micro",
@@ -94,7 +118,7 @@ def test_the_route_serves_the_tables_as_javascript(client: TestClient, monkeypat
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/javascript")
     assert response.headers["cache-control"] == "public, max-age=60"
-    assert _data(response.text)["version"] == 7
+    assert _data(response.text)["version"].startswith("2026-11-15")
 
 
 def test_the_route_falls_back_to_the_static_file_when_the_database_fails(

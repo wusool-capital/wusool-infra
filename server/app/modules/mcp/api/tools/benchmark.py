@@ -1,6 +1,7 @@
 """Read and edit the GCC SME Benchmark's peer dataset: the revenue bands, the
 metric weights and each peer set's percentile anchors. Edits change what
-visitors are scored against straight away."""
+visitors are scored against straight away. Every row shows who last changed it,
+by name, so read a row before editing it."""
 
 from collections.abc import Mapping
 from typing import Annotated
@@ -9,11 +10,13 @@ from mcp.server.mcpserver import MCPServer
 from mcp.types import ToolAnnotations
 from pydantic import Field
 
+from app.modules.activities import ActivitySource
 from app.modules.benchmark_data import (
     Anchors,
     Band,
     BandEdit,
     BenchmarkDataset,
+    Editor,
     Metric,
     PeerCut,
     PeerCutEdit,
@@ -26,16 +29,15 @@ from app.modules.benchmark_data import (
 from app.modules.mcp.api.runner import ToolRunner
 from app.modules.mcp.api.tools.schemas import (
     AnchorList,
+    BandList,
     BandOut,
-    BandsEdited,
     BenchmarkOverview,
+    MetricList,
     MetricOut,
     ModeParam,
-    PeerCutEdited,
     PeerCutOut,
     PeerCutSummary,
     RequestId,
-    WeightsEdited,
 )
 from app.modules.mcp.domain.access import Caller
 
@@ -54,42 +56,55 @@ _EDIT = ToolAnnotations(
 
 def _band(band: Band) -> BandOut:
     return BandOut(
-        id=band.id,
+        code=band.code,
         label=band.label,
         max_usd=band.max_usd,
         ebitda_adj=band.ebitda_adj,
         rev_emp_mult=band.rev_emp_mult,
         rent_mult=band.rent_mult,
+        updated_by=band.updated_by,
+        updated_at=band.updated_at,
     )
 
 
 def _metric(metric: Metric) -> MetricOut:
-    return MetricOut(key=metric.key, label=metric.label, unit=metric.unit, weight=metric.weight)
+    return MetricOut(
+        key=metric.key,
+        label=metric.label,
+        unit=metric.unit,
+        weight=metric.weight,
+        updated_by=metric.updated_by,
+        updated_at=metric.updated_at,
+    )
 
 
-def _cut(cut: PeerCut) -> PeerCutOut:
-    return PeerCutOut(
+def _summary(cut: PeerCut) -> PeerCutSummary:
+    return PeerCutSummary(
         mode=cut.mode,
         key=cut.key,
         label=cut.label,
         sample_size=cut.sample_size,
         multi_site=cut.multi_site,
         b2b=cut.b2b,
+        updated_by=cut.updated_by,
+        updated_at=cut.updated_at,
+    )
+
+
+def _cut(cut: PeerCut) -> PeerCutOut:
+    return PeerCutOut(
+        **_summary(cut).model_dump(),
         anchors={metric: list(values) for metric, values in cut.anchors.items()},
     )
 
 
 def _overview(dataset: BenchmarkDataset) -> BenchmarkOverview:
     return BenchmarkOverview(
-        dataset_version=dataset.version,
+        dataset_updated_at=dataset.updated_at,
         sme_metrics=[_metric(m) for m in dataset.metrics["sme"].values()],
         tech_metrics=[_metric(m) for m in dataset.metrics["tech"].values()],
         bands=[_band(b) for b in dataset.bands],
-        peer_cuts=[
-            PeerCutSummary(**_cut(c).model_dump(exclude={"anchors"}))
-            for cuts in dataset.cuts.values()
-            for c in cuts.values()
-        ],
+        peer_cuts=[_summary(c) for cuts in dataset.cuts.values() for c in cuts.values()],
     )
 
 
@@ -98,8 +113,8 @@ def _anchors(values: AnchorList) -> Anchors:
     return (p10, p25, p50, p75, p90)
 
 
-def _editor(caller: Caller) -> str:
-    return caller.name or caller.slack_user_id
+def _editor(caller: Caller) -> Editor:
+    return Editor(slack_user_id=caller.slack_user_id, name=caller.name)
 
 
 def register(server: MCPServer, runner: ToolRunner) -> None:
@@ -123,10 +138,10 @@ def _register_overview(server: MCPServer, runner: ToolRunner) -> None:
         name="get_benchmark_overview",
         title="Benchmark dataset overview",
         description=(
-            "The GCC SME Benchmark's peer dataset in brief: the dataset version, the revenue "
-            "bands, each metric's weight in the score, and every peer set (sectors in 'sme' "
-            "mode, funding stages in 'tech' mode) with its sample size. Use get_peer_cut for a "
-            "peer set's anchors."
+            "The GCC SME Benchmark's peer dataset in brief: the revenue bands, each metric's "
+            "weight in the score, and every peer set (sectors in 'sme' mode, funding stages in "
+            "'tech' mode) with its sample size. Every row shows who last changed it, by name, "
+            "and when. Use get_peer_cut for a peer set's anchors."
         ),
         annotations=_READ,
     )(get_benchmark_overview)
@@ -147,7 +162,8 @@ def _register_get_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
         title="Get a benchmark peer set",
         description=(
             "One peer set with its percentile anchors for every metric, as "
-            "[p10, p25, p50, p75, p90].\n"
+            "[p10, p25, p50, p75, p90], and who last changed it and when. Read it before "
+            "editing it.\n"
             'Example: {"mode": "sme", "key": "restaurant"}'
         ),
         annotations=_READ,
@@ -168,7 +184,7 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
             dict[str, AnchorList] | None,
             Field(description="Metric key to new [p10..p90]; metrics not sent are unchanged"),
         ] = None,
-    ) -> PeerCutEdited:
+    ) -> PeerCutOut:
         edit = PeerCutEdit(
             sample_size=sample_size,
             multi_site=multi_site,
@@ -176,15 +192,17 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
             anchors=None if anchors is None else {m: _anchors(v) for m, v in anchors.items()},
         )
 
-        async def call(caller: Caller) -> PeerCutEdited:
-            edited = await edit_peer_cut(mode, key, edit, edited_by=_editor(caller))
-            return PeerCutEdited(peer_cut=_cut(edited.value), dataset_version=edited.version)
+        async def call(caller: Caller) -> PeerCutOut:
+            cut = await edit_peer_cut(
+                mode, key, edit, editor=_editor(caller), source=ActivitySource.MCP
+            )
+            return _cut(cut)
 
         return await runner.run(
             "edit_benchmark_peer_cut",
             "benchmark.write",
             call,
-            output=PeerCutEdited,
+            output=PeerCutOut,
             request_id=request_id,
             request_args=f"{mode}|{key}|{edit!r}",
         )
@@ -194,9 +212,11 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
         title="Edit a benchmark peer set",
         description=(
             "Change a peer set's sample size, its multi_site or b2b flags, or its percentile "
-            "anchors. Only what is sent changes. It is saved straight away and changes what "
-            "visitors are scored against on the public benchmark. Anchors must rise from p10 "
-            "to p90. Look the current values up with get_peer_cut first.\n"
+            "anchors. Only what is sent changes. It is saved straight away under the "
+            "signed-in person's name and changes what visitors are scored against on the "
+            "public benchmark. Anchors must rise from p10 to p90. The old values are not kept: "
+            "read the peer set with get_peer_cut first, and tell the person what it held and "
+            "who last changed it.\n"
             'Example: {"mode": "sme", "key": "restaurant", "anchors": {"gm": [57, 62, 67, 71, '
             '75]}, "request_id": "6f1c..."}'
         ),
@@ -206,8 +226,8 @@ def _register_edit_peer_cut(server: MCPServer, runner: ToolRunner) -> None:
 
 def _register_edit_band(server: MCPServer, runner: ToolRunner) -> None:
     async def edit_revenue_band(
-        band_id: Annotated[
-            str, Field(min_length=1, description="A band id from get_benchmark_overview")
+        code: Annotated[
+            str, Field(min_length=1, description="A band code from get_benchmark_overview")
         ],
         request_id: RequestId,
         label: Annotated[str | None, Field(min_length=1, max_length=100)] = None,
@@ -217,7 +237,7 @@ def _register_edit_band(server: MCPServer, runner: ToolRunner) -> None:
         ebitda_adj: float | None = None,
         rev_emp_mult: Annotated[float | None, Field(gt=0)] = None,
         rent_mult: Annotated[float | None, Field(gt=0)] = None,
-    ) -> BandsEdited:
+    ) -> BandList:
         edit = BandEdit(
             label=label,
             max_usd=max_usd,
@@ -226,19 +246,17 @@ def _register_edit_band(server: MCPServer, runner: ToolRunner) -> None:
             rent_mult=rent_mult,
         )
 
-        async def call(caller: Caller) -> BandsEdited:
-            edited = await edit_band(band_id, edit, edited_by=_editor(caller))
-            return BandsEdited(
-                bands=[_band(b) for b in edited.value], dataset_version=edited.version
-            )
+        async def call(caller: Caller) -> BandList:
+            bands = await edit_band(code, edit, editor=_editor(caller), source=ActivitySource.MCP)
+            return BandList(bands=[_band(b) for b in bands])
 
         return await runner.run(
             "edit_revenue_band",
             "benchmark.write",
             call,
-            output=BandsEdited,
+            output=BandList,
             request_id=request_id,
-            request_args=f"{band_id}|{edit!r}",
+            request_args=f"{code}|{edit!r}",
         )
 
     server.tool(
@@ -246,10 +264,12 @@ def _register_edit_band(server: MCPServer, runner: ToolRunner) -> None:
         title="Edit a benchmark revenue band",
         description=(
             "Change a revenue band's label, revenue ceiling or the three factors that shift a "
-            "sector's anchors for that band. Only what is sent changes. Saved straight away. "
-            "Ceilings must keep rising from the smallest band up, and the top band stays "
-            "open-ended.\n"
-            'Example: {"band_id": "micro", "ebitda_adj": -2.5, "request_id": "6f1c..."}'
+            "sector's anchors for that band. Only what is sent changes. Saved straight away "
+            "under the signed-in person's name. Ceilings must keep rising from the smallest band "
+            "up, and the top band stays open-ended. The old values are not kept: read the band "
+            "with get_benchmark_overview first, and tell the person what it held and who last "
+            "changed it.\n"
+            'Example: {"code": "micro", "ebitda_adj": -2.5, "request_id": "6f1c..."}'
         ),
         annotations=_EDIT,
     )(edit_revenue_band)
@@ -262,18 +282,18 @@ def _register_set_weights(server: MCPServer, runner: ToolRunner) -> None:
             dict[str, int], Field(description="Every metric key of the mode to its new weight")
         ],
         request_id: RequestId,
-    ) -> WeightsEdited:
-        async def call(caller: Caller) -> WeightsEdited:
-            edited = await set_weights(mode, weights, edited_by=_editor(caller))
-            return WeightsEdited(
-                mode=mode, weights=dict(_ordered(edited.value)), dataset_version=edited.version
+    ) -> MetricList:
+        async def call(caller: Caller) -> MetricList:
+            metrics = await set_weights(
+                mode, weights, editor=_editor(caller), source=ActivitySource.MCP
             )
+            return MetricList(mode=mode, metrics=[_metric(m) for m in _by_key(metrics)])
 
         return await runner.run(
             "set_metric_weights",
             "benchmark.write",
             call,
-            output=WeightsEdited,
+            output=MetricList,
             request_id=request_id,
             request_args=f"{mode}|{sorted(weights.items())}",
         )
@@ -284,7 +304,9 @@ def _register_set_weights(server: MCPServer, runner: ToolRunner) -> None:
         description=(
             "Set how much each metric counts towards a mode's score. Send a weight for every "
             "metric of the mode (see get_benchmark_overview); they must add up to 100. Saved "
-            "straight away and changes every visitor's score.\n"
+            "straight away under the signed-in person's name and changes every visitor's score. "
+            "The old weights are not kept: read them with get_benchmark_overview first, and tell "
+            "the person what they were and who last changed them.\n"
             'Example: {"mode": "tech", "weights": {"growth": 30, "capEff": 20, "revScale": 15, '
             '"gm": 10, "recur": 15, "conc": 10}, "request_id": "6f1c..."}'
         ),
@@ -292,5 +314,5 @@ def _register_set_weights(server: MCPServer, runner: ToolRunner) -> None:
     )(set_metric_weights)
 
 
-def _ordered(weights: Mapping[str, int]) -> list[tuple[str, int]]:
-    return sorted(weights.items())
+def _by_key(metrics: Mapping[str, Metric]) -> list[Metric]:
+    return list(metrics.values())

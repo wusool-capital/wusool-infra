@@ -34,6 +34,26 @@ class ProfileWritePayload:
 
 
 @dataclass(frozen=True, kw_only=True)
+class BenchmarkEditPayload:
+    """Names only: the new values are on the row, and what they replaced is not kept."""
+
+    kind: Literal["benchmark_edit"] = "benchmark_edit"
+    changed_fields: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, kw_only=True)
+class McpToolCallPayload:
+    """One call to a Wusool MCP tool. Never the arguments or the records returned."""
+
+    kind: Literal["mcp_tool_call"] = "mcp_tool_call"
+    tool: str
+    # `ok`, `replayed`, `refused`, `forbidden`, `rate_limited`, `request_id_reused`, `error`,
+    # or the name of the expected error that stopped the call.
+    result: str
+    duration_ms: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class MatchRunPayload:
     kind: Literal["match_run"] = "match_run"
     candidate_count: int = 0
@@ -73,6 +93,8 @@ ActivityPayload = (
     NoPayload
     | CrmRecordPayload
     | ProfileWritePayload
+    | BenchmarkEditPayload
+    | McpToolCallPayload
     | MatchRunPayload
     | MatchDecisionPayload
     | MeetingPayload

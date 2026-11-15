@@ -1,6 +1,7 @@
 """The GCC SME Benchmark's peer dataset in Postgres: revenue bands, metric
 weights, peer cuts and their percentile anchors, with the rules an edit must
-pass. The benchmark tool reads it; advisors edit it through the MCP.
+pass. The benchmark tool reads it; advisors edit it through the MCP. Each edit
+leaves an `activities` event naming the person.
 """
 
 from app.modules.benchmark_data.bootstrap import (
@@ -14,7 +15,7 @@ from app.modules.benchmark_data.domain.dataset import (
     Band,
     BandEdit,
     BenchmarkDataset,
-    Edited,
+    Editor,
     InvalidEditError,
     Metric,
     Mode,
@@ -28,7 +29,7 @@ __all__ = [
     "Band",
     "BandEdit",
     "BenchmarkDataset",
-    "Edited",
+    "Editor",
     "InvalidEditError",
     "Metric",
     "Mode",

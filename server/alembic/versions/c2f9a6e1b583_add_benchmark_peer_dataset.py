@@ -1,9 +1,10 @@
 """add the benchmark peer dataset tables and seed them (2026-11-15)
 
 Moves the GCC SME Benchmark's bands, metric weights and peer cuts out of
-`benchmark_dataset.py` so advisors can edit them. The seed is the dataset as
-it stood on 2026-08-17 (version 1); it is embedded here, not imported, so the
-migration still runs once that file is gone.
+`benchmark_dataset.py` so advisors can edit them. Two tables hold the current
+values only: peer cuts with their anchors, and the rules (bands and weights).
+The seed is the dataset as it stood on 2026-08-17; it is embedded here, not
+imported, so the migration still runs once that file is gone.
 
 Revision ID: c2f9a6e1b583
 Revises: b7e1c4d8a203
@@ -11,9 +12,11 @@ Create Date: 2026-11-15 00:00:00.000000
 
 """
 
+import json
 from collections.abc import Sequence
 
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
@@ -25,7 +28,7 @@ depends_on: str | Sequence[str] | None = None
 
 _SEED_BY = "seed"
 
-# [id, position, label, max_usd, ebitda_adj, rev_emp_mult, rent_mult]
+# (id, position, label, max_usd, ebitda_adj, rev_emp_mult, rent_mult)
 _BANDS: list[tuple[str, int, str, float | None, float, float, float]] = [
     ("micro", 0, "Under USD 545k", 545000, -3, 0.8, 1.25),
     ("small", 1, "USD 545k to 2.7m", 2725000, 0, 1, 1),
@@ -33,7 +36,7 @@ _BANDS: list[tuple[str, int, str, float | None, float, float, float]] = [
     ("upper", 3, "USD 8.2m and above", None, 4, 1.4, 0.82),
 ]
 
-# [mode, key, position, label, unit, higher_is_better, weight, observed]
+# (mode, key, position, label, unit, higher_is_better, weight, observed)
 _METRICS: list[tuple[str, str, int, str, str, bool, int, bool | None]] = [
     ("sme", "ebitda", 0, "Operating profit margin", "%", True, 25, None),
     ("sme", "growth", 1, "Revenue growth", "%", True, 15, None),
@@ -50,7 +53,7 @@ _METRICS: list[tuple[str, str, int, str, str, bool, int, bool | None]] = [
     ("tech", "conc", 5, "Customer concentration", "%", False, 10, False),
 ]
 
-# [mode, key, label, sample_size, multi_site, b2b, anchors by metric: [p10..p90]]
+# (mode, key, label, sample_size, multi_site, b2b, anchors by metric: [p10..p90])
 _CUTS: list[tuple[str, str, str, int, bool, bool, dict[str, list[float]]]] = [
     (
         "sme",
@@ -469,117 +472,104 @@ _CUTS: list[tuple[str, str, str, int, bool, bool, dict[str, list[float]]]] = [
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
-        "benchmark_bands",
-        sa.Column("id", sa.Text(), nullable=False),
-        sa.Column("position", sa.SmallInteger(), nullable=False),
-        sa.Column("label", sa.Text(), nullable=False),
-        sa.Column("max_usd", sa.Numeric(), nullable=True),
-        sa.Column("ebitda_adj", sa.Numeric(), nullable=False),
-        sa.Column("rev_emp_mult", sa.Numeric(), nullable=False),
-        sa.Column("rent_mult", sa.Numeric(), nullable=False),
-        sa.Column("updated_by", sa.Text(), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.PrimaryKeyConstraint("id"),
-        sa.UniqueConstraint("position"),
-    )
-    op.create_table(
-        "benchmark_metrics",
-        sa.Column("mode", sa.Text(), nullable=False),
-        sa.Column("key", sa.Text(), nullable=False),
-        sa.Column("position", sa.SmallInteger(), nullable=False),
-        sa.Column("label", sa.Text(), nullable=False),
-        sa.Column("unit", sa.Text(), nullable=False),
-        sa.Column("higher_is_better", sa.Boolean(), nullable=False),
-        sa.Column("weight", sa.Integer(), nullable=False),
-        sa.Column("observed", sa.Boolean(), nullable=True),
-        sa.Column("updated_by", sa.Text(), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("mode IN ('sme','tech')", name="benchmark_metrics_mode_check"),
-        sa.CheckConstraint("weight >= 0", name="benchmark_metrics_weight_check"),
-        sa.PrimaryKeyConstraint("mode", "key"),
-    )
-    op.create_table(
         "benchmark_peer_cuts",
+        sa.Column("id", sa.UUID(), server_default=sa.text("gen_random_uuid()"), nullable=False),
         sa.Column("mode", sa.Text(), nullable=False),
         sa.Column("key", sa.Text(), nullable=False),
         sa.Column("label", sa.Text(), nullable=False),
         sa.Column("sample_size", sa.Integer(), nullable=True),
         sa.Column("multi_site", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("b2b", sa.Boolean(), server_default="false", nullable=False),
-        sa.Column("updated_by", sa.Text(), nullable=False),
+        sa.Column("anchors", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("created_by", sa.Text(), nullable=False),
         sa.Column(
             "updated_at",
             sa.TIMESTAMP(timezone=True),
             server_default=sa.text("now()"),
             nullable=False,
         ),
+        sa.Column("updated_by", sa.Text(), nullable=False),
         sa.CheckConstraint("mode IN ('sme','tech')", name="benchmark_peer_cuts_mode_check"),
-        sa.PrimaryKeyConstraint("mode", "key"),
-    )
-    op.create_table(
-        "benchmark_anchors",
-        sa.Column("mode", sa.Text(), nullable=False),
-        sa.Column("peer_key", sa.Text(), nullable=False),
-        sa.Column("metric", sa.Text(), nullable=False),
-        sa.Column("p10", sa.Numeric(), nullable=False),
-        sa.Column("p25", sa.Numeric(), nullable=False),
-        sa.Column("p50", sa.Numeric(), nullable=False),
-        sa.Column("p75", sa.Numeric(), nullable=False),
-        sa.Column("p90", sa.Numeric(), nullable=False),
-        sa.Column("updated_by", sa.Text(), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "p10 <= p25 AND p25 <= p50 AND p50 <= p75 AND p75 <= p90",
-            name="benchmark_anchors_ordered_check",
-        ),
-        sa.ForeignKeyConstraint(
-            ["mode", "peer_key"],
-            ["benchmark_peer_cuts.mode", "benchmark_peer_cuts.key"],
-            name="benchmark_anchors_peer_cut_fkey",
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("mode", "peer_key", "metric"),
-    )
-    op.create_table(
-        "benchmark_dataset_version",
-        sa.Column("id", sa.SmallInteger(), server_default="1", nullable=False),
-        sa.Column("version", sa.Integer(), nullable=False),
-        sa.Column("updated_by", sa.Text(), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.TIMESTAMP(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("id = 1", name="benchmark_dataset_version_single_row"),
         sa.PrimaryKeyConstraint("id"),
+        sa.UniqueConstraint("mode", "key", name="uq_benchmark_peer_cuts_mode_key"),
+    )
+    op.create_table(
+        "benchmark_rules",
+        sa.Column("id", sa.UUID(), server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("kind", sa.Text(), nullable=False),
+        sa.Column("mode", sa.Text(), nullable=True),
+        sa.Column("code", sa.Text(), nullable=False),
+        sa.Column("position", sa.SmallInteger(), nullable=False),
+        sa.Column("label", sa.Text(), nullable=False),
+        sa.Column("max_usd", sa.Numeric(), nullable=True),
+        sa.Column("ebitda_adj", sa.Numeric(), nullable=True),
+        sa.Column("rev_emp_mult", sa.Numeric(), nullable=True),
+        sa.Column("rent_mult", sa.Numeric(), nullable=True),
+        sa.Column("unit", sa.Text(), nullable=True),
+        sa.Column("higher_is_better", sa.Boolean(), nullable=True),
+        sa.Column("weight", sa.Integer(), nullable=True),
+        sa.Column("observed", sa.Boolean(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("created_by", sa.Text(), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column("updated_by", sa.Text(), nullable=False),
+        sa.CheckConstraint("kind IN ('band','metric')", name="benchmark_rules_kind_check"),
+        sa.CheckConstraint(
+            "mode IS NULL OR mode IN ('sme','tech')", name="benchmark_rules_mode_check"
+        ),
+        sa.CheckConstraint("weight IS NULL OR weight >= 0", name="benchmark_rules_weight_check"),
+        sa.CheckConstraint(
+            "(kind = 'band' AND mode IS NULL AND ebitda_adj IS NOT NULL"
+            " AND rev_emp_mult IS NOT NULL AND rent_mult IS NOT NULL AND unit IS NULL"
+            " AND higher_is_better IS NULL AND weight IS NULL AND observed IS NULL)"
+            " OR (kind = 'metric' AND mode IS NOT NULL AND unit IS NOT NULL"
+            " AND higher_is_better IS NOT NULL AND weight IS NOT NULL AND max_usd IS NULL"
+            " AND ebitda_adj IS NULL AND rev_emp_mult IS NULL AND rent_mult IS NULL)",
+            name="benchmark_rules_kind_columns_check",
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(
+        "uq_benchmark_rules_band",
+        "benchmark_rules",
+        ["code"],
+        unique=True,
+        postgresql_where=sa.text("kind = 'band'"),
+    )
+    op.create_index(
+        "uq_benchmark_rules_metric",
+        "benchmark_rules",
+        ["mode", "code"],
+        unique=True,
+        postgresql_where=sa.text("kind = 'metric'"),
     )
 
     bind = op.get_bind()
-    for band_id, position, label, max_usd, ebitda_adj, rev_emp_mult, rent_mult in _BANDS:
+    for code, position, label, max_usd, ebitda_adj, rev_emp_mult, rent_mult in _BANDS:
         bind.execute(
             sa.text(
-                "INSERT INTO benchmark_bands (id, position, label, max_usd, ebitda_adj,"
-                " rev_emp_mult, rent_mult, updated_by) VALUES (:id, :position, :label,"
-                " :max_usd, :ebitda_adj, :rev_emp_mult, :rent_mult, :by)"
+                "INSERT INTO benchmark_rules (kind, code, position, label, max_usd, ebitda_adj,"
+                " rev_emp_mult, rent_mult, created_by, updated_by) VALUES ('band', :code,"
+                " :position, :label, :max_usd, :ebitda_adj, :rev_emp_mult, :rent_mult, :by, :by)"
             ),
             {
-                "id": band_id,
+                "code": code,
                 "position": position,
                 "label": label,
                 "max_usd": max_usd,
@@ -589,16 +579,16 @@ def upgrade() -> None:
                 "by": _SEED_BY,
             },
         )
-    for mode, key, position, label, unit, higher, weight, observed in _METRICS:
+    for mode, code, position, label, unit, higher, weight, observed in _METRICS:
         bind.execute(
             sa.text(
-                "INSERT INTO benchmark_metrics (mode, key, position, label, unit,"
-                " higher_is_better, weight, observed, updated_by) VALUES (:mode, :key,"
-                " :position, :label, :unit, :higher, :weight, :observed, :by)"
+                "INSERT INTO benchmark_rules (kind, mode, code, position, label, unit,"
+                " higher_is_better, weight, observed, created_by, updated_by) VALUES ('metric',"
+                " :mode, :code, :position, :label, :unit, :higher, :weight, :observed, :by, :by)"
             ),
             {
                 "mode": mode,
-                "key": key,
+                "code": code,
                 "position": position,
                 "label": label,
                 "unit": unit,
@@ -611,8 +601,9 @@ def upgrade() -> None:
     for mode, key, label, sample_size, multi_site, b2b, anchors in _CUTS:
         bind.execute(
             sa.text(
-                "INSERT INTO benchmark_peer_cuts (mode, key, label, sample_size, multi_site,"
-                " b2b, updated_by) VALUES (:mode, :key, :label, :n, :multi_site, :b2b, :by)"
+                "INSERT INTO benchmark_peer_cuts (mode, key, label, sample_size, multi_site, b2b,"
+                " anchors, created_by, updated_by) VALUES (:mode, :key, :label, :n, :multi_site,"
+                " :b2b, CAST(:anchors AS jsonb), :by, :by)"
             ),
             {
                 "mode": mode,
@@ -621,40 +612,13 @@ def upgrade() -> None:
                 "n": sample_size,
                 "multi_site": multi_site,
                 "b2b": b2b,
+                "anchors": json.dumps(anchors),
                 "by": _SEED_BY,
             },
         )
-        for metric, (p10, p25, p50, p75, p90) in anchors.items():
-            bind.execute(
-                sa.text(
-                    "INSERT INTO benchmark_anchors (mode, peer_key, metric, p10, p25, p50, p75,"
-                    " p90, updated_by) VALUES (:mode, :key, :metric, :p10, :p25, :p50, :p75,"
-                    " :p90, :by)"
-                ),
-                {
-                    "mode": mode,
-                    "key": key,
-                    "metric": metric,
-                    "p10": p10,
-                    "p25": p25,
-                    "p50": p50,
-                    "p75": p75,
-                    "p90": p90,
-                    "by": _SEED_BY,
-                },
-            )
-    bind.execute(
-        sa.text(
-            "INSERT INTO benchmark_dataset_version (id, version, updated_by) VALUES (1, 1, :by)"
-        ),
-        {"by": _SEED_BY},
-    )
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.drop_table("benchmark_dataset_version")
-    op.drop_table("benchmark_anchors")
+    op.drop_table("benchmark_rules")
     op.drop_table("benchmark_peer_cuts")
-    op.drop_table("benchmark_metrics")
-    op.drop_table("benchmark_bands")

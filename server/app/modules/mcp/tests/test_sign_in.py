@@ -17,6 +17,7 @@ from app.modules.mcp.api import oauth
 from app.modules.mcp.api.tokens import AccessClaims, TokenCodec
 from app.modules.mcp.bootstrap import build_server
 from app.modules.mcp.domain.signing import sign, unsign
+from app.modules.mcp.persistence.adapters import InMemoryToolCallAudit
 
 _BASE = "https://tools.example"
 _CLAUDE = "https://claude.ai/api/mcp/auth_callback"
@@ -47,6 +48,7 @@ def client() -> Iterator[TestClient]:
         token_secret="secret",
         calls_per_hour=100,
         caller_source=lambda: pytest.fail("tools are not called here"),
+        audit=InMemoryToolCallAudit(),
     )
     with TestClient(
         server.streamable_http_app(stateless_http=True, json_response=True, host="tools.example"),

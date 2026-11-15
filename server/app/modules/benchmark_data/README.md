@@ -8,6 +8,23 @@ and edit it from Claude through the `mcp` module.
 The scoring formula is not here. The percentile engine, score bands and report
 copy stay in `lead_magnets`. This module owns only the numbers they read.
 
+## Tables
+
+Two tables, current values only (`app/models/benchmark_data.py`):
+
+- **`benchmark_peer_cuts`**: one row per peer cut. `anchors` is JSONB,
+  `{metric: [p10, p25, p50, p75, p90]}`, parsed through the `AnchorSet` model in
+  `persistence/repository.py` on every read and write.
+- **`benchmark_rules`**: revenue bands (`kind = 'band'`) and metric weights
+  (`kind = 'metric'`). Each kind fills its own columns; a CHECK enforces it.
+
+Both have a uuid `id`, `created_at`/`created_by` and `updated_at`/`updated_by`.
+`updated_by` is the editor's name (their Slack id when the name is unknown, and
+`seed` for the loaded dataset). A row therefore says who last changed it.
+
+There is no history table. An edit overwrites the old value; the audit tables
+will keep history. Until then the activity names which fields changed.
+
 ## What can change
 
 | Edit | Rule |
@@ -16,13 +33,17 @@ copy stay in `lead_magnets`. This module owns only the numbers they read.
 | A revenue band's label, ceiling or three factors | Ceilings keep rising, only the top band is open-ended, multipliers above zero |
 | A mode's metric weights | Every metric of the mode, adding up to 100 |
 
-Adding or removing a peer cut isn't offered. Each sector is also mapped to a CRM
-sector option in `lead_magnets/domain/shared/sector_mapping.py`, so a new one is a
-code change. `api/schemas.py` in `lead_magnets` validates `peer_key` against
-`benchmark_dataset.py`, which still lists every key.
+An edit that changes nothing writes nothing. Adding or removing a peer cut isn't
+offered: each sector is also mapped to a CRM sector option in
+`lead_magnets/domain/shared/sector_mapping.py`, and `lead_magnets/api/schemas.py`
+validates `peer_key` against `benchmark_dataset.py`, which still lists every key.
 
-Every edit runs in one transaction, stores `updated_by` and `updated_at` on the
-rows it touched, and bumps `benchmark_dataset_version`.
+## Activities
+
+Each changed row leaves one `activities` event in the same transaction:
+`benchmark.peer_cut_edited` (subject `BenchmarkPeerCut`) or `benchmark.rule_edited`
+(subject `BenchmarkRule`), actor the Slack user, source `mcp`, payload the names of
+the changed fields (`anchors.<metric>` per changed metric).
 
 ## Structure
 
@@ -30,18 +51,15 @@ rows it touched, and bumps `benchmark_dataset_version`.
 benchmark_data/
   config.py          # BenchmarkDataSettings: DATABASE_URL
   bootstrap.py       # the public functions: load_dataset, edit_peer_cut, edit_band, set_weights
-  domain/dataset.py  # frozen dataclasses (BenchmarkDataset, Band, Metric, PeerCut) and the edit rules
-  application/       # service.py applies an edit; ports/repository.py is the storage Protocol
+  domain/dataset.py  # frozen dataclasses (Band, Metric, PeerCut, Editor) and the edit rules
+  application/       # service.py applies an edit and records it; ports/repository.py is the storage Protocol
   persistence/       # repository.py: the Postgres adapter, mapping rows to domain values
 ```
-
-ORM models are in `app/models/benchmark_data.py`. Tables: `benchmark_bands`,
-`benchmark_metrics`, `benchmark_peer_cuts`, `benchmark_anchors`,
-`benchmark_dataset_version`.
 
 ## Seed
 
 Migration `c2f9a6e1b583` creates the tables and loads the dataset as it stood in
-`lead_magnets/domain/benchmark/benchmark_dataset.py` on 2026-08-17 (version 1),
-attributed to `seed`. An integration test checks the table against that file
-value by value, so a score doesn't move when the tool starts reading the table.
+`lead_magnets/domain/benchmark/benchmark_dataset.py` on 2026-08-17, attributed to
+`seed`. An integration test checks the tables against that file value by value, so
+a score doesn't move when the tool starts reading them. Migration `d8a3f5c17e64`
+lets `activities` take the benchmark and MCP call subjects.

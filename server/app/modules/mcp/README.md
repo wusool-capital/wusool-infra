@@ -24,7 +24,8 @@ Slack. It is served from the Toolkit app at `/mcp` (Streamable HTTP, stateless).
 No tool deletes, sends anything, spends provider credits or shows fees.
 
 The benchmark tools call only `benchmark_data`'s public functions (`load_dataset`,
-`edit_peer_cut`, `edit_band`, `set_weights`). They use the `crm` token scope, since a
+`edit_peer_cut`, `edit_band`, `set_weights`). Rows show the person's name, and each
+edit leaves a `benchmark.*_edited` activity. They use the `crm` token scope, since a
 second scope would sign every connected advisor out.
 
 The CRM tools call only `ddl_commands`' public functions (`add_one`, `edit_one`,
@@ -32,6 +33,11 @@ The CRM tools call only `ddl_commands`' public functions (`add_one`, `edit_one`,
 `status`) and `discrepancies.check_buyer_by_id`. A field map follows the
 bulk-upload row rules, and the field list in each tool description comes from
 the same `FieldSpec`s the Slack forms use, so it can't drift.
+
+**Every call is audited.** The runner hands each finished call (caller, tool, result,
+duration) to a `ToolCallAudit`; `persistence/audit.py` writes it as one `mcp.tool_called`
+activity whose subject is the call. Arguments and results are never kept. A failed audit is
+logged and never fails the tool.
 
 **The contract only grows.** Claude conversations and skills depend on tool and
 field names: add, never rename or change a meaning. A breaking change is a new tool.

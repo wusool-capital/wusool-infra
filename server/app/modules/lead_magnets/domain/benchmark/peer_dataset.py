@@ -19,7 +19,7 @@ def peer_dataset_from(dataset: BenchmarkDataset) -> PeerDataset:
     return PeerDataset(
         bands=tuple(
             Band(
-                id=b.id,
+                id=b.code,
                 label=b.label,
                 max_usd=b.max_usd,
                 ebitda_adj=b.ebitda_adj,

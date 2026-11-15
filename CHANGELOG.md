@@ -17,12 +17,16 @@ for current production evidence and open handover items.
   size, status and more, up to 50 results. `check_buyer` runs the `/check-buyer`
   check, and `list_field_options` gives each field's allowed values.
 - Benchmark peer dataset in Postgres. The GCC SME Benchmark's peer anchors, revenue
-  bands and metric weights moved from code into five tables (new `benchmark_data`
-  module), seeded from the original dataset. Scores don't change.
+  bands and metric weights moved from code into two tables (new `benchmark_data`
+  module), seeded from the original dataset. Scores don't change. Each row says who
+  last changed it, by name, and when. There is no version history yet.
 - Advisors can read and edit that dataset from Claude: `get_benchmark_overview`,
   `get_peer_cut`, `edit_benchmark_peer_cut`, `edit_revenue_band` and
   `set_metric_weights`. Edits are checked, saved straight away and applied to the
-  public benchmark, and each one bumps a dataset version and records the editor.
+  public benchmark. Claude reads a row first and tells the person what it held.
+- Every MCP tool call, read or write, now leaves an `mcp.tool_called` activity for the
+  signed-in person (tool, result and duration, never the arguments). Benchmark edits
+  also leave `benchmark.peer_cut_edited` or `benchmark.rule_edited` activities.
 - The benchmark page loads its data from `GET /benchmark/20-data.js`, built from the
   tables. If the database can't be read it serves the original static copy.
 - Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack

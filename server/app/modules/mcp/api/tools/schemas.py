@@ -2,6 +2,7 @@
 add fields, never rename one or change what it means. A breaking change is a new tool."""
 
 import uuid
+from datetime import datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -185,15 +186,19 @@ AnchorList = Annotated[
     list[float],
     Field(min_length=5, max_length=5, description="[p10, p25, p50, p75, p90], rising"),
 ]
+UpdatedBy = Annotated[str, Field(description="Who last changed this, by name ('seed' if never)")]
+UpdatedAt = Annotated[datetime, Field(description="When it was last changed")]
 
 
 class BandOut(BaseModel):
-    id: str
+    code: str
     label: str
     max_usd: float | None = Field(description="Revenue ceiling in USD; null on the top band")
     ebitda_adj: float = Field(description="Points added to the sector's EBITDA margin anchors")
     rev_emp_mult: float = Field(description="Multiplies the revenue-per-employee anchors")
     rent_mult: float = Field(description="Multiplies the premises-cost anchors")
+    updated_by: UpdatedBy
+    updated_at: UpdatedAt
 
 
 class MetricOut(BaseModel):
@@ -201,6 +206,8 @@ class MetricOut(BaseModel):
     label: str
     unit: str
     weight: int = Field(description="Share of the score; a mode's weights add up to 100")
+    updated_by: UpdatedBy
+    updated_at: UpdatedAt
 
 
 class PeerCutSummary(BaseModel):
@@ -210,6 +217,8 @@ class PeerCutSummary(BaseModel):
     sample_size: int | None
     multi_site: bool
     b2b: bool
+    updated_by: UpdatedBy
+    updated_at: UpdatedAt
 
 
 class PeerCutOut(PeerCutSummary):
@@ -219,27 +228,20 @@ class PeerCutOut(PeerCutSummary):
 
 
 class BenchmarkOverview(BaseModel):
-    dataset_version: int
+    dataset_updated_at: datetime = Field(description="The most recent change to any row")
     sme_metrics: list[MetricOut]
     tech_metrics: list[MetricOut]
     bands: list[BandOut]
     peer_cuts: list[PeerCutSummary]
 
 
-class PeerCutEdited(BaseModel):
-    peer_cut: PeerCutOut
-    dataset_version: int
-
-
-class BandsEdited(BaseModel):
+class BandList(BaseModel):
     bands: list[BandOut]
-    dataset_version: int
 
 
-class WeightsEdited(BaseModel):
+class MetricList(BaseModel):
     mode: BenchmarkMode
-    weights: dict[str, int]
-    dataset_version: int
+    metrics: list[MetricOut]
 
 
 class RecordDetail(Record):

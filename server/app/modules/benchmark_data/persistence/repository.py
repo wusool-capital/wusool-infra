@@ -4,17 +4,11 @@ ORM types never leave this file."""
 from collections.abc import Mapping
 from datetime import UTC, datetime
 
+from pydantic import RootModel
 from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.benchmark_data import (
-    BenchmarkAnchor,
-    BenchmarkBand,
-    BenchmarkDatasetVersion,
-    BenchmarkMetric,
-    BenchmarkPeerCut,
-)
+from app.models.benchmark_data import BenchmarkPeerCut, BenchmarkRule
 from app.modules.benchmark_data.domain.dataset import (
     Anchors,
     Band,
@@ -27,7 +21,11 @@ from app.modules.benchmark_data.domain.dataset import (
 _MODES: tuple[Mode, ...] = ("sme", "tech")
 
 
-def _mode(value: str) -> Mode:
+class AnchorSet(RootModel[dict[str, Anchors]]):
+    """The `anchors` JSON: metric key to [p10, p25, p50, p75, p90]."""
+
+
+def _mode(value: str | None) -> Mode:
     if value == "sme":
         return "sme"
     if value == "tech":
@@ -35,127 +33,105 @@ def _mode(value: str) -> Mode:
     raise ValueError(f"Unknown benchmark mode {value!r}")
 
 
+def _num(value: object) -> float:
+    if value is None:
+        raise ValueError("Missing a required benchmark number")
+    return float(str(value))
+
+
+def _band(row: BenchmarkRule) -> Band:
+    return Band(
+        id=row.id,
+        code=row.code,
+        label=row.label,
+        max_usd=None if row.max_usd is None else float(row.max_usd),
+        ebitda_adj=_num(row.ebitda_adj),
+        rev_emp_mult=_num(row.rev_emp_mult),
+        rent_mult=_num(row.rent_mult),
+        updated_by=row.updated_by,
+        updated_at=row.updated_at,
+    )
+
+
+def _metric(row: BenchmarkRule) -> Metric:
+    if row.unit is None or row.higher_is_better is None or row.weight is None:
+        raise ValueError(f"Metric rule {row.code} is missing its columns")
+    return Metric(
+        id=row.id,
+        key=row.code,
+        label=row.label,
+        unit=row.unit,
+        higher_is_better=row.higher_is_better,
+        weight=row.weight,
+        observed=row.observed,
+        updated_by=row.updated_by,
+        updated_at=row.updated_at,
+    )
+
+
+def _cut(row: BenchmarkPeerCut) -> PeerCut:
+    return PeerCut(
+        id=row.id,
+        mode=_mode(row.mode),
+        key=row.key,
+        label=row.label,
+        sample_size=row.sample_size,
+        multi_site=row.multi_site,
+        b2b=row.b2b,
+        anchors=AnchorSet.model_validate(row.anchors).root,
+        updated_by=row.updated_by,
+        updated_at=row.updated_at,
+    )
+
+
 class PostgresBenchmarkDataRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
     async def load(self) -> BenchmarkDataset:
-        session = self._session
-        bands = (
-            await session.scalars(select(BenchmarkBand).order_by(BenchmarkBand.position))
-        ).all()
-        metric_rows = (
-            await session.scalars(
-                select(BenchmarkMetric).order_by(BenchmarkMetric.mode, BenchmarkMetric.position)
+        rules = (
+            await self._session.scalars(
+                select(BenchmarkRule).order_by(
+                    BenchmarkRule.kind, BenchmarkRule.mode, BenchmarkRule.position
+                )
             )
         ).all()
-        cut_rows = (
-            await session.scalars(
+        cuts = (
+            await self._session.scalars(
                 select(BenchmarkPeerCut).order_by(BenchmarkPeerCut.mode, BenchmarkPeerCut.key)
             )
         ).all()
-        anchor_rows = (await session.scalars(select(BenchmarkAnchor))).all()
-        version = await session.get_one(BenchmarkDatasetVersion, 1)
-
-        anchors: dict[tuple[str, str], dict[str, Anchors]] = {}
-        for a in anchor_rows:
-            anchors.setdefault((a.mode, a.peer_key), {})[a.metric] = (
-                float(a.p10),
-                float(a.p25),
-                float(a.p50),
-                float(a.p75),
-                float(a.p90),
-            )
-
+        stamps = [r.updated_at for r in rules] + [c.updated_at for c in cuts]
         return BenchmarkDataset(
-            version=version.version,
-            updated_at=version.updated_at,
-            bands=tuple(
-                Band(
-                    id=b.id,
-                    label=b.label,
-                    max_usd=None if b.max_usd is None else float(b.max_usd),
-                    ebitda_adj=float(b.ebitda_adj),
-                    rev_emp_mult=float(b.rev_emp_mult),
-                    rent_mult=float(b.rent_mult),
-                )
-                for b in bands
-            ),
+            updated_at=max(stamps),
+            bands=tuple(_band(r) for r in rules if r.kind == "band"),
             metrics={
-                mode: {
-                    m.key: Metric(
-                        key=m.key,
-                        label=m.label,
-                        unit=m.unit,
-                        higher_is_better=m.higher_is_better,
-                        weight=m.weight,
-                        observed=m.observed,
-                    )
-                    for m in metric_rows
-                    if m.mode == mode
-                }
+                mode: {r.code: _metric(r) for r in rules if r.kind == "metric" and r.mode == mode}
                 for mode in _MODES
             },
-            cuts={
-                mode: {
-                    c.key: PeerCut(
-                        mode=mode,
-                        key=c.key,
-                        label=c.label,
-                        sample_size=c.sample_size,
-                        multi_site=c.multi_site,
-                        b2b=c.b2b,
-                        anchors=anchors.get((c.mode, c.key), {}),
-                    )
-                    for c in cut_rows
-                    if _mode(c.mode) == mode
-                }
-                for mode in _MODES
-            },
+            cuts={mode: {c.key: _cut(c) for c in cuts if c.mode == mode} for mode in _MODES},
         )
 
-    async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> None:
-        now = datetime.now(UTC)
-        await self._session.execute(
+    async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> PeerCut:
+        result = await self._session.execute(
             update(BenchmarkPeerCut)
-            .where(BenchmarkPeerCut.mode == cut.mode, BenchmarkPeerCut.key == cut.key)
+            .where(BenchmarkPeerCut.id == cut.id)
             .values(
                 sample_size=cut.sample_size,
                 multi_site=cut.multi_site,
                 b2b=cut.b2b,
+                anchors=AnchorSet(dict(cut.anchors)).model_dump(mode="json"),
                 updated_by=edited_by,
-                updated_at=now,
+                updated_at=datetime.now(UTC),
             )
+            .returning(BenchmarkPeerCut)
         )
-        for metric, (p10, p25, p50, p75, p90) in cut.anchors.items():
-            values = {"p10": p10, "p25": p25, "p50": p50, "p75": p75, "p90": p90}
-            statement = insert(BenchmarkAnchor).values(
-                mode=cut.mode,
-                peer_key=cut.key,
-                metric=metric,
-                updated_by=edited_by,
-                updated_at=now,
-                **values,
-            )
-            await self._session.execute(
-                statement.on_conflict_do_update(
-                    index_elements=["mode", "peer_key", "metric"],
-                    set_={**values, "updated_by": edited_by, "updated_at": now},
-                    # Untouched anchors keep their original editor and timestamp.
-                    where=(
-                        (BenchmarkAnchor.p10 != p10)
-                        | (BenchmarkAnchor.p25 != p25)
-                        | (BenchmarkAnchor.p50 != p50)
-                        | (BenchmarkAnchor.p75 != p75)
-                        | (BenchmarkAnchor.p90 != p90)
-                    ),
-                )
-            )
+        return _cut(result.scalar_one())
 
-    async def save_band(self, band: Band, *, edited_by: str) -> None:
-        await self._session.execute(
-            update(BenchmarkBand)
-            .where(BenchmarkBand.id == band.id)
+    async def save_band(self, band: Band, *, edited_by: str) -> Band:
+        result = await self._session.execute(
+            update(BenchmarkRule)
+            .where(BenchmarkRule.id == band.id)
             .values(
                 label=band.label,
                 max_usd=band.max_usd,
@@ -165,24 +141,28 @@ class PostgresBenchmarkDataRepository:
                 updated_by=edited_by,
                 updated_at=datetime.now(UTC),
             )
+            .returning(BenchmarkRule)
         )
+        return _band(result.scalar_one())
 
-    async def save_weights(self, mode: Mode, weights: Mapping[str, int], *, edited_by: str) -> None:
+    async def save_weights(
+        self, mode: Mode, weights: Mapping[str, int], *, edited_by: str
+    ) -> Mapping[str, Metric]:
         now = datetime.now(UTC)
         for key, weight in weights.items():
             await self._session.execute(
-                update(BenchmarkMetric)
+                update(BenchmarkRule)
                 .where(
-                    BenchmarkMetric.mode == mode,
-                    BenchmarkMetric.key == key,
-                    BenchmarkMetric.weight != weight,
+                    BenchmarkRule.kind == "metric",
+                    BenchmarkRule.mode == mode,
+                    BenchmarkRule.code == key,
+                    BenchmarkRule.weight != weight,
                 )
                 .values(weight=weight, updated_by=edited_by, updated_at=now)
             )
-
-    async def bump_version(self, *, edited_by: str) -> int:
-        row = await self._session.get_one(BenchmarkDatasetVersion, 1, with_for_update=True)
-        row.version += 1
-        row.updated_by = edited_by
-        row.updated_at = datetime.now(UTC)
-        return row.version
+        rows = await self._session.scalars(
+            select(BenchmarkRule)
+            .where(BenchmarkRule.kind == "metric", BenchmarkRule.mode == mode)
+            .order_by(BenchmarkRule.position)
+        )
+        return {row.code: _metric(row) for row in rows}

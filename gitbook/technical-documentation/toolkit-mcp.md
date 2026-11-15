@@ -2,7 +2,7 @@
 
 ## What it does
 
-The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers from Claude, signed in with their own Slack account. It also lets them read and edit the GCC SME Benchmark's peer dataset. It runs inside the Toolkit server at `/mcp` (Streamable HTTP, stateless) in the `mcp` module. It has no tables of its own. The benchmark tables belong to the `benchmark_data` module.
+The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers from Claude, signed in with their own Slack account. It also lets them read and edit the GCC SME Benchmark's peer dataset. It runs inside the Toolkit server at `/mcp` (Streamable HTTP, stateless) in the `mcp` module. It has no tables of its own. The benchmark tables belong to the `benchmark_data` module. Every tool call is recorded in `activities`.
 
 ## Tools
 
@@ -18,15 +18,15 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `list_buyers`, `list_sellers` | Active records matching filters, up to 50, with `truncated` when more match | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
 | `list_field_options` | Every field's type and allowed values | Read only |
-| `get_benchmark_overview` | Dataset version, revenue bands, metric weights, and every peer set with its sample size | Read only |
-| `get_peer_cut` | One peer set with its percentile anchors | Read only |
+| `get_benchmark_overview` | Revenue bands, metric weights, and every peer set with its sample size. Every row shows who last changed it and when | Read only |
+| `get_peer_cut` | One peer set with its percentile anchors, and who last changed it | Read only |
 | `edit_benchmark_peer_cut` | Change a peer set's sample size, flags or anchors. Only the fields sent change | Straight away |
 | `edit_revenue_band` | Change a revenue band's label, ceiling or adjustment factors | Straight away |
 | `set_metric_weights` | Set every metric's weight for a mode. They must add up to 100 | Straight away |
 
 No tool deletes, sends, spends provider credits or shows fees.
 
-The benchmark tools change what visitors to the public benchmark are scored against, as soon as they are saved. Each edit is checked first. Anchors must rise from p10 to p90. Band ceilings must keep rising, and only the top band is open-ended. Weights must add up to 100. A refused edit saves nothing. Every edit bumps the dataset version and stores the editor's name.
+The benchmark tools change what visitors to the public benchmark are scored against, as soon as they are saved. Each edit is checked first. Anchors must rise from p10 to p90. Band ceilings must keep rising, and only the top band is open-ended. Weights must add up to 100. A refused edit saves nothing. Each changed row stores the editor's name and the time. Old values are not kept yet, so Claude reads a row first and tells the person what it held and who last changed it. The tools' own descriptions say so.
 
 Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them.
 
@@ -39,6 +39,8 @@ Tool and field names only grow. A breaking change becomes a new tool, because co
 - Edits apply only to active records. An inactive duplicate is treated as not found.
 - One wrapper handles every call. It finds the signed-in person, checks the permission the tool declares, replays a repeated `request_id`, and applies a per-person hourly limit (`MCP_CALLS_PER_HOUR`). It writes one log line per call (tool, Slack user, duration, result, never record contents) and turns errors into plain sentences. A crash returns a generic error, never a stack trace.
 - Every write leaves a `command_runs` row and an activity with source `mcp`, attributed to the person's Slack user.
+- Every tool call, read or write, also leaves one `mcp.tool_called` activity. It holds the person's Slack user, the tool, how it ended (`ok`, `replayed`, `refused`, `rate_limited`, `error` and so on) and the duration. It never holds arguments or records. A failure to write it is logged and never fails the tool.
+- A benchmark edit leaves one `benchmark.peer_cut_edited` or `benchmark.rule_edited` activity per changed row, naming the fields that changed.
 
 ## Lists and checks
 

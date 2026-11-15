@@ -32,11 +32,11 @@ def _cut(cut: PeerCut, *, sector: bool) -> dict[str, object]:
 
 def render_dataset_js(dataset: BenchmarkDataset, tech_sector_list: Sequence[str]) -> str:
     data = {
-        "version": dataset.version,
+        "version": dataset.updated_at.isoformat(),
         "updated": dataset.updated_at.date().isoformat(),
         "bands": [
             {
-                "id": b.id,
+                "id": b.code,
                 "label": b.label,
                 "max": b.max_usd,
                 "ebitdaAdj": b.ebitda_adj,

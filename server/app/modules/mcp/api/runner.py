@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import logging
 import time
+import uuid
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 from weakref import WeakValueDictionary
@@ -27,8 +28,10 @@ from app.modules.ddl_commands import (
     RowProblem,
     SellerNotFoundError,
 )
+from app.modules.mcp.application.ports.audit import ToolCallAudit
 from app.modules.mcp.application.ports.stores import IdempotencyStore, PermissionChecker
 from app.modules.mcp.domain.access import Caller, Permission
+from app.modules.mcp.domain.calls import ToolCall
 from app.modules.utilities import FixedWindowRateLimiter
 from app.modules.utilities.domain.safe_errors import describe_error
 
@@ -99,11 +102,13 @@ class ToolRunner:
         permissions: PermissionChecker,
         results: IdempotencyStore,
         limiter: FixedWindowRateLimiter,
+        audit: ToolCallAudit,
         caller_source: CallerSource = caller_from_token,
     ) -> None:
         self._permissions = permissions
         self._results = results
         self._limiter = limiter
+        self._audit = audit
         self._caller_source = caller_source
         self._locks: WeakValueDictionary[str, asyncio.Lock] = WeakValueDictionary()
 
@@ -153,6 +158,9 @@ class ToolRunner:
             if result_code == "ok":
                 result_code = "refused"
             raise
+        except asyncio.CancelledError:
+            result_code = "cancelled"
+            raise
         except Exception as exc:
             message = _message(exc)
             if message is None:
@@ -161,10 +169,23 @@ class ToolRunner:
             result_code = type(exc).__name__
             raise ToolError(message) from exc
         finally:
+            duration_ms = int((time.monotonic() - started) * 1000)
             logger.info(
                 "mcp_tool_call tool=%s user=%s duration_ms=%d result=%s",
                 tool,
                 caller.slack_user_id,
-                (time.monotonic() - started) * 1000,
+                duration_ms,
                 result_code,
+            )
+            # Shielded so a cancelled request still leaves its audit row.
+            await asyncio.shield(
+                self._audit.record(
+                    ToolCall(
+                        call_id=uuid.uuid4(),
+                        tool=tool,
+                        caller=caller,
+                        result=result_code,
+                        duration_ms=duration_ms,
+                    )
+                )
             )

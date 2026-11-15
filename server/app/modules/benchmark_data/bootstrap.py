@@ -4,12 +4,14 @@ service call in a transaction and commit, so callers never touch a session."""
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 
+from app.modules.activities import ActivitySource, SqlAlchemyActivityRecorder
 from app.modules.benchmark_data.application.service import BenchmarkDataService
 from app.modules.benchmark_data.domain.dataset import (
     Band,
     BandEdit,
     BenchmarkDataset,
-    Edited,
+    Editor,
+    Metric,
     Mode,
     PeerCut,
     PeerCutEdit,
@@ -21,7 +23,9 @@ from app.modules.benchmark_data.persistence.repository import PostgresBenchmarkD
 @asynccontextmanager
 async def _service() -> AsyncIterator[BenchmarkDataService]:
     async with get_sessionmaker()() as session, session.begin():
-        yield BenchmarkDataService(PostgresBenchmarkDataRepository(session))
+        yield BenchmarkDataService(
+            PostgresBenchmarkDataRepository(session), SqlAlchemyActivityRecorder(session)
+        )
 
 
 async def load_dataset() -> BenchmarkDataset:
@@ -30,19 +34,21 @@ async def load_dataset() -> BenchmarkDataset:
 
 
 async def edit_peer_cut(
-    mode: Mode, key: str, edit: PeerCutEdit, *, edited_by: str
-) -> Edited[PeerCut]:
+    mode: Mode, key: str, edit: PeerCutEdit, *, editor: Editor, source: ActivitySource
+) -> PeerCut:
     async with _service() as service:
-        return await service.edit_peer_cut(mode, key, edit, edited_by=edited_by)
+        return await service.edit_peer_cut(mode, key, edit, editor=editor, source=source)
 
 
-async def edit_band(band_id: str, edit: BandEdit, *, edited_by: str) -> Edited[tuple[Band, ...]]:
+async def edit_band(
+    code: str, edit: BandEdit, *, editor: Editor, source: ActivitySource
+) -> tuple[Band, ...]:
     async with _service() as service:
-        return await service.edit_band(band_id, edit, edited_by=edited_by)
+        return await service.edit_band(code, edit, editor=editor, source=source)
 
 
 async def set_weights(
-    mode: Mode, weights: Mapping[str, int], *, edited_by: str
-) -> Edited[Mapping[str, int]]:
+    mode: Mode, weights: Mapping[str, int], *, editor: Editor, source: ActivitySource
+) -> Mapping[str, Metric]:
     async with _service() as service:
-        return await service.set_weights(mode, weights, edited_by=edited_by)
+        return await service.set_weights(mode, weights, editor=editor, source=source)
