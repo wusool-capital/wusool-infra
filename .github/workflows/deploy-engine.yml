@@ -22,6 +22,8 @@ concurrency:
 
 env:
   ENGINE_HOSTNAME: engine-dev.wusoolcapital.com
+  # The Buyers and Sellers pages read the Toolkit; local work and tests stay on VITE_DATA=demo.
+  VITE_DATA: live
   # Not secret: an account identifier, not a credential.
   CLOUDFLARE_ACCOUNT_ID: aa28a40954cce378e48680c2b5588dda
 
@@ -45,6 +47,10 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: engine-frontend/package-lock.json
+
+      # checks.sh api regenerates the client from the server's OpenAPI spec.
+      - uses: astral-sh/setup-uv@v9.0.0
+        with: { version: latest }
 
       - run: ./checks.sh all
 
@@ -70,3 +76,7 @@ jobs:
             -w '%{http_code} %{redirect_url}' "https://${ENGINE_HOSTNAME}/")
           echo "$result"
           [[ "$result" == 302\ https://*.cloudflareaccess.com/* ]]
+          # The API proxy sits behind the same gate.
+          api=$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' "https://${ENGINE_HOSTNAME}/api/v1/me")
+          echo "$api"
+          [[ "$api" == 302\ https://*.cloudflareaccess.com/* ]]
