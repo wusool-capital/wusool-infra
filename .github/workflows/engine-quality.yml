@@ -1,0 +1,53 @@
+name: Engine quality
+
+on:
+  pull_request:
+    branches: [dev, prod]
+
+permissions:
+  contents: read
+  # `dorny/paths-filter` needs this on a private repo; see python-quality.yml.
+  pull-requests: read
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      engine: ${{ steps.filter.outputs.engine }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            engine:
+              - 'engine/**'
+              - '.github/workflows/engine-quality.yml'
+
+  checks:
+    needs: changes
+    if: needs.changes.outputs.engine == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [quality, build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+      - run: ./checks.sh ${{ matrix.target }}
+        working-directory: engine
+
+  engine-gate:
+    name: Engine quality (required)
+    if: always()
+    needs: [changes, checks]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'HARD GATE: blocks merge'
+        run: |
+          if [[ '${{ needs.changes.result }}' != 'success' || '${{ needs.checks.result }}' == 'failure' || '${{ needs.checks.result }}' == 'cancelled' ]]; then exit 1; fi

@@ -38,6 +38,7 @@
   * [Meeting notes](technical-documentation/scribe-notes.md)
 * [Attio and database sync](technical-documentation/attio-sync.md)
 * [Interactions engine](technical-documentation/interactions.md)
+* [Wusool Engine frontend](technical-documentation/engine-frontend.md)
 * [Website lead tools](technical-documentation/lead-tools.md)
   * [Valuation](technical-documentation/lead-tools-valuation.md)
   * [M&A Readiness](technical-documentation/lead-tools-readiness.md)

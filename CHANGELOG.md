@@ -51,6 +51,11 @@ for current production evidence and open handover items.
 - The MCP is served at `/mcp` once `MCP_PUBLIC_URL` and `MCP_TOKEN_SECRET` are
   set. The Slack app must list `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a
   redirect URL.
+- The Wusool Engine frontend, built by the advisors' team, now lives in `engine/`.
+  It deploys from this repo to Cloudflare Workers at engine-dev.wusoolcapital.com.
+  Cloudflare Access gates it with an email one-time code for `@wusoolcapital.com`.
+  The `workers.dev` and preview addresses are off, so the app is only reachable
+  behind that sign-in.
 
 ### Changed
 
