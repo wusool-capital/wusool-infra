@@ -49,7 +49,7 @@ Buyer `status` is the Attio `mandate_status`. Seller `openToSelling` maps the At
 ## Layout
 
 `domain/` (frozen dataclasses and errors), `application/` (the service and the reader and
-writer ports), `persistence/` (the Postgres reader), `providers/` (the `ddl_commands`
+writer ports), `persistence/` (the Postgres reader and its row mappers), `providers/` (the `ddl_commands`
 writer), `api/` (schemas, problems, sign-in dependency, router).
 
 ## Dependencies

@@ -8,8 +8,7 @@ import base64
 import json
 import uuid
 from collections.abc import Sequence
-from datetime import date
-from typing import Final, Literal, TypeVar
+from typing import Final, TypeVar
 
 from sqlalchemy import (
     ColumnElement,
@@ -46,8 +45,8 @@ from app.modules.crm.domain.roles import (
     SignedInUser,
     TeamMember,
     appetite_signals,
-    open_to_selling,
 )
+from app.modules.crm.persistence.mappers import to_buyer, to_person, to_seller
 from app.modules.utilities.domain.json_types import JsonObject
 
 _UNKNOWN_SIGNALS: Final = "Unknown"
@@ -66,13 +65,6 @@ def _decode_cursor(cursor: str) -> tuple[str, uuid.UUID]:
         return str(payload["n"]), uuid.UUID(str(payload["i"]))
     except (ValueError, KeyError, TypeError) as exc:
         raise InvalidCursorError(cursor) from exc
-
-
-def _amount(value: JsonObject | None) -> float | None:
-    amount = value.get("amount") if value else None
-    return (
-        float(amount) if isinstance(amount, int | float) and not isinstance(amount, bool) else None
-    )
 
 
 def _money(column: InstrumentedAttribute[JsonObject | None]) -> ColumnElement[float | None]:
@@ -104,10 +96,6 @@ def _words(text: str) -> list[str]:
     return text.split()
 
 
-def _first_email(emails: Sequence[str]) -> str | None:
-    return emails[0] if emails else None
-
-
 class PostgresRolesRepository:
     def __init__(self, sessionmaker: async_sessionmaker[AsyncSession]) -> None:
         self._sessionmaker = sessionmaker
@@ -129,7 +117,7 @@ class PostgresRolesRepository:
         async with self._sessionmaker() as session:
             stmt = _buyer_select().where(*_buyer_live(), BuyerRoleRow.id == parsed)
             row = (await session.execute(stmt)).first()
-        return None if row is None else _buyer_role(row[0], row[1])
+        return None if row is None else to_buyer(row[0], row[1])
 
     async def seller(self, role_id: str) -> SellerRole | None:
         parsed = _parse_id(role_id)
@@ -141,7 +129,7 @@ class PostgresRolesRepository:
             if row is None:
                 return None
             contacts = await _org_contacts(session, [row[1].attio_id])
-        return _seller_role(row[0], row[1], contacts)
+        return to_seller(row[0], row[1], contacts)
 
     async def buyers_page(
         self, filters: BuyerFilters, cursor: str | None, limit: int
@@ -160,7 +148,7 @@ class PostgresRolesRepository:
             people = await _buyer_people(session, [role for role, _ in rows])
             users = await _team(session)
             options = await _buyer_options(session)
-        roles = tuple(_buyer_role(role, org) for role, org in rows)
+        roles = tuple(to_buyer(role, org) for role, org in rows)
         next_cursor = (
             _encode_cursor(rows[-1][1].name, rows[-1][0].id) if len(fetched) > limit else None
         )
@@ -183,7 +171,7 @@ class PostgresRolesRepository:
             contacts = await _org_contacts(session, [org.attio_id for _, org in rows])
             users = await _team(session)
             options = await _seller_options(session)
-        roles = tuple(_seller_role(role, org, contacts) for role, org in rows)
+        roles = tuple(to_seller(role, org, contacts) for role, org in rows)
         people = tuple(person for group in contacts.values() for person in group)
         next_cursor = (
             _encode_cursor(rows[-1][1].name, rows[-1][0].id) if len(fetched) > limit else None
@@ -315,46 +303,6 @@ def _seller_conditions(filters: SellerFilters) -> list[ColumnElement[bool]]:
     return conditions
 
 
-def _buyer_role(role: BuyerRoleRow, org: Organization) -> BuyerRole:
-    return BuyerRole(
-        id=str(role.id),
-        name=org.name,
-        hq=org.hq_country,
-        website=org.domains[0] if org.domains else None,
-        sectors=(role.target_vertical,) if role.target_vertical else (),
-        geographies=tuple(dict.fromkeys([*role.target_region, *role.target_country])),
-        check_size_min_usd=_amount(role.check_size_min),
-        check_size_max_usd=_amount(role.check_size_max),
-        ebitda_floor_usd=_amount(role.ebitda_floor),
-        owner_id=org.owner_attio_id,
-        status=role.mandate_status,
-        contact_ids=(role.key_contact_attio_id,) if role.key_contact_attio_id else (),
-        notes=role.notes,
-        etag=role.updated_at.isoformat(),
-    )
-
-
-def _seller_role(
-    role: SellerRoleRow, org: Organization, contacts: dict[str, list[Person]]
-) -> SellerRole:
-    re_engage: date | None = role.re_engage_date
-    return SellerRole(
-        id=str(role.id),
-        name=org.name,
-        hq=org.hq_country,
-        website=org.domains[0] if org.domains else None,
-        sector=", ".join(role.sector) or None,
-        geography=org.region or org.hq_country,
-        est_revenue_usd=_amount(role.est_revenue),
-        est_ebitda_usd=_amount(role.est_ebitda),
-        open_to_selling=open_to_selling(role.appetite_signal),
-        re_engage_date=re_engage,
-        owner_id=org.owner_attio_id,
-        contact_ids=tuple(p.id for p in contacts.get(org.attio_id, [])),
-        etag=role.updated_at.isoformat(),
-    )
-
-
 async def _buyer_people(session: AsyncSession, roles: Sequence[BuyerRoleRow]) -> tuple[Person, ...]:
     ids = [r.key_contact_attio_id for r in roles if r.key_contact_attio_id]
     if not ids:
@@ -366,7 +314,7 @@ async def _buyer_people(session: AsyncSession, roles: Sequence[BuyerRoleRow]) ->
         .order_by(PersonRow.name, PersonRow.attio_id)
     )
     rows = (await session.execute(stmt)).all()
-    return tuple(_person(p, org_name or "", "buyer") for p, org_name in rows)
+    return tuple(to_person(p, org_name or "", "buyer") for p, org_name in rows)
 
 
 async def _org_contacts(session: AsyncSession, org_ids: Sequence[str]) -> dict[str, list[Person]]:
@@ -381,20 +329,9 @@ async def _org_contacts(session: AsyncSession, org_ids: Sequence[str]) -> dict[s
     grouped: dict[str, list[Person]] = {}
     for person, org_name in (await session.execute(stmt)).all():
         grouped.setdefault(person.company_attio_id or "", []).append(
-            _person(person, org_name, "target")
+            to_person(person, org_name, "target")
         )
     return grouped
-
-
-def _person(row: PersonRow, org_name: str, role: Literal["buyer", "target"]) -> Person:
-    return Person(
-        id=row.attio_id,
-        name=row.name,
-        org=org_name,
-        role=role,
-        title=row.job_title or row.role,
-        email=_first_email(row.email),
-    )
 
 
 async def _team(session: AsyncSession) -> tuple[TeamMember, ...]:
