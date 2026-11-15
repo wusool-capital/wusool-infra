@@ -36,7 +36,7 @@ for current production evidence and open handover items.
   `system/mcp`.
 - Page views and time on page now go to PostHog, only after a visitor chooses
   Accept all. `embed.js` adds `$pageview` and `$pageleave` to the Webflow pages
-  with no replay or autocapture, and tool pages send them only when opened
+  with no replay or autocapture. Tool pages send them only when opened
   directly, so an embedded tool is not counted twice.
   `GET /analytics/config` sends a CORS header for `wusoolcapital.com` so the
   website can read it. A Website Metrics dashboard in PostHog shows traffic,
