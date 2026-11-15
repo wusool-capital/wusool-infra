@@ -12,6 +12,15 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Benchmark peer dataset in Postgres. The GCC SME Benchmark's peer anchors, revenue
+  bands and metric weights moved from code into five tables (new `benchmark_data`
+  module), seeded from the original dataset. Scores don't change.
+- Advisors can read and edit that dataset from Claude: `get_benchmark_overview`,
+  `get_peer_cut`, `edit_benchmark_peer_cut`, `edit_revenue_band` and
+  `set_metric_weights`. Edits are checked, saved straight away and applied to the
+  public benchmark, and each one bumps a dataset version and records the editor.
+- The benchmark page loads its data from `GET /benchmark/20-data.js`, built from the
+  tables. If the database can't be read it serves the original static copy.
 - Wusool MCP v1 (AZM-168). Advisors connect Claude once with their Slack
   sign-in and can find, add, edit and bulk-import buyers and sellers. No new tables.
 - Adds and edits from Claude are saved straight away, Attio first. A bulk list is

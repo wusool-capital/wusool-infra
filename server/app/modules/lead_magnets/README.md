@@ -51,7 +51,9 @@ lead_magnets/
       data/valuation.json          # 1000 M&A deals, 127 VC rounds, 31 comp sectors
     benchmark/
       benchmark.py                 # the percentile engine + js_round
-      benchmark_dataset.py         # generated peer dataset; do not hand-edit
+      benchmark_dataset.py         # generated seed + fallback copy of the peer dataset; do not hand-edit
+      peer_dataset.py              # PeerDataset: what one score reads, built from benchmark_data
+      dataset_js.py                # renders the page's DATA script from the same tables
       benchmark_submission.py      # one submission end to end: ratios, score, implied EV
       benchmark_routing.py         # internal triage: priority, reason, quality gates
       benchmark_narrative.py       # which metrics earn a paragraph, and how it is filled

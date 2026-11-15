@@ -383,6 +383,26 @@ shortlisted candidate row (candidate-level columns meaningful).
 
 Constraint: `uq_match_results_run_header` — unique `run_id` where `rank IS NULL`.
 
+### Benchmark peer dataset (`benchmark_data.py`) — new, 2026-11-15
+
+The GCC SME Benchmark's peer dataset, owned by the `benchmark_data` module and
+edited from the Wusool MCP. Seeded from `benchmark_dataset.py` (version 1,
+`updated_by = 'seed'`). Every table also has `updated_by` (text, not null) and
+`updated_at` (timestamptz, default `now()`).
+
+| Table | Key | Columns |
+|---|---|---|
+| `benchmark_bands` | `id` (unique `position`) | `label`, `max_usd` (NULL on the top band), `ebitda_adj`, `rev_emp_mult`, `rent_mult` |
+| `benchmark_metrics` | `mode`, `key` | `position`, `label`, `unit`, `higher_is_better`, `weight` (CHECK >= 0), `observed` (tech only) |
+| `benchmark_peer_cuts` | `mode`, `key` | `label`, `sample_size`, `multi_site`, `b2b` |
+| `benchmark_anchors` | `mode`, `peer_key`, `metric` | `p10`, `p25`, `p50`, `p75`, `p90` (CHECK: rising); FK to `benchmark_peer_cuts` (cascade) |
+| `benchmark_dataset_version` | `id` (CHECK `id = 1`) | `version`, bumped by every edit |
+
+`mode` is `sme` (sector peer cuts) or `tech` (funding-stage peer cuts), enforced by
+a CHECK on `benchmark_metrics` and `benchmark_peer_cuts`.
+
+---
+
 ### `feedback_submissions` (`feedback_submission.py`) — new, 2026-09-14
 
 Durable record of in-app feedback pushed by the WusoolScribe desktop app

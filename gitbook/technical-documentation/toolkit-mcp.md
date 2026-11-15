@@ -2,7 +2,7 @@
 
 ## What it does
 
-The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers from Claude, signed in with their own Slack account. It runs inside the Toolkit server at `/mcp` (Streamable HTTP, stateless) in the `mcp` module. It adds no tables.
+The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers from Claude, signed in with their own Slack account. It also lets them read and edit the GCC SME Benchmark's peer dataset. It runs inside the Toolkit server at `/mcp` (Streamable HTTP, stateless) in the `mcp` module. It has no tables of its own. The benchmark tables belong to the `benchmark_data` module.
 
 ## Tools
 
@@ -14,8 +14,17 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows. Returns new, existing and invalid rows | Nothing |
 | `confirm_import` | After the person agrees, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
+| `get_benchmark_overview` | Dataset version, revenue bands, metric weights, and every peer set with its sample size | Read only |
+| `get_peer_cut` | One peer set with its percentile anchors | Read only |
+| `edit_benchmark_peer_cut` | Change a peer set's sample size, flags or anchors. Only the fields sent change | Straight away |
+| `edit_revenue_band` | Change a revenue band's label, ceiling or adjustment factors | Straight away |
+| `set_metric_weights` | Set every metric's weight for a mode. They must add up to 100 | Straight away |
 
-No tool deletes, sends, spends provider credits or shows fees. Tool and field names only grow: a breaking change becomes a new tool, because conversations and skills depend on them.
+No tool deletes, sends, spends provider credits or shows fees.
+
+The benchmark tools change what visitors to the public benchmark are scored against, as soon as they are saved. Each edit is checked first. Anchors must rise from p10 to p90. Band ceilings must keep rising, and only the top band is open-ended. Weights must add up to 100. A refused edit saves nothing. Every edit bumps the dataset version and stores the editor's name.
+
+Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them.
 
 ## How a call runs
 
@@ -50,5 +59,6 @@ Until the settings are present, `/mcp` isn't mounted.
 ## Limits
 
 - Stored results for `request_id`, used codes and rate limits are kept in memory. That is correct for the single Toolkit instance, and a restart clears them. Phase 0 moves them to Postgres behind the same interfaces.
-- Every active member passes the permission check in v1. Each tool already declares the permission it needs (`buyers.read`, `buyers.write`, `sellers.read`, `sellers.write`, `imports.write`), so phase 0 can add roles without changing tools.
+- Every active member passes the permission check in v1. Each tool already declares the permission it needs (`buyers.read`, `buyers.write`, `sellers.read`, `sellers.write`, `imports.write`, `benchmark.read`, `benchmark.write`), so phase 0 can add roles without changing tools.
 - The company name, domain and a buyer's `target_vertical` can't be edited.
+- The benchmark tools use the same `crm` token scope as the CRM tools, so one connection covers both. Adding or removing sectors and stages isn't offered.

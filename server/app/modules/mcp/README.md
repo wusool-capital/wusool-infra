@@ -14,10 +14,16 @@ Slack. It is served from the Toolkit app at `/mcp` (Streamable HTTP, stateless).
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows: new, existing, invalid | Nothing |
 | `confirm_import` | After the person says go, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
+| `get_benchmark_overview`, `get_peer_cut` | The benchmark peer dataset in brief, and one peer set's anchors | Read only |
+| `edit_benchmark_peer_cut`, `edit_revenue_band`, `set_metric_weights` | Change anchors, sample sizes, band factors or weights. Checked first; saved straight away | Straight away |
 
 No tool deletes, sends anything, spends provider credits or shows fees.
 
-The tools call only `ddl_commands`' public functions (`add_one`, `edit_one`,
+The benchmark tools call only `benchmark_data`'s public functions (`load_dataset`,
+`edit_peer_cut`, `edit_band`, `set_weights`). They use the `crm` token scope, since a
+second scope would sign every connected advisor out.
+
+The CRM tools call only `ddl_commands`' public functions (`add_one`, `edit_one`,
 `find_records`, `preview_*`, `commit`, `status`). A field map follows the
 bulk-upload row rules, and the field list in each tool description comes from
 the same `FieldSpec`s the Slack forms use, so it can't drift.
