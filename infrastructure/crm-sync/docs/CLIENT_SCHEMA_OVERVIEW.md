@@ -434,6 +434,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
 | Integration operations | `attio_sync_state`, `attio_raw_events` | Synchronization progress and incoming Attio events |
 | Scribe integration | `meetings` | Buyer/seller meeting summaries published by the standalone scribe service |
+| Interactions engine | `interactions`, `interaction_participants`, `mailbox_sync_cursors`, `attio_sent_values`, `interaction_review_items`, `auto_create_keys` | Gmail and Calendar metadata, sync positions, values sent to Attio, links left for review, and records the engine created (AZM-159) |
 
 ### users
 
@@ -466,6 +467,7 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | `categories` | `text[]` | No | - | - | `'{}'` |
 | `relationship_status` | `text` | Yes | - | - | - |
 | `connection_strength` | `text` | Yes | - | - | - |
+| `connection_strength_score` | `numeric` | Yes | - | - | - |
 | `owner_attio_id` | `text` | Yes | - | `users.attio_id` | - |
 | `last_interaction_at` | `timestamptz` | Yes | - | - | - |
 | `lead_source` | `text` | Yes | - | - | - |
@@ -491,6 +493,7 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 | `linkedin` | `text` | Yes | - | - | - |
 | `relationship_status` | `text` | Yes | - | - | - |
 | `connection_strength` | `text` | Yes | - | - | - |
+| `connection_strength_score` | `numeric` | Yes | - | - | - |
 | `owner_attio_id` | `text` | Yes | - | `users.attio_id` | - |
 | `past_employers` | `jsonb` | No | - | - | `'[]'::jsonb` |
 | `education` | `jsonb` | No | - | - | `'[]'::jsonb` |
@@ -1115,6 +1118,23 @@ definition: `database/sql/005_meetings.sql`.
 desktop-push column set (`status`, `install_id`,
 `local_recording_id`, `summary_json`, `summary_started_at`), not
 duplicated here.
+
+### Interactions engine tables (AZM-159)
+
+Postgres-only tables owned by the `interactions` module. None is mirrored to
+Attio. `server/SCHEMA.md` has every column.
+
+| Table | One row per | Key columns |
+|---|---|---|
+| `interactions` | Gmail message or Calendar event, per mailbox | `mailbox`, `channel`, `source_id`, `dedupe_key`, `occurred_at`, `direction`, `subject` |
+| `interaction_participants` | address on an interaction | `email`, `domain`, `role`, `person_attio_id`, `organization_attio_id` |
+| `mailbox_sync_cursors` | mailbox and source | `cursor`, `backfill_page_token`, `last_synced_at` |
+| `attio_sent_values` | record and field | `object`, `record_attio_id`, `field`, `value` (last value sent to Attio) |
+| `interaction_review_items` | shared domain or email left for review | `kind`, `value`, `subject`, `record_attio_ids`, `status` |
+| `auto_create_keys` | Person or Organization the engine created | `kind`, `key` (email or domain), `record_attio_id` |
+
+`organizations.connection_strength_score` and `person.connection_strength_score`
+hold the numeric score behind `connection_strength`. They are Postgres-only.
 
 ## Database indexes
 

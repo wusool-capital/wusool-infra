@@ -17,9 +17,10 @@ superset of the other. This is the union of both — not a re-narrowing.
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, Numeric, Text, text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -87,6 +88,8 @@ class Organization(Base):
     categories: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False, server_default="{}")
     relationship_status: Mapped[str | None] = mapped_column(Text)
     connection_strength: Mapped[str | None] = mapped_column(Text)
+    # AZM-159: numeric score behind the label; Postgres-only, written by the interactions engine.
+    connection_strength_score: Mapped[Decimal | None] = mapped_column(Numeric)
     owner_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("users.attio_id", name="organizations_owner_attio_id_fkey")
     )

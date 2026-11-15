@@ -52,7 +52,7 @@
         <mxCell id="RgGBnucupUyAWn9DcVHZ-15" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_status : enum  (single warmth field)" vertex="1">
           <mxGeometry height="18" width="300" y="240" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-16" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-16" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum  ·  _score : numeric (PG only)" vertex="1">
           <mxGeometry height="18" width="300" y="258" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-17" parent="RgGBnucupUyAWn9DcVHZ-4" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
@@ -136,7 +136,7 @@
         <mxCell id="RgGBnucupUyAWn9DcVHZ-26" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="relationship_status : enum" vertex="1">
           <mxGeometry height="18" width="300" y="150" as="geometry" />
         </mxCell>
-        <mxCell id="RgGBnucupUyAWn9DcVHZ-27" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum" vertex="1">
+        <mxCell id="RgGBnucupUyAWn9DcVHZ-27" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#DAE8FC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="connection_strength : enum  ·  _score : numeric (PG only)" vertex="1">
           <mxGeometry height="18" width="300" y="168" as="geometry" />
         </mxCell>
         <mxCell id="RgGBnucupUyAWn9DcVHZ-28" parent="RgGBnucupUyAWn9DcVHZ-19" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK owner : uuid → User" vertex="1">
@@ -961,6 +961,159 @@
           <mxGeometry height="18" width="300" y="294" as="geometry" />
         </mxCell>
         
+              <mxCell id="ix_interactions" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="interactions&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · Gmail/Calendar touches (AZM-159)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="240" width="300" x="898" y="2409" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r0" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r1" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="mailbox : text" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r2" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="channel : text (email/meeting)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r3" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="source_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r4" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="dedupe_key : text (Message-ID / iCalUID)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r5" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="occurred_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r6" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="direction : text (inbound/outbound)" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r7" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="thread_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r8" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="subject : text" vertex="1">
+          <mxGeometry height="18" width="300" y="186" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r9" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="cancelled : bool" vertex="1">
+          <mxGeometry height="18" width="300" y="204" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_interactions_r10" parent="ix_interactions" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at / updated_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="222" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="interaction_participants&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · address on an interaction&lt;/font&gt;" vertex="1">
+          <mxGeometry height="186" width="300" x="1228" y="2409" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r0" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r1" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK interaction_id → interactions (cascade)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r2" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="email : text" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r3" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="domain : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r4" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="role : text (from/to/cc/attendee)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r5" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK person_attio_id → Person (set null)" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r6" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="FK organization_attio_id → Organization" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_participants_r7" parent="ix_participants" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="mailbox_sync_cursors&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · sync position per mailbox&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="300" x="1558" y="2409" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors_r0" parent="ix_cursors" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK mailbox + source (gmail/calendar)" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors_r1" parent="ix_cursors" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="cursor : text (history id / sync token)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors_r2" parent="ix_cursors" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="backfill_page_token : text" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors_r3" parent="ix_cursors" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="backfill_completed_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors_r4" parent="ix_cursors" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="last_synced_at : timestamptz (stale alert)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_cursors_r5" parent="ix_cursors" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at / updated_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="attio_sent_values&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · last value sent to Attio (PR 4)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="168" width="300" x="898" y="2689" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r0" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r1" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="object : text (organizations/person/deal)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r2" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="record_attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r3" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="field : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r4" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="value : text (NULL = cleared)" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r5" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at / updated_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r6" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="UNIQUE (object, record_attio_id, field)" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="interaction_review_items&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · links left for review (PR 4)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="168" width="300" x="1228" y="2689" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r0" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r1" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="kind : text (shared_domain/shared_email)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r2" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="value : text (domain or address)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r3" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="subject : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r4" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="record_attio_ids : text[]" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r5" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="status : text (open/resolved/dismissed)" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_review_items_r6" parent="ix_review_items" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at / updated_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="auto_create_keys&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · records the engine created&lt;/font&gt;" vertex="1">
+          <mxGeometry height="150" width="300" x="1558" y="2689" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create_r0" parent="ix_auto_create" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
+          <mxGeometry height="18" width="300" y="42" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create_r1" parent="ix_auto_create" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="kind : text (person/organization)" vertex="1">
+          <mxGeometry height="18" width="300" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create_r2" parent="ix_auto_create" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="key : text (email or domain)" vertex="1">
+          <mxGeometry height="18" width="300" y="78" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create_r3" parent="ix_auto_create" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="record_attio_id : text" vertex="1">
+          <mxGeometry height="18" width="300" y="96" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create_r4" parent="ix_auto_create" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="created_at : timestamptz" vertex="1">
+          <mxGeometry height="18" width="300" y="114" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_auto_create_r5" parent="ix_auto_create" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="UNIQUE (kind, key)" vertex="1">
+          <mxGeometry height="18" width="300" y="132" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
