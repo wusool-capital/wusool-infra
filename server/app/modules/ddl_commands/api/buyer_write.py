@@ -6,7 +6,6 @@ Attio-then-Postgres ordering and one `PartialWriteError` shape. Mirrors
 
 import asyncio
 from contextlib import nullcontext
-from typing import Literal
 from weakref import WeakValueDictionary
 
 from app.models import BuyerRole
@@ -26,6 +25,7 @@ from app.modules.ddl_commands.api.organizations import ORGANIZATION_FIELDS_BY_NA
 from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.write_errors import PartialWriteError
 from app.modules.ddl_commands.application.buyers import BuyerAlreadyExistsError
+from app.modules.ddl_commands.application.ports.command_runs import InvokedVia
 from app.modules.ddl_commands.providers.attio.write_payload import (
     build_attio_values,
     build_postgres_values,
@@ -45,7 +45,7 @@ async def write_buyer_add(
     org_extracted: dict[str, PrefillValue | None],
     role_extracted: dict[str, PrefillValue | None],
     requested_by: str | None,
-    invoked_via: Literal["slack", "mcp"],
+    invoked_via: InvokedVia,
 ) -> BuyerRole:
     """Serializes the duplicate check with the Attio create, so a second
     add for the same (org, vertical) sees the first one's role instead of

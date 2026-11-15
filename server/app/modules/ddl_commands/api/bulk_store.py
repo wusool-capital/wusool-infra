@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict
 from app.modules.ddl_commands.api.schemas import PrefillValue
 
 UploadKind = Literal["buyer", "seller"]
-InvokedVia = Literal["slack", "mcp"]
+InvokedVia = Literal["slack", "mcp", "engine"]
 CommitState = Literal["ready", "running", "done", "interrupted"]
 OutcomeKind = Literal["added", "skipped", "failed"]
 

@@ -80,3 +80,4 @@ class ActivitySource(StrEnum):
     LEAD_MAGNET = "lead_magnet"
     ENRICHMENT = "enrichment"
     MCP = "mcp"
+    ENGINE = "engine"
