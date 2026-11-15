@@ -36,6 +36,8 @@ from slack_bolt.response import BoltResponse
 from slack_sdk.web.async_client import AsyncWebClient
 
 from app.modules.attio import attio_is_test
+from app.modules.crm import install_problem_handlers as install_crm_problem_handlers
+from app.modules.crm import router as crm_router
 from app.modules.ddl_commands.api.attio_sync import router as attio_sync_router
 from app.modules.ddl_commands.api.dependencies import configure_edit_gate_port
 from app.modules.ddl_commands.api.slack.handlers import (
@@ -65,6 +67,7 @@ from app.modules.discrepancies import configure_criteria_reader_port
 from app.modules.discrepancies.api.slack.handlers import (
     register_handlers as register_discrepancies_handlers,
 )
+from app.modules.engine import router as engine_router
 from app.modules.enrichment.api.dependencies import configure_review_port
 from app.modules.enrichment.api.slack.handlers import (
     register_handlers as register_enrichment_handlers,
@@ -237,6 +240,10 @@ app.include_router(lead_magnets_router)
 # The web find-match app's API (`client/`); disabled until WEB_API_KEY is set.
 app.include_router(web_auth_router)
 app.include_router(find_match_web_router)
+# The Engine frontend's API (`engine-frontend/`), behind Cloudflare Access; off until configured.
+app.include_router(crm_router)
+app.include_router(engine_router)
+install_crm_problem_handlers(app)
 # The Wusool MCP for Claude (`/mcp`, its OAuth endpoints and metadata); off until configured.
 # Above the catch-all static mount below, which would otherwise claim these paths.
 _mcp = build_mcp_app()
