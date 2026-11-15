@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Added
 
+- The live Engine at `engine.wusoolcapital.com` is prepared: its own Worker (`wusool-engine-prod`), Access
+  application and deploy path, reading the production Toolkit. It goes live after the stack is applied and
+  `prod` is promoted. See Release the Engine in the deployment guide.
 - Cloudflare Access for the Engine now also admits `@dopaminecap.com` addresses, because the
   advisors' Attio members still use them. It is `var.allowed_email_domains` in the `engine-frontend` stack.
 - The Engine's Buyers and Sellers pages can run on live Toolkit data. A new `crm`

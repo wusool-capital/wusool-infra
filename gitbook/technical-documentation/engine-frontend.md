@@ -5,12 +5,17 @@
 The Wusool Engine is the advisors' internal app. The Buyers and Sellers pages
 read and write live Toolkit data. Every other tab is still a clickable prototype
 on invented demo data. It lives in the `engine-frontend/` folder and is served
-from Cloudflare Workers at **engine-dev.wusoolcapital.com**.
+from Cloudflare Workers.
+
+There are two copies. **engine-dev.wusoolcapital.com** reads the dev Toolkit and
+is for testing. **engine.wusoolcapital.com** is the live Engine, and it reads the
+production Toolkit, so its edits change the real CRM.
 
 ## How it is hosted
 
 1. The app is a single-page React app. `npm run build` writes static files to
-   `engine-frontend/build/client`, and the Worker `wusool-engine-dev` serves them. Any
+   `engine-frontend/build/client`, and the Worker serves them: `wusool-engine-dev` for dev and `wusool-engine-prod` for
+   the live Engine. Any
    path that is not a file returns `index.html`, so reloads and deep links work.
 2. Cloudflare Access sits in front of the hostname. A visitor enters an
    `@wusoolcapital.com` or `@dopaminecap.com` address, Access emails a one-time
@@ -62,17 +67,22 @@ from Cloudflare Workers at **engine-dev.wusoolcapital.com**.
   build, `wrangler deploy`, then a check that the hostname and `/api/v1/me`
   both answer with an Access sign-in redirect. The run fails if either does not.
   Local work and tests use `VITE_DATA=demo`, the default.
+* **Merging to `prod`** runs the same workflow for the live Engine, with
+  `wrangler deploy --env production`, the `engine-prod` GitHub environment and the
+  `engine.wusoolcapital.com` check.
 * The Cloudflare deploy token is in AWS Secrets Manager. The job reads it
-  through a GitHub OIDC role that only `deploy-engine.yml` on `dev` can assume.
-  GitHub holds no Cloudflare secret.
-* The deploy job stays off until the repository variable
-  `ENGINE_ACCESS_APPLIED` is `true`.
+  through a GitHub OIDC role. The role only trusts `deploy-engine.yml` on `dev`
+  with the `engine-dev` environment, or on `prod` with `engine-prod`. GitHub holds
+  no Cloudflare secret.
+* Each deploy job stays off until its repository variable is `true`:
+  `ENGINE_ACCESS_APPLIED` for dev and `ENGINE_PROD_ACCESS_APPLIED` for the live Engine.
 
 ## Access stack
 
-The `engine-frontend` OpenTofu stack owns the Access application and its
-policy. It is applied by hand, with a Cloudflare API token that can edit Access
-applications and policies, before the first deploy. See
+The `engine-frontend` OpenTofu stack owns both Access applications, the one
+policy they share, and the deploy role. It is applied by hand, with a Cloudflare
+API token that can edit Access applications and policies, before the first
+deploy of each environment. See
 [Deployment and rollback](../operations-and-handover/deployment-and-rollback.md).
 
 ## Limits

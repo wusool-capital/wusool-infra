@@ -56,6 +56,7 @@
 * [Operations overview](operations-and-handover/operations.md)
 * [Environments and access](operations-and-handover/environments-and-access.md)
 * [Deployment and rollback](operations-and-handover/deployment-and-rollback.md)
+* [Release the Engine](operations-and-handover/release-the-engine.md)
 * [Monitoring and incident response](operations-and-handover/monitoring-and-incidents.md)
 * [Backups and recovery](operations-and-handover/backups-and-recovery.md)
 * [Ownership and dependencies](operations-and-handover/ownership-and-dependencies.md)
