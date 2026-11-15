@@ -173,9 +173,11 @@ server/
 │       ├── matching_engine/   # /find-match
 │       ├── discrepancies/       # /check-buyer
 │       ├── ddl_commands/        # /edit-seller, /edit-buyer, /add-seller, /add-buyer
+│       ├── crm/                     # /api/v1 buyer and seller roles for the Engine (reads; writes via ddl_commands)
+│       ├── engine/                  # /api/v1/views: the Engine's page payloads, composed from crm
 │       ├── meetings/              # /desktop/* — desktop-app transcript summarization
 │       ├── mcp/                     # /mcp — Wusool MCP for Claude (find/add/edit/bulk import)
-│       ├── auth/                    # Sign in with Slack, shared by the web app and the MCP
+│       ├── auth/                    # Sign in with Slack (web app, MCP) and the Cloudflare Access check (Engine)
 │       ├── organizations/           # shared Organization persistence
 │       ├── activities/                # business-event history (activities index, vocabulary, recorder)
 │       ├── google_workspace/            # Gmail and Calendar access (service account, delegation)
