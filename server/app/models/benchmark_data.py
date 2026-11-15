@@ -3,8 +3,9 @@
 
 `benchmark_peer_cuts` holds one row per sector (`sme`) or funding stage
 (`tech`) with its percentile anchors. `benchmark_rules` holds the revenue bands
-and the metric weights. Both keep only the current values: `updated_by` (a
-Slack user id) and `updated_at` say who last changed a row. Version history
+and the metric weights. Both keep only the current values: `updated_by` (the
+editor's name) and `updated_at` say who last changed a row; the Slack id is on the
+row's `activities` event. Version history
 belongs to the audit tables.
 """
 

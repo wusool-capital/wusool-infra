@@ -33,7 +33,7 @@ will keep history. Until then the activity names which fields changed.
 | A revenue band's label, ceiling or three factors | Ceilings keep rising, only the top band is open-ended, multipliers above zero |
 | A mode's metric weights | Every metric of the mode, adding up to 100 |
 
-An edit that changes nothing writes nothing. Adding or removing a peer cut isn't
+Every number must be finite, and a band's ceiling above zero. An edit locks the rows it reads until it commits, so two edits can't overwrite each other. An edit that changes nothing writes nothing. Adding or removing a peer cut isn't
 offered: each sector is also mapped to a CRM sector option in
 `lead_magnets/domain/shared/sector_mapping.py`, and `lead_magnets/api/schemas.py`
 validates `peer_key` against `benchmark_dataset.py`, which still lists every key.

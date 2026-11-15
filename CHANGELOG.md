@@ -24,6 +24,8 @@ for current production evidence and open handover items.
   `get_peer_cut`, `edit_benchmark_peer_cut`, `edit_revenue_band` and
   `set_metric_weights`. Edits are checked, saved straight away and applied to the
   public benchmark. Claude reads a row first and tells the person what it held.
+- If the peer dataset tables can't be read, benchmark scoring uses the original dataset
+  instead of failing, and the page script is served uncached.
 - A benchmark peer set's anchors can be edited one percentile at a time, for example
   just the median. `edit_buyer` and `edit_seller` no longer need `fields` in the
   schema: an edit with none still gets the same "send at least one field" answer.

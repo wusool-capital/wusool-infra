@@ -28,7 +28,11 @@ async def benchmark_dataset_script() -> Response:
     try:
         script = render_dataset_js(await load_dataset(), TECH_SECTOR_LIST)
     except Exception:
-        # A blank benchmark page is worse than slightly stale peer data.
+        # A blank benchmark page is worse than slightly stale peer data. Never cached, so
+        # the edited numbers return as soon as the database does.
         logger.exception("benchmark_dataset_script_fallback")
         script = (static_dir() / "benchmark" / "20-data.js").read_text(encoding="utf-8")
+        return Response(
+            script, media_type="text/javascript", headers={**_HEADERS, "Cache-Control": "no-store"}
+        )
     return Response(script, media_type="text/javascript", headers=_HEADERS)

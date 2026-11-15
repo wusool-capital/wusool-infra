@@ -23,7 +23,11 @@ from app.modules.lead_magnets.application.shared.service import LeadMagnetServic
 from app.modules.lead_magnets.application.shared.sweeper import sweep_once
 from app.modules.lead_magnets.application.valuation.valuation_ai import ValuationAi
 from app.modules.lead_magnets.config import get_settings
-from app.modules.lead_magnets.domain.benchmark.peer_dataset import PeerDataset, peer_dataset_from
+from app.modules.lead_magnets.domain.benchmark.peer_dataset import (
+    BUILT_IN_PEER_DATASET,
+    PeerDataset,
+    peer_dataset_from,
+)
 from app.modules.lead_magnets.domain.shared.attio_values import DealType, lead_source_detail_label
 from app.modules.lead_magnets.domain.shared.dedup import (
     domain_matches,
@@ -92,11 +96,24 @@ def build_lead_magnet_mailer() -> EmailSenderPort:
     return SesMailer(client)
 
 
+async def load_peer_dataset() -> PeerDataset:
+    """The stored peer dataset, or the original one when the tables can't be read.
+
+    Scoring used to be pure; a database blip must not turn a visitor's result into a 500, or a
+    recorded lead into a run that never reaches Attio.
+    """
+    try:
+        return peer_dataset_from(await load_dataset())
+    except Exception:
+        logger.exception("benchmark_peer_dataset_fallback")
+        return BUILT_IN_PEER_DATASET
+
+
 class _BenchmarkDataPeers:
     """Adapts the `benchmark_data` module to `PeerDatasetPort`."""
 
     async def load(self) -> PeerDataset:
-        return peer_dataset_from(await load_dataset())
+        return await load_peer_dataset()
 
 
 class _RoleAttioWriter:

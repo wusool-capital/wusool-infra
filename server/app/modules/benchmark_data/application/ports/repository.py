@@ -7,7 +7,10 @@ from app.modules.benchmark_data.domain.dataset import Band, BenchmarkDataset, Me
 
 
 class BenchmarkDataRepository(Protocol):
-    async def load(self) -> BenchmarkDataset: ...
+    async def load(self, *, for_update: bool = False) -> BenchmarkDataset:
+        """With `for_update`, locks every row until the transaction ends, so two edits
+        can't each merge onto the same snapshot and overwrite one another."""
+        ...
 
     async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> PeerCut:
         """Writes the cut and returns it as stored, with the new `updated_by`/`updated_at`."""

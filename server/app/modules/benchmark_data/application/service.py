@@ -47,7 +47,7 @@ class BenchmarkDataService:
     async def edit_peer_cut(
         self, mode: Mode, key: str, edit: PeerCutEdit, *, editor: Editor, source: ActivitySource
     ) -> PeerCut:
-        dataset = await self._repository.load()
+        dataset = await self._repository.load(for_update=True)
         cut = dataset.cuts[mode].get(key)
         if cut is None:
             raise UnknownRecordError(f"No {mode} peer cut '{key}'")
@@ -69,7 +69,7 @@ class BenchmarkDataService:
     async def edit_band(
         self, code: str, edit: BandEdit, *, editor: Editor, source: ActivitySource
     ) -> tuple[Band, ...]:
-        dataset = await self._repository.load()
+        dataset = await self._repository.load(for_update=True)
         bands = apply_band_edit(dataset.bands, code, edit)
         before = next(b for b in dataset.bands if b.code == code)
         after = next(b for b in bands if b.code == code)
@@ -90,7 +90,7 @@ class BenchmarkDataService:
     async def set_weights(
         self, mode: Mode, weights: Mapping[str, int], *, editor: Editor, source: ActivitySource
     ) -> Mapping[str, Metric]:
-        dataset = await self._repository.load()
+        dataset = await self._repository.load(for_update=True)
         current = dataset.metrics[mode]
         check_weights(current, weights)
         changed = [key for key, weight in weights.items() if current[key].weight != weight]

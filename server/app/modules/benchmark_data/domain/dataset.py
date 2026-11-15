@@ -1,6 +1,7 @@
 """The benchmark peer dataset as framework-free values, and the rules an edit
 must satisfy before it is saved. Pure."""
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -148,7 +149,14 @@ class BandEdit:
     rent_mult: float | None = None
 
 
+def _finite(name: str, value: float) -> None:
+    if not math.isfinite(value):
+        raise InvalidEditError(f"{name} must be a finite number, got {value}")
+
+
 def check_anchors(metric: str, anchors: Anchors) -> None:
+    for value in anchors:
+        _finite(metric, value)
     if any(later < earlier for earlier, later in zip(anchors, anchors[1:], strict=False)):
         raise InvalidEditError(f"{metric}: anchors must rise from p10 to p90, got {list(anchors)}")
 
@@ -198,15 +206,22 @@ def apply_band_edit(bands: tuple[Band, ...], code: str, edit: BandEdit) -> tuple
         else b
         for b in bands
     )
+    for b in updated:
+        _finite(f"{b.code} ebitda_adj", b.ebitda_adj)
+        _finite(f"{b.code} rev_emp_mult", b.rev_emp_mult)
+        _finite(f"{b.code} rent_mult", b.rent_mult)
+        if b.max_usd is not None:
+            _finite(f"{b.code} max_usd", b.max_usd)
+            if b.max_usd <= 0:
+                raise InvalidEditError(f"{b.code}: the revenue ceiling must be above zero")
+        if b.rev_emp_mult <= 0 or b.rent_mult <= 0:
+            raise InvalidEditError(f"{b.code}: multipliers must be above zero")
     ceilings = [b.max_usd for b in updated[:-1]]
     if updated[-1].max_usd is not None or None in ceilings:
         raise InvalidEditError("Only the top band is open-ended")
     known = [c for c in ceilings if c is not None]
     if any(later <= earlier for earlier, later in zip(known, known[1:], strict=False)):
         raise InvalidEditError("Band ceilings must rise from the smallest band to the largest")
-    for b in updated:
-        if b.rev_emp_mult <= 0 or b.rent_mult <= 0:
-            raise InvalidEditError(f"{b.code}: multipliers must be above zero")
     return updated
 
 

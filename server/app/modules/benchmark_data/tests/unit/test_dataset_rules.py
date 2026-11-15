@@ -83,8 +83,10 @@ class FakeRepository:
     def __init__(self) -> None:
         self.dataset = _dataset()
         self.saved: list[str] = []
+        self.locked = False
 
-    async def load(self) -> BenchmarkDataset:
+    async def load(self, *, for_update: bool = False) -> BenchmarkDataset:
+        self.locked = self.locked or for_update
         return self.dataset
 
     async def save_peer_cut(self, cut: PeerCut, *, edited_by: str) -> PeerCut:
@@ -405,3 +407,58 @@ async def test_a_partial_edit_naming_no_percentile_is_refused(
             editor=_ALICE,
             source=ActivitySource.MCP,
         )
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf")])
+async def test_anchors_must_be_finite_numbers(service: BenchmarkDataService, bad: float) -> None:
+    with pytest.raises(InvalidEditError, match="finite number"):
+        await service.edit_peer_cut(
+            "sme",
+            "salon",
+            PeerCutEdit(anchors={"ebitda": (1, bad, 3, 4, 5)}),
+            editor=_ALICE,
+            source=ActivitySource.MCP,
+        )
+    with pytest.raises(InvalidEditError, match="finite number"):
+        await service.edit_peer_cut(
+            "sme",
+            "salon",
+            PeerCutEdit(anchors={"ebitda": PercentileEdit(p50=bad)}),
+            editor=_ALICE,
+            source=ActivitySource.MCP,
+        )
+
+
+@pytest.mark.parametrize(
+    ("edit", "message"),
+    [
+        (BandEdit(max_usd=float("nan")), "finite number"),
+        (BandEdit(max_usd=float("inf")), "finite number"),
+        (BandEdit(max_usd=0), "above zero"),
+        (BandEdit(max_usd=-5), "above zero"),
+        (BandEdit(ebitda_adj=float("inf")), "finite number"),
+        (BandEdit(rev_emp_mult=float("nan")), "finite number"),
+    ],
+)
+async def test_band_numbers_must_be_finite_and_ceilings_positive(
+    service: BenchmarkDataService, edit: BandEdit, message: str
+) -> None:
+    with pytest.raises(InvalidEditError, match=message):
+        await service.edit_band("micro", edit, editor=_ALICE, source=ActivitySource.MCP)
+
+
+async def test_every_edit_locks_the_rows_it_reads(
+    service: BenchmarkDataService, repo: FakeRepository
+) -> None:
+    await service.edit_peer_cut(
+        "sme", "salon", PeerCutEdit(sample_size=60), editor=_ALICE, source=ActivitySource.MCP
+    )
+    assert repo.locked
+    repo.locked = False
+    await service.edit_band("micro", BandEdit(label="x"), editor=_ALICE, source=ActivitySource.MCP)
+    assert repo.locked
+    repo.locked = False
+    await service.set_weights(
+        "sme", {"ebitda": 70, "growth": 30}, editor=_ALICE, source=ActivitySource.MCP
+    )
+    assert repo.locked

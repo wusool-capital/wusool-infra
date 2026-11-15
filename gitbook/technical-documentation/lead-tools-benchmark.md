@@ -32,7 +32,7 @@ Every row carries `updated_by` (the person's name) and `updated_at`, so a row sa
 
 Advisors read and edit these from Claude through the [Wusool MCP](toolkit-mcp.md). Edits apply at once to new scores. The page itself caches its data for about a minute. Each changed row also leaves an `activities` event, with the person's Slack id and the names of the fields that changed. The formula that turns anchors into percentiles, scores and bands stays in code.
 
-The page loads its data from `GET /benchmark/20-data.js`, which is built from the same tables. If the database can't be read, that route serves the static copy of the original dataset, and logs the failure.
+The page loads its data from `GET /benchmark/20-data.js`, which is built from the same tables. If the database can't be read, that route serves the static copy of the original dataset, never cached, and logs the failure. Server-side scoring does the same and falls back to the original dataset. A database error therefore never stops a visitor getting a result, or a lead reaching Attio.
 
 An edit can change existing peer cuts, bands and weights. It can't add or remove a sector, because each sector is also mapped to a CRM sector option in code.
 

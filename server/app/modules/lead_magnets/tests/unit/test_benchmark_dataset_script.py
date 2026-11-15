@@ -131,3 +131,4 @@ def test_the_route_falls_back_to_the_static_file_when_the_database_fails(
     response = client.get("/benchmark/20-data.js")
     assert response.status_code == 200
     assert response.text == (static_dir() / "benchmark" / "20-data.js").read_text(encoding="utf-8")
+    assert response.headers["cache-control"] == "no-store"

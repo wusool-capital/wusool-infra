@@ -88,19 +88,15 @@ class PostgresBenchmarkDataRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def load(self) -> BenchmarkDataset:
-        rules = (
-            await self._session.scalars(
-                select(BenchmarkRule).order_by(
-                    BenchmarkRule.kind, BenchmarkRule.mode, BenchmarkRule.position
-                )
-            )
-        ).all()
-        cuts = (
-            await self._session.scalars(
-                select(BenchmarkPeerCut).order_by(BenchmarkPeerCut.mode, BenchmarkPeerCut.key)
-            )
-        ).all()
+    async def load(self, *, for_update: bool = False) -> BenchmarkDataset:
+        rules_query = select(BenchmarkRule).order_by(
+            BenchmarkRule.kind, BenchmarkRule.mode, BenchmarkRule.position
+        )
+        cuts_query = select(BenchmarkPeerCut).order_by(BenchmarkPeerCut.mode, BenchmarkPeerCut.key)
+        if for_update:
+            rules_query, cuts_query = rules_query.with_for_update(), cuts_query.with_for_update()
+        rules = (await self._session.scalars(rules_query)).all()
+        cuts = (await self._session.scalars(cuts_query)).all()
         stamps = [r.updated_at for r in rules] + [c.updated_at for c in cuts]
         return BenchmarkDataset(
             updated_at=max(stamps),
