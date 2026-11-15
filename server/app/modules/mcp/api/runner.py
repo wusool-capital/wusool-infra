@@ -14,6 +14,7 @@ from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver.exceptions import ToolError
 from pydantic import BaseModel
 
+from app.modules.benchmark_data import InvalidEditError, UnknownRecordError
 from app.modules.ddl_commands import (
     BuyerNotFoundError,
     InvalidFieldsError,
@@ -75,6 +76,10 @@ def _message(exc: Exception) -> str | None:
             return "That company was deleted in Attio, so it can't be edited."
         case OrgMismatchError():
             return "That record no longer belongs to the same company. Look it up again."
+        case InvalidEditError():
+            return f"Nothing was saved: {exc}"
+        case UnknownRecordError():
+            return f"{exc}. Use get_benchmark_overview to see what exists."
         case PartialWriteError():
             cause = describe_error(exc.cause)
             if not exc.landed:

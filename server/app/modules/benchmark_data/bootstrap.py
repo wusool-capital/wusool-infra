@@ -9,6 +9,7 @@ from app.modules.benchmark_data.domain.dataset import (
     Band,
     BandEdit,
     BenchmarkDataset,
+    Edited,
     Mode,
     PeerCut,
     PeerCutEdit,
@@ -28,16 +29,20 @@ async def load_dataset() -> BenchmarkDataset:
         return await service.dataset()
 
 
-async def edit_peer_cut(mode: Mode, key: str, edit: PeerCutEdit, *, edited_by: str) -> PeerCut:
+async def edit_peer_cut(
+    mode: Mode, key: str, edit: PeerCutEdit, *, edited_by: str
+) -> Edited[PeerCut]:
     async with _service() as service:
         return await service.edit_peer_cut(mode, key, edit, edited_by=edited_by)
 
 
-async def edit_band(band_id: str, edit: BandEdit, *, edited_by: str) -> tuple[Band, ...]:
+async def edit_band(band_id: str, edit: BandEdit, *, edited_by: str) -> Edited[tuple[Band, ...]]:
     async with _service() as service:
         return await service.edit_band(band_id, edit, edited_by=edited_by)
 
 
-async def set_weights(mode: Mode, weights: Mapping[str, int], *, edited_by: str) -> None:
+async def set_weights(
+    mode: Mode, weights: Mapping[str, int], *, edited_by: str
+) -> Edited[Mapping[str, int]]:
     async with _service() as service:
-        await service.set_weights(mode, weights, edited_by=edited_by)
+        return await service.set_weights(mode, weights, edited_by=edited_by)

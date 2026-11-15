@@ -13,7 +13,7 @@ from app.modules.auth import slack_sign_in_configured
 from app.modules.mcp.api.oauth import CALLBACK_PATH, WusoolOAuthProvider
 from app.modules.mcp.api.runner import CallerSource, ToolRunner, caller_from_token
 from app.modules.mcp.api.tokens import CODE_SECONDS, TokenCodec
-from app.modules.mcp.api.tools import imports, records
+from app.modules.mcp.api.tools import benchmark, imports, records
 from app.modules.mcp.config import McpSettings, get_settings
 from app.modules.mcp.domain.access import CRM_SCOPE
 from app.modules.mcp.persistence.adapters import ActiveMemberPermissions, InMemoryIdempotencyStore
@@ -22,7 +22,9 @@ from app.modules.utilities import FixedWindowRateLimiter
 _INSTRUCTIONS = (
     "Wusool's CRM of buyers and sellers. Look a company up before adding or editing it. "
     "Every add and edit is saved straight away under the signed-in person's name; a bulk "
-    "list is only saved after the person confirms the preview. Nothing here deletes records."
+    "list is only saved after the person confirms the preview. Nothing here deletes records. "
+    "It also holds the GCC SME Benchmark's peer dataset: read it first, and know that an edit "
+    "changes what visitors to the public benchmark are scored against straight away."
 )
 
 
@@ -65,6 +67,7 @@ def build_server(
     )
     records.register(server, runner)
     imports.register(server, runner)
+    benchmark.register(server, runner)
     return server
 
 

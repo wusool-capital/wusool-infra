@@ -61,6 +61,14 @@ class PeerCut:
 
 
 @dataclass(frozen=True)
+class Edited[T]:
+    """What an edit produced, and the dataset version it created."""
+
+    value: T
+    version: int
+
+
+@dataclass(frozen=True)
 class BenchmarkDataset:
     version: int
     updated_at: datetime

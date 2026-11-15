@@ -91,9 +91,11 @@ async def test_peer_cut_edit_changes_only_the_fields_sent(
     service: BenchmarkDataService, repo: FakeRepository
 ) -> None:
     anchors: Mapping[str, Anchors] = {"ebitda": (4, 9, 15, 22, 29)}
-    cut = await service.edit_peer_cut(
+    edited = await service.edit_peer_cut(
         "sme", "salon", PeerCutEdit(sample_size=60, anchors=anchors), edited_by="Alice"
     )
+    cut = edited.value
+    assert edited.version == 2
     assert cut.sample_size == 60
     assert cut.anchors["ebitda"] == (4, 9, 15, 22, 29)
     assert cut.anchors["dso"] == (0, 2, 5, 12, 25)
@@ -133,7 +135,7 @@ async def test_a_refused_edit_saves_nothing_and_keeps_the_version(
 async def test_band_edit_saves_only_that_band(
     service: BenchmarkDataService, repo: FakeRepository
 ) -> None:
-    bands = await service.edit_band("micro", BandEdit(max_usd=900_000), edited_by="A")
+    bands = (await service.edit_band("micro", BandEdit(max_usd=900_000), edited_by="A")).value
     assert bands[0].max_usd == 900_000
     assert repo.saved == ["band:micro"]
 

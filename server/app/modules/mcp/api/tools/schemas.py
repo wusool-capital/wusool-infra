@@ -168,3 +168,71 @@ def field_guide(kind: UploadKind) -> str:
         + "\n".join(lines)
         + vertical
     )
+
+
+# --- Benchmark peer dataset --------------------------------------------------
+
+BenchmarkMode = Literal["sme", "tech"]
+ModeParam = Annotated[
+    BenchmarkMode,
+    Field(description="'sme' for the sector peer sets, 'tech' for the funding-stage peer sets"),
+]
+AnchorList = Annotated[
+    list[float],
+    Field(min_length=5, max_length=5, description="[p10, p25, p50, p75, p90], rising"),
+]
+
+
+class BandOut(BaseModel):
+    id: str
+    label: str
+    max_usd: float | None = Field(description="Revenue ceiling in USD; null on the top band")
+    ebitda_adj: float = Field(description="Points added to the sector's EBITDA margin anchors")
+    rev_emp_mult: float = Field(description="Multiplies the revenue-per-employee anchors")
+    rent_mult: float = Field(description="Multiplies the premises-cost anchors")
+
+
+class MetricOut(BaseModel):
+    key: str
+    label: str
+    unit: str
+    weight: int = Field(description="Share of the score; a mode's weights add up to 100")
+
+
+class PeerCutSummary(BaseModel):
+    mode: BenchmarkMode
+    key: str
+    label: str
+    sample_size: int | None
+    multi_site: bool
+    b2b: bool
+
+
+class PeerCutOut(PeerCutSummary):
+    anchors: dict[str, AnchorList] = Field(
+        description="Percentile anchors [p10, p25, p50, p75, p90] by metric key"
+    )
+
+
+class BenchmarkOverview(BaseModel):
+    dataset_version: int
+    sme_metrics: list[MetricOut]
+    tech_metrics: list[MetricOut]
+    bands: list[BandOut]
+    peer_cuts: list[PeerCutSummary]
+
+
+class PeerCutEdited(BaseModel):
+    peer_cut: PeerCutOut
+    dataset_version: int
+
+
+class BandsEdited(BaseModel):
+    bands: list[BandOut]
+    dataset_version: int
+
+
+class WeightsEdited(BaseModel):
+    mode: BenchmarkMode
+    weights: dict[str, int]
+    dataset_version: int

@@ -63,6 +63,11 @@ async def test_lists_every_tool_with_its_annotations() -> None:
         "bulk_import_sellers",
         "confirm_import",
         "get_import",
+        "get_benchmark_overview",
+        "get_peer_cut",
+        "edit_benchmark_peer_cut",
+        "edit_revenue_band",
+        "set_metric_weights",
     }
     find = tools["find_buyers"].annotations
     assert find is not None and find.read_only_hint is True
