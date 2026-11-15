@@ -45,6 +45,13 @@ These are null (the Engine shows "—") and cannot be edited:
 - Buyer `type`, "Do not contact", sectors beyond the single `target_vertical`, and owner.
 - Seller owner, notes, sector edits and geography edits.
 
+A buyer with no check size or no EBITDA floor recorded never matches a filter on it. A buyer
+with only one check-size bound counts as open-ended on the other side.
+
+A buyer's geography is editable. The Engine shows one list, and the Toolkit sorts the picks
+into Attio's `target_region` and `target_country`. A group that already has values must keep
+at least one, because Attio's edit path cannot empty a multi-select (Slack has the same limit).
+
 Buyer `status` is the Attio `mandate_status`. Seller `openToSelling` maps the Attio
 `appetite_signal`: "No Signal" is Unknown, the two inbound signals are Interested, and
 "Warm Introduction / Direct Outreach" is Warm intro.

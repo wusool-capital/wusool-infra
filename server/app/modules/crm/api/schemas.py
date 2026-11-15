@@ -96,9 +96,13 @@ class SellerRoleView(ApiModel):
 
 
 class BuyerFilterOptionsView(ApiModel):
+    """`regions` and `countries` list everything Attio allows, for the edit form."""
+
     sectors: list[str]
     geographies: list[str]
     statuses: list[str]
+    regions: list[str]
+    countries: list[str]
 
 
 class SellerFilterOptionsView(ApiModel):
@@ -143,6 +147,8 @@ class BuyerCreate(ApiModel):
     check_size_min_usd: Usd = None
     check_size_max_usd: Usd = None
     ebitda_floor_usd: Usd = None
+    # Regions and countries together; the Toolkit sorts them into Attio's two fields.
+    geographies: list[str] | None = None
 
     @model_validator(mode="after")
     def _check_size_in_order(self) -> "BuyerCreate":
@@ -164,6 +170,7 @@ class BuyerCreate(ApiModel):
             check_size_min_usd=self.check_size_min_usd,
             check_size_max_usd=self.check_size_max_usd,
             ebitda_floor_usd=self.ebitda_floor_usd,
+            geographies=tuple(self.geographies or ()),
         )
 
 
@@ -187,6 +194,7 @@ class BuyerUpdate(_Update):
     check_size_min_usd: Usd = None
     check_size_max_usd: Usd = None
     ebitda_floor_usd: Usd = None
+    geographies: list[str] | None = None
 
     @model_validator(mode="after")
     def _check_size_in_order(self) -> "BuyerUpdate":
@@ -205,6 +213,7 @@ class BuyerUpdate(_Update):
             check_size_min_usd=self.check_size_min_usd,
             check_size_max_usd=self.check_size_max_usd,
             ebitda_floor_usd=self.ebitda_floor_usd,
+            geographies=tuple(self.geographies or ()),
         )
 
 

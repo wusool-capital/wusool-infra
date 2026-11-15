@@ -40,6 +40,20 @@
             ],
             "title": "Ebitdafloorusd"
           },
+          "geographies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geographies"
+          },
           "hq": {
             "anyOf": [
               {
@@ -98,12 +112,27 @@
         "type": "object"
       },
       "BuyerFilterOptionsView": {
+        "description": "`regions` and `countries` list everything Attio allows, for the edit form.",
         "properties": {
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
           "geographies": {
             "items": {
               "type": "string"
             },
             "title": "Geographies",
+            "type": "array"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
             "type": "array"
           },
           "sectors": {
@@ -124,7 +153,9 @@
         "required": [
           "sectors",
           "geographies",
-          "statuses"
+          "statuses",
+          "regions",
+          "countries"
         ],
         "title": "BuyerFilterOptionsView",
         "type": "object"
@@ -366,6 +397,20 @@
               }
             ],
             "title": "Ebitdafloorusd"
+          },
+          "geographies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geographies"
           },
           "notes": {
             "anyOf": [

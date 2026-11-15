@@ -45,6 +45,14 @@ class RoleWriterPort(Protocol):
         """The statuses Attio allows a buyer to have."""
         ...
 
+    def buyer_regions(self) -> tuple[str, ...]:
+        """The target regions Attio allows."""
+        ...
+
+    def buyer_countries(self) -> tuple[str, ...]:
+        """The target countries Attio allows."""
+        ...
+
     async def edit_buyer(
         self, role_id: str, changes: BuyerChanges, *, requested_by: str
     ) -> None: ...

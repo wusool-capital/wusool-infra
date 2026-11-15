@@ -150,8 +150,8 @@ async def test_buyer_filters_narrow_matched_but_not_total(repo: PostgresRolesRep
     assert (by_sector.matched, by_sector.total) == (2, 3)
     assert [r.name for r in by_geography.rows] == ["Beta Partners"]
     assert [r.name for r in by_region.rows] == ["Alpha Capital"]
-    # Gamma has no check size recorded, so it overlaps any range.
-    assert [r.name for r in by_check.rows] == ["Beta Partners", "Gamma Fund"]
+    # Gamma has no check size recorded, so it cannot match a size filter.
+    assert [r.name for r in by_check.rows] == ["Beta Partners"]
     # An unknown EBITDA floor only passes an open range.
     assert [r.name for r in by_ebitda.rows] == ["Alpha Capital"]
 
@@ -250,3 +250,25 @@ async def test_later_pages_carry_rows_only(repo: PostgresRolesRepository) -> Non
     assert (later.matched, later.total, later.users) == (0, 0, ())
     assert later.options.sectors == ()
     assert [p.name for p in later.people] == []
+
+
+async def test_a_single_recorded_check_size_bound_is_open_on_the_other_side(
+    repo: PostgresRolesRepository, db_session: AsyncSession
+) -> None:
+    db_session.add(Organization(attio_id="half", name="Half Open Fund"))
+    await db_session.flush()
+    db_session.add(
+        BuyerRole(
+            org_attio_id="half",
+            target_vertical="Dental",
+            check_size_min=_money(3e6),
+            is_active=True,
+        )
+    )
+    await db_session.flush()
+
+    above = await repo.buyers_page(BuyerFilters(check_size=Range(min=100e6)), None, 10)
+    below = await repo.buyers_page(BuyerFilters(check_size=Range(max=1e6)), None, 10)
+
+    assert "Half Open Fund" in [r.name for r in above.rows]
+    assert "Half Open Fund" not in [r.name for r in below.rows]

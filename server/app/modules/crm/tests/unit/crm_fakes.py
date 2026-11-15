@@ -99,6 +99,7 @@ class FakeWriter:
     add_outcome: Literal["added", "existing"] = "added"
     error: Exception | None = None
     edits: list[tuple[str, str]] = field(default_factory=list)
+    changes: list[BuyerChanges] = field(default_factory=list)
 
     async def add_buyer(
         self, buyer_: NewBuyer, *, requested_by: str
@@ -111,10 +112,17 @@ class FakeWriter:
     def buyer_statuses(self) -> tuple[str, ...]:
         return ("Active", "Dormant")
 
+    def buyer_regions(self) -> tuple[str, ...]:
+        return ("GCC", "Europe")
+
+    def buyer_countries(self) -> tuple[str, ...]:
+        return ("Qatar", "Oman")
+
     async def edit_buyer(self, role_id: str, changes: BuyerChanges, *, requested_by: str) -> None:
         if self.error:
             raise self.error
         self.edits.append((role_id, requested_by))
+        self.changes.append(changes)
         self.reader.buyers[role_id] = replace(self.reader.buyers[role_id], etag="v2")
 
     async def edit_seller(self, role_id: str, changes: SellerChanges, *, requested_by: str) -> None:

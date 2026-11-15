@@ -80,6 +80,9 @@ applications and policies, before the first deploy. See
   greyed out until mandates and outreach are connected.
 * Some fields have no source column yet and show as not set: a buyer's type and
   owner, and a seller's owner and notes. Their edit fields are locked. A buyer's
-  sectors and geographies, and a seller's sector and geography, are read only.
-  A new buyer takes its sector from the form.
+  sectors, and a seller's sector and geography, are read only. A new buyer takes
+  its sector from the form.
+* A buyer's geography can be edited. The Toolkit sorts the picks into Attio's
+  target region and target country fields. As in Slack, a group that has values
+  must keep at least one.
 * One hostname and one environment. There is no production copy.

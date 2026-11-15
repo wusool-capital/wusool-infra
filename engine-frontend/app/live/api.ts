@@ -48,7 +48,13 @@ const later = { deals: [], counterparties: [], emails: [] };
 
 export async function getBuyersUniverse(params: URLSearchParams, cursor?: string): Promise<BuyersUniverseData> {
   const view: BuyersUniverseView = await fetchBuyers({ query: { ...filterParams(params), cursor } }).unwrap();
-  return { ...later, now: view.now, users: view.users.map(toUser), people: view.people.map(toPerson), buyers: view.buyers.map(toBuyer), matched: view.matched, total: view.total, nextCursor: view.nextCursor ?? null, options: view.options, unavailable: view.unavailable };
+  return { ...later, now: view.now, users: view.users.map(toUser), people: view.people.map(toPerson), buyers: view.buyers.map(toBuyer), matched: view.matched, total: view.total, nextCursor: view.nextCursor ?? null, options: buyerOptions(view), unavailable: view.unavailable };
+}
+
+// The edit form offers every region and country Attio allows, not only those in use.
+function buyerOptions({ options }: BuyersUniverseView): BuyersUniverseData["options"] {
+  const { sectors, geographies, statuses, regions, countries } = options;
+  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort() };
 }
 
 export async function getSellersUniverse(params: URLSearchParams, cursor?: string): Promise<SellersUniverseData> {
@@ -70,6 +76,7 @@ export async function addBuyer(_userId: UserId, fields: Required<BuyerPatch> & P
       checkSizeMinUsd: fields.checkSizeMinUsd,
       checkSizeMaxUsd: fields.checkSizeMaxUsd,
       ebitdaFloorUsd: fields.ebitdaFloorUsd,
+      geographies: fields.geographies,
     },
   }).unwrap();
   etags.set(created.id, created.etag);
@@ -79,13 +86,14 @@ export async function updateBuyer(_userId: UserId, id: string, patch: BuyerPatch
   const updated = await patchBuyer({
     path: { role_id: id },
     headers: { "if-match": ifMatch(id) },
-    // Only status, notes and the money fields have a write path; the drawer locks the rest.
+    // Type, owner and sectors have no write path; the drawer locks them.
     body: {
       ...("status" in patch && { status: patch.status }),
       ...("notes" in patch && { notes: patch.notes }),
       ...("checkSizeMinUsd" in patch && { checkSizeMinUsd: patch.checkSizeMinUsd }),
       ...("checkSizeMaxUsd" in patch && { checkSizeMaxUsd: patch.checkSizeMaxUsd }),
       ...("ebitdaFloorUsd" in patch && { ebitdaFloorUsd: patch.ebitdaFloorUsd }),
+      ...("geographies" in patch && { geographies: patch.geographies }),
     },
   }).unwrap();
   etags.set(updated.id, updated.etag);

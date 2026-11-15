@@ -4,6 +4,7 @@ Fields with no clean source today are `None` (the Engine shows "—"); they move
 real columns when the Phase 0 tables land.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
@@ -132,6 +133,9 @@ class BuyerFilterOptions:
     sectors: tuple[str, ...]
     geographies: tuple[str, ...]
     statuses: tuple[str, ...]
+    # Everything Attio allows, for the edit form; the service adds these.
+    regions: tuple[str, ...] = ()
+    countries: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -173,6 +177,7 @@ class NewBuyer:
     check_size_min_usd: float | None = None
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
+    geographies: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -182,6 +187,7 @@ class BuyerChanges:
     sent: frozenset[str]
     status: str | None = None
     notes: str | None = None
+    geographies: tuple[str, ...] = ()
     check_size_min_usd: float | None = None
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
@@ -194,6 +200,24 @@ class SellerChanges:
     est_ebitda_usd: float | None = None
     open_to_selling: OpenToSelling | None = None
     re_engage_date: date | None = None
+
+
+@dataclass(frozen=True)
+class GeographySplit:
+    regions: tuple[str, ...]
+    countries: tuple[str, ...]
+    unknown: tuple[str, ...]
+
+
+def split_geographies(
+    picked: Sequence[str], regions: Sequence[str], countries: Sequence[str]
+) -> GeographySplit:
+    """Attio keeps a buyer's geography as two fields. The two lists never share a value."""
+    return GeographySplit(
+        regions=tuple(g for g in picked if g in regions),
+        countries=tuple(g for g in picked if g in countries),
+        unknown=tuple(g for g in picked if g not in regions and g not in countries),
+    )
 
 
 @dataclass(frozen=True)

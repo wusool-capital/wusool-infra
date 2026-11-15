@@ -225,7 +225,7 @@ export type BuyersUniverseData = {
   /** Set when more rows match than this page holds. */
   nextCursor: string | null;
   /** Choices for the filters and the edit form, across every buyer. */
-  options: { sectors: string[]; geographies: string[]; statuses: string[] };
+  options: { sectors: string[]; geographies: string[]; statuses: string[]; geographyChoices: string[] };
   /** Blocks whose connector is not live yet; they come back empty. */
   unavailable: string[];
 };

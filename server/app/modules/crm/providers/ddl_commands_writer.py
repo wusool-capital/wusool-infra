@@ -2,6 +2,7 @@
 path Slack and the MCP use, so the Engine never writes Postgres alone."""
 
 import uuid
+from collections.abc import Sequence
 from typing import Literal
 
 from app.modules.crm.domain.roles import (
@@ -12,6 +13,7 @@ from app.modules.crm.domain.roles import (
     SellerChanges,
     WriteLandedPartlyError,
     appetite_signals,
+    split_geographies,
 )
 from app.modules.ddl_commands import (
     BuyerNotFoundError,
@@ -36,7 +38,22 @@ _BUYER_EDIT_KEYS = {
 }
 
 
-def buyer_add_row(buyer: NewBuyer) -> UploadRow:
+def _geography_keys(
+    picked: Sequence[str], regions: Sequence[str], countries: Sequence[str]
+) -> UploadRow:
+    """Only a group with a pick is sent: Attio's edit path skips nulls and refuses empty lists."""
+    split = split_geographies(picked, regions, countries)
+    row: UploadRow = {}
+    if split.regions:
+        row["target_region"] = list(split.regions)
+    if split.countries:
+        row["target_country"] = list(split.countries)
+    return row
+
+
+def buyer_add_row(
+    buyer: NewBuyer, regions: Sequence[str] = (), countries: Sequence[str] = ()
+) -> UploadRow:
     row: UploadRow = {
         "org_name": buyer.name,
         "domain": buyer.website,
@@ -51,15 +68,21 @@ def buyer_add_row(buyer: NewBuyer) -> UploadRow:
         "ebitda_floor": buyer.ebitda_floor_usd,
     }
     row.update({key: value for key, value in optional.items() if value is not None})
+    row.update(_geography_keys(buyer.geographies, regions, countries))
     return row
 
 
-def buyer_edit_row(changes: BuyerChanges) -> UploadRow:
-    return {
+def buyer_edit_row(
+    changes: BuyerChanges, regions: Sequence[str] = (), countries: Sequence[str] = ()
+) -> UploadRow:
+    row: UploadRow = {
         row_key: getattr(changes, field)
         for field, row_key in _BUYER_EDIT_KEYS.items()
         if field in changes.sent
     }
+    if "geographies" in changes.sent:
+        row.update(_geography_keys(changes.geographies, regions, countries))
+    return row
 
 
 def seller_edit_row(changes: SellerChanges) -> UploadRow:
@@ -89,26 +112,40 @@ def _translated(exc: Exception) -> Exception:
     return exc
 
 
+def _buyer_options(field: str) -> tuple[str, ...]:
+    for column in columns_for("buyer"):
+        if column.field == field and column.spec is not None:
+            return tuple(column.spec.options or ())
+    return ()
+
+
 class DdlCommandsRoleWriter:
     def buyer_statuses(self) -> tuple[str, ...]:
-        for column in columns_for("buyer"):
-            if column.field == "mandate_status" and column.spec is not None:
-                return tuple(column.spec.options or ())
-        return ()
+        return _buyer_options("mandate_status")
+
+    def buyer_regions(self) -> tuple[str, ...]:
+        return _buyer_options("target_region")
+
+    def buyer_countries(self) -> tuple[str, ...]:
+        return _buyer_options("target_country")
 
     async def add_buyer(
         self, buyer: NewBuyer, *, requested_by: str
     ) -> tuple[Literal["added", "existing"], str]:
         try:
             outcome = await add_one(
-                "buyer", buyer_add_row(buyer), requested_by=requested_by, invoked_via="engine"
+                "buyer",
+                buyer_add_row(buyer, self.buyer_regions(), self.buyer_countries()),
+                requested_by=requested_by,
+                invoked_via="engine",
             )
         except (InvalidFieldsError, PartialWriteError) as exc:
             raise _translated(exc) from exc
         return outcome.status, str(outcome.record.role_id)
 
     async def edit_buyer(self, role_id: str, changes: BuyerChanges, *, requested_by: str) -> None:
-        await self._edit("buyer", role_id, buyer_edit_row(changes), requested_by)
+        row = buyer_edit_row(changes, self.buyer_regions(), self.buyer_countries())
+        await self._edit("buyer", role_id, row, requested_by)
 
     async def edit_seller(self, role_id: str, changes: SellerChanges, *, requested_by: str) -> None:
         await self._edit("seller", role_id, seller_edit_row(changes), requested_by)

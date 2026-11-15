@@ -26,6 +26,10 @@ export type BuyersUniverseView = {
    * @type string
    */
   now: string;
+  /**
+   * @description `regions` and `countries` list everything Attio allows, for the edit form.
+   * @type object
+   */
   options: BuyerFilterOptionsView;
   people: PersonView[];
   total: number;

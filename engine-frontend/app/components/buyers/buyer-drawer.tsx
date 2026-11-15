@@ -182,8 +182,10 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
   const toggle = <T extends string>(list: T[], value: T) => (list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
-  // Live has no source for type, owner or geography yet; a new buyer's sector is what Attio files it under.
+  // Live has no source for type or owner yet; a new buyer's sector is what Attio files it under.
   const sectorsLocked = isLive && !isNew;
+  // Attio holds one sector per buyer role, so a live new buyer takes exactly one.
+  const oneSector = isLive && isNew;
   const bothSizes = draft.checkSizeMinUsd !== null && draft.checkSizeMaxUsd !== null;
   const blocker =
     isNew && (!identity.name.trim() || !identity.hq.trim()) ? "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !isLive && !draft.geographies.length ? "Pick at least one geography." : bothSizes && draft.checkSizeMinUsd! > draft.checkSizeMaxUsd! ? "Check size from must be lower than check size to." : "";
@@ -262,8 +264,14 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
             <AmountInput id="buyer-ticket-max" value={draft.checkSizeMaxUsd ?? undefined} onChange={(value) => set("checkSizeMaxUsd", value ?? null)} />
           </div>
         </div>
-        <CheckGroup legend="Sectors" options={data.options.sectors} disabled={sectorsLocked} picked={draft.sectors} onToggle={(value) => set("sectors", toggle(draft.sectors, value))} />
-        <CheckGroup legend="Geography" options={data.options.geographies} disabled={isLive} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
+        <CheckGroup
+          legend={oneSector ? "Sector (one per buyer)" : "Sectors"}
+          options={data.options.sectors}
+          disabled={sectorsLocked}
+          picked={draft.sectors}
+          onToggle={(value) => set("sectors", oneSector ? (draft.sectors.includes(value) ? [] : [value]) : toggle(draft.sectors, value))}
+        />
+        <CheckGroup legend="Geography" options={data.options.geographyChoices} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
         <div className="field">
           <label htmlFor="buyer-notes">Notes</label>
           <textarea id="buyer-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />

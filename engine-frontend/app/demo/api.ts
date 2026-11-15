@@ -512,7 +512,12 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
     matched: matched.length,
     total: buyers.length,
     nextCursor: page.nextCursor,
-    options: { sectors: sortedUnique(buyers.flatMap((b) => b.sectors)), geographies: sortedUnique(buyers.flatMap((b) => b.geographies)), statuses: [...BUYER_STATUSES] },
+    options: {
+      sectors: sortedUnique(buyers.flatMap((b) => b.sectors)),
+      geographies: sortedUnique(buyers.flatMap((b) => b.geographies)),
+      statuses: [...BUYER_STATUSES],
+      geographyChoices: sortedUnique(buyers.flatMap((b) => b.geographies)),
+    },
     unavailable: [],
   });
 }

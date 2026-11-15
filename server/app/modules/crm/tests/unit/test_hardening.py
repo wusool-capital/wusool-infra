@@ -94,3 +94,11 @@ async def test_only_the_first_page_gets_the_attio_statuses() -> None:
 )
 def test_the_money_blob_reads_numbers_only(blob, expected) -> None:  # noqa: ANN001
     assert amount(blob) == expected
+
+
+def test_attios_regions_and_countries_never_share_a_value() -> None:
+    """The geography split by membership relies on this."""
+    writer = DdlCommandsRoleWriter()
+
+    assert set(writer.buyer_regions()).isdisjoint(writer.buyer_countries())
+    assert writer.buyer_regions() and writer.buyer_countries()

@@ -58,8 +58,9 @@ export function inRange(value: number | null | undefined, range: Range) {
   return (range.min === undefined || value >= range.min) && (range.max === undefined || value <= range.max);
 }
 
-/** True when the item's own range (a buyer's check size) overlaps the filter. A missing side is open. */
+/** True when the item's own range (a buyer's check size) overlaps the filter. A missing side is open; no size at all only passes an open filter. */
 export function overlaps(min: number | null, max: number | null, range: Range) {
+  if (min === null && max === null) return range.min === undefined && range.max === undefined;
   return (range.max === undefined || min === null || min <= range.max) && (range.min === undefined || max === null || max >= range.min);
 }
 

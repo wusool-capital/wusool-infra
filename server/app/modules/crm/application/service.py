@@ -1,5 +1,6 @@
 """The use cases behind the Engine's buyer and seller pages."""
 
+from collections.abc import Sequence
 from dataclasses import replace
 
 from app.modules.crm.application.ports.roles import RolesReaderPort, RoleWriterPort
@@ -8,6 +9,7 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     BuyerRole,
     BuyersPage,
+    InvalidRoleFieldsError,
     NewBuyer,
     RoleAlreadyExistsError,
     RoleNotFoundError,
@@ -17,6 +19,7 @@ from app.modules.crm.domain.roles import (
     SellersPage,
     SignedInUser,
     StaleRoleError,
+    split_geographies,
 )
 
 MAX_PAGE_SIZE = 100
@@ -40,14 +43,20 @@ class CrmService:
         page = await self._reader.buyers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))
         if cursor is not None:
             return page
-        # The rows only hold statuses in use; the form needs every status Attio allows.
-        options = replace(page.options, statuses=self._writer.buyer_statuses())
+        # The rows only hold values in use; the form needs everything Attio allows.
+        options = replace(
+            page.options,
+            statuses=self._writer.buyer_statuses(),
+            regions=self._writer.buyer_regions(),
+            countries=self._writer.buyer_countries(),
+        )
         return replace(page, options=options)
 
     async def sellers(self, filters: SellerFilters, cursor: str | None, limit: int) -> SellersPage:
         return await self._reader.sellers_page(filters, cursor, min(limit, MAX_PAGE_SIZE))
 
     async def add_buyer(self, user: SignedInUser, buyer: NewBuyer) -> BuyerRole:
+        self._check_geographies(buyer.geographies, ())
         outcome, role_id = await self._writer.add_buyer(buyer, requested_by=user.id)
         if outcome == "existing":
             raise RoleAlreadyExistsError(role_id)
@@ -59,6 +68,8 @@ class CrmService:
         current = await self._buyer(role_id)
         if not _same_version(current.etag, if_match):
             raise StaleRoleError(role_id)
+        if "geographies" in changes.sent:
+            self._check_geographies(changes.geographies, current.geographies)
         await self._writer.edit_buyer(role_id, changes, requested_by=user.id)
         return await self._buyer(role_id)
 
@@ -70,6 +81,19 @@ class CrmService:
             raise StaleRoleError(role_id)
         await self._writer.edit_seller(role_id, changes, requested_by=user.id)
         return await self._seller(role_id)
+
+    def _check_geographies(self, picked: Sequence[str], current: Sequence[str]) -> None:
+        regions, countries = self._writer.buyer_regions(), self._writer.buyer_countries()
+        split = split_geographies(picked, regions, countries)
+        problems = [f"{name} is not a region or country Attio allows" for name in split.unknown]
+        # Attio's edit path cannot empty a multi-select, so a group that has values must keep one.
+        held = split_geographies(current, regions, countries)
+        if held.regions and not split.regions:
+            problems.append("Keep at least one region, or clear them in Attio")
+        if held.countries and not split.countries:
+            problems.append("Keep at least one country, or clear them in Attio")
+        if problems:
+            raise InvalidRoleFieldsError(tuple(problems))
 
     async def buyer(self, role_id: str) -> BuyerRole:
         return await self._buyer(role_id)
