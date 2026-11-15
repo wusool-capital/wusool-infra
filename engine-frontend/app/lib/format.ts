@@ -45,14 +45,15 @@ export function formatWhen(value: string, now: string) {
 }
 
 /** "$14.5M" or "$850K" for deal sizes. */
-export function formatMoney(usd: number | undefined) {
-  if (usd === undefined) return "Not set";
+export function formatMoney(usd: number | null | undefined) {
+  if (usd === undefined || usd === null) return "Not set";
   if (usd >= 1_000_000) return `$${(usd / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
   return `$${Math.round(usd / 1_000)}K`;
 }
 
 /** "$10M to $40M" */
-export function formatMoneyRange(min: number, max: number) {
+export function formatMoneyRange(min: number | null, max: number | null) {
+  if (min === null && max === null) return "Not set";
   return `${formatMoney(min)} to ${formatMoney(max)}`;
 }
 

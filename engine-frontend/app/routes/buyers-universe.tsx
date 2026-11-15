@@ -6,39 +6,43 @@ import { BuyerStatusPill } from "../components/buyers/buyer-status-pill";
 import { ActionsMenu } from "../components/ui/actions-menu";
 import { EmptyState } from "../components/ui/empty-state";
 import { TextSearch } from "../components/ui/text-search";
-import { CURRENT_USER_ID, addBuyer, addBuyerToDeal, getBuyersUniverse, updateBuyer } from "../demo/api";
+import { CURRENT_USER_ID, addBuyer, addBuyerToDeal, getBuyersUniverse, updateBuyer } from "../api";
 import type { BuyerPatch } from "../demo/types";
-import { matchesFilters, readBuyerFilters } from "../lib/buyer-filters";
-import { matchesText } from "../lib/filters";
+import { attempt } from "../lib/action-result";
 import { byId } from "../lib/by-id";
+import { isLive } from "../lib/data-mode";
+import { reloadOnFilterChange } from "../lib/revalidate";
+import { useMorePages } from "../lib/use-more-pages";
 import type { Route } from "./+types/buyers-universe";
 
-export async function clientLoader() {
-  return getBuyersUniverse();
+export async function clientLoader({ request }: Route.ClientLoaderArgs) {
+  return getBuyersUniverse(new URL(request.url).searchParams);
 }
+
+export const shouldRevalidate = reloadOnFilterChange(["q", "sector", "geography", "type", "checkSize", "minEbitda"]);
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const field = (name: string) => String(form.get(name) ?? "");
-  switch (field("intent")) {
-    case "buyer-add":
-      return addBuyer(CURRENT_USER_ID, JSON.parse(field("buyer")) as Parameters<typeof addBuyer>[1]);
-    case "buyer-update":
-      return updateBuyer(CURRENT_USER_ID, field("id"), JSON.parse(field("patch")) as BuyerPatch);
-    case "add-to-deal":
-      return addBuyerToDeal(CURRENT_USER_ID, field("id"), field("dealId"));
-  }
+  return attempt(async () => {
+    switch (field("intent")) {
+      case "buyer-add":
+        return addBuyer(CURRENT_USER_ID, JSON.parse(field("buyer")) as Parameters<typeof addBuyer>[1]);
+      case "buyer-update":
+        return updateBuyer(CURRENT_USER_ID, field("id"), JSON.parse(field("patch")) as BuyerPatch);
+      case "add-to-deal":
+        return addBuyerToDeal(CURRENT_USER_ID, field("id"), field("dealId"));
+    }
+  });
 }
 
-export default function BuyersUniverse({ loaderData: data }: Route.ComponentProps) {
+export default function BuyersUniverse({ loaderData: initial }: Route.ComponentProps) {
   const [adding, setAdding] = useState(false);
   const [params, setParams] = useSearchParams();
-  const filters = readBuyerFilters(params);
-  const query = params.get("q") ?? "";
-  const buyers = data.buyers
-    .filter((buyer) => matchesFilters(buyer, filters))
-    .filter((buyer) => matchesText(query, [buyer.name, buyer.notes, buyer.hq, ...buyer.sectors, ...buyer.contactIds.map((id) => byId(data.people, id)?.name)]))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // The Toolkit filters, searches and sorts; "Show more" adds the following pages to the first.
+  const { pages, hasMore, loading, failed, showMore } = useMorePages(initial, (cursor) => getBuyersUniverse(params, cursor));
+  const buyers = pages.flatMap((page) => page.buyers);
+  const data = { ...initial, buyers, people: pages.flatMap((page) => page.people) };
   const openBuyer = byId(data.buyers, params.get("buyer") ?? undefined);
   const panel = BUYER_ACTIONS.find((action) => action.panel === params.get("panel"))?.panel ?? null;
 
@@ -65,7 +69,7 @@ export default function BuyersUniverse({ loaderData: data }: Route.ComponentProp
   return (
     <>
       <h1 className="page-title">Buyers universe</h1>
-      <BuyerFilters buyers={data.buyers} shown={buyers.length} before={<TextSearch label="Search buyers" placeholder="Name, contact or note" />}>
+      <BuyerFilters options={data.options} total={data.total} types={isLive ? [] : undefined} shown={data.matched} before={<TextSearch label="Search buyers" placeholder="Name, contact or note" />}>
         <button type="button" className="button" onClick={() => setAdding(true)}>
           Add buyer
         </button>
@@ -110,7 +114,7 @@ export default function BuyersUniverse({ loaderData: data }: Route.ComponentProp
                       <td>
                         <span className="cell-title cell-clip">{buyer.name}</span>
                       </td>
-                      <td>{buyer.type}</td>
+                      <td>{buyer.type ?? <span className="muted">Not set</span>}</td>
                       <td className="cell-clip" title={buyer.sectors.join(", ")}>{buyer.sectors.join(", ")}</td>
                       <td className="cell-clip" title={buyer.geographies.join(", ")}>{buyer.geographies.join(", ")}</td>
                       <td className="num">{checkSizeLabel(buyer)}</td>
@@ -133,6 +137,14 @@ export default function BuyersUniverse({ loaderData: data }: Route.ComponentProp
                 })}
               </tbody>
             </table>
+            {hasMore && (
+              <div className="table-more">
+                <button type="button" className="button button--quiet" disabled={loading} onClick={() => void showMore()}>
+                  {loading ? "Loading" : `Show more (${buyers.length} of ${data.matched})`}
+                </button>
+                {failed && <span className="field-error">Could not load more. Try again.</span>}
+              </div>
+            )}
           </div>
         )}
       </div>

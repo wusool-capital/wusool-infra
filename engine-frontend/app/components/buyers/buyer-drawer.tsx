@@ -1,17 +1,19 @@
 import { useState } from "react";
-import { BUYER_STATUSES, BUYER_TYPES, type BuyerPatch, type BuyerRole, type BuyersUniverseData } from "../../demo/types";
+import { BUYER_TYPES, type BuyerPatch, type BuyerRole, type BuyersUniverseData } from "../../demo/types";
+import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
+import { isLive } from "../../lib/data-mode";
 import { formatMoney, formatMoneyRange, formatWhen } from "../../lib/format";
 import { StatusPill } from "../mandates/status-pill";
 import { AmountInput } from "../ui/amount-input";
 import { Drawer } from "../ui/drawer";
-import { useRouteAction } from "../ui/toast";
+import { useRouteAction, useSaveAction } from "../ui/toast";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { BuyerStatusPill } from "./buyer-status-pill";
 
-/** Row menu actions. The drawer shows Edit as its own button and the rest in its menu. */
+/** Row menu actions. The drawer shows Edit as its own button and the rest in its menu. Deals come with mandates, so live greys out Add to a deal. */
 export const BUYER_ACTIONS = [
-  { panel: "add", label: "Add to a deal" },
+  { panel: "add", label: "Add to a deal", disabled: isLive },
   { panel: "edit", label: "Edit profile" },
 ] as const;
 export type BuyerPanel = (typeof BUYER_ACTIONS)[number]["panel"];
@@ -31,14 +33,14 @@ type Props = {
 export const NEW_BUYER: BuyerRole = {
   id: "new",
   name: "",
-  type: "Strategic",
+  type: isLive ? null : "Strategic",
   hq: "",
   website: "",
   sectors: [],
   geographies: [],
-  checkSizeMinUsd: 0,
-  checkSizeMaxUsd: 0,
-  ebitdaFloorUsd: 0,
+  checkSizeMinUsd: isLive ? null : 0,
+  checkSizeMaxUsd: isLive ? null : 0,
+  ebitdaFloorUsd: isLive ? null : 0,
   ownerId: "jules",
   status: "Active",
   contactIds: [],
@@ -55,7 +57,7 @@ export function BuyerDrawer({ buyer, data, panel, onPanel, onClose }: Props) {
   const owner = byId(data.users, buyer.ownerId);
 
   return (
-    <Drawer title={buyer.name} status={`${buyer.type}, ${buyer.hq}`} onClose={onClose} actions={<RecordHeaderActions itemName={buyer.name} actions={DRAWER_MENU} onEdit={() => onPanel("edit")} onPick={onPanel} />}>
+    <Drawer title={buyer.name} status={[buyer.type, buyer.hq].filter(Boolean).join(", ")} onClose={onClose} actions={<RecordHeaderActions itemName={buyer.name} actions={DRAWER_MENU} onEdit={() => onPanel("edit")} onPick={onPanel} />}>
       <section className="drawer__section">
         <h3 className="panel-heading">Profile</h3>
         <dl className="label-grid label-grid--two">
@@ -160,7 +162,7 @@ function AddToDeal({ buyer, data, onBack, onClose }: PanelProps) {
 }
 
 function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
-  const act = useRouteAction("/buyers/universe");
+  const { save: send, saving, error } = useSaveAction("/buyers/universe");
   const initial: Required<BuyerPatch> = {
     type: buyer.type,
     status: buyer.status,
@@ -180,32 +182,31 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
   const toggle = <T extends string>(list: T[], value: T) => (list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
 
-  const allSectors = [...new Set(data.buyers.flatMap((row) => row.sectors))].sort();
-  const allGeographies = [...new Set(data.buyers.flatMap((row) => row.geographies))].sort();
+  // Live has no source for type, owner or geography yet; a new buyer's sector is what Attio files it under.
+  const sectorsLocked = isLive && !isNew;
+  const bothSizes = draft.checkSizeMinUsd !== null && draft.checkSizeMaxUsd !== null;
   const blocker =
-    isNew && (!identity.name.trim() || !identity.hq.trim()) ? "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !draft.geographies.length ? "Pick at least one geography." : draft.checkSizeMinUsd > draft.checkSizeMaxUsd ? "Check size from must be lower than check size to." : "";
+    isNew && (!identity.name.trim() || !identity.hq.trim()) ? "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !isLive && !draft.geographies.length ? "Pick at least one geography." : bothSizes && draft.checkSizeMinUsd! > draft.checkSizeMaxUsd! ? "Check size from must be lower than check size to." : "";
 
   const save = () => {
     if (isNew) {
       const added = { ...draft, name: identity.name.trim(), hq: identity.hq.trim(), website: identity.website.trim() };
-      act({ intent: "buyer-add", buyer: JSON.stringify(added) }, `${added.name} added to Attio as a buyer role.`);
-      onClose();
+      send({ intent: "buyer-add", buyer: JSON.stringify(added) }, `${added.name} added to Attio as a buyer role.`, onClose);
       return;
     }
-    act({ intent: "buyer-update", id: buyer.id, patch: JSON.stringify(draft) }, `${buyer.name} saved to Attio.`);
-    onBack();
+    send({ intent: "buyer-update", id: buyer.id, patch: JSON.stringify(changedFields(initial, draft)) }, `${buyer.name} saved to Attio.`, onBack);
   };
 
   return (
     <Drawer
       title={isNew ? "Add a buyer" : `Edit ${buyer.name}`}
       dirty={dirty || Boolean(identity.name)}
-      notice={dirty && blocker ? blocker : undefined}
+      notice={error ?? (dirty && blocker ? blocker : undefined)}
       onClose={onClose}
       actions={
         <>
           {!isNew && <button type="button" className="button button--quiet" onClick={onBack}>Back</button>}
-          <button type="button" className="button" disabled={(!dirty && !isNew) || Boolean(blocker)} onClick={save}>Save to Attio</button>
+          <button type="button" className="button" disabled={saving || (!dirty && !isNew) || Boolean(blocker)} onClick={save}>Save to Attio</button>
         </>
       }
     >
@@ -229,37 +230,40 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
           )}
           <div className="field">
             <label htmlFor="buyer-type">Type</label>
-            <select id="buyer-type" value={draft.type} onChange={(event) => set("type", event.target.value as BuyerRole["type"])}>
+            <select id="buyer-type" value={draft.type ?? ""} disabled={isLive} onChange={(event) => set("type", event.target.value as BuyerRole["type"])}>
+              {draft.type === null && <option value="">Not set</option>}
               {BUYER_TYPES.map((value) => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div className="field">
             <label htmlFor="buyer-status">Status</label>
-            <select id="buyer-status" value={draft.status} onChange={(event) => set("status", event.target.value as BuyerRole["status"])}>
-              {BUYER_STATUSES.map((value) => <option key={value}>{value}</option>)}
+            <select id="buyer-status" value={draft.status ?? ""} onChange={(event) => set("status", event.target.value)}>
+              {draft.status === null && <option value="">Not set</option>}
+              {data.options.statuses.map((value) => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div className="field">
             <label htmlFor="buyer-owner">Owner</label>
-            <select id="buyer-owner" value={draft.ownerId} onChange={(event) => set("ownerId", event.target.value as BuyerRole["ownerId"])}>
+            <select id="buyer-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
+              {draft.ownerId === null && <option value="">Not set</option>}
               {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
             </select>
           </div>
           <div className="field">
             <label htmlFor="buyer-ebitda-floor">Min. EBITDA (USD)</label>
-            <AmountInput id="buyer-ebitda-floor" value={draft.ebitdaFloorUsd} onChange={(value) => set("ebitdaFloorUsd", value ?? 0)} />
+            <AmountInput id="buyer-ebitda-floor" value={draft.ebitdaFloorUsd ?? undefined} onChange={(value) => set("ebitdaFloorUsd", value ?? null)} />
           </div>
           <div className="field">
             <label htmlFor="buyer-ticket-min">Check size from (USD)</label>
-            <AmountInput id="buyer-ticket-min" value={draft.checkSizeMinUsd} onChange={(value) => set("checkSizeMinUsd", value ?? 0)} />
+            <AmountInput id="buyer-ticket-min" value={draft.checkSizeMinUsd ?? undefined} onChange={(value) => set("checkSizeMinUsd", value ?? null)} />
           </div>
           <div className="field">
             <label htmlFor="buyer-ticket-max">Check size to (USD)</label>
-            <AmountInput id="buyer-ticket-max" value={draft.checkSizeMaxUsd} onChange={(value) => set("checkSizeMaxUsd", value ?? 0)} />
+            <AmountInput id="buyer-ticket-max" value={draft.checkSizeMaxUsd ?? undefined} onChange={(value) => set("checkSizeMaxUsd", value ?? null)} />
           </div>
         </div>
-        <CheckGroup legend="Sectors" options={allSectors} picked={draft.sectors} onToggle={(value) => set("sectors", toggle(draft.sectors, value))} />
-        <CheckGroup legend="Geography" options={allGeographies} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
+        <CheckGroup legend="Sectors" options={data.options.sectors} disabled={sectorsLocked} picked={draft.sectors} onToggle={(value) => set("sectors", toggle(draft.sectors, value))} />
+        <CheckGroup legend="Geography" options={data.options.geographies} disabled={isLive} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
         <div className="field">
           <label htmlFor="buyer-notes">Notes</label>
           <textarea id="buyer-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
@@ -269,13 +273,13 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
   );
 }
 
-function CheckGroup({ legend, options, picked, onToggle }: { legend: string; options: string[]; picked: string[]; onToggle: (value: string) => void }) {
+function CheckGroup({ legend, options, picked, onToggle, disabled = false }: { legend: string; options: string[]; picked: string[]; onToggle: (value: string) => void; disabled?: boolean }) {
   return (
     <fieldset className="check-group">
       <legend>{legend}</legend>
       {options.map((value) => (
         <label key={value} className="check-group__option">
-          <input type="checkbox" checked={picked.includes(value)} onChange={() => onToggle(value)} />
+          <input type="checkbox" checked={picked.includes(value)} disabled={disabled} onChange={() => onToggle(value)} />
           {value}
         </label>
       ))}

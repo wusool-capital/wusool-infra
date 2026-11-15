@@ -1,15 +1,15 @@
 // @ts-nocheck
 
-import type { Options, RequestResult } from '../../lib/api-client'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { GetBuyerRoleOptions, GetBuyerRoleResponses } from '../types/GetBuyerRole'
-import { client } from '../../lib/api-client'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
+ * `GET /api/v1/buyer-roles/{role_id}`
  * @summary Get Buyer Role
- * {@link /api/v1/buyer-roles/:role_id}
  */
-export function getBuyerRole<ThrowOnError extends boolean = true>(options: Options<GetBuyerRoleOptions, ThrowOnError>): Promise<RequestResult<GetBuyerRoleResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function getBuyerRole<ThrowOnError extends boolean = true>(options: Options<GetBuyerRoleOptions, ThrowOnError>): Unwrappable<RequestResult<GetBuyerRoleResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'GET', url: '/api/v1/buyer-roles/{role_id}', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<GetBuyerRoleResponses, ThrowOnError>>
+  return withUnwrap(apiClient<GetBuyerRoleResponses, ThrowOnError>({ method: 'GET', url: '/api/v1/buyer-roles/{role_id}', ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

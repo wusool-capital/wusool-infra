@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { OPEN_TO_SELLING, type SellerPatch, type SellerRole, type SellersUniverseData } from "../../demo/types";
+import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
+import { isLive } from "../../lib/data-mode";
 import { formatDate, formatMoney, formatWhen } from "../../lib/format";
 import { ownerApproachBody, summaryOf } from "../../lib/outreach";
 import { StatusPill } from "../mandates/status-pill";
@@ -8,7 +10,7 @@ import { LeadDrawer } from "../pipeline/lead-drawer";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { AmountInput } from "../ui/amount-input";
 import { Drawer } from "../ui/drawer";
-import { useRouteAction } from "../ui/toast";
+import { useRouteAction, useSaveAction } from "../ui/toast";
 import { OpenToSellingPill } from "./open-to-selling-pill";
 
 export const SELLER_ACTIONS = [
@@ -19,9 +21,15 @@ export const SELLER_ACTIONS = [
 ] as const;
 export type SellerPanel = (typeof SELLER_ACTIONS)[number]["panel"];
 
-/** Asking only makes sense while the owner's appetite is Unknown; once Interested or a Warm intro, the answer is in. */
+/**
+ * Asking only makes sense while the owner's appetite is Unknown; once Interested or a Warm intro, the answer is in.
+ * Deals come with mandates and approaches with outreach, so live greys out everything but Edit profile.
+ */
 export function sellerActions(seller: SellerRole) {
-  return SELLER_ACTIONS.map((action) => ({ ...action, disabled: action.panel === "approach" && seller.openToSelling !== "Unknown" }));
+  return SELLER_ACTIONS.map((action) => ({
+    ...action,
+    disabled: (isLive && action.panel !== "edit") || (action.panel === "approach" && seller.openToSelling !== "Unknown"),
+  }));
 }
 
 const ROUTE = "/sellers/universe";
@@ -263,7 +271,7 @@ function NewLead({ seller, data, onClose }: Omit<PanelProps, "onBack">) {
 }
 
 function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
-  const act = useRouteAction(ROUTE);
+  const { save: send, saving, error } = useSaveAction(ROUTE);
   const initial: Omit<Required<SellerPatch>, "estEbitdaUsd"> & { estEbitdaUsd?: number } = {
     sector: seller.sector,
     geography: seller.geography,
@@ -277,25 +285,27 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
   const [draft, setDraft] = useState(initial);
   const set = <K extends keyof typeof initial>(key: K, value: (typeof initial)[K]) => setDraft({ ...draft, [key]: value });
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
-  const sectors = [...new Set(data.sellers.map((row) => row.sector))].sort();
-  const geographies = [...new Set(data.sellers.map((row) => row.geography))].sort();
-  const blocker = draft.estEbitdaUsd !== undefined && draft.estEbitdaUsd > draft.estRevenueUsd ? "EBITDA cannot be above revenue." : "";
+  // Live has no write path for sector, geography, owner or notes yet. A row's own value is always listed so the select can show it.
+  const sectors = [...new Set([...data.options.sectors, draft.sector])].sort();
+  const geographies = [...new Set([...data.options.geographies, draft.geography])].sort();
+  const blocker = draft.estEbitdaUsd !== undefined && draft.estRevenueUsd !== null && draft.estEbitdaUsd > draft.estRevenueUsd ? "EBITDA cannot be above revenue." : "";
 
   const save = () => {
-    act({ intent: "seller-update", id: seller.id, patch: JSON.stringify({ ...draft, reEngageDate: draft.reEngageDate || undefined }) }, `${seller.name} saved to Attio.`);
-    onBack();
+    const { reEngageDate, ...rest } = changedFields(initial, draft);
+    const patch: SellerPatch = reEngageDate === undefined ? rest : { ...rest, reEngageDate: reEngageDate || undefined };
+    send({ intent: "seller-update", id: seller.id, patch: JSON.stringify(patch) }, `${seller.name} saved to Attio.`, onBack);
   };
 
   return (
     <Drawer
       title={`Edit ${seller.name}`}
       dirty={dirty}
-      notice={dirty && blocker ? blocker : undefined}
+      notice={error ?? (dirty && blocker ? blocker : undefined)}
       onClose={onClose}
       actions={
         <>
           <BackButton onBack={onBack} />
-          <button type="button" className="button" disabled={!dirty || Boolean(blocker)} onClick={save}>Save to Attio</button>
+          <button type="button" className="button" disabled={saving || !dirty || Boolean(blocker)} onClick={save}>Save to Attio</button>
         </>
       }
     >
@@ -303,19 +313,19 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
         <div className="form-grid">
           <div className="field">
             <label htmlFor="seller-sector">Sector</label>
-            <select id="seller-sector" value={draft.sector} onChange={(event) => set("sector", event.target.value)}>
+            <select id="seller-sector" value={draft.sector} disabled={isLive} onChange={(event) => set("sector", event.target.value)}>
               {sectors.map((value) => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div className="field">
             <label htmlFor="seller-geo">Geography</label>
-            <select id="seller-geo" value={draft.geography} onChange={(event) => set("geography", event.target.value)}>
+            <select id="seller-geo" value={draft.geography} disabled={isLive} onChange={(event) => set("geography", event.target.value)}>
               {geographies.map((value) => <option key={value}>{value}</option>)}
             </select>
           </div>
           <div className="field">
             <label htmlFor="seller-revenue">Revenue (USD)</label>
-            <AmountInput id="seller-revenue" value={draft.estRevenueUsd} onChange={(value) => set("estRevenueUsd", value ?? 0)} />
+            <AmountInput id="seller-revenue" value={draft.estRevenueUsd ?? undefined} onChange={(value) => set("estRevenueUsd", value ?? null)} />
           </div>
           <div className="field">
             <label htmlFor="seller-ebitda">EBITDA (USD)</label>
@@ -333,14 +343,15 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
           </div>
           <div className="field">
             <label htmlFor="seller-owner">Owner</label>
-            <select id="seller-owner" value={draft.ownerId} onChange={(event) => set("ownerId", event.target.value as SellerRole["ownerId"])}>
+            <select id="seller-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
+              {draft.ownerId === null && <option value="">Not set</option>}
               {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
             </select>
           </div>
         </div>
         <div className="field">
           <label htmlFor="seller-notes">Notes</label>
-          <textarea id="seller-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
+          <textarea id="seller-notes" rows={3} value={draft.notes} disabled={isLive} onChange={(event) => set("notes", event.target.value)} />
         </div>
       </section>
     </Drawer>

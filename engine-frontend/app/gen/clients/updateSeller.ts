@@ -1,15 +1,15 @@
 // @ts-nocheck
 
-import type { Options, RequestResult } from '../../lib/api-client'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { UpdateSellerOptions, UpdateSellerResponses } from '../types/UpdateSeller'
-import { client } from '../../lib/api-client'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
+ * `PATCH /api/v1/seller-roles/{role_id}`
  * @summary Update Seller
- * {@link /api/v1/seller-roles/:role_id}
  */
-export function updateSeller<ThrowOnError extends boolean = true>(options: Options<UpdateSellerOptions, ThrowOnError>): Promise<RequestResult<UpdateSellerResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function updateSeller<ThrowOnError extends boolean = true>(options: Options<UpdateSellerOptions, ThrowOnError>): Unwrappable<RequestResult<UpdateSellerResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'PATCH', url: '/api/v1/seller-roles/{role_id}', contentType: { request: 'application/json' }, ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<UpdateSellerResponses, ThrowOnError>>
+  return withUnwrap(apiClient<UpdateSellerResponses, ThrowOnError>({ method: 'PATCH', url: '/api/v1/seller-roles/{role_id}', contentType: { request: 'application/json' }, ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

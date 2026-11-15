@@ -3,7 +3,8 @@
 import type { NextAction } from "../lib/next-action";
 import type { Stage } from "../lib/stages";
 
-export type UserId = "jules" | "hugo" | "ramzy" | "maria";
+// Demo ids are first names; live ids are Attio user ids.
+export type UserId = string;
 // role decides what someone can do in the Engine (only advisors own deals); title is their job title.
 export type User = { id: UserId; name: string; role: "Advisor" | "Analyst" | "Ops"; title: string };
 
@@ -183,22 +184,26 @@ export type BuyerStatus = (typeof BUYER_STATUSES)[number];
 export type BuyerRole = {
   id: string;
   name: string;
-  type: BuyerType;
+  /** Null while no source column holds it (live mode); shown as a dash. */
+  type: BuyerType | null;
   hq: string;
   website: string;
   sectors: string[];
   geographies: string[];
   // Attio stores these in AED; the Toolkit converts at the 3.6725 peg so the Engine shows USD only.
   /** Attio buyer_role.check_size_min and _max: what the buyer pays per deal. */
-  checkSizeMinUsd: number;
-  checkSizeMaxUsd: number;
+  checkSizeMinUsd: number | null;
+  checkSizeMaxUsd: number | null;
   /** Attio buyer_role.ebitda_floor: the smallest target EBITDA the buyer looks at. */
-  ebitdaFloorUsd: number;
-  ownerId: UserId;
-  status: BuyerStatus;
+  ebitdaFloorUsd: number | null;
+  ownerId: UserId | null;
+  /** The demo uses BUYER_STATUSES; live shows Attio's mandate status. */
+  status: string | null;
   /** First is the key contact. */
   contactIds: string[];
   notes: string;
+  /** Live only: the version the edit is checked against. */
+  etag?: string;
 };
 
 /** Fields editable from the buyer drawer; written back to Attio. */
@@ -214,6 +219,15 @@ export type BuyersUniverseData = {
   /** Deal counterparty rows, matched to buyers by name for the deal history. */
   counterparties: Counterparty[];
   emails: EmailLogEntry[];
+  /** Rows under the filters and search; `total` counts every buyer. */
+  matched: number;
+  total: number;
+  /** Set when more rows match than this page holds. */
+  nextCursor: string | null;
+  /** Choices for the filters and the edit form, across every buyer. */
+  options: { sectors: string[]; geographies: string[]; statuses: string[] };
+  /** Blocks whose connector is not live yet; they come back empty. */
+  unavailable: string[];
 };
 
 /** One Gmail thread with a company: subject and date only (Gmail keeps the messages). */
@@ -233,16 +247,18 @@ export type SellerRole = {
   sector: string;
   geography: string;
   /** Attio seller_role.est_revenue and est_ebitda, converted from AED by the Toolkit. */
-  estRevenueUsd: number;
+  estRevenueUsd: number | null;
   /** Unknown for owners found in Sellers search until someone fills it in. */
   estEbitdaUsd?: number;
   openToSelling: OpenToSelling;
   /** Attio seller_role.re_engage_date: when to approach the owner again. */
   reEngageDate?: string;
-  ownerId: UserId;
+  ownerId: UserId | null;
   /** First is the owner contact. */
   contactIds: string[];
   notes: string;
+  /** Live only: the version the edit is checked against. */
+  etag?: string;
 };
 
 export type SellerPatch = Partial<Pick<SellerRole, "sector" | "geography" | "estRevenueUsd" | "estEbitdaUsd" | "openToSelling" | "reEngageDate" | "ownerId" | "notes">>;
@@ -259,6 +275,11 @@ export type SellersUniverseData = {
   /** A free code name for a new sell-side lead. */
   nextCodeName: string;
   emails: EmailLogEntry[];
+  matched: number;
+  total: number;
+  nextCursor: string | null;
+  options: { sectors: string[]; geographies: string[] };
+  unavailable: string[];
 };
 
 // ---- Sellers search (PRD S1 to S3) ----

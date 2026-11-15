@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useSubmit } from "react-router";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { useFetcher, useSubmit } from "react-router";
+import type { ActionResult } from "../../lib/action-result";
 
 type NoticeContextValue = { notice: string; setNotice: (text: string) => void };
 
@@ -45,5 +46,33 @@ export function useRouteAction(action: string) {
   return (fields: Record<string, string>, notice?: string) => {
     submit(fields, { method: "post", action, navigate: false });
     if (notice) setNotice(notice);
+  };
+}
+
+/**
+ * Posts a save to a route action and waits for the answer, so a refused or half-finished
+ * write keeps the drawer open with the reason and the person can retry. On success the
+ * notice is shown and `onDone` runs.
+ */
+export function useSaveAction(action: string) {
+  const fetcher = useFetcher<ActionResult>();
+  const { setNotice } = useContext(NoticeContext);
+  const after = useRef<{ notice: string; onDone: () => void } | null>(null);
+
+  useEffect(() => {
+    if (fetcher.state !== "idle" || !fetcher.data || fetcher.data.error || !after.current) return;
+    const { notice, onDone } = after.current;
+    after.current = null;
+    setNotice(notice);
+    onDone();
+  }, [fetcher.state, fetcher.data, setNotice]);
+
+  return {
+    save: (fields: Record<string, string>, notice: string, onDone: () => void) => {
+      after.current = { notice, onDone };
+      void fetcher.submit(fields, { method: "post", action });
+    },
+    saving: fetcher.state !== "idle",
+    error: fetcher.state === "idle" ? fetcher.data?.error : undefined,
   };
 }

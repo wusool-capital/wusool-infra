@@ -1,15 +1,15 @@
 // @ts-nocheck
 
-import type { Options, RequestResult } from '../../lib/api-client'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { GetSellersUniverseOptions, GetSellersUniverseResponses } from '../types/GetSellersUniverse'
-import { client } from '../../lib/api-client'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
+ * `GET /api/v1/views/sellers`
  * @summary Get Sellers Universe
- * {@link /api/v1/views/sellers}
  */
-export function getSellersUniverse<ThrowOnError extends boolean = true>(options: Options<GetSellersUniverseOptions, ThrowOnError> = {}): Promise<RequestResult<GetSellersUniverseResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function getSellersUniverse<ThrowOnError extends boolean = true>(options: Options<GetSellersUniverseOptions, ThrowOnError> = {}): Unwrappable<RequestResult<GetSellersUniverseResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'GET', url: '/api/v1/views/sellers', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<GetSellersUniverseResponses, ThrowOnError>>
+  return withUnwrap(apiClient<GetSellersUniverseResponses, ThrowOnError>({ method: 'GET', url: '/api/v1/views/sellers', ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

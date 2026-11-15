@@ -340,6 +340,7 @@ a.segmented__option { display: inline-flex; align-items: center; text-decoration
 
 .card--flush { padding: 0; overflow: hidden; }
 .card--flush .table { border-radius: 0; }
+.table-more { display: flex; align-items: center; justify-content: center; gap: var(--space-3); padding: var(--space-3) 0; border-top: 1px solid var(--line); }
 .th-sort { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 500; }
 .th-sort:hover, th[aria-sort] .th-sort { color: var(--ink); }
 .row-clickable { cursor: pointer; }

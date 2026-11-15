@@ -53,14 +53,14 @@ export function anyOf(picked: string[], values: string[]) {
 }
 
 /** An unknown value only passes an open range. */
-export function inRange(value: number | undefined, range: Range) {
-  if (value === undefined) return range.min === undefined && range.max === undefined;
+export function inRange(value: number | null | undefined, range: Range) {
+  if (value === undefined || value === null) return range.min === undefined && range.max === undefined;
   return (range.min === undefined || value >= range.min) && (range.max === undefined || value <= range.max);
 }
 
-/** True when the item's own range (a buyer's check size) overlaps the filter. */
-export function overlaps(min: number, max: number, range: Range) {
-  return (range.max === undefined || min <= range.max) && (range.min === undefined || max >= range.min);
+/** True when the item's own range (a buyer's check size) overlaps the filter. A missing side is open. */
+export function overlaps(min: number | null, max: number | null, range: Range) {
+  return (range.max === undefined || min === null || min <= range.max) && (range.min === undefined || max === null || max >= range.min);
 }
 
 /** True when every word typed appears somewhere in the given texts (case does not matter). */

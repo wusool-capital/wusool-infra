@@ -1,15 +1,15 @@
 // @ts-nocheck
 
-import type { Options, RequestResult } from '../../lib/api-client'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { AddBuyerOptions, AddBuyerResponses } from '../types/AddBuyer'
-import { client } from '../../lib/api-client'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
+ * `POST /api/v1/buyer-roles`
  * @summary Add Buyer
- * {@link /api/v1/buyer-roles}
  */
-export function addBuyer<ThrowOnError extends boolean = true>(options: Options<AddBuyerOptions, ThrowOnError>): Promise<RequestResult<AddBuyerResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function addBuyer<ThrowOnError extends boolean = true>(options: Options<AddBuyerOptions, ThrowOnError>): Unwrappable<RequestResult<AddBuyerResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'POST', url: '/api/v1/buyer-roles', contentType: { request: 'application/json' }, ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<AddBuyerResponses, ThrowOnError>>
+  return withUnwrap(apiClient<AddBuyerResponses, ThrowOnError>({ method: 'POST', url: '/api/v1/buyer-roles', contentType: { request: 'application/json' }, ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

@@ -19,7 +19,7 @@ export function matchesFilters(buyer: BuyerProfile, filters: BuyerFilterValues) 
   return (
     anyOf(filters.sector, buyer.sectors) &&
     anyOf(filters.geography, buyer.geographies) &&
-    anyOf(filters.type, [buyer.type]) &&
+    anyOf(filters.type, buyer.type ? [buyer.type] : []) &&
     overlaps(buyer.checkSizeMinUsd, buyer.checkSizeMaxUsd, filters.checkSize) &&
     inRange(buyer.ebitdaFloorUsd, filters.minEbitda)
   );

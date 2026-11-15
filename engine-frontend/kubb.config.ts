@@ -1,4 +1,4 @@
-import { pluginClient } from "@kubb/plugin-client";
+import { pluginFetch } from "@kubb/plugin-fetch";
 import { pluginTs } from "@kubb/plugin-ts";
 import { defineConfig } from "kubb/config";
 
@@ -6,15 +6,12 @@ import { defineConfig } from "kubb/config";
 const banner = "// @ts-nocheck";
 
 // openapi.json is exported from FastAPI by server/scripts/export_openapi.py --app engine.
+// Same-origin: the Worker proxies /api/v1/* and Cloudflare Access signs the user in.
 export default defineConfig({
   input: "./openapi.json",
   output: { path: "./app/gen", clean: true },
   plugins: [
     pluginTs({ output: { path: "types", banner } }),
-    pluginClient({
-      output: { path: "clients", banner },
-      // Relative: Vite has no `~` alias here.
-      importPath: "../../lib/api-client",
-    }),
+    pluginFetch({ output: { path: "clients", banner } }),
   ],
 });

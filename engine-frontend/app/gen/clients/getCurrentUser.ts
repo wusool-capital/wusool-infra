@@ -1,15 +1,15 @@
 // @ts-nocheck
 
-import type { Options, RequestResult } from '../../lib/api-client'
+import type { Options, Unwrappable, RequestResult } from '../.kubb/client'
 import type { GetCurrentUserOptions, GetCurrentUserResponses } from '../types/GetCurrentUser'
-import { client } from '../../lib/api-client'
+import { client, withUnwrap, resolveThrowOnError } from '../.kubb/client'
 
 /**
+ * `GET /api/v1/me`
  * @summary Get Me
- * {@link /api/v1/me}
  */
-export function getCurrentUser<ThrowOnError extends boolean = true>(options: Options<GetCurrentUserOptions, ThrowOnError> = {}): Promise<RequestResult<GetCurrentUserResponses, ThrowOnError>> {
-  const { client: request = client, ...config } = options
+export function getCurrentUser<ThrowOnError extends boolean = true>(options: Options<GetCurrentUserOptions, ThrowOnError> = {}): Unwrappable<RequestResult<GetCurrentUserResponses, ThrowOnError>> {
+  const { client: apiClient = client, ...config } = options
 
-  return request({ method: 'GET', url: '/api/v1/me', ...config, throwOnError: config.throwOnError ?? true }) as Promise<RequestResult<GetCurrentUserResponses, ThrowOnError>>
+  return withUnwrap(apiClient<GetCurrentUserResponses, ThrowOnError>({ method: 'GET', url: '/api/v1/me', ...config, throwOnError: resolveThrowOnError(config.throwOnError, true) }))
 }

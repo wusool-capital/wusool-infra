@@ -3,9 +3,9 @@
 import { nextAction } from "../lib/next-action";
 import { STAGES } from "../lib/stages";
 import { DEMO_NOW, seed } from "./data";
-import { matchesFilters, type BuyerFilterValues } from "../lib/buyer-filters";
-import { anyOf, inRange } from "../lib/filters";
-import type { SellerFilterValues } from "../lib/seller-filters";
+import { matchesFilters, readBuyerFilters, type BuyerFilterValues } from "../lib/buyer-filters";
+import { anyOf, inRange, matchesText } from "../lib/filters";
+import { matchesSellerFilters, readSellerFilters, type SellerFilterValues } from "../lib/seller-filters";
 import * as buyerSeed from "./buyers-data";
 import { buyerCandidates, spareCodeNames } from "./buyers-search-data";
 import { emailLog } from "./email-log";
@@ -18,6 +18,7 @@ import { moreScorecards, scorecardHistory } from "./scorecards-data";
 import { sellerCandidates } from "./sellers-search-data";
 import * as sellerSeed from "./sellers-data";
 import * as mandateSeed from "./mandates-data";
+import { BUYER_STATUSES } from "./types";
 import type {
   Deal,
   BuyerPatch,
@@ -477,9 +478,43 @@ export async function emailClient(dealId: string, recipient: string) {
 
 // ---- Buyers universe ----
 
-export async function getBuyersUniverse(): Promise<BuyersUniverseData> {
+/** The Toolkit's page size, so the demo pages the way live does. */
+const UNIVERSE_PAGE_SIZE = 100;
+
+/** The cursor is an offset here; live uses an opaque token. */
+function pageOf<T>(rows: T[], cursor: string | undefined) {
+  const start = Number(cursor ?? 0);
+  const end = start + UNIVERSE_PAGE_SIZE;
+  return { rows: rows.slice(start, end), nextCursor: end < rows.length ? String(end) : null };
+}
+
+const sortedUnique = (values: string[]) => [...new Set(values)].sort();
+const personName = (id: string) => db.people.find((person) => person.id === id)?.name;
+
+/** Filters, search and name order run here, as they do on the Toolkit; `params` are the page's URL params. */
+export async function getBuyersUniverse(params: URLSearchParams, cursor?: string): Promise<BuyersUniverseData> {
   const deals = db.deals.filter((deal) => deal.side === "sell" && deal.status === "Active" && STAGES.indexOf(deal.stage) >= MANDATE_FROM);
-  return structuredClone({ now: DEMO_NOW, users: db.users, people: db.people, buyers, deals, counterparties: mdb.counterparties.filter((row) => row.dealId), emails: emailLog });
+  const filters = readBuyerFilters(params);
+  const query = params.get("q") ?? "";
+  const matched = buyers
+    .filter((buyer) => matchesFilters(buyer, filters))
+    .filter((buyer) => matchesText(query, [buyer.name, buyer.notes, buyer.hq, ...buyer.sectors, ...buyer.contactIds.map(personName)]))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const page = pageOf(matched, cursor);
+  return structuredClone({
+    now: DEMO_NOW,
+    users: db.users,
+    people: db.people,
+    buyers: page.rows,
+    deals,
+    counterparties: mdb.counterparties.filter((row) => row.dealId),
+    emails: emailLog,
+    matched: matched.length,
+    total: buyers.length,
+    nextCursor: page.nextCursor,
+    options: { sectors: sortedUnique(buyers.flatMap((b) => b.sectors)), geographies: sortedUnique(buyers.flatMap((b) => b.geographies)), statuses: [...BUYER_STATUSES] },
+    unavailable: [],
+  });
 }
 
 /** Added by hand from the Buyers universe. Attio matches by website, so a known domain is not added twice. */
@@ -624,9 +659,30 @@ export async function createBuySideLead(userId: UserId, candidateId: string, cod
 
 // ---- Sellers universe ----
 
-export async function getSellersUniverse(): Promise<SellersUniverseData> {
+export async function getSellersUniverse(params: URLSearchParams, cursor?: string): Promise<SellersUniverseData> {
   const deals = db.deals.filter((deal) => deal.side === "buy" && deal.status === "Active" && STAGES.indexOf(deal.stage) >= MANDATE_FROM);
-  return structuredClone({ now: DEMO_NOW, users: db.users, people: db.people, sellers, deals, counterparties: mdb.counterparties, nextCodeName: freeCodeName(), emails: emailLog });
+  const filters = readSellerFilters(params);
+  const query = params.get("q") ?? "";
+  const matched = sellers
+    .filter((seller) => matchesSellerFilters(seller, filters))
+    .filter((seller) => matchesText(query, [seller.name, seller.notes, seller.hq, seller.sector, ...seller.contactIds.map(personName)]))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const page = pageOf(matched, cursor);
+  return structuredClone({
+    now: DEMO_NOW,
+    users: db.users,
+    people: db.people,
+    sellers: page.rows,
+    deals,
+    counterparties: mdb.counterparties,
+    nextCodeName: freeCodeName(),
+    emails: emailLog,
+    matched: matched.length,
+    total: sellers.length,
+    nextCursor: page.nextCursor,
+    options: { sectors: sortedUnique(sellers.map((s) => s.sector)), geographies: sortedUnique(sellers.map((s) => s.geography)) },
+    unavailable: [],
+  });
 }
 
 export async function updateSeller(userId: UserId, id: string, patch: SellerPatch) {

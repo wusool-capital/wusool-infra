@@ -5,7 +5,7 @@ import type { Route } from "./+types/root";
 import { LeftNav } from "./components/shell/left-nav";
 import { PhoneNotice } from "./components/shell/phone-notice";
 import { NoticeProvider, Toast } from "./components/ui/toast";
-import { getCurrentUser } from "./demo/api";
+import { getCurrentUser } from "./api";
 
 export function meta() {
   return [{ title: "Wusool Engine" }];
