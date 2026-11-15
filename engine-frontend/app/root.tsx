@@ -6,6 +6,7 @@ import { LeftNav } from "./components/shell/left-nav";
 import { PhoneNotice } from "./components/shell/phone-notice";
 import { NoticeProvider, Toast } from "./components/ui/toast";
 import { getCurrentUser } from "./api";
+import { errorMessage } from "./lib/action-result";
 
 export function meta() {
   return [{ title: "Wusool Engine" }];
@@ -37,6 +38,23 @@ export function HydrateFallback() {
 
 export async function clientLoader() {
   return { user: await getCurrentUser() };
+}
+
+// The signed-in person cannot change while the app is open, so /me runs once per page load.
+export function shouldRevalidate() {
+  return false;
+}
+
+export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
+  return (
+    <main className="page">
+      <h1 className="page-title">Something went wrong</h1>
+      <p className="muted">{errorMessage(error)}</p>
+      <button type="button" className="button" onClick={() => window.location.reload()}>
+        Reload
+      </button>
+    </main>
+  );
 }
 
 type RouteHandle = { phone?: boolean; bare?: boolean } | undefined;

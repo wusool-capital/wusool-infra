@@ -21,13 +21,11 @@ export const SELLER_ACTIONS = [
 ] as const;
 export type SellerPanel = (typeof SELLER_ACTIONS)[number]["panel"];
 
-/**
- * Asking only makes sense while the owner's appetite is Unknown; once Interested or a Warm intro, the answer is in.
- * Deals come with mandates and approaches with outreach, so live greys out everything but Edit profile.
- */
+/** Asking only makes sense while the owner's appetite is Unknown; once Interested or a Warm intro, the answer is in. */
 export function sellerActions(seller: SellerRole) {
   return SELLER_ACTIONS.map((action) => ({
     ...action,
+    // Live greys out all but Edit until mandates and outreach are connected.
     disabled: (isLive && action.panel !== "edit") || (action.panel === "approach" && seller.openToSelling !== "Unknown"),
   }));
 }
@@ -272,7 +270,8 @@ function NewLead({ seller, data, onClose }: Omit<PanelProps, "onBack">) {
 
 function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
   const { save: send, saving, error } = useSaveAction(ROUTE);
-  const initial: Omit<Required<SellerPatch>, "estEbitdaUsd"> & { estEbitdaUsd?: number } = {
+  // The form holds an empty string for no date and leaves the EBITDA undefined when it is blank.
+  const initial: Omit<Required<SellerPatch>, "estEbitdaUsd" | "reEngageDate"> & { estEbitdaUsd?: number; reEngageDate: string } = {
     sector: seller.sector,
     geography: seller.geography,
     estRevenueUsd: seller.estRevenueUsd,
@@ -285,14 +284,19 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
   const [draft, setDraft] = useState(initial);
   const set = <K extends keyof typeof initial>(key: K, value: (typeof initial)[K]) => setDraft({ ...draft, [key]: value });
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
-  // Live has no write path for sector, geography, owner or notes yet. A row's own value is always listed so the select can show it.
+  // Live cannot save these yet. A row's own value is always listed so the select can show it.
   const sectors = [...new Set([...data.options.sectors, draft.sector])].sort();
   const geographies = [...new Set([...data.options.geographies, draft.geography])].sort();
   const blocker = draft.estEbitdaUsd !== undefined && draft.estRevenueUsd !== null && draft.estEbitdaUsd > draft.estRevenueUsd ? "EBITDA cannot be above revenue." : "";
 
   const save = () => {
-    const { reEngageDate, ...rest } = changedFields(initial, draft);
-    const patch: SellerPatch = reEngageDate === undefined ? rest : { ...rest, reEngageDate: reEngageDate || undefined };
+    const changed = changedFields(initial, draft);
+    // A missing key means unchanged, so a cleared value goes as null.
+    const patch: SellerPatch = {
+      ...changed,
+      ...("estEbitdaUsd" in changed ? { estEbitdaUsd: changed.estEbitdaUsd ?? null } : {}),
+      ...("reEngageDate" in changed ? { reEngageDate: changed.reEngageDate || null } : {}),
+    };
     send({ intent: "seller-update", id: seller.id, patch: JSON.stringify(patch) }, `${seller.name} saved to Attio.`, onBack);
   };
 

@@ -49,11 +49,7 @@ export function useRouteAction(action: string) {
   };
 }
 
-/**
- * Posts a save to a route action and waits for the answer, so a refused or half-finished
- * write keeps the drawer open with the reason and the person can retry. On success the
- * notice is shown and `onDone` runs.
- */
+/** Posts a save and waits for the answer, so a refused write keeps the drawer open for a retry. */
 export function useSaveAction(action: string) {
   const fetcher = useFetcher<ActionResult>();
   const { setNotice } = useContext(NoticeContext);

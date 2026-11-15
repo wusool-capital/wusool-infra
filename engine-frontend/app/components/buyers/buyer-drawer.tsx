@@ -11,7 +11,7 @@ import { useRouteAction, useSaveAction } from "../ui/toast";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { BuyerStatusPill } from "./buyer-status-pill";
 
-/** Row menu actions. The drawer shows Edit as its own button and the rest in its menu. Deals come with mandates, so live greys out Add to a deal. */
+/** Row menu actions; the drawer shows Edit as its own button. Live greys out Add to a deal until mandates. */
 export const BUYER_ACTIONS = [
   { panel: "add", label: "Add to a deal", disabled: isLive },
   { panel: "edit", label: "Edit profile" },

@@ -688,7 +688,10 @@ export async function getSellersUniverse(params: URLSearchParams, cursor?: strin
 export async function updateSeller(userId: UserId, id: string, patch: SellerPatch) {
   const seller = sellers.find((row) => row.id === id);
   if (!seller) return;
-  Object.assign(seller, patch);
+  const { estEbitdaUsd, reEngageDate, ...rest } = patch;
+  Object.assign(seller, rest);
+  if (estEbitdaUsd !== undefined) seller.estEbitdaUsd = estEbitdaUsd ?? undefined;
+  if (reEngageDate !== undefined) seller.reEngageDate = reEngageDate ?? undefined;
   logActivity(userId, `updated ${seller.name} in the sellers universe`);
 }
 

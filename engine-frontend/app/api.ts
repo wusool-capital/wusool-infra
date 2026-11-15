@@ -1,6 +1,4 @@
-// The one module routes import for data. Everything comes from the demo module; with
-// VITE_DATA=live the Phase 1 functions (Buyers and Sellers universes, sign-in) come from the
-// Toolkit instead. Each live function keeps its demo twin's name, inputs and return shape.
+// Routes import data from here. VITE_DATA=live swaps the Phase 1 functions for Toolkit versions.
 import * as live from "./live/api";
 import * as demo from "./demo/api";
 import { isLive } from "./lib/data-mode";

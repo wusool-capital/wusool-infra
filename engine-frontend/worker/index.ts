@@ -1,7 +1,6 @@
-// Serves the app and forwards /api/v1/* to the Toolkit from the server side, so the browser only
-// talks to this hostname: no CORS and no cross-site cookie. Cloudflare Access has already signed
-// the request (Cf-Access-Jwt-Assertion) before it reaches this Worker, and the Toolkit checks that
-// token itself, so the origin refuses calls that did not come through Access.
+// Serves the app and proxies /api/v1/* to the Toolkit, so the browser stays same-origin: no CORS or cookie.
+
+// Access signs each request; the Toolkit checks that token itself, so calls straight to its origin fail.
 
 type Env = {
   ASSETS: { fetch: (request: Request) => Promise<Response> };

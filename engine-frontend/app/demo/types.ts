@@ -261,7 +261,11 @@ export type SellerRole = {
   etag?: string;
 };
 
-export type SellerPatch = Partial<Pick<SellerRole, "sector" | "geography" | "estRevenueUsd" | "estEbitdaUsd" | "openToSelling" | "reEngageDate" | "ownerId" | "notes">>;
+/** A missing key means unchanged, so clearing the EBITDA or the re-engage date sends null. */
+export type SellerPatch = Partial<Pick<SellerRole, "sector" | "geography" | "estRevenueUsd" | "openToSelling" | "ownerId" | "notes">> & {
+  estEbitdaUsd?: number | null;
+  reEngageDate?: string | null;
+};
 
 export type SellersUniverseData = {
   now: string;

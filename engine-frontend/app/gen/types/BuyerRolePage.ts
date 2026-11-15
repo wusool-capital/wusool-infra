@@ -5,6 +5,8 @@ import type { BuyerRoleView } from './BuyerRoleView'
 
 /**
  * @description `matched` counts rows under the filters and search; `total` counts every live buyer.
+ *
+ * `matched`, `total` and `options` come with the first page; later pages hold rows only.
  * @type object
  */
 export type BuyerRolePage = {

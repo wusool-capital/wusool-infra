@@ -49,8 +49,7 @@ def _key_resolver(team_domain: str) -> _KeyResolver:
     return jwt.PyJWKClient(f"https://{team_domain}/cdn-cgi/access/certs", cache_keys=True)
 
 
-# An unknown key id may mean Cloudflare rotated its keys, but an attacker can send a random one
-# on every request. So the keys are refetched at most once a minute.
+# Unknown key ids can be spammed, so keys are refetched at most once a minute.
 _MIN_REFRESH_SECONDS = 60.0
 _refresh_lock = threading.Lock()
 _last_refresh = 0.0

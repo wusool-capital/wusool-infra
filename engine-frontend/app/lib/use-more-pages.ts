@@ -1,10 +1,6 @@
 import { useState } from "react";
 
-/**
- * The first page comes from the route loader; "Show more" fetches the rest. Pages added
- * here belong to the loader data they were fetched for, so a new filter or a saved edit
- * (which reloads the loader) starts again from the first page.
- */
+/** "Show more" pages belong to the loader data they were fetched for, so a filter change or save starts over. */
 export function useMorePages<T extends { nextCursor: string | null }>(first: T, load: (cursor: string) => Promise<T>) {
   const [more, setMore] = useState<{ after: T; pages: T[] }>({ after: first, pages: [] });
   const [loading, setLoading] = useState(false);

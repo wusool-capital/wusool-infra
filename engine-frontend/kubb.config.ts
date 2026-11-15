@@ -6,7 +6,6 @@ import { defineConfig } from "kubb/config";
 const banner = "// @ts-nocheck";
 
 // openapi.json is exported from FastAPI by server/scripts/export_openapi.py --app engine.
-// Same-origin: the Worker proxies /api/v1/* and Cloudflare Access signs the user in.
 export default defineConfig({
   input: "./openapi.json",
   output: { path: "./app/gen", clean: true },

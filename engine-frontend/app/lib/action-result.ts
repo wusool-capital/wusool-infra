@@ -10,6 +10,16 @@ function describe(problem: unknown) {
   return body.errors?.length ? `${body.detail} ${body.errors.join("; ")}` : body.detail;
 }
 
+/** A sentence for a failure no screen handled itself, such as a loader that could not reach the Toolkit. */
+export function errorMessage(error: unknown): string {
+  if (isResponseError(error)) {
+    if (error.status === 401) return "Your sign-in has expired. Reload the page to sign in again.";
+    if (error.status === 403) return "Your email is not set up for the Engine. Ask an admin to add it in Attio.";
+    return describe(error.data);
+  }
+  return error instanceof Error ? error.message : "Something unexpected went wrong.";
+}
+
 /** Turns a Toolkit refusal into a message. Anything else is a bug, so it still throws. */
 export async function attempt(run: () => Promise<unknown>): Promise<ActionResult> {
   try {

@@ -1,6 +1,6 @@
-// The Toolkit-backed versions of the Phase 1 functions. Each keeps the name, inputs and
-// return shape of its demo twin in `../demo/api.ts`; `../api.ts` picks one by VITE_DATA.
-// Calls go through the Kubb client in `../gen` and throw a `ResponseError` on a refusal.
+// Live twins of the demo functions: same names, inputs and return shapes. `../api.ts` picks by VITE_DATA.
+
+// A refusal from the Toolkit throws the Kubb client's `ResponseError`.
 import { addBuyer as postBuyer } from "../gen/clients/addBuyer";
 import { getBuyersUniverse as fetchBuyers } from "../gen/clients/getBuyersUniverse";
 import { getCurrentUser as fetchMe } from "../gen/clients/getCurrentUser";
@@ -18,10 +18,10 @@ import type { BuyerPatch, BuyerRole, BuyersUniverseData, Person, SellerPatch, Se
 // The version each row had when it was shown, so a save is refused if someone else changed it since.
 const etags = new Map<string, string>();
 
+// With no known version the header is left out, and the Toolkit answers with a message to reload.
 function ifMatch(id: string) {
   const etag = etags.get(id);
-  if (!etag) throw new Error(`Reload the page: no version is known for ${id}`);
-  return `"${etag}"`;
+  return etag ? `"${etag}"` : undefined;
 }
 
 // The Toolkit has no job titles or roles yet, so every team member counts as an advisor.

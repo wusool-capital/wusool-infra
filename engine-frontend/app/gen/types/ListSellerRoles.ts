@@ -24,6 +24,10 @@ export type ListSellerRolesQuery = {
   openToSelling?: string | (null | null);
 };
 
+/**
+ * @description Counts and options come with the first page, as for buyers.
+ * @type object
+ */
 export type ListSellerRolesStatus200 = SellerRolePage;
 
 /**
