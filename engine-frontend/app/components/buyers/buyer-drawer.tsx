@@ -10,6 +10,7 @@ import { StatusPill } from "../mandates/status-pill";
 import { AmountInput } from "../ui/amount-input";
 import { CheckGroup } from "../ui/check-group";
 import { DetailFields } from "../ui/detail-fields";
+import { DetailValues } from "../ui/detail-values";
 import { Drawer } from "../ui/drawer";
 import { useRouteAction, useSaveAction } from "../ui/toast";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
@@ -76,6 +77,8 @@ export function BuyerDrawer({ buyer, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{buyer.notes}</p>
       </section>
 
+      <DetailValues fields={data.options.fields} roleName="Buyer" recordId={buyer.id} load={() => getBuyerDetails(buyer.id)} />
+
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
         {contacts.length === 0 ? (
@@ -85,7 +88,7 @@ export function BuyerDrawer({ buyer, data, panel, onPanel, onClose }: Props) {
             {contacts.map((person, index) => (
               <li key={person.id}>
                 <span className="cell-title">{person.name}{index === 0 && <span className="muted"> (key contact)</span>}</span>
-                <span className="cell-sub">{person.title ?? "Title not set"}</span>
+                <span className="cell-sub">{[person.title ?? "Title not set", person.email].filter(Boolean).join(" · ")}</span>
               </li>
             ))}
           </ul>

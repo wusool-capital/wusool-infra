@@ -656,6 +656,9 @@ a.contact-row__reach:hover { color: var(--navy); text-decoration: underline; }
 
 /* Record drawers (Buyers, Sellers) */
 .record-notes { max-width: 65ch; margin: var(--space-4) 0 0; color: var(--muted); line-height: 1.5; }
+.detail-long { margin-top: var(--space-4); }
+.detail-long h4 { margin: 0 0 var(--space-1); color: var(--muted); font-size: 12px; font-weight: 400; }
+.detail-long p { max-width: 65ch; margin: 0; line-height: 1.5; white-space: pre-wrap; }
 .email-log { margin: 0; padding: 0; list-style: none; }
 .email-log__item { display: flex; justify-content: space-between; gap: var(--space-4); padding: var(--space-2) 0; border-bottom: 1px solid var(--line); }
 .email-log__item:last-child { border-bottom: 0; }
