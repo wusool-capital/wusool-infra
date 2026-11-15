@@ -323,7 +323,7 @@
       "id": "posthog",
       "type": "external",
       "label": "PostHog",
-      "sublabel": "tool + report events",
+      "sublabel": "page, tool + report events",
       "pos": [
         740,
         600
@@ -544,7 +544,7 @@
     {
       "from": "website",
       "to": "posthog",
-      "label": "browser events, after consent",
+      "label": "page views + browser events, after consent",
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "left",

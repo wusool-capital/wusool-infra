@@ -373,10 +373,18 @@ server adds the events a browser can't be trusted to send.
 | Event | Sent by | When | Properties |
 |---|---|---|---|
 | `tool_opened`, `tool_started`, `tool_step_completed`, `tool_completed`, `tool_abandoned` | Browser, after consent | The visitor opens, starts, moves through, finishes or leaves a tool | `tool`, `step`, `language`, `submission_id` |
+| `$pageview`, `$pageleave` | Browser, after Accept all | A page loads or closes, on the website (`static/embed.js`) and on a tool opened directly. An embedded tool sends none, since its Webflow page counts the visit | PostHog's own page properties, plus `is_test`. They feed Web analytics and time on page |
+| `cta_clicked` | Browser, after Accept all | A click on a website button marked `data-form` (Get Started, Buyers) | `cta` (the `data-form` name), plus the page's own `$pathname` and `is_test`. No button text |
 | `book_call_clicked` (`source: tool`) | Browser, after consent | A click on an in-page Book a Call link | `tool`, `source` |
 | `lead_submitted` | Server | The lead is saved | `tool`, `submission_id`, `is_test`. Names the person only with consent |
 | `book_call_clicked` (`source: email`) | Server | A click on the email button | `tool`, `submission_id`, `source`, `is_test` |
 | `consent_choice` | Server | A click on the consent banner, through `GET /analytics/consent?choice=granted\|denied` | `choice`, `is_test`. A fresh id each time and no person, so it counts clicks without tracking anyone |
+
+**Website page views.** `embed.js` runs on every Webflow page. After Accept all it
+reads `GET /analytics/config` and loads PostHog on the page, with page views and
+page leaves on, and replay and autocapture off. That route sends a CORS header
+only for `wusoolcapital.com` and `www.wusoolcapital.com`, with `Vary: Origin`.
+The cookie settings match the tool pages, so a visitor keeps one id.
 
 **Consent decides who is named.** Every submit body may carry an optional
 `analytics` block (`AnalyticsContext` in `api/schemas.py`) with the browser's
