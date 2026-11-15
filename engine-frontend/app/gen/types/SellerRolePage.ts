@@ -10,6 +10,10 @@ import type { SellerRoleView } from './SellerRoleView'
 export type SellerRolePage = {
   matched: number;
   nextCursor: string | (null | null);
+  /**
+   * @description `sector_choices` and `hq_countries` list everything Attio allows, for the add form.
+   * @type object
+   */
   options: SellerFilterOptionsView;
   rows: SellerRoleView[];
   total: number;

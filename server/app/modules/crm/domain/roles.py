@@ -4,6 +4,7 @@ Fields with no clean source today are `None` (the Engine shows "—"); they move
 real columns when the Phase 0 tables land.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal
@@ -49,6 +50,31 @@ class TeamMember:
     name: str
 
 
+FieldKind = Literal[
+    "text", "multiline", "select", "multi_select", "currency", "percent", "number", "date", "bool"
+]
+FieldGroup = Literal["role", "company"]
+# A text, an option, an amount, a YYYY-MM-DD date, yes or no, or a checklist.
+DetailValue = str | float | bool | tuple[str, ...] | None
+
+
+@dataclass(frozen=True)
+class FieldDef:
+    """One field Attio takes from the Slack and MCP forms, which the Engine form draws by `kind`."""
+
+    key: str
+    label: str
+    kind: FieldKind
+    options: tuple[str, ...]
+    group: FieldGroup
+
+
+@dataclass(frozen=True)
+class Detail:
+    key: str
+    value: DetailValue
+
+
 @dataclass(frozen=True)
 class BuyerRole:
     id: str
@@ -67,6 +93,7 @@ class BuyerRole:
     etag: str
     # No source column yet.
     type: None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -84,6 +111,7 @@ class SellerRole:
     owner_id: str | None
     contact_ids: tuple[str, ...]
     etag: str
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -132,12 +160,21 @@ class BuyerFilterOptions:
     sectors: tuple[str, ...]
     geographies: tuple[str, ...]
     statuses: tuple[str, ...]
+    # Everything Attio allows, for the edit form; the service adds these.
+    regions: tuple[str, ...] = ()
+    countries: tuple[str, ...] = ()
+    hq_countries: tuple[str, ...] = ()
+    fields: tuple[FieldDef, ...] = ()
 
 
 @dataclass(frozen=True)
 class SellerFilterOptions:
     sectors: tuple[str, ...]
     geographies: tuple[str, ...]
+    # Everything Attio allows, for the add form; the service adds these.
+    sector_choices: tuple[str, ...] = ()
+    hq_countries: tuple[str, ...] = ()
+    fields: tuple[FieldDef, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -173,6 +210,21 @@ class NewBuyer:
     check_size_min_usd: float | None = None
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
+    geographies: tuple[str, ...] = ()
+    details: tuple[Detail, ...] = ()
+
+
+@dataclass(frozen=True)
+class NewSeller:
+    name: str
+    website: str
+    sector: str
+    hq: str | None = None
+    open_to_selling: OpenToSelling | None = None
+    est_revenue_usd: float | None = None
+    est_ebitda_usd: float | None = None
+    re_engage_date: date | None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -182,9 +234,11 @@ class BuyerChanges:
     sent: frozenset[str]
     status: str | None = None
     notes: str | None = None
+    geographies: tuple[str, ...] = ()
     check_size_min_usd: float | None = None
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
+    details: tuple[Detail, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -194,6 +248,25 @@ class SellerChanges:
     est_ebitda_usd: float | None = None
     open_to_selling: OpenToSelling | None = None
     re_engage_date: date | None = None
+    details: tuple[Detail, ...] = ()
+
+
+@dataclass(frozen=True)
+class GeographySplit:
+    regions: tuple[str, ...]
+    countries: tuple[str, ...]
+    unknown: tuple[str, ...]
+
+
+def split_geographies(
+    picked: Sequence[str], regions: Sequence[str], countries: Sequence[str]
+) -> GeographySplit:
+    """Attio keeps a buyer's geography as two fields. The two lists never share a value."""
+    return GeographySplit(
+        regions=tuple(g for g in picked if g in regions),
+        countries=tuple(g for g in picked if g in countries),
+        unknown=tuple(g for g in picked if g not in regions and g not in countries),
+    )
 
 
 @dataclass(frozen=True)
@@ -214,9 +287,10 @@ class StaleRoleError(Exception):
 class RoleAlreadyExistsError(Exception):
     """The company already holds this role."""
 
-    def __init__(self, role_id: str) -> None:
-        super().__init__(f"role {role_id} already exists")
+    def __init__(self, role_id: str, kind: RoleKind = "buyer") -> None:
+        super().__init__(f"{kind} role {role_id} already exists")
         self.role_id = role_id
+        self.kind = kind
 
 
 class InvalidRoleFieldsError(Exception):

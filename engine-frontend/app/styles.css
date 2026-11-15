@@ -676,6 +676,7 @@ span.cell-clip { display: block; }
 .check-group { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-4); margin: 0 0 var(--space-3); padding: 0; border: 0; }
 .check-group legend { margin-bottom: var(--space-1); padding: 0; color: var(--muted); font-size: 12px; }
 .check-group__option { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.check-group--scroll { max-height: 168px; overflow-y: auto; padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius); }
 
 @media (prefers-reduced-motion: reduce) {
   .drawer { animation: none; }

@@ -24,6 +24,8 @@ import type {
   BuyerPatch,
   BuyerRole,
   BuyersSearchData,
+  Detail,
+  NewSellerInput,
   SellerPatch,
   SellersSearchData,
   ScorecardsData,
@@ -512,7 +514,14 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
     matched: matched.length,
     total: buyers.length,
     nextCursor: page.nextCursor,
-    options: { sectors: sortedUnique(buyers.flatMap((b) => b.sectors)), geographies: sortedUnique(buyers.flatMap((b) => b.geographies)), statuses: [...BUYER_STATUSES] },
+    options: {
+      sectors: sortedUnique(buyers.flatMap((b) => b.sectors)),
+      geographies: sortedUnique(buyers.flatMap((b) => b.geographies)),
+      statuses: [...BUYER_STATUSES],
+      geographyChoices: sortedUnique(buyers.flatMap((b) => b.geographies)),
+      hqCountries: [],
+      fields: [],
+    },
     unavailable: [],
   });
 }
@@ -520,14 +529,17 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
 /** Added by hand from the Buyers universe. Attio matches by website, so a known domain is not added twice. */
 export async function addBuyer(userId: UserId, fields: Required<BuyerPatch> & Pick<BuyerRole, "name" | "hq" | "website">) {
   if (fields.website && inAttio(fields.website)) return;
-  buyers.push({ ...fields, id: `br-${Date.now()}`, contactIds: [] });
+  // The demo has no extra fields, so `details` is always empty.
+  const { details: _details, ...profile } = fields;
+  buyers.push({ ...profile, id: `br-${Date.now()}`, contactIds: [] });
   logActivity(userId, `added ${fields.name} to the buyers universe`);
 }
 
 export async function updateBuyer(userId: UserId, id: string, patch: BuyerPatch) {
   const buyer = buyers.find((row) => row.id === id);
   if (!buyer) return;
-  Object.assign(buyer, patch);
+  const { details: _details, ...rest } = patch;
+  Object.assign(buyer, rest);
   logActivity(userId, `updated ${buyer.name} in the buyers universe`);
 }
 
@@ -680,15 +692,38 @@ export async function getSellersUniverse(params: URLSearchParams, cursor?: strin
     matched: matched.length,
     total: sellers.length,
     nextCursor: page.nextCursor,
-    options: { sectors: sortedUnique(sellers.map((s) => s.sector)), geographies: sortedUnique(sellers.map((s) => s.geography)) },
+    options: {
+      sectors: sortedUnique(sellers.map((s) => s.sector)),
+      geographies: sortedUnique(sellers.map((s) => s.geography)),
+      sectorChoices: sortedUnique(sellers.map((s) => s.sector)),
+      hqCountries: [],
+      fields: [],
+    },
     unavailable: [],
   });
+}
+
+/** Added by hand from the Sellers universe. Attio matches by website, so a known domain is not added twice. */
+export async function addSeller(userId: UserId, fields: NewSellerInput) {
+  if (fields.website && sellers.some((row) => row.website === fields.website)) return;
+  const { details: _details, ...profile } = fields;
+  sellers.push({ ...profile, id: `sr-${Date.now()}`, geography: "", ownerId: userId, contactIds: [], notes: "" });
+  logActivity(userId, `added ${fields.name} to the sellers universe`);
+}
+
+/** The extra Slack fields exist only on the Toolkit, so the demo has none to show. */
+export async function getBuyerDetails(_id: string): Promise<Detail[]> {
+  return [];
+}
+
+export async function getSellerDetails(_id: string): Promise<Detail[]> {
+  return [];
 }
 
 export async function updateSeller(userId: UserId, id: string, patch: SellerPatch) {
   const seller = sellers.find((row) => row.id === id);
   if (!seller) return;
-  const { estEbitdaUsd, reEngageDate, ...rest } = patch;
+  const { estEbitdaUsd, reEngageDate, details: _details, ...rest } = patch;
   Object.assign(seller, rest);
   if (estEbitdaUsd !== undefined) seller.estEbitdaUsd = estEbitdaUsd ?? undefined;
   if (reEngageDate !== undefined) seller.reEngageDate = reEngageDate ?? undefined;

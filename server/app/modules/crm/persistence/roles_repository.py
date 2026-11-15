@@ -248,12 +248,14 @@ def _buyer_conditions(filters: BuyerFilters) -> list[ColumnElement[bool]]:
                 BuyerRoleRow.target_country.overlap(picked),
             )
         )
-    # A missing check-size bound is open, so such a buyer overlaps any range.
     low, high = _money(BuyerRoleRow.check_size_min), _money(BuyerRoleRow.check_size_max)
-    if filters.check_size.max is not None:
-        conditions.append(or_(low.is_(None), low <= filters.check_size.max))
-    if filters.check_size.min is not None:
-        conditions.append(or_(high.is_(None), high >= filters.check_size.min))
+    if not filters.check_size.is_open:
+        # No size recorded cannot match; one recorded bound leaves the other side open.
+        conditions.append(or_(low.is_not(None), high.is_not(None)))
+        if filters.check_size.max is not None:
+            conditions.append(or_(low.is_(None), low <= filters.check_size.max))
+        if filters.check_size.min is not None:
+            conditions.append(or_(high.is_(None), high >= filters.check_size.min))
     conditions += _in_range(_money(BuyerRoleRow.ebitda_floor), filters.min_ebitda)
     for word in _words(filters.text):
         contact = exists().where(

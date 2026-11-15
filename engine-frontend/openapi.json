@@ -28,6 +28,13 @@
             ],
             "title": "Checksizeminusd"
           },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "ebitdaFloorUsd": {
             "anyOf": [
               {
@@ -39,6 +46,20 @@
               }
             ],
             "title": "Ebitdafloorusd"
+          },
+          "geographies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geographies"
           },
           "hq": {
             "anyOf": [
@@ -98,12 +119,41 @@
         "type": "object"
       },
       "BuyerFilterOptionsView": {
+        "description": "`regions` and `countries` list everything Attio allows, for the edit form.",
         "properties": {
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefView"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
           "geographies": {
             "items": {
               "type": "string"
             },
             "title": "Geographies",
+            "type": "array"
+          },
+          "hqCountries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hqcountries",
+            "type": "array"
+          },
+          "regions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Regions",
             "type": "array"
           },
           "sectors": {
@@ -124,7 +174,11 @@
         "required": [
           "sectors",
           "geographies",
-          "statuses"
+          "statuses",
+          "regions",
+          "countries",
+          "hqCountries",
+          "fields"
         ],
         "title": "BuyerFilterOptionsView",
         "type": "object"
@@ -201,6 +255,13 @@
               "type": "string"
             },
             "title": "Contactids",
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailView"
+            },
+            "title": "Details",
             "type": "array"
           },
           "ebitdaFloorUsd": {
@@ -329,7 +390,7 @@
       },
       "BuyerUpdate": {
         "additionalProperties": false,
-        "description": "Only the fields sent change; a field sent as null is cleared.",
+        "description": "Only the fields sent change. A value can be changed but not emptied; a null is refused.",
         "properties": {
           "checkSizeMaxUsd": {
             "anyOf": [
@@ -355,6 +416,13 @@
             ],
             "title": "Checksizeminusd"
           },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "ebitdaFloorUsd": {
             "anyOf": [
               {
@@ -366,6 +434,20 @@
               }
             ],
             "title": "Ebitdafloorusd"
+          },
+          "geographies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geographies"
           },
           "notes": {
             "anyOf": [
@@ -491,6 +573,133 @@
           "options"
         ],
         "title": "BuyersUniverseView",
+        "type": "object"
+      },
+      "DetailInput": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "DetailInput",
+        "type": "object"
+      },
+      "DetailView": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "DetailView",
+        "type": "object"
+      },
+      "FieldDefView": {
+        "description": "A field the form draws by `kind`: a select or checklist from `options`, an amount, a date.",
+        "properties": {
+          "group": {
+            "enum": [
+              "role",
+              "company"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "multiline",
+              "select",
+              "multi_select",
+              "currency",
+              "percent",
+              "number",
+              "date",
+              "bool"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "kind",
+          "options",
+          "group"
+        ],
+        "title": "FieldDefView",
         "type": "object"
       },
       "MeView": {
@@ -632,13 +841,132 @@
         "title": "ReservedItem",
         "type": "object"
       },
-      "SellerFilterOptionsView": {
+      "SellerCreate": {
+        "additionalProperties": false,
         "properties": {
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
+          "estEbitdaUsd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estebitdausd"
+          },
+          "estRevenueUsd": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estrevenueusd"
+          },
+          "hq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "openToSelling": {
+            "anyOf": [
+              {
+                "enum": [
+                  "Unknown",
+                  "Interested",
+                  "Warm intro"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opentoselling"
+          },
+          "reEngageDate": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reengagedate"
+          },
+          "sector": {
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "website": {
+            "minLength": 1,
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "website",
+          "sector"
+        ],
+        "title": "SellerCreate",
+        "type": "object"
+      },
+      "SellerFilterOptionsView": {
+        "description": "`sector_choices` and `hq_countries` list everything Attio allows, for the add form.",
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefView"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
           "geographies": {
             "items": {
               "type": "string"
             },
             "title": "Geographies",
+            "type": "array"
+          },
+          "hqCountries": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hqcountries",
+            "type": "array"
+          },
+          "sectorChoices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sectorchoices",
             "type": "array"
           },
           "sectors": {
@@ -651,7 +979,10 @@
         },
         "required": [
           "sectors",
-          "geographies"
+          "geographies",
+          "sectorChoices",
+          "hqCountries",
+          "fields"
         ],
         "title": "SellerFilterOptionsView",
         "type": "object"
@@ -706,6 +1037,13 @@
               "type": "string"
             },
             "title": "Contactids",
+            "type": "array"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailView"
+            },
+            "title": "Details",
             "type": "array"
           },
           "estEbitdaUsd": {
@@ -851,6 +1189,13 @@
       "SellerUpdate": {
         "additionalProperties": false,
         "properties": {
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/DetailInput"
+            },
+            "title": "Details",
+            "type": "array"
+          },
           "estEbitdaUsd": {
             "anyOf": [
               {
@@ -2032,6 +2377,135 @@
           }
         },
         "summary": "List Seller Roles",
+        "tags": [
+          "crm"
+        ]
+      },
+      "post": {
+        "operationId": "addSeller",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SellerCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SellerRoleView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Precondition Required"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Add Seller",
         "tags": [
           "crm"
         ]

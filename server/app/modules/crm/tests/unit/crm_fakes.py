@@ -7,7 +7,10 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     BuyerRole,
     BuyersPage,
+    Detail,
+    FieldDef,
     NewBuyer,
+    NewSeller,
     SellerChanges,
     SellerFilterOptions,
     SellerFilters,
@@ -99,6 +102,7 @@ class FakeWriter:
     add_outcome: Literal["added", "existing"] = "added"
     error: Exception | None = None
     edits: list[tuple[str, str]] = field(default_factory=list)
+    changes: list[BuyerChanges] = field(default_factory=list)
 
     async def add_buyer(
         self, buyer_: NewBuyer, *, requested_by: str
@@ -111,10 +115,50 @@ class FakeWriter:
     def buyer_statuses(self) -> tuple[str, ...]:
         return ("Active", "Dormant")
 
+    def buyer_regions(self) -> tuple[str, ...]:
+        return ("GCC", "Europe")
+
+    def buyer_countries(self) -> tuple[str, ...]:
+        return ("Qatar", "Oman")
+
+    def hq_countries(self) -> tuple[str, ...]:
+        return ("Qatar", "Oman", "Japan")
+
+    def buyer_fields(self) -> tuple[FieldDef, ...]:
+        return (
+            FieldDef("model", "Model", "select", ("Model 1", "Model 2"), "role"),
+            FieldDef("investment_strategy", "Investment strategy", "multiline", (), "role"),
+            FieldDef("client_type", "Client type", "multi_select", ("M&A", "Project"), "company"),
+        )
+
+    def seller_fields(self) -> tuple[FieldDef, ...]:
+        return (
+            FieldDef(
+                "sell_timeline", "Sell timeline", "select", ("Immediate", "Not Selling"), "role"
+            ),
+        )
+
+    async def record_details(
+        self, kind: Literal["buyer", "seller"], role_id: str
+    ) -> tuple[Detail, ...]:
+        return (Detail("model", "Model 1"), Detail("client_type", ("M&A",)))
+
+    def seller_sectors(self) -> tuple[str, ...]:
+        return ("Clinic", "Garage")
+
+    async def add_seller(
+        self, seller_: NewSeller, *, requested_by: str
+    ) -> tuple[Literal["added", "existing"], str]:
+        if self.error:
+            raise self.error
+        self.reader.sellers["s2"] = replace(seller(), id="s2", name=seller_.name)
+        return self.add_outcome, "s2" if self.add_outcome == "added" else "s1"
+
     async def edit_buyer(self, role_id: str, changes: BuyerChanges, *, requested_by: str) -> None:
         if self.error:
             raise self.error
         self.edits.append((role_id, requested_by))
+        self.changes.append(changes)
         self.reader.buyers[role_id] = replace(self.reader.buyers[role_id], etag="v2")
 
     async def edit_seller(self, role_id: str, changes: SellerChanges, *, requested_by: str) -> None:

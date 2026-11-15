@@ -7,7 +7,10 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     BuyerRole,
     BuyersPage,
+    Detail,
+    FieldDef,
     NewBuyer,
+    NewSeller,
     SellerChanges,
     SellerFilters,
     SellerRole,
@@ -44,6 +47,40 @@ class RoleWriterPort(Protocol):
     def buyer_statuses(self) -> tuple[str, ...]:
         """The statuses Attio allows a buyer to have."""
         ...
+
+    def buyer_regions(self) -> tuple[str, ...]:
+        """The target regions Attio allows."""
+        ...
+
+    def buyer_countries(self) -> tuple[str, ...]:
+        """The target countries Attio allows."""
+        ...
+
+    def hq_countries(self) -> tuple[str, ...]:
+        """The HQ countries Attio allows a company to have."""
+        ...
+
+    def seller_sectors(self) -> tuple[str, ...]:
+        """The sectors Attio allows a company to focus on."""
+        ...
+
+    def buyer_fields(self) -> tuple[FieldDef, ...]:
+        """The buyer and company fields Slack takes that the Engine has no fixed control for."""
+        ...
+
+    def seller_fields(self) -> tuple[FieldDef, ...]:
+        """The same for sellers."""
+        ...
+
+    async def record_details(
+        self, kind: Literal["buyer", "seller"], role_id: str
+    ) -> tuple[Detail, ...]:
+        """Current values of those fields for one role."""
+        ...
+
+    async def add_seller(
+        self, seller: NewSeller, *, requested_by: str
+    ) -> tuple[Literal["added", "existing"], str]: ...
 
     async def edit_buyer(
         self, role_id: str, changes: BuyerChanges, *, requested_by: str

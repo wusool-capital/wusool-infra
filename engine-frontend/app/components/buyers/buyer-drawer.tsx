@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { BUYER_TYPES, type BuyerPatch, type BuyerRole, type BuyersUniverseData } from "../../demo/types";
+import { getBuyerDetails } from "../../api";
 import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
 import { isLive } from "../../lib/data-mode";
+import { useDetails } from "../../lib/use-details";
 import { formatMoney, formatMoneyRange, formatWhen } from "../../lib/format";
 import { StatusPill } from "../mandates/status-pill";
 import { AmountInput } from "../ui/amount-input";
+import { CheckGroup } from "../ui/check-group";
+import { DetailFields } from "../ui/detail-fields";
 import { Drawer } from "../ui/drawer";
 import { useRouteAction, useSaveAction } from "../ui/toast";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
@@ -173,6 +177,7 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
     checkSizeMaxUsd: buyer.checkSizeMaxUsd,
     ebitdaFloorUsd: buyer.ebitdaFloorUsd,
     notes: buyer.notes,
+    details: [],
   };
   const [draft, setDraft] = useState(initial);
   // A new buyer is the same form with its name, HQ and website first (id "new" until saved).
@@ -180,21 +185,25 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
   const [identity, setIdentity] = useState({ name: "", hq: "", website: "" });
   const set = <K extends keyof BuyerPatch>(key: K, value: Required<BuyerPatch>[K]) => setDraft({ ...draft, [key]: value });
   const toggle = <T extends string>(list: T[], value: T) => (list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+  // The extra Slack fields load with the record; a new buyer starts with none.
+  const details = useDetails(data.options.fields, isNew ? null : () => getBuyerDetails(buyer.id));
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || details.dirty;
 
-  // Live has no source for type, owner or geography yet; a new buyer's sector is what Attio files it under.
+  // Live has no source for type or owner yet; a new buyer's sector is what Attio files it under.
   const sectorsLocked = isLive && !isNew;
+  // Attio holds one sector per buyer role, so a live new buyer takes exactly one.
+  const oneSector = isLive && isNew;
   const bothSizes = draft.checkSizeMinUsd !== null && draft.checkSizeMaxUsd !== null;
   const blocker =
-    isNew && (!identity.name.trim() || !identity.hq.trim()) ? "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !isLive && !draft.geographies.length ? "Pick at least one geography." : bothSizes && draft.checkSizeMinUsd! > draft.checkSizeMaxUsd! ? "Check size from must be lower than check size to." : "";
+    isNew && (!identity.name.trim() || !identity.hq.trim()) ? isLive ? "Add the buyer's name and HQ country." : "Add the buyer's name and HQ." : !draft.sectors.length ? "Pick at least one sector." : !isLive && !draft.geographies.length ? "Pick at least one geography." : bothSizes && draft.checkSizeMinUsd! > draft.checkSizeMaxUsd! ? "Check size from must be lower than check size to." : details.cleared.length ? `Attio cannot empty ${details.cleared.join(", ")}. Put the value back, or clear it in Attio.` : "";
 
   const save = () => {
     if (isNew) {
-      const added = { ...draft, name: identity.name.trim(), hq: identity.hq.trim(), website: identity.website.trim() };
+      const added = { ...draft, details: details.changes, name: identity.name.trim(), hq: identity.hq.trim(), website: identity.website.trim() };
       send({ intent: "buyer-add", buyer: JSON.stringify(added) }, `${added.name} added to Attio as a buyer role.`, onClose);
       return;
     }
-    send({ intent: "buyer-update", id: buyer.id, patch: JSON.stringify(changedFields(initial, draft)) }, `${buyer.name} saved to Attio.`, onBack);
+    send({ intent: "buyer-update", id: buyer.id, patch: JSON.stringify({ ...changedFields(initial, draft), ...(details.changes.length ? { details: details.changes } : {}) }) }, `${buyer.name} saved to Attio.`, onBack);
   };
 
   return (
@@ -219,8 +228,20 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
                 <input id="buyer-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
               </div>
               <div className="field">
-                <label htmlFor="buyer-hq">HQ city</label>
-                <input id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                {isLive ? (
+                  <>
+                    <label htmlFor="buyer-hq">HQ country</label>
+                    <select id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
+                      <option value="">Pick a country</option>
+                      {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
+                    </select>
+                  </>
+                ) : (
+                  <>
+                    <label htmlFor="buyer-hq">HQ city</label>
+                    <input id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                  </>
+                )}
               </div>
               <div className="field">
                 <label htmlFor="buyer-website">Website</label>
@@ -262,27 +283,21 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
             <AmountInput id="buyer-ticket-max" value={draft.checkSizeMaxUsd ?? undefined} onChange={(value) => set("checkSizeMaxUsd", value ?? null)} />
           </div>
         </div>
-        <CheckGroup legend="Sectors" options={data.options.sectors} disabled={sectorsLocked} picked={draft.sectors} onToggle={(value) => set("sectors", toggle(draft.sectors, value))} />
-        <CheckGroup legend="Geography" options={data.options.geographies} disabled={isLive} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
+        <CheckGroup
+          legend={oneSector ? "Sector (one per buyer)" : "Sectors"}
+          options={data.options.sectors}
+          disabled={sectorsLocked}
+          picked={draft.sectors}
+          onToggle={(value) => set("sectors", oneSector ? (draft.sectors.includes(value) ? [] : [value]) : toggle(draft.sectors, value))}
+        />
+        {sectorsLocked && <p className="muted">A buyer role has one sector. To cover another, use Add buyer with the same website to create a new role for it.</p>}
+        <CheckGroup legend="Geography" options={data.options.geographyChoices} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
         <div className="field">
           <label htmlFor="buyer-notes">Notes</label>
           <textarea id="buyer-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
         </div>
       </section>
+      <DetailFields fields={data.options.fields} values={details.values} onChange={details.set} roleName="Buyer" status={details.status} />
     </Drawer>
-  );
-}
-
-function CheckGroup({ legend, options, picked, onToggle, disabled = false }: { legend: string; options: string[]; picked: string[]; onToggle: (value: string) => void; disabled?: boolean }) {
-  return (
-    <fieldset className="check-group">
-      <legend>{legend}</legend>
-      {options.map((value) => (
-        <label key={value} className="check-group__option">
-          <input type="checkbox" checked={picked.includes(value)} disabled={disabled} onChange={() => onToggle(value)} />
-          {value}
-        </label>
-      ))}
-    </fieldset>
   );
 }

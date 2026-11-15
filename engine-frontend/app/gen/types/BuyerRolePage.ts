@@ -12,6 +12,10 @@ import type { BuyerRoleView } from './BuyerRoleView'
 export type BuyerRolePage = {
   matched: number;
   nextCursor: string | (null | null);
+  /**
+   * @description `regions` and `countries` list everything Attio allows, for the edit form.
+   * @type object
+   */
   options: BuyerFilterOptionsView;
   rows: BuyerRoleView[];
   total: number;

@@ -1,5 +1,7 @@
 // @ts-nocheck
 
+import type { DetailView } from './DetailView'
+
 export const sellerRoleViewOpenToSellingEnum = {
   Unknown: 'Unknown',
   Interested: 'Interested',
@@ -10,6 +12,7 @@ export type SellerRoleViewOpenToSellingEnumKey = (typeof sellerRoleViewOpenToSel
 
 export type SellerRoleView = {
   contactIds: string[];
+  details?: DetailView[];
   estEbitdaUsd: number | (null | null);
   estRevenueUsd: number | (null | null);
   etag: string;

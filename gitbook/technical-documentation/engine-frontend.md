@@ -35,7 +35,9 @@ from Cloudflare Workers at **engine-dev.wusoolcapital.com**.
   `CF_ACCESS_TEAM_DOMAIN` (for example `wusoolcapital.cloudflareaccess.com`) and
   `CF_ACCESS_ENGINE_AUD` (the `access_aud` output of the `engine-frontend`
   stack). Until both are set, `/api/v1` answers 503.
-* `crm` serves `/api/v1/buyer-roles`, `/api/v1/seller-roles` and `/api/v1/me`.
+* `crm` serves `/api/v1/buyer-roles`, `/api/v1/seller-roles` and `/api/v1/me`. Adding a
+  buyer or seller uses the same Attio-first write as Slack's `/add-buyer` and `/add-seller`.
+  A duplicate domain is refused, and the HQ is picked from Attio's list of countries.
   `engine` serves the page payloads, `/api/v1/views/buyers` and
   `/api/v1/views/sellers`. Filters, search and order run on the Toolkit. Pages hold
   up to 100 rows, and the "Show more" button loads the next page.
@@ -80,6 +82,15 @@ applications and policies, before the first deploy. See
   greyed out until mandates and outreach are connected.
 * Some fields have no source column yet and show as not set: a buyer's type and
   owner, and a seller's owner and notes. Their edit fields are locked. A buyer's
-  sectors and geographies, and a seller's sector and geography, are read only.
-  A new buyer takes its sector from the form.
+  sectors, and a seller's sector and geography, are read only. A new buyer takes
+  its sector from the form.
+* The edit and add forms also offer every other field the Slack commands take.
+  Examples are a buyer's model, deal structure and EV ceiling, a seller's sell
+  timeline and margins, and a company's description and funding. The Toolkit lists
+  them, and the form draws each by its kind: a select, a checklist, an amount, a
+  date, yes or no, or text. Attio sets values but cannot empty one, so a field
+  cannot be cleared from the Engine. Nothing is saved until you press Save to Attio.
+* A buyer's geography can be edited. The Toolkit sorts the picks into Attio's
+  target region and target country fields. As in Slack, a group that has values
+  must keep at least one.
 * One hostname and one environment. There is no production copy.

@@ -93,13 +93,16 @@ def install_problem_handlers(app: FastAPI) -> None:
             )
         )
 
-    async def exists(_request: Request, _exc: Exception) -> Response:
+    async def exists(_request: Request, exc: Exception) -> Response:
+        assert isinstance(exc, RoleAlreadyExistsError)
+        detail = (
+            "A buyer with this domain and sector already exists."
+            if exc.kind == "buyer"
+            else "A seller with this domain already exists."
+        )
         return _response(
             ProblemDetail(
-                title="Already exists",
-                status=409,
-                detail="A buyer with this domain and sector already exists.",
-                code="buyer_exists",
+                title="Already exists", status=409, detail=detail, code=f"{exc.kind}_exists"
             )
         )
 
