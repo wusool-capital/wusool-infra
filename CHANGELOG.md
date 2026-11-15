@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Added
 
+- Cloudflare Access for the Engine now also admits `@dopaminecap.com` addresses, because the
+  advisors' Attio members still use them. It is `var.allowed_email_domains` in the `engine-frontend` stack.
 - The Engine's Buyers and Sellers pages can run on live Toolkit data. A new `crm`
   module serves buyer and seller roles under `/api/v1`. It filters, searches and
   pages on the server. Edits go through the same Attio-first write path as Slack

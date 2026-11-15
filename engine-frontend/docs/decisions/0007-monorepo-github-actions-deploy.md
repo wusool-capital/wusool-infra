@@ -8,7 +8,7 @@ The Engine moved into the `engine/` folder of the wusool-infra monorepo. The fir
 ## Decision
 - A separate Worker, `wusool-engine-dev`, at `engine-dev.wusoolcapital.com`.
 - `wrangler.jsonc` sets `workers_dev: false` and `preview_urls: false`, so the custom hostname is the only public address.
-- `infrastructure/terraform/stacks/engine-frontend` owns the Cloudflare Access application and policy: email one-time PIN, `@wusoolcapital.com` only, 24h session. The same model as the old setup.
+- `infrastructure/terraform/stacks/engine-frontend` owns the Cloudflare Access application and policy: email one-time PIN, `@wusoolcapital.com` only, 24h session. The same model as the old setup. Update 15 Nov 2026: `@dopaminecap.com` is allowed too, because the advisors' Attio members still carry those addresses.
 - `.github/workflows/deploy-engine.yml` builds and runs `wrangler deploy` on every merge to `dev` that touches `engine/`. `engine-quality.yml` runs typecheck and build on pull requests.
 
 ## Consequences

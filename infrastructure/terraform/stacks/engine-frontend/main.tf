@@ -5,11 +5,12 @@
 
 resource "cloudflare_zero_trust_access_policy" "engine" {
   account_id = var.cloudflare_account_id
-  name       = "wusool-engine-dev: ${var.allowed_email_domain} email"
+  name       = "wusool-engine-dev: ${join(", ", var.allowed_email_domains)} email"
   decision   = "allow"
 
-  include = [{
-    email_domain = { domain = var.allowed_email_domain }
+  # One entry per domain: a visitor needs to match any of them.
+  include = [for domain in var.allowed_email_domains : {
+    email_domain = { domain = domain }
   }]
 }
 

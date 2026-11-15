@@ -18,7 +18,7 @@ Checks before a pull request: `./checks.sh` (typecheck and build), then click th
 
 ## Deploy (Cloudflare)
 
-Every merge to `dev` that touches `engine-frontend/` deploys to Cloudflare Workers through `.github/workflows/deploy-engine.yml` (decision 0007). Config: `wrangler.jsonc`. Address: `engine-dev.wusoolcapital.com`, behind Cloudflare Access (email one-time PIN, `@wusoolcapital.com` only), managed in `infrastructure/terraform/stacks/engine-frontend`.
+Every merge to `dev` that touches `engine-frontend/` deploys to Cloudflare Workers through `.github/workflows/deploy-engine.yml` (decision 0007). Config: `wrangler.jsonc`. Address: `engine-dev.wusoolcapital.com`, behind Cloudflare Access (email one-time PIN, `@wusoolcapital.com` or `@dopaminecap.com`), managed in `infrastructure/terraform/stacks/engine-frontend`.
 
 Local check of the production setup: `npm run build`, then `npx wrangler dev`.
 
