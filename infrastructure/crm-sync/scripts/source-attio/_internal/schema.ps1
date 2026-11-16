@@ -199,7 +199,7 @@ $fields = @(
   # Single-value on purpose: SOURCE's attribute is a multiselect and one
   # company (Arto) genuinely holds two tools, so objects.ps1 collapses them to
   # the most recent by `active_from`.
-  [pscustomobject]@{ Title = "Lead Source Detail"; Slug = "lead_source_detail"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "lead_source"; FixedOptions = @("GCC SME Benchmark", "Get Started", "Insights & Reports") },
+  [pscustomobject]@{ Title = "Lead Source Detail"; Slug = "lead_source_detail"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = "lead_source"; FixedOptions = @("GCC SME Benchmark", "Get Started", "Insights & Reports", "Email sync") },
   # Environment discriminator, added 2026-09-06: one SOURCE workspace now
   # serves both dev and prod, true = dev/test, false = prod. Attio cannot
   # enforce NOT NULL on a checkbox and its filter offers only "is true"/"is
@@ -520,6 +520,9 @@ $fields = @(
   [pscustomobject]@{ Title = "Last Interaction Subject"; Slug = "last_interaction_subject"; Type = "text"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Last Interaction Owner"; Slug = "last_interaction_owner"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
   [pscustomobject]@{ Title = "Strongest Connection User"; Slug = "strongest_connection_user"; Type = "actor-reference"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null },
+  # AZM-159 PR 5: a person the interactions engine creates is tagged like an organization.
+  [pscustomobject]@{ Title = "Lead Source"; Slug = "lead_source"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null; FixedOptions = @("Inbound", "Outbound") },
+  [pscustomobject]@{ Title = "Lead Source Detail"; Slug = "lead_source_detail"; Type = "select"; Multi = $false; Required = $false; Unique = $false; SourceOption = $null; AllowedObject = $null; FixedOptions = @("Valuation Tool", "M&A Readiness Tool", "Buyer Form", "GCC SME Benchmark", "Get Started", "Insights & Reports", "Email sync") },
   [pscustomobject]@{ Title = "Legacy Attio ID"; Slug = "legacy_attio_id"; Type = "text"; Multi = $false; Required = $false; Unique = $true; SourceOption = $null; AllowedObject = $null },
   # Created directly via the API when first migrated (2026-08-19), never
   # tracked here until now -- added 2026-08-23 so drift/deletion gets caught
@@ -806,6 +809,12 @@ $fields=@(
   [pscustomobject]@{Title="Deal Type";Slug="deal_type";Type="select";Config=@{};RenameFrom=$null;FixedOptions=@("Buy-side","Sell-side")},
   # AZM-169: the outcome split out of deal_stage, so a stage says only where the deal is.
   [pscustomobject]@{Title="Deal status";Slug="deal_status";Type="select";Config=@{};RenameFrom=$null;FixedOptions=@("Active","On hold","Passed","Lost")},
+  # AZM-159 PR 6: rolled up by the interactions engine from the deal's buyer and seller.
+  [pscustomobject]@{Title="Last Interaction At";Slug="last_interaction_at";Type="timestamp";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Next Interaction At";Slug="next_interaction_at";Type="timestamp";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Last Interaction Subject";Slug="last_interaction_subject";Type="text";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Last Interaction Owner";Slug="last_interaction_owner";Type="actor-reference";Config=@{};RenameFrom=$null},
+  [pscustomobject]@{Title="Connection Strength";Slug="connection_strength";Type="select";Config=@{};RenameFrom=$null;FixedOptions=@("Very weak","Weak","Good","Strong","Very strong")},
   [pscustomobject]@{Title="Universe Constructed";Slug="universe_constructed";Type="checkbox";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Universe Size";Slug="universe_size";Type="number";Config=@{};RenameFrom=$null},
   [pscustomobject]@{Title="Shortlist Approved";Slug="shortlist_approved";Type="checkbox";Config=@{};RenameFrom=$null},

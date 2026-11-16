@@ -403,7 +403,7 @@ _PERSON_UPSERT = text(
         first_interaction_at, next_interaction_at, first_email_interaction_at,
         last_email_interaction_at, first_calendar_interaction_at, last_calendar_interaction_at,
         next_calendar_interaction_at, last_interaction_channel, last_interaction_subject,
-        last_interaction_owner, strongest_connection_user
+        last_interaction_owner, strongest_connection_user, lead_source, lead_source_detail
     ) VALUES (
         :attio_id, :name, :role,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :company_attio_id)
@@ -420,7 +420,8 @@ _PERSON_UPSERT = text(
         CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :last_interaction_owner)
              THEN :last_interaction_owner ELSE NULL END,
         CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :strongest_connection_user)
-             THEN :strongest_connection_user ELSE NULL END
+             THEN :strongest_connection_user ELSE NULL END,
+        :lead_source, :lead_source_detail
     )
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, role=excluded.role, company_attio_id=excluded.company_attio_id,
@@ -443,6 +444,7 @@ _PERSON_UPSERT = text(
         last_interaction_subject=excluded.last_interaction_subject,
         last_interaction_owner=excluded.last_interaction_owner,
         strongest_connection_user=excluded.strongest_connection_user,
+        lead_source=excluded.lead_source, lead_source_detail=excluded.lead_source_detail,
         raw_attio=excluded.raw_attio, updated_at=now(), removed_at=NULL
     """
 )
@@ -478,6 +480,8 @@ def _person_params(data: AttioRecord) -> PersonParams:
         "last_interaction_subject": v.first(values, "last_interaction_subject"),
         "last_interaction_owner": v.actor(values, "last_interaction_owner"),
         "strongest_connection_user": v.actor(values, "strongest_connection_user"),
+        "lead_source": v.first(values, "lead_source"),
+        "lead_source_detail": v.first(values, "lead_source_detail"),
         "job_title": v.first(values, "job_title"),
         "contact_type": v.first(values, "contact_type"),
         "phone": v.first(values, "phone"),
@@ -539,6 +543,8 @@ _DEAL_UPSERT = text(
     """
     INSERT INTO deals(
         attio_id, name, stage, stage_changed_at, deal_status, time_in_stage,
+        last_interaction_at, next_interaction_at, last_interaction_subject,
+        last_interaction_owner, connection_strength,
         buyer_organization_attio_id,
         buyer_person_attio_id, seller_organization_attio_id, owner_attio_id, value,
         teaser_status, nda_count, cim_ready, deal_memo_ready, contract_signed_date,
@@ -550,6 +556,10 @@ _DEAL_UPSERT = text(
         source_mandate_entry_id, raw_attio
     ) VALUES (
         :attio_id, :name, :stage, :stage_changed_at, :deal_status, :time_in_stage,
+        :last_interaction_at, :next_interaction_at, :last_interaction_subject,
+        CASE WHEN EXISTS (SELECT 1 FROM users WHERE attio_id = :last_interaction_owner)
+             THEN :last_interaction_owner ELSE NULL END,
+        :connection_strength,
         CASE WHEN EXISTS (SELECT 1 FROM organizations WHERE attio_id = :buyer_id)
              THEN :buyer_id ELSE NULL END,
         CASE WHEN EXISTS (SELECT 1 FROM person WHERE attio_id = :buyer_id)
@@ -570,6 +580,11 @@ _DEAL_UPSERT = text(
     ON CONFLICT (attio_id) DO UPDATE SET
         name=excluded.name, stage=excluded.stage, stage_changed_at=excluded.stage_changed_at,
         deal_status=excluded.deal_status, time_in_stage=excluded.time_in_stage,
+        last_interaction_at=excluded.last_interaction_at,
+        next_interaction_at=excluded.next_interaction_at,
+        last_interaction_subject=excluded.last_interaction_subject,
+        last_interaction_owner=excluded.last_interaction_owner,
+        connection_strength=excluded.connection_strength,
         buyer_organization_attio_id=excluded.buyer_organization_attio_id,
         buyer_person_attio_id=excluded.buyer_person_attio_id,
         seller_organization_attio_id=excluded.seller_organization_attio_id,
@@ -618,6 +633,12 @@ def _deal_params(data: AttioRecord) -> DealParams:
         "stage": v.first(values, "deal_stage"),
         "stage_changed_at": v.timestamp(values, "stage_changed_at"),
         "deal_status": v.first(values, "deal_status"),
+        # AZM-159 PR 6: rolled up into Attio by the interactions engine, mirrored here.
+        "last_interaction_at": v.timestamp(values, "last_interaction_at"),
+        "next_interaction_at": v.timestamp(values, "next_interaction_at"),
+        "last_interaction_subject": v.first(values, "last_interaction_subject"),
+        "last_interaction_owner": v.actor(values, "last_interaction_owner"),
+        "connection_strength": v.first(values, "connection_strength"),
         # Attio's attribute is "Time In Stage (Days)", a plain number; the
         # Postgres column is an interval. Converting here rather than binding
         # the bare number, which Postgres would read as microseconds.
@@ -1464,6 +1485,7 @@ def _deal_batch_params(
     params["buyer_person_attio_id"] = _resolve_ref(buyer_id, person_ids)
     params["seller_organization_attio_id"] = _resolve_ref(seller_id, org_ids)
     params["owner_attio_id"] = _resolve_ref(params["owner_attio_id"], user_ids)
+    params["last_interaction_owner"] = _resolve_ref(params["last_interaction_owner"], user_ids)
     return cast(DealParams, params)
 
 

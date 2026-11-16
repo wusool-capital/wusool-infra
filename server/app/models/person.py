@@ -54,6 +54,9 @@ class Person(Base):
     strongest_connection_user: Mapped[str | None] = mapped_column(
         Text, ForeignKey("users.attio_id", name="person_strongest_connection_user_fkey")
     )
+    # AZM-159 PR 5: same values as organizations; the engine tags people it creates "Email sync".
+    lead_source: Mapped[str | None] = mapped_column(Text)
+    lead_source_detail: Mapped[str | None] = mapped_column(Text)
     # Added 2026-08-19 alongside the DEV Attio attributes of the same names
     # (Wusool Schema Handover artifact).
     job_title: Mapped[str | None] = mapped_column(Text)
