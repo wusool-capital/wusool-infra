@@ -8,11 +8,14 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable, Sequence
 
-from app.modules.attio import AttioClientProtocol, attio_is_test
+from app.modules.attio import AttioClientProtocol, AttioError, attio_is_test
 from app.modules.attio.providers.attio.options import get_option_id
 from app.modules.attio.providers.attio.retry import patch_with_retry
 from app.modules.attio.providers.attio.write_values import ActorReferenceValue
-from app.modules.interactions.application.ports.attio_writer import WritesNotAllowedError
+from app.modules.interactions.application.ports.attio_writer import (
+    RecordGoneError,
+    WritesNotAllowedError,
+)
 from app.modules.interactions.domain.attio_fields import (
     FIELDS,
     AttioObject,
@@ -22,6 +25,7 @@ from app.modules.interactions.domain.attio_fields import (
 
 AttioValues = dict[str, list[dict[str, str]]]
 _KIND_OF = {spec.slug: spec.kind for spec in FIELDS}
+_NOT_FOUND = 404
 
 
 class AttioRecordWriter:
@@ -48,9 +52,16 @@ class AttioRecordWriter:
         if wait > 0:
             await self._sleep(wait)
         self._next_at = max(self._clock(), self._next_at) + self._interval
-        await patch_with_retry(
-            self._client, f"/objects/{obj.value}/records/{record_id}", {"data": {"values": values}}
-        )
+        try:
+            await patch_with_retry(
+                self._client,
+                f"/objects/{obj.value}/records/{record_id}",
+                {"data": {"values": values}},
+            )
+        except AttioError as err:
+            if err.status == _NOT_FOUND:
+                raise RecordGoneError(record_id) from err
+            raise
 
     async def _values(self, obj: AttioObject, fields: Sequence[FieldValue]) -> AttioValues:
         values: AttioValues = {}
