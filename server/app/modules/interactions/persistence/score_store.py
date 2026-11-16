@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import cast
 
-from sqlalchemy import CursorResult, Table, bindparam, select, update
+from sqlalchemy import Table, bindparam, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.models import Organization, Person
@@ -33,7 +33,7 @@ class SqlAlchemyScoreStore:
         async with self._sessionmaker() as session:
             return {record_id: score for record_id, score in (await session.execute(stmt)).all()}
 
-    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> int:
+    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> None:
         table = _table(obj)
         stmt = (
             update(table)
@@ -41,10 +41,6 @@ class SqlAlchemyScoreStore:
             .values(connection_strength_score=bindparam("b_score"))
         )
         rows = [{"b_id": record_id, "b_score": score} for record_id, score in scores.items()]
-        changed = 0
         for start in range(0, len(rows), _BATCH):
             async with self._sessionmaker() as session, session.begin():
-                result = await session.execute(stmt, rows[start : start + _BATCH])
-                # An executemany update reports its total on the cursor result.
-                changed += cast(CursorResult[tuple[()]], result).rowcount or 0
-        return changed
+                await session.execute(stmt, rows[start : start + _BATCH])

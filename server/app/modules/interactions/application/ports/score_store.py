@@ -12,6 +12,6 @@ class ScoreStorePort(Protocol):
         """The stored score of every record the mirror holds; a record absent here is skipped."""
         ...
 
-    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> int:
-        """Store these scores. Returns how many rows changed."""
+    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> None:
+        """Store these scores. The caller only sends records the mirror holds."""
         ...
