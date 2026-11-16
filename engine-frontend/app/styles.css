@@ -407,7 +407,7 @@ a.contact-row__reach:hover { color: var(--navy); text-decoration: underline; }
 .label-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3) var(--space-8); margin: 0; }
 .label-grid__item { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: var(--space-3); }
 .label-grid__item dt { color: var(--muted); font-size: 12px; }
-.label-grid__item dd { margin: 0; }
+.label-grid__item dd { margin: 0; overflow-wrap: anywhere; }
 
 .tabs { display: flex; gap: var(--space-6); margin-bottom: var(--space-4); border-bottom: 1px solid var(--line); }
 .tabs__tab { margin-bottom: -1px; padding: var(--space-2) 0; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); }

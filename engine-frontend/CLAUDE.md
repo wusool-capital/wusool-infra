@@ -68,6 +68,7 @@ The code must be easy to follow for a software engineer and for another LLM.
 
 Newest first. One line per tab or change: date, what was built, PR link, open feedback.
 
+- 16 Nov 2026: web addresses in the Buyers and Sellers drawers (website and the text fields such as LinkedIn and logo) are links opening in a new tab, shortened to host and path, or host only when long (`ui/link-text.tsx`; only http and https). Open: none.
 - 16 Nov 2026: emptying a field now saves it as empty (buyer status, notes, check size, min. EBITDA; seller revenue, EBITDA, re-engage date; extra fields) instead of being refused; the Toolkit lists a `clearable` flag per extra field, and checklists backed by a required column still block with a message. Open: none.
 - 15 Nov 2026: Buyers and Sellers drawers show the extra Slack fields read only (`ui/detail-values.tsx`, same field list and groups as the Edit form, loaded when the drawer opens; empty fields hidden) and each contact's email. Demo has no extra fields, so nothing shows there.
 - 15 Nov 2026: range filters (Check size, Min. EBITDA, Revenue, EBITDA) use a two-handle slider (`ui/range-slider.tsx`, Radix Slider styled with Engine tokens; shadcn needs Tailwind) with named steps from Any to $1B+, replacing Min and Max boxes in $M that read as $50000M. URL params unchanged. Open: awaiting Jules's feedback.
