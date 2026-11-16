@@ -56,6 +56,10 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- Editing a seller's extra fields in the Engine, such as the company description or
+  LinkedIn, now saves. Before, a seller edit that changed only those fields failed with
+  "send at least one field". An edit that also changed a profile field saved the profile
+  field and dropped the extra ones.
 - Editing a buyer or seller field to empty, in Slack or through the MCP, now
   empties it in Attio too (AZM-159). Before, only the database changed, and
   the next sync brought the old value back. List fields are never emptied.
