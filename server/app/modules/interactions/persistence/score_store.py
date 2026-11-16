@@ -18,7 +18,10 @@ _BATCH = 2000
 
 
 def _table(obj: AttioObject) -> Table:
-    model = Organization if obj is AttioObject.ORGANIZATIONS else Person
+    models = {AttioObject.ORGANIZATIONS: Organization, AttioObject.PERSON: Person}
+    model = models.get(obj)
+    if model is None:
+        raise ValueError(f"{obj.value} has no connection strength score column")
     # `__table__` is typed FromClause, and a mapped class always has a Table.
     return cast(Table, model.__table__)
 

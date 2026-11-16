@@ -20,13 +20,14 @@ from app.modules.attio.providers.attio.values import (
     record_id,
     vals,
 )
+from app.modules.interactions.application.ports.seed_source import SeedRead
 from app.modules.interactions.application.ports.sent_values import SeedRow
 from app.modules.interactions.domain.attio_fields import (
-    FIELDS,
     AttioObject,
     FieldKind,
     FieldSpec,
     canonical_timestamp,
+    fields_of,
 )
 
 _PAGE_SIZE = 500
@@ -56,22 +57,30 @@ class AttioSeedSource:
         # Only records of this instance's scope, so test and prod records never mix.
         self._owns = owns
 
-    async def rows(self, obj: AttioObject) -> list[SeedRow]:
-        standard = {
-            record_id(record): vals(record) async for record in self._records(_STANDARD_OBJECT[obj])
-        }
+    async def read(self, obj: AttioObject) -> SeedRead:
+        # A Deal has no standard object it was copied from, so it has no baseline.
+        standard = (
+            {
+                record_id(record): vals(record)
+                async for record in self._records(_STANDARD_OBJECT[obj])
+            }
+            if obj in _STANDARD_OBJECT
+            else {}
+        )
         out: list[SeedRow] = []
+        records = 0
         async for record in self._records(obj.value):
             values = vals(record)
             if not self._owns(boolean(values, "is_test")):
                 continue
+            records += 1
             live = standard.get(str(first(values, "legacy_attio_id") or ""))
-            for spec in FIELDS:
+            for spec in fields_of(obj):
                 value = _current(spec, values)
                 baseline = _baseline(spec.slug, live) if live is not None else None
                 if value is not None or baseline is not None:
                     out.append(SeedRow(record_id(record), spec.slug, value, baseline))
-        return out
+        return SeedRead(out, records)
 
     async def _records(self, slug: str) -> AsyncIterator[AttioRecord]:
         offset = 0

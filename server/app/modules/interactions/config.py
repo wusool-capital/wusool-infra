@@ -50,6 +50,10 @@ class InteractionsSettings(SecretsManagerSettings):
     interactions_attio_writes_per_second: float = Field(default=5.0, gt=0, le=20)
     interactions_attio_max_records_per_round: int = Field(default=500, ge=1)
 
+    # The Deal rollup runs inside the write step, so it needs the write mode on too.
+    interactions_deal_rollup_mode: WriteMode = WriteMode.OFF
+    interactions_deal_rollup_max_per_round: int = Field(default=500, ge=1)
+
     # Creating Persons and Organizations from email is off until a canary record checks out.
     interactions_auto_create_mode: WriteMode = WriteMode.OFF
     interactions_auto_create_max_per_round: int = Field(default=20, ge=1)
