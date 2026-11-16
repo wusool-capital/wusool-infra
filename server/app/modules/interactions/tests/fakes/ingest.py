@@ -20,6 +20,7 @@ from app.modules.interactions.application.ports.interaction_store import (
     Source,
     SyncCursor,
 )
+from app.modules.interactions.application.ports.review import ReviewStorePort
 from app.modules.interactions.domain.linking import RecordDirectory
 from app.modules.interactions.tests.fakes.touches import JULES, NOW, SARA
 
@@ -158,6 +159,7 @@ def make_service(
     calendar: FakeCalendar | None = None,
     directory: FakeDirectory | None = None,
     config: IngestConfig = CONFIG,
+    reviews: ReviewStorePort | None = None,
 ) -> IngestService:
     return IngestService(
         store,
@@ -166,6 +168,7 @@ def make_service(
         calendar or FakeCalendar(),
         config,
         clock=lambda: NOW,
+        reviews=reviews,
     )
 
 
@@ -180,6 +183,7 @@ def message(
     labels: frozenset[str] = frozenset({"INBOX"}),
     message_id: str | None = "default",
     bulk: bool = False,
+    sender_name: str | None = None,
 ) -> MailMessage:
     return MailMessage(
         source_id=source_id,
@@ -193,6 +197,7 @@ def message(
         cc_addresses=cc,
         auto_submitted=None,
         has_list_unsubscribe=bulk,
+        from_name=sender_name,
     )
 
 

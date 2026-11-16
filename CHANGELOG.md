@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's buyer and seller edit forms now have two sections, Buyer or Seller details and
+  then Company details, with no repeated fields. The seller Geography field is gone, because it
+  only repeated the HQ country or the region. A buyer's geography is now labelled Target geography.
 - The Engine's edit forms now cover everything Slack's edit-buyer and edit-seller can change. The
   company sector and the HQ country are editable. A seller's open to selling is the exact Attio
   appetite signal, not a three-way summary. A new buyer picks from every vertical Attio allows,
@@ -41,6 +44,10 @@ for current production evidence and open handover items.
 - The interactions engine can empty a field in Attio, such as a passed "next
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
+- The interactions engine can create a Person and an Organization from email (AZM-159 PR 5),
+  tagged Lead Source Detail "Email sync". It is off until a canary record is checked. A shared
+  address or domain goes to a review table, and new cases are posted to Slack daily. Sender display names are now
+  stored for the new Person's name.
 - A record deleted or merged away in Attio no longer keeps the stale-sync alarm on. The
   engine logs it as gone and moves on (AZM-159).
 - The interactions engine is live in production (AZM-159). It keeps Attio's last
@@ -67,6 +74,8 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- A seller in the Engine no longer shows a "Sector (this role)" field that always read Not set. Attio
+  has no sector on a seller role; a seller's sector is the company's, shown under Company details.
 - A seller drawer in the Engine no longer starts its header with a stray comma when the
   seller has no sector.
 - Editing a seller's extra fields in the Engine, such as the company description or

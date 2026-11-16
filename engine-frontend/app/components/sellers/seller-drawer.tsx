@@ -84,7 +84,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
           <Item label="Open to selling">{isLive ? (seller.appetiteSignal ?? <span className="muted">Not set</span>) : <OpenToSellingPill value={seller.openToSelling} />}</Item>
           <Item label="Owner">{byId(data.users, seller.ownerId)?.name ?? "Not set"}</Item>
           {isLive && <Item label="Company sector">{seller.companySector ?? <span className="muted">Not set</span>}</Item>}
-          <Item label="Geography">{seller.geography}</Item>
+          {!isLive && <Item label="Geography">{seller.geography}</Item>}
           <Item label="Revenue">{formatMoney(seller.estRevenueUsd)}</Item>
           <Item label="EBITDA">{formatMoney(seller.estEbitdaUsd)}</Item>
           <Item label="Re-engage">{seller.reEngageDate ? formatDate(seller.reEngageDate) : <span className="muted">Not set</span>}</Item>
@@ -93,7 +93,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{seller.notes}</p>
       </section>
 
-      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} lead={isLive ? [{ label: "Sector (this role)", value: seller.ownSector }] : []} />
+      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} />
 
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
@@ -323,7 +323,6 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || details.dirty;
   // Live cannot save these yet. A row's own value is always listed so the select can show it.
   const sectors = [...new Set([...(isNew ? data.options.sectorChoices : data.options.sectors), draft.sector])].filter(Boolean).sort();
-  const geographies = [...new Set([...data.options.geographies, draft.geography])].sort();
   const ebitdaTooHigh = draft.estEbitdaUsd !== undefined && draft.estRevenueUsd !== null && draft.estEbitdaUsd > draft.estRevenueUsd;
   const blocker = isNew && (!identity.name.trim() || !identity.website.trim()) ? "Add the seller's name and website." : isNew && !draft.sector ? "Pick a sector." : ebitdaTooHigh ? "EBITDA cannot be above revenue." : details.cleared.length ? `Attio cannot empty ${details.cleared.join(", ")}. Put the value back, or clear it in Attio.` : "";
 
@@ -368,115 +367,122 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
         </>
       }
     >
-      <section className="drawer__section">
-        <div className="form-grid">
-          {isNew && (
-            <>
+      <DetailFields
+        fields={detailFields.filter((field) => field.key !== "sector_focus")}
+        values={details.values}
+        onChange={details.set}
+        roleName="Seller"
+        status={details.status}
+        companyFirst={isNew}
+        role={
+          <>
+            <div className="form-grid">
               <div className="field">
-                <label htmlFor="seller-name">Name</label>
-                <input id="seller-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
-              </div>
-              <div className="field">
+                <label htmlFor="seller-open">Open to selling</label>
                 {isLive ? (
-                  <>
-                    <label htmlFor="seller-hq">HQ country</label>
-                    <select id="seller-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
-                      <option value="">Not set</option>
-                      {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
-                    </select>
-                  </>
+                  <select id="seller-open" value={draft.appetiteSignal} onChange={(event) => set("appetiteSignal", event.target.value)}>
+                    {!draft.appetiteSignal && <option value="">Not set</option>}
+                    {(data.options.appetiteSignals ?? []).map((value) => <option key={value}>{value}</option>)}
+                  </select>
                 ) : (
-                  <>
-                    <label htmlFor="seller-hq">HQ city</label>
-                    <input id="seller-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
-                  </>
+                  <select id="seller-open" value={draft.openToSelling} onChange={(event) => set("openToSelling", event.target.value as SellerRole["openToSelling"])}>
+                    {OPEN_TO_SELLING.map((value) => <option key={value}>{value}</option>)}
+                  </select>
                 )}
               </div>
               <div className="field">
-                <label htmlFor="seller-website">Website</label>
-                <input id="seller-website" value={identity.website} placeholder="example.com" onChange={(event) => setIdentity({ ...identity, website: event.target.value })} />
+                <label htmlFor="seller-revenue">Revenue (USD)</label>
+                <AmountInput id="seller-revenue" value={draft.estRevenueUsd ?? undefined} onChange={(value) => set("estRevenueUsd", value ?? null)} />
               </div>
-            </>
-          )}
-          {!(isLive && !isNew) && (
-            <div className="field">
-              <label htmlFor="seller-sector">Sector</label>
-              <select id="seller-sector" value={draft.sector} onChange={(event) => set("sector", event.target.value)}>
-                {!draft.sector && <option value="">{isNew ? "Pick a sector" : "Not set"}</option>}
-                {sectors.map((value) => <option key={value}>{value}</option>)}
-              </select>
+              <div className="field">
+                <label htmlFor="seller-ebitda">EBITDA (USD)</label>
+                <AmountInput id="seller-ebitda" value={draft.estEbitdaUsd} onChange={(value) => set("estEbitdaUsd", value)} />
+              </div>
+              <div className="field">
+                <label htmlFor="seller-reengage">Re-engage date</label>
+                <input id="seller-reengage" type="date" value={draft.reEngageDate} onChange={(event) => set("reEngageDate", event.target.value)} />
+              </div>
             </div>
-          )}
-          {isLive && !isNew && (
-            <div className="field">
-              <label htmlFor="seller-hq-edit">HQ country</label>
-              <select id="seller-hq-edit" value={draft.hq} onChange={(event) => set("hq", event.target.value)}>
-                {!draft.hq && <option value="">Not set</option>}
-                {[...new Set([draft.hq, ...data.options.hqCountries].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}
-              </select>
-            </div>
-          )}
-          {!isNew && (
-            <div className="field">
-              <label htmlFor="seller-geo">Geography</label>
-              <select id="seller-geo" value={draft.geography} disabled={isLive} onChange={(event) => set("geography", event.target.value)}>
-                {geographies.map((value) => <option key={value}>{value}</option>)}
-              </select>
-            </div>
-          )}
-          <div className="field">
-            <label htmlFor="seller-revenue">Revenue (USD)</label>
-            <AmountInput id="seller-revenue" value={draft.estRevenueUsd ?? undefined} onChange={(value) => set("estRevenueUsd", value ?? null)} />
-          </div>
-          <div className="field">
-            <label htmlFor="seller-ebitda">EBITDA (USD)</label>
-            <AmountInput id="seller-ebitda" value={draft.estEbitdaUsd} onChange={(value) => set("estEbitdaUsd", value)} />
-          </div>
-          <div className="field">
-            <label htmlFor="seller-open">Open to selling</label>
-            {isLive ? (
-              <select id="seller-open" value={draft.appetiteSignal} onChange={(event) => set("appetiteSignal", event.target.value)}>
-                {!draft.appetiteSignal && <option value="">Not set</option>}
-                {(data.options.appetiteSignals ?? []).map((value) => <option key={value}>{value}</option>)}
-              </select>
-            ) : (
-              <select id="seller-open" value={draft.openToSelling} onChange={(event) => set("openToSelling", event.target.value as SellerRole["openToSelling"])}>
-                {OPEN_TO_SELLING.map((value) => <option key={value}>{value}</option>)}
-              </select>
+            {!isNew && !isLive && (
+              <div className="field">
+                <label htmlFor="seller-notes">Notes</label>
+                <textarea id="seller-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
+              </div>
             )}
-          </div>
-          <div className="field">
-            <label htmlFor="seller-reengage">Re-engage date</label>
-            <input id="seller-reengage" type="date" value={draft.reEngageDate} onChange={(event) => set("reEngageDate", event.target.value)} />
-          </div>
-          {!isNew && (
-            <div className="field">
-              <label htmlFor="seller-owner">Owner</label>
-              <select id="seller-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
-                {draft.ownerId === null && <option value="">Not set</option>}
-                {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-              </select>
+          </>
+        }
+        company={
+          <>
+            <div className="form-grid">
+              {isNew && (
+                <>
+                  <div className="field">
+                    <label htmlFor="seller-name">Name</label>
+                    <input id="seller-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
+                  </div>
+                  <div className="field">
+                    {isLive ? (
+                      <>
+                        <label htmlFor="seller-hq">HQ country</label>
+                        <select id="seller-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
+                          <option value="">Not set</option>
+                          {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
+                        </select>
+                      </>
+                    ) : (
+                      <>
+                        <label htmlFor="seller-hq">HQ city</label>
+                        <input id="seller-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                      </>
+                    )}
+                  </div>
+                  <div className="field">
+                    <label htmlFor="seller-website">Website</label>
+                    <input id="seller-website" value={identity.website} placeholder="example.com" onChange={(event) => setIdentity({ ...identity, website: event.target.value })} />
+                  </div>
+                </>
+              )}
+              {!(isLive && !isNew) && (
+                <div className="field">
+                  <label htmlFor="seller-sector">Sector</label>
+                  <select id="seller-sector" value={draft.sector} onChange={(event) => set("sector", event.target.value)}>
+                    {!draft.sector && <option value="">{isNew ? "Pick a sector" : "Not set"}</option>}
+                    {sectors.map((value) => <option key={value}>{value}</option>)}
+                  </select>
+                </div>
+              )}
+              {isLive && !isNew && (
+                <div className="field">
+                  <label htmlFor="seller-hq-edit">HQ country</label>
+                  <select id="seller-hq-edit" value={draft.hq} onChange={(event) => set("hq", event.target.value)}>
+                    {!draft.hq && <option value="">Not set</option>}
+                    {[...new Set([draft.hq, ...data.options.hqCountries].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}
+                  </select>
+                </div>
+              )}
+              {!isNew && (
+                <div className="field">
+                  <label htmlFor="seller-owner">Owner</label>
+                  <select id="seller-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
+                    {draft.ownerId === null && <option value="">Not set</option>}
+                    {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                  </select>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-        {companySectors && (details.status === "ready" ? (
-          <CheckGroup
-            legend="Company sector"
-            options={companySectors.options}
-            picked={asList(details.values.sector_focus)}
-            onToggle={(option) => details.set("sector_focus", toggle(asList(details.values.sector_focus), option))}
-          />
-        ) : (
-          <p className="muted">Loading the company sector…</p>
-        ))}
-        {!isNew && (
-          <div className="field">
-            <label htmlFor="seller-notes">Notes</label>
-            <textarea id="seller-notes" rows={3} value={draft.notes} disabled={isLive} onChange={(event) => set("notes", event.target.value)} />
-          </div>
-        )}
-      </section>
-      <DetailFields fields={detailFields.filter((field) => field.key !== "sector_focus")} values={details.values} onChange={details.set} roleName="Seller" status={details.status} lead={isLive && !isNew ? [{ label: "Sector (this role)", value: seller.ownSector ?? "Not set" }] : []} />
+            {companySectors && (details.status === "ready" ? (
+              <CheckGroup
+                legend="Company sector"
+                options={companySectors.options}
+                picked={asList(details.values.sector_focus)}
+                onToggle={(option) => details.set("sector_focus", toggle(asList(details.values.sector_focus), option))}
+              />
+            ) : (
+              <p className="muted">Loading the company sector…</p>
+            ))}
+          </>
+        }
+      />
     </Drawer>
   );
 }

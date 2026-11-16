@@ -21,7 +21,9 @@ one outside contact) into the fields Attio shows for a Person or Organization.
    what to send. Read its tests in `tests/unit/test_attio_fields.py`.
 6. `application/attio_write.py`: one write round. `application/attio_seed.py` is the
    one-time seed that must run first.
-7. `tests/unit/test_scoring.py`: the plan's worked example (Jules and Sara
+7. `domain/creatable.py` and `application/auto_create.py`: who may become a new Person, and one
+   round of creating them. `application/review_digest.py` posts the shared cases for review.
+8. `tests/unit/test_scoring.py`: the plan's worked example (Jules and Sara
    score 9.1, Strong; three quiet months later about 4.5, Good).
 
 ## Two things that are easy to miss

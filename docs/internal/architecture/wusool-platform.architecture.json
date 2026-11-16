@@ -12,7 +12,7 @@
       "revision": "e51ed7f3cef5624cad89d932e09a24595a48b659"
     },
     "viewBox": [
-      1240,
+      1130,
       760
     ]
   },
@@ -193,11 +193,11 @@
       "sublabel": "private RDS / wusool_crm",
       "tag": "encrypted",
       "pos": [
-        920,
+        880,
         335
       ],
       "size": [
-        180,
+        170,
         70
       ],
       "sources": [
@@ -213,11 +213,11 @@
       "label": "AWS Bedrock",
       "sublabel": "all LLM calls, via Pydantic AI",
       "pos": [
-        920,
+        880,
         255
       ],
       "size": [
-        180,
+        170,
         60
       ],
       "sources": [
@@ -237,11 +237,11 @@
       "label": "Research providers",
       "sublabel": "Firecrawl · Diffbot · PDL · Apify · Places",
       "pos": [
-        940,
-        650
+        880,
+        690
       ],
       "size": [
-        250,
+        230,
         64
       ],
       "sources": [
@@ -261,11 +261,11 @@
       "label": "GitHub Actions",
       "sublabel": "OIDC · build · OpenTofu · SSM",
       "pos": [
-        920,
+        880,
         20
       ],
       "size": [
-        200,
+        190,
         64
       ],
       "sources": [
@@ -285,11 +285,11 @@
       "label": "AWS operations",
       "sublabel": "SSM access · logs · Secrets",
       "pos": [
-        920,
+        880,
         520
       ],
       "size": [
-        200,
+        190,
         64
       ],
       "sources": [
@@ -369,11 +369,11 @@
       "label": "Amazon SES",
       "sublabel": "lead emails + report codes",
       "pos": [
-        920,
+        880,
         425
       ],
       "size": [
-        180,
+        170,
         60
       ],
       "sources": [
@@ -501,10 +501,14 @@
     {
       "from": "engine",
       "to": "toolkit",
-      "label": "Worker proxy /api/v1 (Access token)",
+      "label": "Access-token proxy",
       "variant": "emphasis",
       "fromSide": "right",
-      "toSide": "top"
+      "toSide": "top",
+      "labelAt": [
+        548,
+        100
+      ]
     },
     {
       "from": "claude",
@@ -577,34 +581,18 @@
       "from": "website",
       "to": "posthog",
       "label": "page views + browser events, after consent",
-      "variant": "dashed",
-      "fromSide": "right",
-      "toSide": "left",
-      "via": [
-        [
-          440,
-          346
-        ],
-        [
-          440,
-          628
-        ]
-      ],
-      "labelAt": [
-        300,
-        640
-      ]
+      "variant": "dashed"
     },
     {
       "from": "attio",
       "to": "toolkit",
-      "label": "signed POST /webhooks/attio",
+      "label": "signed webhook",
       "variant": "security",
       "fromSide": "bottom",
       "toSide": "top",
       "labelAt": [
-        560,
-        100
+        678,
+        152
       ]
     },
     {
@@ -612,9 +600,12 @@
       "to": "attio",
       "label": "writes",
       "variant": "dashed",
-      "labelDy": -12,
       "fromSide": "top",
-      "toSide": "bottom"
+      "toSide": "bottom",
+      "labelAt": [
+        675,
+        130
+      ]
     },
     {
       "from": "github",
@@ -622,41 +613,19 @@
       "label": "deploy + nightly resync via SSM",
       "variant": "emphasis",
       "fromSide": "bottom",
-      "toSide": "right",
-      "via": [
-        [
-          1020,
-          200
-        ],
-        [
-          800,
-          200
-        ],
-        [
-          800,
-          370
-        ]
-      ]
+      "toSide": "right"
     },
     {
       "from": "toolkit",
       "to": "bedrock",
       "label": "instance role",
-      "variant": "dashed",
-      "labelAt": [
-        908,
-        247
-      ]
+      "variant": "dashed"
     },
     {
       "from": "toolkit",
       "to": "operations",
       "label": "secrets at startup (instance role)",
-      "variant": "dashed",
-      "labelAt": [
-        794,
-        534
-      ]
+      "variant": "dashed"
     },
     {
       "from": "toolkit",
@@ -669,11 +638,7 @@
       "from": "toolkit",
       "to": "ses",
       "label": "lead + code emails",
-      "variant": "dashed",
-      "labelAt": [
-        883,
-        499
-      ]
+      "variant": "dashed"
     },
     {
       "from": "toolkit",
@@ -681,17 +646,7 @@
       "label": "enrichment + Places APIs",
       "variant": "dashed",
       "fromSide": "bottom",
-      "toSide": "top",
-      "via": [
-        [
-          620,
-          592
-        ],
-        [
-          1065,
-          592
-        ]
-      ]
+      "toSide": "top"
     },
     {
       "from": "website",
@@ -715,7 +670,11 @@
       "label": "mail + calendar metadata (delegated, read-only)",
       "variant": "dashed",
       "fromSide": "top",
-      "toSide": "bottom"
+      "toSide": "bottom",
+      "labelAt": [
+        783,
+        177
+      ]
     }
   ],
   "cards": [
@@ -725,7 +684,7 @@
       "items": [
         "Serves Slack, the web find-match app, the Engine's Buyers and Sellers pages (behind Cloudflare Access), the Claude MCP connector, Scribe, the lead tools, and Attio and Sanity webhooks",
         "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards",
-        "Optionally reads Gmail and Calendar metadata into PostgreSQL (the interactions loop, off by default)"
+        "Reads Jules's and Ramzy's Gmail and Calendar metadata into PostgreSQL and writes last interaction and connection strength to Attio and can create new contacts from email, off until a canary record is checked (the interactions loop, on in production only)"
       ]
     },
     {
@@ -734,7 +693,7 @@
       "items": [
         "Attio is the CRM of record and is written first",
         "PostgreSQL mirrors it via webhook and nightly resync",
-        "Interaction metadata (headers and subjects, never bodies) is kept 12 months; nothing writes it to Attio yet",
+        "Interaction metadata (headers and subjects, never bodies) is kept 12 months; the engine writes the computed fields to Attio first, then records them in PostgreSQL",
         "The benchmark peer dataset lives only in PostgreSQL; advisors edit it from Claude and the public benchmark scores against it"
       ]
     },

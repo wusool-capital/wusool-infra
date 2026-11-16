@@ -23,6 +23,8 @@ class NewParticipant:
     email: str
     domain: str
     role: Role
+    # Sender or guest name as the mail or calendar showed it, when it gave one.
+    name: str | None = None
 
 
 @dataclass(frozen=True)

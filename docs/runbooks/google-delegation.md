@@ -147,3 +147,16 @@ repository.
 Record the failing mailbox, the Google error reason, and whether the delegation
 entry or the key changed. Confirm that the first successful pass after the fix
 shows `failures=0`.
+
+## Turning on contact creation
+
+1. Check that "Email sync" is an option on Lead Source Detail for both Organizations and Person in Attio.
+2. Set `INTERACTIONS_AUTO_CREATE_MODE=dry_run`, restart, and read the `interactions_auto_create`
+   counts for a few rounds.
+3. Set the mode to `on` and `INTERACTIONS_AUTO_CREATE_MAX_PER_ROUND=1`, restart, and check the one
+   new Person and Organization in Attio: name, domain, tag, and the link between them.
+4. Raise the cap (the default is 20) once the canary looks right.
+5. For the daily review post, set `INTERACTIONS_REVIEW_SLACK_CHANNEL` to the channel id and restart.
+
+A created record can only be undone in Attio: delete the Person and Organization there.
+`created_orgs` counts Organizations the round made; `existing` counts addresses Attio already had.

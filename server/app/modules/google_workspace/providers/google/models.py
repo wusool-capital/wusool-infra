@@ -68,10 +68,12 @@ class CalendarTime(_Reply):
 
 class CalendarPerson(_Reply):
     email: str | None = None
+    display_name: str | None = None
 
 
 class CalendarAttendeeItem(_Reply):
     email: str | None = None
+    display_name: str | None = None
     response_status: str | None = None
     is_self: bool = Field(default=False, alias="self")
     resource: bool = False

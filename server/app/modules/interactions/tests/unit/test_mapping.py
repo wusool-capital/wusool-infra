@@ -165,3 +165,20 @@ def test_a_room_booked_for_two_team_members_does_not_make_the_meeting_external()
 
 def test_a_mailing_with_a_list_unsubscribe_header_is_ignored() -> None:
     assert _email(bulk=True) is None
+
+
+def test_the_senders_display_name_is_kept_and_other_participants_have_none() -> None:
+    item = _email(sender=SARA, sender_name="Sara Lee", to=(JULES,))
+
+    assert item is not None
+    names = {p.email: p.name for p in item.participants}
+    assert names == {SARA: "Sara Lee", JULES: None}
+
+
+def test_a_meeting_keeps_guest_and_organizer_names() -> None:
+    guests = (Attendee(JULES, "accepted", True), Attendee(SARA, "accepted", False, name="Sara Lee"))
+
+    item = event_to_item(JULES, event(attendees=guests), INTERNAL)
+
+    assert item is not None
+    assert {p.email: p.name for p in item.participants}[SARA] == "Sara Lee"

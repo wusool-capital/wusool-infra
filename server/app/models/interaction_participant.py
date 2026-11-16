@@ -39,6 +39,8 @@ class InteractionParticipant(Base):
     email: Mapped[str] = mapped_column(Text, nullable=False)
     domain: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(Text, nullable=False)
+    # As the mail or calendar showed it; null on rows read before this column existed.
+    display_name: Mapped[str | None] = mapped_column(Text)
     # Nulled, not cascaded: the interaction history outlives a deleted record.
     person_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("person.attio_id", ondelete="SET NULL")
