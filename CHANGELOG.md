@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Added
 
+- The interactions engine can empty a field in Attio, such as a passed "next
+  interaction" (AZM-159). A strength with no recent interactions drops to Very
+  weak instead. Tested on live Attio with throwaway records.
 - The interactions engine can write its fields to Attio (AZM-159 PR 4). It
   sends only changed values, slowly, and only in production. It is off until
   the shadow-week gate passes. A seed step first records what Attio holds. A
@@ -29,6 +32,12 @@ for current production evidence and open handover items.
     creates twice.
 - `connection_strength_score` on `organizations` and `person`: the numeric
   score behind the label. Postgres-only.
+
+### Fixed
+
+- Editing a buyer or seller field to empty, in Slack or through the MCP, now
+  empties it in Attio too (AZM-159). Before, only the database changed, and
+  the next sync brought the old value back. List fields are never emptied.
 
 ## 2026-11-15
 

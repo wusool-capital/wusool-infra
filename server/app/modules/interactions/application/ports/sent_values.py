@@ -28,7 +28,9 @@ class SentValuesPort(Protocol):
         """Every record of one object that has stored values, keyed by Attio record id."""
         ...
 
-    async def save(self, obj: AttioObject, record_id: str, fields: Mapping[str, str]) -> None:
+    async def save(
+        self, obj: AttioObject, record_id: str, fields: Mapping[str, str | None]
+    ) -> None:
         """Record what was just sent. The baseline is left as it was."""
         ...
 

@@ -229,3 +229,53 @@ def test_build_postgres_values_passes_number_through_unchanged() -> None:
         extracted={"twitter_follower_count": 1200},
     )
     assert result == {"twitter_follower_count": 1200}
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [_TEXT, _SELECT, _DATE, _CURRENCY, _BOOL, _NUMBER, _PERCENT],
+    ids=lambda s: s.kind,
+)
+async def test_an_emptied_field_is_sent_as_an_empty_list_when_clearing_is_on(
+    spec: FieldSpec,
+) -> None:
+    result = await build_attio_values(
+        _FakeClient({}),
+        target_kind="objects",
+        target_slug="organizations",
+        table="organizations",
+        fields={spec.name: spec},
+        extracted={spec.name: None},
+        clear_empty=True,
+    )
+
+    assert result == {spec.name: []}
+
+
+@pytest.mark.parametrize("spec", [_MULTI, _TEXT_LIST], ids=lambda s: s.kind)
+async def test_list_backed_fields_are_never_emptied(spec: FieldSpec) -> None:
+    result = await build_attio_values(
+        _FakeClient({}),
+        target_kind="objects",
+        target_slug="organizations",
+        table="organizations",
+        fields={spec.name: spec},
+        extracted={spec.name: None},
+        clear_empty=True,
+    )
+
+    assert result == {}
+
+
+async def test_an_edit_that_only_empties_fields_still_produces_a_payload() -> None:
+    result = await build_attio_values(
+        _FakeClient({}),
+        target_kind="objects",
+        target_slug="organizations",
+        table="organizations",
+        fields={"notes": _TEXT, "twitter_follower_count": _NUMBER},
+        extracted={"notes": None, "twitter_follower_count": None},
+        clear_empty=True,
+    )
+
+    assert result == {"notes": [], "twitter_follower_count": []}

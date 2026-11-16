@@ -24,6 +24,8 @@ from app.modules.attio.providers.attio.options import get_option_id
 from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue
 from app.modules.utilities.domain.json_types import JsonObject
 
+_NEVER_CLEARED = frozenset({"multi_select_text", "text_list"})
+
 
 def build_postgres_values(
     *, table: str, fields: dict[str, FieldSpec], extracted: Mapping[str, PrefillValue | None]
@@ -63,6 +65,7 @@ async def build_attio_values(
     table: str,
     fields: dict[str, FieldSpec],
     extracted: JsonObject,
+    clear_empty: bool = False,
 ) -> JsonObject:
     """`fields` maps field name -> its `FieldSpec` (so kind/options are
     known); `extracted` maps field name -> the value already extracted from
@@ -79,9 +82,14 @@ async def build_attio_values(
     """
     attio_values: JsonObject = {}
     for name, value in extracted.items():
-        if value is None:
-            continue
         spec = fields[name]
+        if value is None:
+            # An edit that emptied a field. Attio takes an empty list for every scalar kind
+            # (checked live). List-backed fields are NOT NULL in Postgres, and `domains` is the
+            # match key, so they are never emptied.
+            if clear_empty and spec.kind not in _NEVER_CLEARED:
+                attio_values[name] = []
+            continue
         if spec.kind in ("text", "multiline", "multi_select_as_text", "text_list"):
             # `text_list` sends a bare `list[str]` unchanged — unlike
             # `multi_select_text` below, `domains` (its only field today) is

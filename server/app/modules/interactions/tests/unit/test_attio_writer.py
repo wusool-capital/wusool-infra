@@ -109,3 +109,29 @@ async def test_nothing_is_written_while_the_instance_is_flagged_as_test() -> Non
         )
 
     assert client.patches == []
+
+
+async def test_a_field_that_should_be_empty_is_sent_as_an_empty_list() -> None:
+    client = _Client()
+
+    await _writer(client).patch(
+        AttioObject.ORGANIZATIONS,
+        "rec-1",
+        [
+            FieldValue("next_interaction_at", None),
+            FieldValue("last_interaction_owner", None),
+            FieldValue("connection_strength", None),
+        ],
+    )
+
+    ((_, body),) = client.patches
+    assert body == {
+        "data": {
+            "values": {
+                "next_interaction_at": [],
+                "last_interaction_owner": [],
+                "connection_strength": [],
+            }
+        }
+    }
+    assert client.option_reads == 0
