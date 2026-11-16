@@ -38,7 +38,7 @@ from app.modules.ddl_commands.api.dependencies import (
     resolve_organization,
 )
 from app.modules.ddl_commands.api.organizations import OrganizationUpdate
-from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue
+from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue, can_clear
 from app.modules.ddl_commands.api.seller_write import write_seller_add
 from app.modules.ddl_commands.api.sellers import SellerUpdate
 from app.modules.ddl_commands.api.slack.views.dynamic_fields import normalize_prefill
@@ -304,10 +304,16 @@ def _problem(
 
 
 def route_fields(
-    kind: UploadKind, index: int, raw: UploadRow, *, own_keys: frozenset[str] = frozenset()
+    kind: UploadKind,
+    index: int,
+    raw: UploadRow,
+    *,
+    own_keys: frozenset[str] = frozenset(),
+    clearing: bool = False,
 ) -> RoutedFields:
     """Splits a flat row into organization and role values, checked as the Slack
-    forms check them. `own_keys` are the caller's, so not reported as unknown."""
+    forms check them. `own_keys` are the caller's, so not reported as unknown.
+    With `clearing` (an edit), a null or blank value empties the field; otherwise it is skipped."""
     routes = routes_for(kind)
     fields = {key: route.spec for key, route in routes.items()}
     problems = [
@@ -316,9 +322,21 @@ def route_fields(
         if k not in fields and k not in own_keys
     ]
 
+    def empty(value: PrefillValue | None) -> bool:
+        return value is None or (clearing and isinstance(value, str) and not value.strip())
+
+    emptied = sorted(k for k, v in raw.items() if k in fields and empty(v)) if clearing else []
+    problems.extend(
+        _problem(index, "not_allowed", k, f"'{k}' can't be emptied, only changed")
+        for k in emptied
+        if not can_clear(fields[k])
+    )
+
     # The same spelling rules for a file's rows and for Claude's.
     given = {
-        k: canonical_value(fields[k], v) for k, v in raw.items() if k in fields and v is not None
+        k: canonical_value(fields[k], v)
+        for k, v in raw.items()
+        if k in fields and v is not None and not empty(v)
     }
     normalized = normalize_prefill(given, fields, warn_on_drop=False)
     # A silently dropped value, or a trimmed list, would be lost data, so say so.
@@ -327,11 +345,13 @@ def route_fields(
         for k, v in given.items()
         if k not in normalized or (isinstance(v, list) and normalized[k] != v)
     )
+    # A null for a field Attio can empty reaches the write as None, which clears it there too.
+    to_write = {**normalized, **{k: None for k in emptied if can_clear(fields[k])}}
     org_extracted: UploadRow = {
-        routes[k].name: v for k, v in normalized.items() if routes[k].target == "org"
+        routes[k].name: v for k, v in to_write.items() if routes[k].target == "org"
     }
     role_extracted: UploadRow = {
-        routes[k].name: v for k, v in normalized.items() if routes[k].target == "role"
+        routes[k].name: v for k, v in to_write.items() if routes[k].target == "role"
     }
     role_model = BuyerUpdate if kind == "buyer" else SellerUpdate
     keys = {(r.target, r.name): r.key for r in routes.values()}

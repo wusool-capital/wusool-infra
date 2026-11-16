@@ -400,6 +400,11 @@ async def test_edit_descriptions_say_only_the_role_id_is_required() -> None:
     assert "Required: role_id only" in tools["edit_seller"]
     assert "org_name, domain can't be edited" in tools["edit_seller"]
     assert "Required, at the top level" not in tools["edit_buyer"]
+    assert "Send null to empty a field" in tools["edit_buyer"]
+    assert (
+        "target_region, sector_focus" in tools["edit_buyer"]
+        or "target_region" in tools["edit_buyer"]
+    )
 
 
 async def test_edit_does_not_require_fields_in_the_schema() -> None:

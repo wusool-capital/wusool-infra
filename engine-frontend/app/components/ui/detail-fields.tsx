@@ -69,7 +69,6 @@ export function DetailFields({ fields, values, onChange, roleName, status }: Pro
           </section>
         );
       })}
-      <p className="muted">Attio sets values here but cannot empty one. To clear a field, do it in Attio.</p>
     </>
   );
 }

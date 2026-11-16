@@ -28,8 +28,9 @@ It reads the existing tables (`buyer_roles`, `seller_roles`, `organizations`, `p
   first page only; later pages hold rows and their contacts.
 - **Edits.** `PATCH` needs `If-Match` with the row's `etag` (428 without, 412 when stale).
   The `etag` is the role's `updated_at`. Only the fields sent change. A value
-  can be changed but not emptied: a null or empty value is refused with 422, because Attio's
-  edit path sets values and skips empty ones (Slack has the same limit). The check and the write are not atomic, so two saves at the same
+  can be emptied by sending null, which empties it in Attio and Postgres. Checklists backed by a
+  required column (`sector_focus`, geography) and a seller's `openToSelling` can change but not
+  be emptied, and are refused with 422. The check and the write are not atomic, so two saves at the same
   moment can both pass. An Attio webhook that echoes a save back also moves
   `updated_at`, so a later edit can get a 412 until the row is reloaded.
 - **Add.** `POST /buyer-roles` and `POST /seller-roles` are 201 with `Location` and `ETag`. They use
@@ -65,7 +66,7 @@ with only one check-size bound counts as open-ended on the other side.
 
 A buyer's geography is editable. The Engine shows one list, and the Toolkit sorts the picks
 into Attio's `target_region` and `target_country`. A group that already has values must keep
-at least one, because Attio's edit path cannot empty a multi-select (Slack has the same limit).
+at least one, because a multi-select backed by a required column cannot be emptied.
 
 Buyer `status` is the Attio `mandate_status`. Seller `openToSelling` maps the Attio
 `appetite_signal`: "No Signal" is Unknown, the two inbound signals are Interested, and

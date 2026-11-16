@@ -8,7 +8,7 @@ const same = (a: DetailValue | undefined, b: DetailValue | undefined) => JSON.st
 
 /**
  * The values of the extra Slack fields. An existing record loads its current values; a new one
- * starts empty. Attio's edit only sets values, so a cleared field is reported, not sent.
+ * starts empty. A field emptied by the person is sent as null, except a checklist that cannot be emptied.
  */
 export function useDetails(fields: FieldDef[], load: (() => Promise<Detail[]>) | null) {
   const [loaded, setLoaded] = useState<Values>({});
@@ -38,10 +38,12 @@ export function useDetails(fields: FieldDef[], load: (() => Promise<Detail[]>) |
     values,
     status,
     set: (key: string, value: DetailValue | undefined) => setValues((current) => ({ ...current, [key]: value })),
-    /** What to send: changed fields that hold a value. */
-    changes: changed.filter((field) => !isEmpty(values[field.key])).map((field): Detail => ({ key: field.key, value: values[field.key] ?? null })),
+    /** What to send: changed fields, with an emptied field as null. */
+    changes: changed
+      .filter((field) => !isEmpty(values[field.key]) || (field.clearable && !isEmpty(loaded[field.key])))
+      .map((field): Detail => ({ key: field.key, value: isEmpty(values[field.key]) ? null : (values[field.key] ?? null) })),
     dirty: changed.length > 0,
-    /** Fields that had a value and were emptied. */
-    cleared: changed.filter((field) => isEmpty(values[field.key]) && !isEmpty(loaded[field.key])).map((field) => field.label),
+    /** Fields that had a value, were emptied, and cannot be. */
+    cleared: changed.filter((field) => !field.clearable && isEmpty(values[field.key]) && !isEmpty(loaded[field.key])).map((field) => field.label),
   };
 }

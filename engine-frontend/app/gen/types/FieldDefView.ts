@@ -26,6 +26,7 @@ export type FieldDefViewKindEnumKey = (typeof fieldDefViewKindEnum)[keyof typeof
  * @type object
  */
 export type FieldDefView = {
+  clearable: boolean;
   group: FieldDefViewGroupEnumKey;
   key: string;
   kind: FieldDefViewKindEnumKey;

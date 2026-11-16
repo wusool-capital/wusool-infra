@@ -69,6 +69,7 @@ class FieldDefView(ApiModel):
     kind: FieldKind
     options: list[str]
     group: FieldGroup
+    clearable: bool
 
 
 def _details(inputs: list[DetailInput]) -> tuple[Detail, ...]:
@@ -237,7 +238,7 @@ class _Update(ApiModel):
 
 
 class BuyerUpdate(_Update):
-    """Only the fields sent change. A value can be changed but not emptied; a null is refused."""
+    """Only the fields sent change. A null empties that field, except the geographies."""
 
     status: str | None = None
     notes: str | None = None
