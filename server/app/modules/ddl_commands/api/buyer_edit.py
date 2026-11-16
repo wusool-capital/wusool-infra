@@ -83,6 +83,7 @@ async def _buyer_edit(
                 table="organizations",
                 fields=ORGANIZATION_FIELDS_BY_NAME,
                 extracted=org_extracted,
+                clear_empty=True,
             )
             if org_attio_values:
                 await patch_organization(attio_client, org_attio_id, org_attio_values)
@@ -95,6 +96,7 @@ async def _buyer_edit(
                 table="buyer_role",
                 fields=BUYER_ROLE_FIELDS_BY_NAME,
                 extracted=role_extracted,
+                clear_empty=True,
             )
             if role_attio_values:
                 # An org holds several buyer roles now, so the org alone no

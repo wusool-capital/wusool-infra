@@ -33,6 +33,12 @@ for current production evidence and open handover items.
 - `connection_strength_score` on `organizations` and `person`: the numeric
   score behind the label. Postgres-only.
 
+### Fixed
+
+- Editing a buyer or seller field to empty, in Slack or through the MCP, now
+  empties it in Attio too (AZM-159). Before, only the database changed, and
+  the next sync brought the old value back. List fields are never emptied.
+
 ## 2026-11-15
 
 ### Added
