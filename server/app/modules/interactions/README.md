@@ -113,6 +113,21 @@ Attio, both tagged Lead Source Detail "Email sync".
   capped per round; refuses to run while `ATTIO_IS_TEST` is set. Free-email domains extend the
   benchmark's `FREE_MAIL` list.
 
+## Deal rollup
+
+A Deal has a seller Organization and a buyer, a Person or an Organization. `domain/deals.py`
+merges the touches of both sides, counting a touch once however many sides hold it, and the
+same `summarize` and `plan_record` run on the result. Only five of the 13 fields exist on a Deal,
+so `fields_of(AttioObject.DEAL)` limits what is written.
+
+- **Reading Deals.** Through `ddl_commands.list_live_deal_parties`, the module that owns `deals`.
+- **No score.** A Deal's strength has no score column; the score store refuses the object.
+- **Unread mailbox.** If the buyer's or seller's baseline strongest user is a mailbox we don't read,
+  the Deal's strength is left alone.
+- **Safety.** `INTERACTIONS_DEAL_ROLLUP_MODE` is `off` by default and runs inside the write step.
+  Seed first: an unseeded object is reported and writes nothing. It is only counted as unseeded
+  when the mode is not off, so it can't silence the stale-sync alarm.
+
 ## Reading CRM records
 
 `persistence/directory.py` gets Organizations from `OrganizationRepository.list_live_domains()`

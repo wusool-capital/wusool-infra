@@ -20,6 +20,7 @@ verified live. Update it at each handover or significant release.
 | Attio real-time webhook and nightly resync, with soft deletes | Delivered; verify the webhook subscription and alert live |
 | Interactions engine: Gmail and Calendar metadata into PostgreSQL | Live on production; off by default elsewhere |
 | Interactions engine: create Persons and Organizations from email | Live on production since 16 Nov, up to 20 Persons a round |
+| Interactions engine: roll interactions up to Deals | Built; off until a canary deal is checked |
 | Website lead tools: Valuation, Readiness, Benchmark, Buyer Network, Get Started | Delivered; see open items for end-to-end checks |
 | Gated reports on `/reports`, with emailed code, PDF, and A4 sheet view | Delivered |
 | Sanity Reports & Insights Studio, Webflow sync, home banner, Insights articles | Delivered; confirm webhooks live |
@@ -40,6 +41,7 @@ verified live. Update it at each handover or significant release.
 | High | Finish Google access for the interactions engine: key policy exception, key in the toolkit secret, delegation grant, Hugo's address | A dated live sync of one mailbox |
 | Medium | Add Hugo's mailbox to the interactions engine so his records get a strength | Hugo's records are no longer skipped in the shadow-week report |
 | Medium | Send interactions review cases to the mailbox owner as a direct message, with a Dismiss button | Only the owner gets a case, and a dismissed case stays dismissed |
+| Medium | Turn on the Deal rollup: seed, dry run, one canary deal, then on | One Deal shows its last interaction and strength in Attio |
 | Medium | Add RDS alarms; consider Multi-AZ | Alarms exist; decision recorded |
 | Medium | Verify Buyer Network and Valuation submissions end to end against live Attio | Dated production test |
 | Medium | Confirm the Sanity webhooks are enabled and signed, and that Webflow cards go live without a site publish | Dated check |

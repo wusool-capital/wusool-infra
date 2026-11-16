@@ -6,11 +6,11 @@
   "status": "pass",
   "visualReview": "pending",
   "provenance": "current",
-  "deliveryReceiptId": "401f42dc-344f-42a4-b718-b3b85637861b",
+  "deliveryReceiptId": "ce30577c-2122-4323-bed1-c9c94f4db528",
   "artifact": {
     "path": "docs/internal/architecture/wusool-platform.html",
-    "sha256": "46b04b193ef3b01c5d7f85e42d88c7d958e101311d9f4bb3adef68e1cf3152ee",
-    "bytes": 883048
+    "sha256": "49f5c21413a8ec0ce7ee50e8c55741d5a54f10da177ccb452eb45bcb34735079",
+    "bytes": 883080
   },
   "state": {
     "detail": "read",
@@ -84,7 +84,7 @@
         "innerWidth": 1600,
         "innerHeight": 1000,
         "scrollWidth": 1600,
-        "scrollHeight": 1423,
+        "scrollHeight": 1434,
         "overflowX": false,
         "overflowY": true,
         "verticalScrollAccepted": true,
@@ -102,7 +102,7 @@
           "headerPx": 60,
           "diagramChromePx": 84,
           "svgPx": 948,
-          "cardsPx": 267,
+          "cardsPx": 278,
           "viewBoxHeight": 760
         },
         "viewBoxWidth": 1130,
@@ -136,7 +136,7 @@
         "innerWidth": 1920,
         "innerHeight": 1080,
         "scrollWidth": 1920,
-        "scrollHeight": 1423,
+        "scrollHeight": 1434,
         "overflowX": false,
         "overflowY": true,
         "verticalScrollAccepted": true,
@@ -154,7 +154,7 @@
           "headerPx": 60,
           "diagramChromePx": 84,
           "svgPx": 948,
-          "cardsPx": 267,
+          "cardsPx": 278,
           "viewBoxHeight": 760
         },
         "viewBoxWidth": 1130,
@@ -345,7 +345,7 @@
         "innerWidth": 1600,
         "innerHeight": 1000,
         "scrollWidth": 1600,
-        "scrollHeight": 1423,
+        "scrollHeight": 1434,
         "overflowX": false,
         "overflowY": true,
         "verticalScrollAccepted": true,
@@ -363,7 +363,7 @@
           "headerPx": 60,
           "diagramChromePx": 84,
           "svgPx": 948,
-          "cardsPx": 267,
+          "cardsPx": 278,
           "viewBoxHeight": 760
         },
         "viewBoxWidth": 1130,
@@ -397,7 +397,7 @@
         "innerWidth": 1920,
         "innerHeight": 1080,
         "scrollWidth": 1920,
-        "scrollHeight": 1423,
+        "scrollHeight": 1434,
         "overflowX": false,
         "overflowY": true,
         "verticalScrollAccepted": true,
@@ -415,7 +415,7 @@
           "headerPx": 60,
           "diagramChromePx": 84,
           "svgPx": 948,
-          "cardsPx": 267,
+          "cardsPx": 278,
           "viewBoxHeight": 760
         },
         "viewBoxWidth": 1130,
@@ -558,7 +558,7 @@
         "innerWidth": 1600,
         "innerHeight": 1000,
         "scrollWidth": 1600,
-        "scrollHeight": 1423,
+        "scrollHeight": 1434,
         "overflowX": false,
         "overflowY": true,
         "verticalScrollAccepted": true,
@@ -576,7 +576,7 @@
           "headerPx": 60,
           "diagramChromePx": 84,
           "svgPx": 948,
-          "cardsPx": 267,
+          "cardsPx": 278,
           "viewBoxHeight": 760
         },
         "viewBoxWidth": 1130,
@@ -610,7 +610,7 @@
         "innerWidth": 1920,
         "innerHeight": 1080,
         "scrollWidth": 1920,
-        "scrollHeight": 1423,
+        "scrollHeight": 1434,
         "overflowX": false,
         "overflowY": true,
         "verticalScrollAccepted": true,
@@ -628,7 +628,7 @@
           "headerPx": 60,
           "diagramChromePx": 84,
           "svgPx": 948,
-          "cardsPx": 267,
+          "cardsPx": 278,
           "viewBoxHeight": 760
         },
         "viewBoxWidth": 1130,
@@ -953,8 +953,8 @@
         "file": "wusool-platform.visual-check.2048x1320.light.png"
       },
       {
-        "sha256": "075a5373ab0dc0231a23bbf9e56f1c4b2677db6284b1d19128d0cbe0306dc807",
-        "bytes": 317437,
+        "sha256": "9d291c779b32d4363e8a69e6ee2830e16d87f0571a91e4289407e3d60be73560",
+        "bytes": 317447,
         "file": "wusool-platform.visual-check.2048x1320.dark.png"
       }
     ]

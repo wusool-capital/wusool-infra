@@ -684,7 +684,7 @@
       "items": [
         "Serves Slack, the web find-match app, the Engine's Buyers and Sellers pages (behind Cloudflare Access), the Claude MCP connector, Scribe, the lead tools, and Attio and Sanity webhooks",
         "Renders and gates reports, prints each report PDF once at publish; syncs Webflow cards",
-        "Reads Jules's and Ramzy's Gmail and Calendar metadata into PostgreSQL and writes last interaction and connection strength to Attio and creates new contacts from email (the interactions loop, on in production only)"
+        "Reads Jules's and Ramzy's Gmail and Calendar metadata into PostgreSQL and writes last interaction and connection strength to Attio and creates new contacts from email; a Deal rollup is built but off (the interactions loop, on in production only)"
       ]
     },
     {

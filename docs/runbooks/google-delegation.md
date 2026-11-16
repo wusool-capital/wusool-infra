@@ -160,3 +160,17 @@ shows `failures=0`.
 
 A created record can only be undone in Attio: delete the Person and Organization there.
 `created_orgs` counts Organizations the round made; `existing` counts addresses Attio already had.
+
+## Turning on the Deal rollup
+
+1. Confirm `INTERACTIONS_ATTIO_WRITE_MODE=on`; the rollup runs inside the write step.
+2. Run the seed in the container: `python -m app.modules.interactions.scripts.seed_attio_sent_values`.
+   It must say the `deal` object was read and marked done. Until then the rollup writes nothing,
+   and the write round reports it as unseeded, which stops the stale-sync line.
+3. Set `INTERACTIONS_DEAL_ROLLUP_MODE=dry_run`, restart, and read `deals=` in the
+   `interactions_attio_write` line for a few rounds.
+4. Set the mode to `on` and `INTERACTIONS_DEAL_ROLLUP_MAX_PER_ROUND=1`, restart, and check the one
+   Deal in Attio: last interaction, next interaction, subject, owner and strength.
+5. Raise the cap (the default is 500) once the canary looks right.
+
+Turning the mode back to `off` stops the rollup. The fields already written stay on the Deals.
