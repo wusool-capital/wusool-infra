@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's buyer and seller edit forms now have two sections, Buyer or Seller details and
+  then Company details, with no repeated fields. The seller Geography field is gone, because it
+  only repeated the HQ country or the region. A buyer's geography is now labelled Target geography.
 - The Engine's edit forms now cover everything Slack's edit-buyer and edit-seller can change. The
   company sector and the HQ country are editable. A seller's open to selling is the exact Attio
   appetite signal, not a three-way summary. A new buyer picks from every vertical Attio allows,
