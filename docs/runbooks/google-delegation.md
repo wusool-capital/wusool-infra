@@ -8,8 +8,8 @@ interactions engine read the team's Gmail and Calendar.
 ## Impact
 
 The interactions engine stops reading new mail and meetings. Nothing else
-depends on it yet: it writes nothing to Attio, and matching and the lead tools
-don't use it. Interactions already stored stay in PostgreSQL.
+depends on it: matching and the lead tools don't use it. When Attio writes are on,
+Organizations and Person stop receiving new interaction values. Interactions already stored stay in PostgreSQL.
 
 ## Symptoms
 
@@ -98,10 +98,33 @@ these fields to Attio.
 
 ## Rollback
 
-Disabling the loop is the rollback. Stored interactions stay in PostgreSQL. The
-engine never writes to Attio, so there is nothing to undo there. If mail must not
+Disabling the loop is the rollback. Stored interactions stay in PostgreSQL. To stop
+only the Attio writes, set `INTERACTIONS_ATTIO_WRITE_MODE=off` in the toolkit secret and
+restart. Values already sent stay in Attio, and `attio_sent_values` lists what was sent. If mail must not
 be kept, a data owner can delete the rows through an approved change. The
 participants are deleted with them.
+
+## Stale Attio sync
+
+The `interactions-attio-sync-stale` alarm fires when no write round has logged
+`interactions_attio_sync_ok` for 30 minutes. A round logs it unless every attempt failed.
+The alarm assumes write mode `on` and a poll interval of at most 20 minutes.
+
+1. Check the container logs for `interactions_attio_write_round_failed` and
+   `interactions_attio_write_failed`. A 429 from Attio is retried; a 4xx on one record is
+   logged and skipped.
+2. `unseeded` above zero means the seed has not run for that object.
+3. `ATTIO_IS_TEST is set` means the instance cannot write. Only production writes.
+4. Set `INTERACTIONS_ATTIO_WRITE_MODE=off` and restart if the cause is not clear.
+
+## Turning on Attio writes
+
+1. Confirm the shadow-week report passes on fresh data.
+2. Run `python -m app.modules.interactions.scripts.seed_attio_sent_values` in the container.
+3. Set `INTERACTIONS_ATTIO_WRITE_MODE=dry_run`, restart, and read the
+   `interactions_attio_write` counts for a few rounds.
+4. Set `on` and restart. Set `interactions_sync_alarm = true` in the prod tfvars so the
+   alarm exists.
 
 ## Escalation
 

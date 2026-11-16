@@ -608,6 +608,40 @@ resource "aws_cloudwatch_metric_alarm" "attio_resync_heartbeat" {
   ok_actions          = local.alarm_actions
 }
 
+# The interactions engine logs this line after every clean Attio write round (every 15 minutes).
+# No default_value: no line publishes no data, which the alarm below treats as breaching.
+resource "aws_cloudwatch_log_metric_filter" "interactions_attio_sync_ok" {
+  count = var.environment == "prod" && var.interactions_sync_alarm ? 1 : 0
+
+  name           = "${var.project}-${var.environment}-interactions-attio-sync-ok"
+  log_group_name = aws_cloudwatch_log_group.wusool_toolkit.name
+  pattern        = "{ $.message = \"*interactions_attio_sync_ok*\" }"
+
+  metric_transformation {
+    name      = "InteractionsAttioSyncOk"
+    namespace = "${var.project}/${var.environment}/toolkit"
+    value     = "1"
+  }
+}
+
+# Six empty 5-minute periods is two rounds in a row with no clean write.
+resource "aws_cloudwatch_metric_alarm" "interactions_attio_sync_stale" {
+  count = var.environment == "prod" && var.interactions_sync_alarm ? 1 : 0
+
+  alarm_name          = "${var.project}-${var.environment}-interactions-attio-sync-stale"
+  alarm_description   = "The interactions engine has not completed a clean Attio write round in 30 minutes. See docs/runbooks/google-delegation.md, section Stale Attio sync."
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 6
+  metric_name         = aws_cloudwatch_log_metric_filter.interactions_attio_sync_ok[0].metric_transformation[0].name
+  namespace           = aws_cloudwatch_log_metric_filter.interactions_attio_sync_ok[0].metric_transformation[0].namespace
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "breaching"
+  alarm_actions       = local.alarm_actions
+  ok_actions          = local.alarm_actions
+}
+
 # External reachability check, run from outside AWS's network — the layer
 # that catches a network-path blip while the instance itself stays healthy
 # (confirmed against a real incident: 2026-09-09 prod, CPU flat, zero

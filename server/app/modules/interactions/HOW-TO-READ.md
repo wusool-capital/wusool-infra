@@ -1,7 +1,7 @@
 # How to read `interactions`
 
-A walkthrough for someone who has never seen this module. Only the domain
-layer exists so far, and it is small, so start there.
+A walkthrough for someone who has never seen this module. Start with the domain
+layer: it is small and holds every rule.
 
 ## The one-sentence version
 
@@ -17,7 +17,11 @@ one outside contact) into the fields Attio shows for a Person or Organization.
 3. `domain/summary.py`: `summarize` picks first, last and next dates, the last
    interaction's owner, and the strongest pair.
 4. `domain/filters.py`: `is_ignored` decides what never counts.
-5. `tests/unit/test_scoring.py`: the plan's worked example (Jules and Sara
+5. `domain/attio_fields.py`: the 13 fields Attio gets, and `plan_record`, which decides
+   what to send. Read its tests in `tests/unit/test_attio_fields.py`.
+6. `application/attio_write.py`: one write round. `application/attio_seed.py` is the
+   one-time seed that must run first.
+7. `tests/unit/test_scoring.py`: the plan's worked example (Jules and Sara
    score 9.1, Strong; three quiet months later about 4.5, Good).
 
 ## Two things that are easy to miss
