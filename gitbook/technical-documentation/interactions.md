@@ -2,17 +2,17 @@
 
 The interactions engine reads the team's Gmail and Google Calendar and records who wrote to whom, and when. Its goal is to keep Attio's last interaction and connection strength live on Organizations and Person.
 
-It reads and stores. The step that writes to Attio is built but off. Nothing reaches Attio until the shadow-week gate has passed.
+It reads and stores, and in production it writes the results to Attio.
 
 ## Status
 
 | Stage | State |
 | --- | --- |
-| Read Gmail and Calendar metadata into PostgreSQL | Built, off by default |
+| Read Gmail and Calendar metadata into PostgreSQL | Live on production, off by default elsewhere |
 | Match each address to a Person and an Organization | Built |
-| Interaction dates and connection strength | Built as code, not yet run on live data |
-| Shadow week: compare with Attio's own labels | Passed on prod (84.5% exact, 96.2% within one level). Confirming on fresh data |
-| Write the fields to Attio | Built, off until the shadow-week gate has passed |
+| Interaction dates and connection strength | Live on production |
+| Shadow week: compare with Attio's own labels | Passed on prod: 84.6% exact, 96.2% within one level |
+| Write the fields to Attio | Live on production since 16 Nov |
 | Create contacts from email, roll up to Deals, retire Companies and People | Not started |
 
 ## What it reads
@@ -50,7 +50,7 @@ The key is the Secrets Manager value `GOOGLE_SERVICE_ACCOUNT_JSON`. Deleting the
 
 ## Writing to Attio
 
-After the shadow-week gate has passed, the engine writes 13 fields to Organizations and Person in production. It sends only changed values, at most 5 requests a second.
+The engine writes 13 fields to Organizations and Person in production, since the shadow-week gate passed. It sends only changed values, at most 5 requests a second.
 
 A seed script first records what Attio holds, including the live Company and Person values. First dates only move earlier and last dates only later, so old mail leaving the window can't undo them.
 

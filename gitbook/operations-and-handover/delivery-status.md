@@ -18,7 +18,7 @@ verified live. Update it at each handover or significant release.
 | One buyer role per vertical | Delivered |
 | PostgreSQL on private, encrypted RDS | Delivered; restore test outstanding |
 | Attio real-time webhook and nightly resync, with soft deletes | Delivered; verify the webhook subscription and alert live |
-| Interactions engine: Gmail and Calendar metadata into PostgreSQL | Built, off by default; needs Google access to run |
+| Interactions engine: Gmail and Calendar metadata into PostgreSQL | Live on production; off by default elsewhere |
 | Website lead tools: Valuation, Readiness, Benchmark, Buyer Network, Get Started | Delivered; see open items for end-to-end checks |
 | Gated reports on `/reports`, with emailed code, PDF, and A4 sheet view | Delivered |
 | Sanity Reports & Insights Studio, Webflow sync, home banner, Insights articles | Delivered; confirm webhooks live |
@@ -37,7 +37,7 @@ verified live. Update it at each handover or significant release.
 | High | Export the Sanity dataset on a schedule; reports have no other copy | A dated export and a tested import |
 | High | Alert on abandoned lead-tool runs, report code email failures, and Sanity or Webflow sync failures | Alarms exist and have been tested |
 | High | Finish Google access for the interactions engine: key policy exception, key in the toolkit secret, delegation grant, Hugo's address | A dated live sync of one mailbox |
-| Medium | Confirm the shadow-week result on fresh data, then run the Attio write in dry run and switch it on | At least 80% exact and 95% within one level, then a clean dry run |
+| Medium | Add Hugo's mailbox to the interactions engine so his records get a strength | Hugo's records are no longer skipped in the shadow-week report |
 | Medium | Add RDS alarms; consider Multi-AZ | Alarms exist; decision recorded |
 | Medium | Verify Buyer Network and Valuation submissions end to end against live Attio | Dated production test |
 | Medium | Confirm the Sanity webhooks are enabled and signed, and that Webflow cards go live without a site publish | Dated check |
