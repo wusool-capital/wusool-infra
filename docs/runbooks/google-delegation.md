@@ -108,6 +108,8 @@ participants are deleted with them.
 
 The `interactions-attio-sync-stale` alarm fires when no write round has logged
 `interactions_attio_sync_ok` for 30 minutes. A round logs it unless every attempt failed.
+A record Attio no longer has (404) is logged as `interactions_attio_record_gone` and counted
+as `gone`, not as a failure.
 The alarm assumes write mode `on` and a poll interval of at most 20 minutes.
 
 1. Check the container logs for `interactions_attio_write_round_failed` and
