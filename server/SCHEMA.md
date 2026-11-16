@@ -106,6 +106,7 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | last_interaction_channel | text | yes | | `Email` or `Meeting` |
 | last_interaction_subject | text | yes | | |
 | last_interaction_owner / strongest_connection_user | text | yes | | FK → users.attio_id; NULL if the member is unknown |
+| lead_source / lead_source_detail | text | yes | | same values as organizations; the engine tags people it creates `Email sync` (AZM-159 PR 5) |
 | job_title / contact_type / phone / avatar_url | text | yes | | |
 | angellist / facebook / instagram / twitter | text | yes | | |
 | twitter_follower_count | integer | yes | | |
@@ -122,6 +123,10 @@ Indexes: GIN trigram on `name` (`ix_organizations_name_trgm`).
 | stage | text | yes | | indexed; one of 10 Attio stages since 2026-11-14 (AZM-169) |
 | stage_changed_at | timestamptz | yes | | indexed (DESC) |
 | deal_status | text | yes | | Active / On hold / Passed / Lost (AZM-169) |
+| last_interaction_at / next_interaction_at | timestamptz | yes | | rolled up from the deal's buyer and seller (AZM-159 PR 6) |
+| last_interaction_subject | text | yes | | AZM-159 PR 6 |
+| last_interaction_owner | text | yes | | FK → users.attio_id; NULL if the member is unknown |
+| connection_strength | text | yes | | Very weak … Very strong (AZM-159 PR 6) |
 | buyer_organization_attio_id | text | yes | | FK → organizations, indexed |
 | buyer_person_attio_id | text | yes | | FK → person |
 | seller_organization_attio_id | text | yes | | FK → organizations, indexed |

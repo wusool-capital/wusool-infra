@@ -95,6 +95,8 @@ class PersonParams(TypedDict):
     last_interaction_subject: str | None
     last_interaction_owner: str | None
     strongest_connection_user: str | None
+    lead_source: str | None
+    lead_source_detail: str | None
     job_title: str | None
     contact_type: str | None
     phone: str | None
@@ -113,6 +115,11 @@ class DealParams(TypedDict):
     stage: str | None
     stage_changed_at: datetime | None
     deal_status: str | None
+    last_interaction_at: datetime | None
+    next_interaction_at: datetime | None
+    last_interaction_subject: str | None
+    last_interaction_owner: str | None
+    connection_strength: str | None
     time_in_stage: timedelta | None
     buyer_id: str | None
     seller_id: str | None

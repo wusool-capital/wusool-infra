@@ -74,7 +74,7 @@ Type: object | API identifier: `organizations`
 | `linkedin` | `text` | attio | - |
 | `ticket_size` | `text` | attio | - |
 | `lead_source` | `enum` (Inbound / Outbound) | attio | How the organization reached us, not which tool. Every migrated record is written Inbound; Outbound is reserved for manual outreach going forward |
-| `lead_source_detail` | `enum` (Valuation Tool / M&A Readiness Tool / Buyer Form / GCC SME Benchmark / Get Started) | attio | Added 2026-09-15. Which lead-magnet the company arrived through. Titles copied verbatim from SOURCE `companies.lead_source`, plus GCC SME Benchmark and Get Started (added 2026-09-18), which postdate SOURCE and so carry no historical data to backfill. SOURCE's attribute is a multiselect, so the migration keeps the value with the most recent `active_from`. As of 2026-09-16, each lead magnet also stamps this directly on submission — the most recent tool's label wins |
+| `lead_source_detail` | `enum` (Valuation Tool / M&A Readiness Tool / Buyer Form / GCC SME Benchmark / Get Started / Insights & Reports / Email sync) | attio | Email sync (2026-11-16, AZM-159) marks a record the interactions engine created. Added 2026-09-15. Which lead-magnet the company arrived through. Titles copied verbatim from SOURCE `companies.lead_source`, plus GCC SME Benchmark and Get Started (added 2026-09-18), which postdate SOURCE and so carry no historical data to backfill. SOURCE's attribute is a multiselect, so the migration keeps the value with the most recent `active_from`. As of 2026-09-16, each lead magnet also stamps this directly on submission — the most recent tool's label wins |
 | `is_test` | `boolean` | attio | **Attio-only, no Postgres column** — `true` = dev/test, `false` = production |
 | `is_active` | `boolean` | attio | - |
 
@@ -98,6 +98,8 @@ Type: object | API identifier: `person`
 | `education` | `jsonb` | postgres | - |
 | `enrichment` | `jsonb` | postgres | - |
 | `last_interaction_at` | `timestamp` | both | - |
+| `lead_source` | `enum` (Inbound / Outbound) | attio | Added 2026-11-16 (AZM-159 PR 5), same as Organization |
+| `lead_source_detail` | `enum` (same 7 options as Organization) | attio | Added 2026-11-16; the interactions engine tags people it creates Email sync |
 | `job_title` | `text` | attio | - |
 | `contact_type` | `enum` | attio | - |
 | `phone` | `text` | attio | - |
@@ -281,6 +283,10 @@ Type: object | API identifier: `deals`
 | `stage` | `enum` | attio | - |
 | `stage_changed_at` | `timestamp` | attio | - |
 | `deal_status` | `enum` (`Active` / `On hold` / `Passed` / `Lost`) | attio | - |
+| `last_interaction_at`, `next_interaction_at` | `timestamp` | attio | Rolled up by the interactions engine from `buyer_id` and `seller_id` (AZM-159 PR 6) |
+| `last_interaction_subject` | `text` | attio | AZM-159 PR 6 |
+| `last_interaction_owner` | `user-reference` | attio | User |
+| `connection_strength` | `enum` (Very weak … Very strong) | attio | AZM-159 PR 6 |
 | `time_in_stage` | `numeric` | attio | - |
 | `buyer_id` | `record-reference` | key | OrganizationOrPerson |
 | `seller_id` | `record-reference` | key | Organization |
@@ -499,6 +505,8 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 | `education` | `jsonb` | No | - | - | `'[]'::jsonb` |
 | `enrichment` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `last_interaction_at` | `timestamptz` | Yes | - | - | - |
+| `lead_source` | `text` | Yes | - | - | - |
+| `lead_source_detail` | `text` | Yes | - | - | - |
 | `removed_at` | `timestamptz` | Yes | - | - | - |
 | `raw_attio` | `jsonb` | No | - | - | `'{}'::jsonb` |
 | `created_at` | `timestamptz` | No | - | - | `now()` |
@@ -513,6 +521,11 @@ This column list is abridged: it omits the 2026-08-19 handover block (`estimated
 | `stage` | `text` | Yes | - | - | - |
 | `stage_changed_at` | `timestamptz` | Yes | - | - | - |
 | `deal_status` | `text` | Yes | - | - | - |
+| `last_interaction_at` | `timestamptz` | Yes | - | - | - |
+| `next_interaction_at` | `timestamptz` | Yes | - | - | - |
+| `last_interaction_subject` | `text` | Yes | - | - | - |
+| `last_interaction_owner` | `text` | Yes | - | `users.attio_id` | - |
+| `connection_strength` | `text` | Yes | - | - | - |
 | `buyer_organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
 | `buyer_person_attio_id` | `text` | Yes | - | `person.attio_id` | - |
 | `seller_organization_attio_id` | `text` | Yes | - | `organizations.attio_id` | - |
