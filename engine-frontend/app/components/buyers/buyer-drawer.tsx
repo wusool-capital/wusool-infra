@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BUYER_TYPES, type BuyerPatch, type BuyerRole, type BuyersUniverseData } from "../../demo/types";
+import { BUYER_TYPES, type BuyerPatch, type BuyerRole, type BuyersUniverseData, type DetailValue } from "../../demo/types";
 import { getBuyerDetails } from "../../api";
 import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
@@ -78,7 +78,7 @@ export function BuyerDrawer({ buyer, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{buyer.notes}</p>
       </section>
 
-      <DetailValues fields={data.options.fields} roleName="Buyer" recordId={buyer.id} load={() => getBuyerDetails(buyer.id)} lead={isLive ? [{ label: "Target vertical", value: buyer.sectors.join(", ") }] : []} />
+      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Buyer" recordId={buyer.id} load={() => getBuyerDetails(buyer.id)} lead={isLive ? [{ label: "Target vertical", value: buyer.sectors.join(", ") }] : []} />
 
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
@@ -181,6 +181,7 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
     checkSizeMaxUsd: buyer.checkSizeMaxUsd,
     ebitdaFloorUsd: buyer.ebitdaFloorUsd,
     notes: buyer.notes,
+    hq: buyer.hq,
     details: [],
   };
   const [draft, setDraft] = useState(initial);
@@ -195,6 +196,9 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
 
   // Live has no source for type or owner yet; a new buyer's sector is what Attio files it under.
   const sectorsLocked = isLive && !isNew;
+  // The company's sector is edited here, so the same field is left out of Company details below.
+  const companySectors = sectorsLocked ? data.options.fields.find((field) => field.key === "sector_focus") : undefined;
+  const asList = (value: DetailValue | undefined) => (Array.isArray(value) ? value : []);
   // Attio holds one sector per buyer role, so a live new buyer takes exactly one.
   const oneSector = isLive && isNew;
   const bothSizes = draft.checkSizeMinUsd !== null && draft.checkSizeMaxUsd !== null;
@@ -253,6 +257,15 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
               </div>
             </>
           )}
+          {isLive && !isNew && (
+            <div className="field">
+              <label htmlFor="buyer-hq-edit">HQ country</label>
+              <select id="buyer-hq-edit" value={draft.hq} onChange={(event) => set("hq", event.target.value)}>
+                {!draft.hq && <option value="">Not set</option>}
+                {[...new Set([draft.hq, ...data.options.hqCountries].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="buyer-type">Type</label>
             <select id="buyer-type" value={draft.type ?? ""} disabled={isLive} onChange={(event) => set("type", event.target.value as BuyerRole["type"])}>
@@ -289,16 +302,22 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
         </div>
         {sectorsLocked ? (
           <>
-            <div className="field">
-              <label htmlFor="buyer-company-sector">Company sector</label>
-              <input id="buyer-company-sector" value={buyer.companySector ?? "Not set"} readOnly disabled />
-            </div>
+            {companySectors && (details.status === "ready" ? (
+              <CheckGroup
+                legend="Company sector"
+                options={companySectors.options}
+                picked={asList(details.values.sector_focus)}
+                onToggle={(option) => details.set("sector_focus", toggle(asList(details.values.sector_focus), option))}
+              />
+            ) : (
+              <p className="muted">Loading the company sector…</p>
+            ))}
             <p className="muted">A buyer role has one target vertical, shown under Buyer details. To cover another, use Add buyer with the same website to create a new role for it.</p>
           </>
         ) : (
           <CheckGroup
             legend={oneSector ? "Sector (one per buyer)" : "Sectors"}
-            options={data.options.sectors}
+            options={data.options.sectorChoices ?? data.options.sectors}
             picked={draft.sectors}
             onToggle={(value) => set("sectors", oneSector ? (draft.sectors.includes(value) ? [] : [value]) : toggle(draft.sectors, value))}
           />
@@ -309,7 +328,7 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
           <textarea id="buyer-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
         </div>
       </section>
-      <DetailFields fields={data.options.fields} values={details.values} onChange={details.set} roleName="Buyer" status={details.status} lead={sectorsLocked ? [{ label: "Target vertical", value: buyer.sectors.join(", ") || "Not set" }] : []} />
+      <DetailFields fields={sectorsLocked ? data.options.fields.filter((field) => field.key !== "sector_focus") : data.options.fields} values={details.values} onChange={details.set} roleName="Buyer" status={details.status} lead={sectorsLocked ? [{ label: "Target vertical", value: buyer.sectors.join(", ") || "Not set" }] : []} />
     </Drawer>
   );
 }

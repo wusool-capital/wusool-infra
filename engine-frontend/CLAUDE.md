@@ -68,6 +68,7 @@ The code must be easy to follow for a software engineer and for another LLM.
 
 Newest first. One line per tab or change: date, what was built, PR link, open feedback.
 
+- 16 Nov 2026: edit forms match Slack's edit-buyer and edit-seller: HQ country and the company sector (top checklist) are editable, a seller's open to selling is the exact Attio appetite signal (live; demo keeps the three labels), and a new buyer's sector list is every Attio vertical. Filters still group appetite signals in three labels. Open: none.
 - 16 Nov 2026: drawers and edit forms keep the company sector (top, read only) apart from the role's own sector (buyer target vertical, seller role sector; read only under Buyer or Seller details); the Toolkit sends `companySector` and `ownSector`. Open: none.
 - 16 Nov 2026: a seller's sector falls back to the company's sector focus when the role has none (321 of 352 on prod); the Sellers column, filter, options and search use it (Toolkit change, no frontend code). Open: none.
 - 16 Nov 2026: web addresses in the Buyers and Sellers drawers (website and the text fields such as LinkedIn and logo) are links opening in a new tab, shortened to host and path, or host only when long (`ui/link-text.tsx`; only http and https). Open: none.

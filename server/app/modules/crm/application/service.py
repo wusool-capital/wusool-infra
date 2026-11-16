@@ -74,6 +74,7 @@ class CrmService:
             regions=self._writer.buyer_regions(),
             countries=self._writer.buyer_countries(),
             hq_countries=self._writer.hq_countries(),
+            sector_choices=self._writer.buyer_sectors(),
             fields=self._writer.buyer_fields(),
         )
         return replace(page, options=options)
@@ -86,6 +87,7 @@ class CrmService:
             page.options,
             sector_choices=self._writer.seller_sectors(),
             hq_countries=self._writer.hq_countries(),
+            appetite_signals=self._writer.appetite_signals(),
             fields=self._writer.seller_fields(),
         )
         return replace(page, options=options)

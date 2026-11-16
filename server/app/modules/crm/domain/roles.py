@@ -120,6 +120,8 @@ class SellerRole:
     own_sector: str | None = None
     # The company's sector focus alone, never the role's.
     company_sector: str | None = None
+    # The exact Attio appetite signal; `open_to_selling` is the Engine's three-way summary of it.
+    appetite_signal: str | None = None
 
 
 @dataclass(frozen=True)
@@ -172,6 +174,8 @@ class BuyerFilterOptions:
     regions: tuple[str, ...] = ()
     countries: tuple[str, ...] = ()
     hq_countries: tuple[str, ...] = ()
+    # Every target vertical Attio allows, for the add form; the rows hold only those in use.
+    sector_choices: tuple[str, ...] = ()
     fields: tuple[FieldDef, ...] = ()
 
 
@@ -182,6 +186,8 @@ class SellerFilterOptions:
     # Everything Attio allows, for the add form; the service adds these.
     sector_choices: tuple[str, ...] = ()
     hq_countries: tuple[str, ...] = ()
+    # Every appetite signal Attio allows, for the form.
+    appetite_signals: tuple[str, ...] = ()
     fields: tuple[FieldDef, ...] = ()
 
 
@@ -229,6 +235,8 @@ class NewSeller:
     sector: str
     hq: str | None = None
     open_to_selling: OpenToSelling | None = None
+    # The exact Attio option; wins over `open_to_selling`.
+    appetite_signal: str | None = None
     est_revenue_usd: float | None = None
     est_ebitda_usd: float | None = None
     re_engage_date: date | None = None
@@ -246,6 +254,7 @@ class BuyerChanges:
     check_size_min_usd: float | None = None
     check_size_max_usd: float | None = None
     ebitda_floor_usd: float | None = None
+    hq: str | None = None
     details: tuple[Detail, ...] = ()
 
 
@@ -255,7 +264,10 @@ class SellerChanges:
     est_revenue_usd: float | None = None
     est_ebitda_usd: float | None = None
     open_to_selling: OpenToSelling | None = None
+    # The exact Attio option; wins over `open_to_selling`, which only names a group of them.
+    appetite_signal: str | None = None
     re_engage_date: date | None = None
+    hq: str | None = None
     details: tuple[Detail, ...] = ()
 
 

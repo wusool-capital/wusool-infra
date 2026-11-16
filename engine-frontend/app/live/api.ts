@@ -56,8 +56,8 @@ export async function getBuyersUniverse(params: URLSearchParams, cursor?: string
 
 // The edit form offers every region and country Attio allows, not only those in use.
 function buyerOptions({ options }: BuyersUniverseView): BuyersUniverseData["options"] {
-  const { sectors, geographies, statuses, regions, countries, hqCountries, fields } = options;
-  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort(), hqCountries, fields };
+  const { sectors, geographies, statuses, regions, countries, hqCountries, fields, sectorChoices } = options;
+  return { sectors, geographies, statuses, geographyChoices: [...regions, ...countries].sort(), hqCountries, fields, sectorChoices };
 }
 
 export async function getSellersUniverse(params: URLSearchParams, cursor?: string): Promise<SellersUniverseData> {
@@ -103,6 +103,7 @@ export async function addSeller(_userId: UserId, fields: NewSellerInput) {
       hq: fields.hq || null,
       sector: fields.sector,
       openToSelling: fields.openToSelling,
+      appetiteSignal: fields.appetiteSignal || null,
       estRevenueUsd: fields.estRevenueUsd,
       estEbitdaUsd: fields.estEbitdaUsd ?? null,
       reEngageDate: fields.reEngageDate || null,
@@ -124,6 +125,7 @@ export async function updateBuyer(_userId: UserId, id: string, patch: BuyerPatch
       ...("checkSizeMaxUsd" in patch && { checkSizeMaxUsd: patch.checkSizeMaxUsd }),
       ...("ebitdaFloorUsd" in patch && { ebitdaFloorUsd: patch.ebitdaFloorUsd }),
       ...("geographies" in patch && { geographies: patch.geographies }),
+      ...("hq" in patch && { hq: patch.hq || null }),
       ...(patch.details?.length && { details: patch.details }),
     },
   }).unwrap();
@@ -138,6 +140,8 @@ export async function updateSeller(_userId: UserId, id: string, patch: SellerPat
       ...("estRevenueUsd" in patch && { estRevenueUsd: patch.estRevenueUsd }),
       ...("estEbitdaUsd" in patch && { estEbitdaUsd: patch.estEbitdaUsd }),
       ...("openToSelling" in patch && { openToSelling: patch.openToSelling }),
+      ...("appetiteSignal" in patch && { appetiteSignal: patch.appetiteSignal }),
+      ...("hq" in patch && { hq: patch.hq || null }),
       ...("reEngageDate" in patch && { reEngageDate: patch.reEngageDate ?? null }),
       ...(patch.details?.length && { details: patch.details }),
     },
