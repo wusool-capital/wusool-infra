@@ -13,7 +13,7 @@ It reads and stores, writes the results to Attio in production, and can create t
 | Interaction dates and connection strength | Live on production |
 | Shadow week: compare with Attio's own labels | Passed on prod: 84.6% exact, 96.2% within one level |
 | Write the fields to Attio | Live on production since 16 Nov |
-| Create contacts from email | Built, off until a canary record is checked |
+| Create contacts from email | Live on production since 16 Nov |
 | Roll up to Deals, retire Companies and People | Not started |
 
 ## What it reads
@@ -61,7 +61,7 @@ Where Attio's strongest user is a mailbox the engine doesn't read, connection st
 
 ## Creating contacts
 
-The engine can create the Person and Organization for an outside contact it meets. It is off by default. See [Creating contacts from email](interactions-contact-creation.md).
+The engine can create the Person and Organization for an outside contact it meets. It is on in production and off by default elsewhere. See [Creating contacts from email](interactions-contact-creation.md).
 
 ## Settings
 

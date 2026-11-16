@@ -155,7 +155,7 @@ shows `failures=0`.
    counts for a few rounds.
 3. Set the mode to `on` and `INTERACTIONS_AUTO_CREATE_MAX_PER_ROUND=1`, restart, and check the one
    new Person and Organization in Attio: name, domain, tag, and the link between them.
-4. Raise the cap (the default is 20) once the canary looks right.
+4. Raise the cap (the default is 20) once the canary looks right. Production went from 1 to 10 to 20.
 5. For the daily review post, set `INTERACTIONS_REVIEW_SLACK_CHANNEL` to the channel id and restart.
 
 A created record can only be undone in Attio: delete the Person and Organization there.
