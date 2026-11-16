@@ -267,19 +267,20 @@ def test_the_single_role_read_returns_its_details(parts) -> None:
     ]
 
 
-def test_a_patch_with_details_and_a_bad_clear_comes_back_as_422(parts) -> None:
+def test_a_null_empties_a_field_but_an_unemptiable_detail_comes_back_as_422(parts) -> None:
     client, _, writer = parts
 
-    ok = client.patch(
-        "/api/v1/buyer-roles/b1",
-        json={"details": [{"key": "model", "value": "Model 2"}]},
+    cleared = client.patch(
+        "/api/v1/buyer-roles/b1", json={"notes": None}, headers={**_TOKEN, "If-Match": '"v1"'}
+    )
+    refused = client.patch(
+        "/api/v1/seller-roles/s1",
+        json={"details": [{"key": "sector_focus", "value": []}]},
         headers={**_TOKEN, "If-Match": '"v1"'},
     )
-    cleared = client.patch(
-        "/api/v1/buyer-roles/b1", json={"notes": None}, headers={**_TOKEN, "If-Match": '"v2"'}
-    )
 
-    assert ok.status_code == 200
-    assert (cleared.status_code, cleared.json()["code"]) == (422, "invalid_fields")
-    assert "Notes cannot be cleared" in cleared.json()["errors"][0]
+    assert cleared.status_code == 200
+    assert writer.changes[0].sent == {"notes"}
+    assert (refused.status_code, refused.json()["code"]) == (422, "invalid_fields")
+    assert "Sector focus can't be emptied" in refused.json()["errors"][0]
     assert len(writer.changes) == 1

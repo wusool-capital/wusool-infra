@@ -116,9 +116,9 @@ async def edit_one(
     requested_by: str | None,
     invoked_via: InvokedVia,
 ) -> tuple[str, ...]:
-    """Changes only the fields sent; returns their keys. Raises
-    `BuyerNotFoundError`/`SellerNotFoundError` for an unknown id."""
-    routed = route_fields(kind, 1, fields)
+    """Changes only the fields sent; a null or blank value empties that field. Returns their
+    keys. Raises `BuyerNotFoundError`/`SellerNotFoundError` for an unknown id."""
+    routed = route_fields(kind, 1, fields, clearing=True)
     problems = list(routed.problems)
     if not fields:
         problems.append(RowProblem(row=1, kind="required", message="send at least one field"))

@@ -35,6 +35,7 @@ from app.modules.ddl_commands.api.flat_records import (
     list_buyer_records,
     list_seller_records,
 )
+from app.modules.ddl_commands.api.schemas import can_clear
 from app.modules.ddl_commands.api.write_errors import (
     OrgMismatchError,
     OrgRemovedError,
@@ -73,6 +74,7 @@ __all__ = [
     "UploadKind",
     "UploadRow",
     "add_one",
+    "can_clear",
     "columns_for",
     "commit",
     "edit_one",

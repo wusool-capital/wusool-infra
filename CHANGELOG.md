@@ -113,6 +113,10 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- A field can now be emptied from the Engine and through the MCP, not only from Slack. Send
+  null (or a blank value) and the field empties in Attio and Postgres. Before, the MCP
+  skipped the null yet still reported the field as changed. Checklists backed by a required
+  column, such as sector focus and geography, can change but not be emptied.
 - The Engine's buyer and seller drawers now show the extra Slack fields, such as investment
   strategy and EV ceiling. They also show each contact's email. These were only visible in
   the Edit form. A field with no value is left out.

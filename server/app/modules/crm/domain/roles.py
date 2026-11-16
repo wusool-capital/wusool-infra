@@ -67,6 +67,8 @@ class FieldDef:
     kind: FieldKind
     options: tuple[str, ...]
     group: FieldGroup
+    # False for checklists backed by a required column, which can change but not empty.
+    clearable: bool
 
 
 @dataclass(frozen=True)

@@ -140,7 +140,9 @@ the same rules: checked by `parse_row`, matched on the domain, and written with
 already holds the role returns the existing record (`status="existing"`) and
 writes nothing. `edit_one(kind, role_id, fields)` routes the flat keys to
 organization and role fields with `route_fields` and calls `write_buyer_edit` /
-`write_seller_edit`; `target_vertical` can't be edited, as in Slack.
+`write_seller_edit`; `target_vertical` can't be edited, as in Slack. A null or blank value
+empties that field in Attio and Postgres; `can_clear` is false for list-backed fields, which
+`route_fields(clearing=True)` refuses instead of ignoring.
 `find_records(kind, term)` matches an exact domain, or else a similar company
 name (a dotted name like `Booking.com` falls back to the name search). Edits
 refuse an inactive role. A preview made with an `owner` can be confirmed and

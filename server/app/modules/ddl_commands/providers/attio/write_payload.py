@@ -21,10 +21,8 @@ from app.modules.attio import AttioClientProtocol
 from app.modules.attio.providers.attio.dates import serialize_date
 from app.modules.attio.providers.attio.money import serialize_money, to_postgres_money
 from app.modules.attio.providers.attio.options import get_option_id
-from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue
+from app.modules.ddl_commands.api.schemas import FieldSpec, PrefillValue, can_clear
 from app.modules.utilities.domain.json_types import JsonObject
-
-_NEVER_CLEARED = frozenset({"multi_select_text", "text_list"})
 
 
 def build_postgres_values(
@@ -87,7 +85,7 @@ async def build_attio_values(
             # An edit that emptied a field. Attio takes an empty list for every scalar kind
             # (checked live). List-backed fields are NOT NULL in Postgres, and `domains` is the
             # match key, so they are never emptied.
-            if clear_empty and spec.kind not in _NEVER_CLEARED:
+            if clear_empty and can_clear(spec):
                 attio_values[name] = []
             continue
         if spec.kind in ("text", "multiline", "multi_select_as_text", "text_list"):

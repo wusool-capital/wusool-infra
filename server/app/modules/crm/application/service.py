@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 from dataclasses import replace
-from datetime import date
 
 from app.modules.crm.application.ports.roles import RolesReaderPort, RoleWriterPort
 from app.modules.crm.domain.roles import (
@@ -36,42 +35,20 @@ def _same_version(etag: str, if_match: str) -> bool:
     return etag == if_match.removeprefix("W/").strip('"')
 
 
-_CLEARABLE_LABELS = {
-    "status": "Status",
-    "notes": "Notes",
-    "check_size_min_usd": "Check size from",
-    "check_size_max_usd": "Check size to",
-    "ebitda_floor_usd": "Min. EBITDA",
-    "est_revenue_usd": "Revenue",
-    "est_ebitda_usd": "EBITDA",
-    "re_engage_date": "Re-engage date",
-}
-
-
-def _is_empty(value: DetailValue | date) -> bool:
+def _is_empty(value: DetailValue) -> bool:
     return value is None or value == "" or value == ()
-
-
-def _cannot_clear(label: str) -> str:
-    # Slack's edit shares this limit: the write sets values and skips empty ones.
-    return f"{label} cannot be cleared here, only changed. Clear it in Attio"
-
-
-def _clear_problems(changes: BuyerChanges | SellerChanges) -> list[str]:
-    return [
-        _cannot_clear(label)
-        for name, label in _CLEARABLE_LABELS.items()
-        if name in changes.sent and _is_empty(getattr(changes, name, "x"))
-    ]
 
 
 def _detail_problems(details: Sequence[Detail], fields: Sequence[FieldDef]) -> list[str]:
     labels = {field.key: field.label for field in fields}
+    clearable = {field.key for field in fields if field.clearable}
     problems = [
         f"{d.key} is not a field the Engine can set" for d in details if d.key not in labels
     ]
     problems += [
-        _cannot_clear(labels[d.key]) for d in details if d.key in labels and _is_empty(d.value)
+        f"{labels[d.key]} can't be emptied here, only changed. Clear it in Attio"
+        for d in details
+        if d.key in labels and d.key not in clearable and _is_empty(d.value)
     ]
     keys = [d.key for d in details]
     problems += [f"{key} was sent twice" for key in sorted({k for k in keys if keys.count(k) > 1})]
@@ -138,7 +115,6 @@ class CrmService:
             self._check_geographies(changes.geographies, current.geographies)
         self._refuse(
             [
-                *_clear_problems(changes),
                 *_detail_problems(changes.details, self._writer.buyer_fields()),
             ]
         )
@@ -153,7 +129,6 @@ class CrmService:
             raise StaleRoleError(role_id)
         self._refuse(
             [
-                *_clear_problems(changes),
                 *_detail_problems(changes.details, self._writer.seller_fields()),
             ]
         )

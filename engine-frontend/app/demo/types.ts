@@ -214,6 +214,8 @@ export type FieldDef = {
   kind: "text" | "multiline" | "select" | "multi_select" | "currency" | "percent" | "number" | "date" | "bool";
   options: string[];
   group: "role" | "company";
+  /** False for a checklist the Toolkit can change but not empty. */
+  clearable: boolean;
 };
 
 /** A text, an option, an amount, a YYYY-MM-DD date, yes or no, or a checklist. */

@@ -10,7 +10,7 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | --- | --- | --- |
 | `find_buyers`, `find_sellers` | Look up by company name or exact domain | Read only |
 | `add_buyer`, `add_seller` | Add the record, and its company if new. A company that already holds the role comes back as `existing` | Straight away |
-| `edit_buyer`, `edit_seller` | Change only the fields sent | Straight away |
+| `edit_buyer`, `edit_seller` | Change only the fields sent; null empties a field | Straight away |
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows. Returns new, existing and invalid rows | Nothing |
 | `confirm_import` | After the person agrees, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |

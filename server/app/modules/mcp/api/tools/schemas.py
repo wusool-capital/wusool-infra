@@ -16,6 +16,7 @@ from app.modules.ddl_commands import (
     RowProblem,
     UploadKind,
     UploadRow,
+    can_clear,
     columns_for,
 )
 from app.modules.ddl_commands import RecordDetail as DdlRecordDetail
@@ -176,9 +177,11 @@ def field_guide(kind: UploadKind, *, editing: bool = False) -> str:
     )
     if editing:
         cannot = ", ".join(c.field for c in columns if c.field in _ROW_KEYS)
+        fixed = ", ".join(c.field for c in columns if c.spec and not can_clear(c.spec))
         return (
             f"Required: role_id only. Send just the fields to change; every key below is "
-            f"optional ({cannot} can't be edited).\n"
+            f"optional ({cannot} can't be edited). Send null to empty a field in Attio and "
+            f"Postgres; {fixed} can be changed but not emptied.\n"
             f"Keys for `fields` {values}" + "\n".join(optional)
         )
     required = [

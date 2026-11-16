@@ -390,7 +390,7 @@
       },
       "BuyerUpdate": {
         "additionalProperties": false,
-        "description": "Only the fields sent change. A value can be changed but not emptied; a null is refused.",
+        "description": "Only the fields sent change. A null empties that field, except the geographies.",
         "properties": {
           "checkSizeMaxUsd": {
             "anyOf": [
@@ -653,6 +653,10 @@
       "FieldDefView": {
         "description": "A field the form draws by `kind`: a select or checklist from `options`, an amount, a date.",
         "properties": {
+          "clearable": {
+            "title": "Clearable",
+            "type": "boolean"
+          },
           "group": {
             "enum": [
               "role",
@@ -697,7 +701,8 @@
           "label",
           "kind",
           "options",
-          "group"
+          "group",
+          "clearable"
         ],
         "title": "FieldDefView",
         "type": "object"

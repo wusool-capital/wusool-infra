@@ -126,15 +126,30 @@ class FakeWriter:
 
     def buyer_fields(self) -> tuple[FieldDef, ...]:
         return (
-            FieldDef("model", "Model", "select", ("Model 1", "Model 2"), "role"),
-            FieldDef("investment_strategy", "Investment strategy", "multiline", (), "role"),
-            FieldDef("client_type", "Client type", "multi_select", ("M&A", "Project"), "company"),
+            FieldDef("model", "Model", "select", ("Model 1", "Model 2"), "role", True),
+            FieldDef("investment_strategy", "Investment strategy", "multiline", (), "role", True),
+            FieldDef(
+                "client_type", "Client type", "multi_select", ("M&A", "Project"), "company", True
+            ),
         )
 
     def seller_fields(self) -> tuple[FieldDef, ...]:
         return (
             FieldDef(
-                "sell_timeline", "Sell timeline", "select", ("Immediate", "Not Selling"), "role"
+                "sell_timeline",
+                "Sell timeline",
+                "select",
+                ("Immediate", "Not Selling"),
+                "role",
+                True,
+            ),
+            FieldDef(
+                "sector_focus",
+                "Sector focus",
+                "multi_select",
+                ("Dental", "Retail"),
+                "company",
+                False,
             ),
         )
 
