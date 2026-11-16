@@ -92,7 +92,15 @@ resource "aws_s3_bucket_policy" "cloudtrail" {
   })
 }
 
+# The count moved the address from aws_cloudtrail.this to aws_cloudtrail.this[0];
+# the moved block keeps prod's existing trail from being destroyed and recreated.
+moved {
+  from = aws_cloudtrail.this
+  to   = aws_cloudtrail.this[0]
+}
+
 resource "aws_cloudtrail" "this" {
+  count                         = var.enable_cloudtrail ? 1 : 0
   name                          = "${var.project}-${var.environment}"
   s3_bucket_name                = aws_s3_bucket.cloudtrail.id
   include_global_service_events = true
