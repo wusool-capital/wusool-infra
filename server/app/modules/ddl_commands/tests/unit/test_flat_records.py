@@ -145,6 +145,52 @@ async def test_edit_routes_org_and_role_fields_and_sends_only_those(
     assert (kwargs["requested_by"], kwargs["invoked_via"]) == ("U1", "mcp")
 
 
+async def test_edit_empties_a_field_sent_as_null_or_blank(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        flat_records,
+        "resolve_buyer_by_id",
+        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1", is_active=True)),
+    )
+    write = AsyncMock()
+    monkeypatch.setattr(flat_records, "write_buyer_edit", write)
+
+    changed = await flat_records.edit_one(
+        "buyer",
+        _ROLE_ID,
+        {"notes": None, "ebitda_floor": None, "hq_country": "  ", "relationship_warmth": "Warm"},
+        requested_by="U1",
+        invoked_via="mcp",
+    )
+
+    assert changed == ("ebitda_floor", "hq_country", "notes", "relationship_warmth")
+    assert write.await_args is not None
+    kwargs = write.await_args.kwargs
+    assert kwargs["role_extracted"] == {
+        "notes": None,
+        "ebitda_floor": None,
+        "relationship_warmth": "Warm",
+    }
+    assert kwargs["org_extracted"] == {"hq_country": None}
+
+
+@pytest.mark.parametrize(
+    ("kind", "field"), [("buyer", "target_region"), ("seller", "sector_focus")]
+)
+async def test_edit_refuses_to_empty_a_list_backed_field_instead_of_ignoring_it(
+    monkeypatch: pytest.MonkeyPatch, kind: str, field: str
+) -> None:
+    lookup = AsyncMock()
+    monkeypatch.setattr(flat_records, "resolve_buyer_by_id", lookup)
+    monkeypatch.setattr(flat_records, "resolve_seller_by_id", lookup)
+
+    with pytest.raises(flat_records.InvalidFieldsError, match="can't be emptied"):
+        await flat_records.edit_one(
+            kind, _ROLE_ID, {field: None}, requested_by="U1", invoked_via="mcp"
+        )
+
+    lookup.assert_not_awaited()
+
+
 async def test_find_by_domain_lists_only_active_roles(
     monkeypatch: pytest.MonkeyPatch, org_lookup: AsyncMock
 ) -> None:

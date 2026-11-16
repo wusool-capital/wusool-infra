@@ -103,8 +103,9 @@ deploy of each environment. See
   Examples are a buyer's model, deal structure and EV ceiling, a seller's sell
   timeline and margins, and a company's description and funding. The Toolkit lists
   them, and the form draws each by its kind: a select, a checklist, an amount, a
-  date, yes or no, or text. Attio sets values but cannot empty one, so a field
-  cannot be cleared from the Engine. Nothing is saved until you press Save to Attio.
+  date, yes or no, or text. Emptying a field saves it as empty in Attio. A checklist
+  backed by a required column, such as sector focus, can change but not be emptied.
+  Nothing is saved until you press Save to Attio.
 * A buyer's geography can be edited. The Toolkit sorts the picks into Attio's
   target region and target country fields. As in Slack, a group that has values
   must keep at least one.

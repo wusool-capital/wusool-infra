@@ -3,7 +3,7 @@
 import type { DetailInput } from './DetailInput'
 
 /**
- * @description Only the fields sent change. A value can be changed but not emptied; a null is refused.
+ * @description Only the fields sent change. A null empties that field, except the geographies.
  * @type object
  */
 export type BuyerUpdate = {

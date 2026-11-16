@@ -54,6 +54,14 @@ class FieldSpec:
     options: tuple[str, ...] = ()
 
 
+# List-backed columns are NOT NULL in Postgres, and `domains` is the match key.
+_NEVER_CLEARED: frozenset[FieldKind] = frozenset({"multi_select_text", "text_list"})
+
+
+def can_clear(spec: FieldSpec) -> bool:
+    return spec.kind not in _NEVER_CLEARED
+
+
 # Every shape a field's value can take across `FieldKind`, at either its
 # already-stored ORM-column shape or a prefill source's raw shape (a bare
 # currency amount before `wrap_prefill_value` wraps it into the

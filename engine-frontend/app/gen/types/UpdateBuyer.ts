@@ -75,7 +75,7 @@ export type UpdateBuyerStatus502 = ProblemDetail;
 export type UpdateBuyerStatus503 = ProblemDetail;
 
 /**
- * @description Only the fields sent change. A value can be changed but not emptied; a null is refused.
+ * @description Only the fields sent change. A null empties that field, except the geographies.
  * @type object
  */
 export type UpdateBuyerBody = BuyerUpdate;

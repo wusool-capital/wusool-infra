@@ -109,7 +109,8 @@ async def test_the_first_pages_carry_the_catalog() -> None:
     sellers = await service.sellers(SellerFilters(), None, 10)
 
     assert [f.key for f in buyers.options.fields] == ["model", "investment_strategy", "client_type"]
-    assert [f.key for f in sellers.options.fields] == ["sell_timeline"]
+    assert [f.key for f in sellers.options.fields] == ["sell_timeline", "sector_focus"]
+    assert [f.key for f in sellers.options.fields if not f.clearable] == ["sector_focus"]
 
 
 async def test_one_role_read_carries_its_current_details_and_a_list_read_does_not() -> None:
@@ -139,9 +140,6 @@ async def test_a_detail_edit_is_written() -> None:
     ("details", "message"),
     [
         ((Detail("nope", "x"),), "nope is not a field"),
-        ((Detail("model", None),), "Model cannot be cleared"),
-        ((Detail("investment_strategy", ""),), "Investment strategy cannot be cleared"),
-        ((Detail("client_type", ()),), "Client type cannot be cleared"),
         ((Detail("model", "Model 1"), Detail("model", "Model 2")), "model was sent twice"),
     ],
 )
@@ -159,22 +157,47 @@ async def test_bad_details_are_refused_before_anything_is_written(
 
 
 @pytest.mark.parametrize("name", ["notes", "status", "ebitda_floor_usd", "check_size_min_usd"])
-async def test_clearing_a_fixed_buyer_field_is_refused_because_attio_only_sets_values(
-    name: str,
-) -> None:
+async def test_clearing_a_fixed_buyer_field_is_written(name: str) -> None:
     service, writer = _service()
 
-    with pytest.raises(InvalidRoleFieldsError, match="cannot be cleared here"):
-        await service.edit_buyer(JULES, "b1", BuyerChanges(frozenset({name})), '"v1"')
+    await service.edit_buyer(JULES, "b1", BuyerChanges(frozenset({name})), '"v1"')
+
+    assert writer.changes[0].sent == {name}
+
+
+async def test_emptied_details_are_written_when_the_field_can_be_emptied() -> None:
+    service, writer = _service()
+    emptied = (Detail("model", None), Detail("investment_strategy", ""), Detail("client_type", ()))
+
+    await service.edit_buyer(
+        JULES, "b1", BuyerChanges(frozenset({"details"}), details=emptied), '"v1"'
+    )
+
+    assert writer.changes[0].details == emptied
+
+
+async def test_emptying_a_checklist_backed_by_a_required_column_is_refused() -> None:
+    service, writer = _service()
+
+    with pytest.raises(InvalidRoleFieldsError, match="Sector focus can't be emptied here"):
+        await service.edit_seller(
+            JULES,
+            "s1",
+            SellerChanges(frozenset({"details"}), details=(Detail("sector_focus", ()),)),
+            '"v1"',
+        )
 
     assert writer.changes == []
 
 
-async def test_clearing_a_seller_date_or_amount_is_refused() -> None:
-    service, _ = _service()
+async def test_clearing_a_seller_date_or_amount_is_written() -> None:
+    service, writer = _service()
 
-    with pytest.raises(InvalidRoleFieldsError, match="Re-engage date cannot be cleared"):
-        await service.edit_seller(JULES, "s1", SellerChanges(frozenset({"re_engage_date"})), '"v1"')
+    await service.edit_seller(
+        JULES, "s1", SellerChanges(frozenset({"re_engage_date", "est_revenue_usd"})), '"v1"'
+    )
+
+    assert writer.edits == [("s1", JULES.id)]
 
 
 async def test_a_new_buyer_with_an_unknown_detail_is_refused() -> None:

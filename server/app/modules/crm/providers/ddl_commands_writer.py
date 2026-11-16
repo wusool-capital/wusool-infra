@@ -29,6 +29,7 @@ from app.modules.ddl_commands import (
     SellerNotFoundError,
     UploadRow,
     add_one,
+    can_clear,
     columns_for,
     edit_one,
     get_record,
@@ -48,7 +49,7 @@ _BUYER_EDIT_KEYS = {
 def _geography_keys(
     picked: Sequence[str], regions: Sequence[str], countries: Sequence[str]
 ) -> UploadRow:
-    """Only a group with a pick is sent: Attio's edit path skips nulls and refuses empty lists."""
+    """Only a group with a pick is sent: a geography list cannot be emptied."""
     split = split_geographies(picked, regions, countries)
     row: UploadRow = {}
     if split.regions:
@@ -199,6 +200,7 @@ def field_catalog(kind: Literal["buyer", "seller"]) -> tuple[FieldDef, ...]:
                 kind=_KIND_BY_SPEC[column.spec.kind],
                 options=tuple(column.spec.options or ()),
                 group=group,
+                clearable=can_clear(column.spec),
             )
         )
     return tuple(fields)
