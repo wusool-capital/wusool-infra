@@ -52,6 +52,7 @@ module "wusool_toolkit" {
   aws_region                = var.aws_region
   alarm_topic_arn           = data.terraform_remote_state.base.outputs.alarm_topic_arn
   us_east_1_alarm_topic_arn = data.terraform_remote_state.base.outputs.us_east_1_alarm_topic_arn
+  interactions_sync_alarm   = var.interactions_sync_alarm
   secrets_manager_secret_arns = compact([
     aws_secretsmanager_secret.wusool_toolkit.arn,
     var.toolkit_db_master_secret_arn,

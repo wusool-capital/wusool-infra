@@ -17,6 +17,7 @@ can't prove that recipients accepted them.
 | Lead email send failed | An email fails after SES's own retries, at least once in 5 minutes | Email and Slack | The sweeper tries again later |
 | Nightly Attio resync failed | The production workflow run fails, including when no Toolkit instance is running | Email and Slack | None |
 | Nightly Attio resync heartbeat | No successful run for 30 hours, for example the workflow is disabled or never starts | Email and Slack | None |
+| Interactions Attio sync stale | No clean Attio write round for 30 minutes. Created in production once the engine goes live | Email and Slack | None |
 | GuardDuty finding | Severity 4 or higher | **Email only** | None |
 | Security Hub finding | High or critical | **Email only** | None |
 

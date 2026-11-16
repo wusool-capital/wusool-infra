@@ -5,6 +5,7 @@ from app.modules.interactions.domain.touch_building import (
     StoredItem,
     StoredParticipant,
     touches_by_organization,
+    touches_by_person,
 )
 
 INTERNAL = ("wusoolcapital.com", "dopaminecap.com")
@@ -78,3 +79,21 @@ def test_the_same_item_in_two_mailboxes_stays_two_touches_sharing_a_dedupe_key()
         "ramzy@wusoolcapital.com",
     }
     assert {t.dedupe_key for t in touches} == {"k1"}
+
+
+def test_touches_group_by_person_when_asked() -> None:
+    item = _item(
+        "jules@wusoolcapital.com",
+        _person("jules@wusoolcapital.com", Role.FROM),
+        StoredParticipant("sara@acme.com", Role.TO, "o1", "p-sara"),
+        StoredParticipant("bo@acme.com", Role.CC, "o1", "p-bo"),
+    )
+
+    by_person = touches_by_person([item], INTERNAL)
+    by_org = touches_by_organization([item], INTERNAL)
+
+    assert {p: [t.contact for t in ts] for p, ts in by_person.items()} == {
+        "p-sara": ["sara@acme.com"],
+        "p-bo": ["bo@acme.com"],
+    }
+    assert len(by_org["o1"]) == 2

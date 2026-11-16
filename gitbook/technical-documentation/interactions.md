@@ -2,7 +2,7 @@
 
 The interactions engine reads the team's Gmail and Google Calendar and records who wrote to whom, and when. Its goal is to keep Attio's last interaction and connection strength live on Organizations and Person.
 
-Today it only reads and stores. It doesn't write to Attio yet.
+It reads and stores. The step that writes to Attio is built but off. Nothing reaches Attio until the shadow-week gate has passed.
 
 ## Status
 
@@ -11,8 +11,8 @@ Today it only reads and stores. It doesn't write to Attio yet.
 | Read Gmail and Calendar metadata into PostgreSQL | Built, off by default |
 | Match each address to a Person and an Organization | Built |
 | Interaction dates and connection strength | Built as code, not yet run on live data |
-| Shadow week: compare with Attio's own labels | Tool built, run after deploy |
-| Write the fields to Attio | Not started |
+| Shadow week: compare with Attio's own labels | Passed on prod (84.5% exact, 96.2% within one level). Confirming on fresh data |
+| Write the fields to Attio | Built, off until the shadow-week gate has passed |
 | Create contacts from email, roll up to Deals, retire Companies and People | Not started |
 
 ## What it reads
@@ -48,6 +48,16 @@ The Gmail scope has to be the full read-only one, because Google's metadata-only
 
 The key is the Secrets Manager value `GOOGLE_SERVICE_ACCOUNT_JSON`. Deleting the admin's delegation entry stops access at the next poll. Setup, rotation, and revocation are in the Google access runbook, `docs/runbooks/google-delegation.md`.
 
+## Writing to Attio
+
+After the shadow-week gate has passed, the engine writes 13 fields to Organizations and Person in production. It sends only changed values, at most 5 requests a second.
+
+A seed script first records what Attio holds, including the live Company and Person values. First dates only move earlier and last dates only later, so old mail leaving the window can't undo them.
+
+Where Attio's strongest user is a mailbox the engine doesn't read, connection strength is left alone. A value that should become empty is counted, not cleared. The engine refuses to write while `ATTIO_IS_TEST` is set.
+
+`INTERACTIONS_ATTIO_WRITE_MODE` is `off` by default, and `dry_run` logs counts only. A production alarm fires after 30 minutes without a clean write round.
+
 ## Settings
 
 | Setting | Default | Purpose |
@@ -58,13 +68,16 @@ The key is the Secrets Manager value `GOOGLE_SERVICE_ACCOUNT_JSON`. Deleting the
 | `INTERACTIONS_INTERNAL_DOMAINS` | both company domains | Team domains. The first is the main one. |
 | `INTERACTIONS_BACKFILL_MONTHS` | `12` | How far back the first read goes. |
 | `INTERACTIONS_RETENTION_MONTHS` | `12` | How long interactions are kept. At least 1. |
+| `INTERACTIONS_ATTIO_WRITE_MODE` | `off` | `off`, `dry_run` or `on`. Keep `off` until the shadow-week gate has passed. |
+| `INTERACTIONS_ATTIO_WRITES_PER_SECOND` | `5` | Request rate to Attio. |
+| `INTERACTIONS_ATTIO_MAX_RECORDS_PER_ROUND` | `500` | Most records written per object in one round. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | none | The service-account key. Secrets Manager only. |
 
 The scoring settings, which are the points, half-life, bonus, and label cut-offs, start at the plan's values. They are tuned during the shadow week.
 
 ## Data stored
 
-Three PostgreSQL tables hold the data: `interactions`, `interaction_participants`, and `mailbox_sync_cursors`. They hold headers, subjects, and event details, never bodies.
+Four PostgreSQL tables hold the data: `interactions`, `interaction_participants`, `mailbox_sync_cursors`, and `attio_sent_values`. The first three hold headers, subjects, and event details, never bodies. The last holds what was last sent to Attio.
 
 Subjects can contain deal names, so treat these tables like other CRM data. Nothing is sent to a third party.
 

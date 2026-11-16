@@ -7,6 +7,7 @@ from dataclasses import replace
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import InstrumentedAttribute
 
 from app.models import Interaction, InteractionParticipant
 from app.modules.interactions.domain.model import Channel, Direction, Role, Touch
@@ -14,6 +15,7 @@ from app.modules.interactions.domain.touch_building import (
     StoredItem,
     StoredParticipant,
     touches_by_organization,
+    touches_by_person,
 )
 
 
@@ -25,11 +27,16 @@ class SqlAlchemyTouchReader:
         self._internal_domains = internal_domains
 
     async def touches_by_organization(self) -> Mapping[str, tuple[Touch, ...]]:
-        linked = (
-            select(InteractionParticipant.interaction_id)
-            .where(InteractionParticipant.organization_attio_id.is_not(None))
-            .distinct()
-        )
+        items = await self._items(InteractionParticipant.organization_attio_id)
+        return touches_by_organization(items, self._internal_domains)
+
+    async def touches_by_person(self) -> Mapping[str, tuple[Touch, ...]]:
+        items = await self._items(InteractionParticipant.person_attio_id)
+        return touches_by_person(items, self._internal_domains)
+
+    async def _items(self, link: InstrumentedAttribute[str | None]) -> list[StoredItem]:
+        """Every live interaction that has at least one participant linked through `link`."""
+        linked = select(InteractionParticipant.interaction_id).where(link.is_not(None)).distinct()
         stmt = (
             select(
                 Interaction.id,
@@ -42,6 +49,7 @@ class SqlAlchemyTouchReader:
                 InteractionParticipant.email,
                 InteractionParticipant.role,
                 InteractionParticipant.organization_attio_id,
+                InteractionParticipant.person_attio_id,
             )
             .join(InteractionParticipant, InteractionParticipant.interaction_id == Interaction.id)
             .where(Interaction.cancelled.is_(False), Interaction.id.in_(linked))
@@ -53,7 +61,9 @@ class SqlAlchemyTouchReader:
         heads: dict[uuid.UUID, StoredItem] = {}
         for row in rows:
             participants[row.id].append(
-                StoredParticipant(row.email, Role(row.role), row.organization_attio_id)
+                StoredParticipant(
+                    row.email, Role(row.role), row.organization_attio_id, row.person_attio_id
+                )
             )
             if row.id not in heads:
                 heads[row.id] = StoredItem(
@@ -65,8 +75,7 @@ class SqlAlchemyTouchReader:
                     subject=row.subject,
                     participants=(),
                 )
-        items = [
+        return [
             replace(head, participants=tuple(participants[item_id]))
             for item_id, head in heads.items()
         ]
-        return touches_by_organization(items, self._internal_domains)

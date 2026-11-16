@@ -10,3 +10,7 @@ class TouchReaderPort(Protocol):
     async def touches_by_organization(self) -> Mapping[str, tuple[Touch, ...]]:
         """Touches per Organization id, cancelled meetings left out."""
         ...
+
+    async def touches_by_person(self) -> Mapping[str, tuple[Touch, ...]]:
+        """Touches per Person id, cancelled meetings left out."""
+        ...

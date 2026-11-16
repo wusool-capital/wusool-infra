@@ -12,6 +12,11 @@ for current production evidence and open handover items.
 
 ### Added
 
+- The interactions engine can write its fields to Attio (AZM-159 PR 4). It
+  sends only changed values, slowly, and only in production. It is off until
+  the shadow-week gate passes. A seed step first records what Attio holds. A
+  production alarm watches for a stalled sync. The numeric score behind each
+  strength is stored in Postgres only.
 - `attio_sent_values.baseline` holds the seed's baseline for each field
   (AZM-159 PR 4). It replaces separate prefixed rows.
 

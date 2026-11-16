@@ -1,7 +1,7 @@
 """Turning stored interactions into the `Touch`es that scoring reads, grouped by Organization."""
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -17,6 +17,7 @@ class StoredParticipant:
     email: str
     role: Role
     organization_id: str | None
+    person_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -35,6 +36,20 @@ class StoredItem:
 def touches_by_organization(
     items: Iterable[StoredItem], internal_domains: tuple[str, ...]
 ) -> dict[str, tuple[Touch, ...]]:
+    return _touches_by(items, internal_domains, lambda p: p.organization_id)
+
+
+def touches_by_person(
+    items: Iterable[StoredItem], internal_domains: tuple[str, ...]
+) -> dict[str, tuple[Touch, ...]]:
+    return _touches_by(items, internal_domains, lambda p: p.person_id)
+
+
+def _touches_by(
+    items: Iterable[StoredItem],
+    internal_domains: tuple[str, ...],
+    record_of: Callable[[StoredParticipant], str | None],
+) -> dict[str, tuple[Touch, ...]]:
     """One touch per item and outside contact, even when the contact is on both To and CC."""
     grouped: dict[str, list[Touch]] = defaultdict(list)
     for item in items:
@@ -44,14 +59,15 @@ def touches_by_organization(
         team_role = next((r for r in _ROLE_ORDER if r in team_roles), None)
         seen: set[str] = set()
         for participant in item.participants:
+            record_id = record_of(participant)
             if (
-                participant.organization_id is None
+                record_id is None
                 or is_internal(participant.email, internal_domains)
                 or participant.email in seen
             ):
                 continue
             seen.add(participant.email)
-            grouped[participant.organization_id].append(
+            grouped[record_id].append(
                 Touch(
                     dedupe_key=item.dedupe_key,
                     team_member=team_member,

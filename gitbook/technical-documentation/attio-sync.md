@@ -97,6 +97,7 @@ hours late.
   including failed and partial writes.
 - Lead tools write Attio only and let the mirror follow.
 - Scribe meetings create an Attio note, with or without an organization.
+- The interactions engine writes its fields to Organizations and Person, changed values only. The webhook mirrors them back like any other edit.
 
 ## Failure behavior
 
