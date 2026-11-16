@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import select, text
+from sqlalchemy import ScalarSelect, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -55,7 +55,7 @@ class SqlAlchemyReviewStore:
         )
 
 
-def _latest_subject(case: ReviewCase):  # noqa: ANN202 - a scalar subquery has no public type
+def _latest_subject(case: ReviewCase) -> ScalarSelect[str | None]:
     column = (
         InteractionParticipant.email
         if case.kind is Ambiguity.SHARED_EMAIL
