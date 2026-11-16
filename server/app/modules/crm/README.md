@@ -79,7 +79,8 @@ A seller's sector is the role's own `sector`, or the company's `sector_focus` wh
 none, which is most roles. The sector column, filter, options and search all use that same value.
 
 The two sectors stay apart in the drawer and the edit form. Each row also carries `companySector`
-(the company's `sector_focus`, shown at the top) and, for a seller, `ownSector` (the role's own).
+(the company's `sector_focus`) and, for a seller, `ownSector` (the database's `seller_roles.sector`,
+which Attio has no attribute for, so the Engine does not show it).
 A buyer's role-level sector is its target vertical (`sectors`). The role-level one is shown under
 Buyer or Seller details, read only.
 
