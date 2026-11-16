@@ -18,14 +18,19 @@ FREE_EMAIL_DOMAINS = FREE_MAIL | frozenset(
 
 LEAD_SOURCE_DETAIL = "Email sync"
 
+_MAX_NAME_CHARS = 100
+
 # Second-level labels under a country code, as in acme.co.uk.
 _SECOND_LEVEL = frozenset({"co", "com", "org", "net", "ac", "gov", "edu"})
 
 
 def person_name(display_name: str | None, email: str) -> str:
-    """Attio requires a name; the address stands in when the sender gave none or repeated it."""
-    name = (display_name or "").strip()
-    return email if not name or name.lower() == email else name
+    """Attio requires a name. The address stands in when the sender gave none, or one that is
+    long, unprintable, or carries an address of its own, since the sender chose that text."""
+    name = " ".join((display_name or "").split())
+    if not name or len(name) > _MAX_NAME_CHARS or "@" in name or not name.isprintable():
+        return email
+    return name
 
 
 def registrable_domain(domain: str) -> str:

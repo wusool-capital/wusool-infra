@@ -45,6 +45,7 @@ from app.modules.interactions.domain.auto_create import FREE_EMAIL_DOMAINS
 from app.modules.interactions.domain.calibration import CalibrationReport
 from app.modules.interactions.persistence.advisory_lock import try_advisory_lock
 from app.modules.interactions.persistence.candidates import SqlAlchemyCandidateSource
+from app.modules.interactions.persistence.created_keys import SqlAlchemyCreatedKeys
 from app.modules.interactions.persistence.database import get_engine, get_sessionmaker
 from app.modules.interactions.persistence.directory import SqlAlchemyRecordDirectory
 from app.modules.interactions.persistence.interaction_store import SqlAlchemyInteractionStore
@@ -143,15 +144,17 @@ async def _round(
     now = clock()
     if last_purge is not None and now - last_purge < _PURGE_EVERY:
         return last_purge
+    purged_ok = True
     try:
         purged = await service.purge_expired()
+        logger.info("interactions_purged rows=%d", purged)
     except Exception:
         logger.exception("interactions_purge_failed")
-        return last_purge  # unchanged, so the next round tries again
-    logger.info("interactions_purged rows=%d", purged)
+        purged_ok = False
+    # The post never repeats a case, so it can run even when the purge failed and is retried.
     if digest is not None:
         await _digest_round(digest)
-    return now
+    return now if purged_ok else last_purge  # unchanged on failure, so the next round tries again
 
 
 async def _write_round(attio_write: WriteRunner) -> None:
@@ -322,7 +325,12 @@ async def _attio_write_runner() -> AsyncIterator[WriteRunner | None]:
 def _review_digest() -> ReviewDigestService | None:
     """The daily review post, or None until a channel and the Slack token are set."""
     settings = get_settings()
-    if not settings.interactions_review_slack_channel or not settings.slack_bot_token:
+    if not settings.interactions_review_slack_channel:
+        return None
+    if not settings.slack_bot_token:
+        logger.warning(
+            "interactions_review_digest_off: a channel is set but the Slack token is not"
+        )
         return None
     notifier = SlackWebClientNotifier(get_slack_client(settings.slack_bot_token))
     return ReviewDigestService(
@@ -352,6 +360,7 @@ async def _auto_create_runner() -> AsyncIterator[AutoCreateRunner | None]:
                 SqlAlchemyCandidateSource(sessionmaker),
                 SqlAlchemyRecordDirectory(sessionmaker),
                 AttioRecordCreator(client),
+                SqlAlchemyCreatedKeys(sessionmaker),
                 AutoCreateConfig(
                     internal_domains=settings.internal_domains,
                     free_email_domains=FREE_EMAIL_DOMAINS,

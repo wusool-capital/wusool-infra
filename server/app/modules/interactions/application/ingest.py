@@ -317,6 +317,7 @@ class IngestService:
     async def _link_participants(self) -> tuple[int, int, int]:
         addresses = await self._store.unlinked_addresses(self._config.internal_domains)
         if not addresses:
+            await self._sync_reviews({})  # whatever was open has been fixed
             return 0, 0, 0
         directory = await self._directory.load()
         links: list[AddressLink] = []
@@ -342,14 +343,14 @@ class IngestService:
             if resolution.person_id or resolution.organization_id:
                 links.append(AddressLink(address, resolution.person_id, resolution.organization_id))
         linked = await self._store.set_links(links)
-        await self._save_reviews(cases)
+        await self._sync_reviews(cases)
         return linked, shared_emails, shared_domains
 
-    async def _save_reviews(self, cases: dict[tuple[Ambiguity, str], ReviewCase]) -> None:
-        if self._reviews is None or not cases:
+    async def _sync_reviews(self, cases: dict[tuple[Ambiguity, str], ReviewCase]) -> None:
+        if self._reviews is None:
             return
         try:
-            await self._reviews.save_open(tuple(cases.values()))
+            await self._reviews.sync_open(tuple(cases.values()))
         except Exception:
             # The links are already saved; the cases are found again next pass.
             logger.exception("interactions_review_save_failed")

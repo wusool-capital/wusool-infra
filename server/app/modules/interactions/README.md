@@ -98,13 +98,16 @@ with a two-way thread or an uncancelled meeting (`SqlAlchemyCandidateSource`), f
 `domain/creatable.py`, and creates a Person and, unless the domain has one, an Organization in
 Attio, both tagged Lead Source Detail "Email sync".
 
-- **Duplicates.** Postgres lags the webhook, so `person_exists` asks Attio by email first, and
-  the Organizations a process just made are remembered until the webhook brings them in.
+- **Duplicates.** Postgres lags the webhook, so each create is recorded in `auto_create_keys`
+  right after Attio accepts it, and `person_exists` asks Attio by email as a second check.
+- **Failures.** An address Attio rejects three times is dropped until the next restart, so it
+  can't use up every round's cap.
 - **Names.** The Person's name is the sender's display name (`interaction_participants.display_name`,
   filled for mail read since this column was added), else the address, as the sync bot does.
 - **Shared cases.** An address or domain that matches several records creates nothing. Ingest saves
-  it to `interaction_review_items`, and `ReviewDigestService` posts what is open once a day, with
-  the purge, to `INTERACTIONS_REVIEW_SLACK_CHANNEL`.
+  it to `interaction_review_items`; one that is fixed resolves itself, and a dismissed one stays
+  dismissed. `ReviewDigestService` posts the cases it has not listed yet, once a day with the
+  purge, to `INTERACTIONS_REVIEW_SLACK_CHANNEL`.
 - **Safety.** `INTERACTIONS_AUTO_CREATE_MODE` is `off` by default; `dry_run` logs counts only;
   capped per round; refuses to run while `ATTIO_IS_TEST` is set. Free-email domains extend the
   benchmark's `FREE_MAIL` list.

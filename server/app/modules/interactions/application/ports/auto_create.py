@@ -1,6 +1,7 @@
 """What auto-create reads and writes: unknown outside addresses, and new Attio records."""
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Protocol
 
 
@@ -34,3 +35,18 @@ class RecordCreatorPort(Protocol):
     async def create_person(self, name: str, email: str, organization_id: str | None) -> str:
         """Returns the new Person's Attio id."""
         ...
+
+
+class CreatedKind(StrEnum):
+    PERSON = "person"
+    ORGANIZATION = "organization"
+
+
+class CreatedKeysPort(Protocol):
+    """Our own record of what we created, so a retry or a restart never creates it twice."""
+
+    async def get(self, kind: CreatedKind, key: str) -> str | None:
+        """The Attio id created for this email (a Person) or domain (an Organization)."""
+        ...
+
+    async def save(self, kind: CreatedKind, key: str, record_id: str) -> None: ...

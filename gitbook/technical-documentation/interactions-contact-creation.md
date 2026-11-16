@@ -8,7 +8,7 @@ When an outside address has no Person, the engine can create one. It needs a two
 
 It creates the Organization first, unless the domain has one, then the Person linked to it. Both are tagged Lead Source Detail "Email sync". The Person's name is the sender's display name, or the address when there is none.
 
-Before creating, it asks Attio whether the email exists, because PostgreSQL lags the webhook. An address or domain that matches several records creates nothing. It is saved for review and posted to Slack once a day.
+Postgres lags the webhook, so the engine records each create and asks Attio whether the email exists before creating. An address or domain that matches several records creates nothing. It is saved for review, and new cases are posted to Slack once a day. A case resolves itself once it is fixed.
 
 ## Settings
 

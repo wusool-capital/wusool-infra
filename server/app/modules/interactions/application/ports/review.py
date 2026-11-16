@@ -1,4 +1,4 @@
-"""Shared addresses and domains left for a person to sort out, and the daily post about them."""
+"""Shared addresses and domains left for a person to sort out, and the post about them."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -23,14 +23,19 @@ class OpenReview:
     # Subject of the latest interaction involving the value, for context.
     subject: str | None
     record_count: int
+    # Whether the digest has already listed it.
+    notified: bool = False
 
 
 class ReviewStorePort(Protocol):
-    async def save_open(self, cases: Sequence[ReviewCase]) -> None:
-        """One open item per kind and value; a case that is already open is left as it is."""
+    async def sync_open(self, cases: Sequence[ReviewCase]) -> None:
+        """Opens cases not seen before and resolves open items that are no longer in `cases`.
+        A case a person dismissed stays dismissed."""
         ...
 
     async def list_open(self) -> tuple[OpenReview, ...]: ...
+
+    async def mark_notified(self, items: Sequence[OpenReview]) -> None: ...
 
 
 class DigestPosterPort(Protocol):

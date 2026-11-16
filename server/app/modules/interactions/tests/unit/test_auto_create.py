@@ -2,7 +2,7 @@ import pytest
 
 from app.modules.interactions.application.auto_create import AutoCreateConfig, AutoCreateService
 from app.modules.interactions.application.ports.attio_writer import WritesNotAllowedError
-from app.modules.interactions.application.ports.auto_create import Candidate
+from app.modules.interactions.application.ports.auto_create import Candidate, CreatedKind
 from app.modules.interactions.domain.auto_create import (
     FREE_EMAIL_DOMAINS,
     organization_name,
@@ -22,6 +22,10 @@ INTERNAL = ("wusoolcapital.com", "dopaminecap.com")
         (None, "sara@acme.com"),
         ("", "sara@acme.com"),
         ("Sara@Acme.com", "sara@acme.com"),
+        ("CEO ceo@bigcorp.com", "sara@acme.com"),
+        ("Sara\x00Lee", "sara@acme.com"),
+        ("x" * 101, "sara@acme.com"),
+        ("Sara\n  Lee", "Sara Lee"),
     ],
 )
 def test_person_name_falls_back_to_the_address(display: str | None, expected: str) -> None:
@@ -75,6 +79,17 @@ class _Directory:
         return self.directory
 
 
+class _Keys:
+    def __init__(self) -> None:
+        self.saved: dict[tuple[CreatedKind, str], str] = {}
+
+    async def get(self, kind: CreatedKind, key: str) -> str | None:
+        return self.saved.get((kind, key))
+
+    async def save(self, kind: CreatedKind, key: str, record_id: str) -> None:
+        self.saved[(kind, key)] = record_id
+
+
 class _Creator:
     def __init__(
         self,
@@ -112,9 +127,12 @@ def _service(
     directory: RecordDirectory | None = None,
     cap: int = 20,
     dry_run: bool = False,
+    keys: _Keys | None = None,
 ) -> AutoCreateService:
     config = AutoCreateConfig(INTERNAL, FREE_EMAIL_DOMAINS, cap, dry_run)
-    return AutoCreateService(_Source(*candidates), _Directory(directory), creator, config)
+    return AutoCreateService(
+        _Source(*candidates), _Directory(directory), creator, keys or _Keys(), config
+    )
 
 
 async def test_a_new_contact_at_a_new_company_creates_the_organization_then_the_person() -> None:
@@ -249,3 +267,48 @@ async def test_an_organization_made_before_a_person_failed_is_reused_next_round(
 async def test_a_refusal_to_write_stops_the_whole_round() -> None:
     with pytest.raises(WritesNotAllowedError):
         await _service(_Creator(refuse=True), _candidate()).run_round()
+
+
+async def test_each_create_is_recorded_in_the_keys_table() -> None:
+    keys = _Keys()
+
+    await _service(_Creator(), _candidate(), keys=keys).run_round()
+
+    assert keys.saved == {
+        (CreatedKind.ORGANIZATION, "acme.com"): "org-1",
+        (CreatedKind.PERSON, "sara@acme.com"): "person-1",
+    }
+
+
+async def test_after_a_restart_the_recorded_organization_is_reused_not_made_again() -> None:
+    keys = _Keys()
+    first = _Creator(fail_person_for="a@one.com")
+    await _service(first, _candidate("a@one.com"), keys=keys).run_round()
+    second = _Creator()
+
+    # A new service and a new creator: nothing is remembered but the keys table.
+    await _service(second, _candidate("a@one.com"), keys=keys).run_round()
+
+    assert second.orgs == []
+    assert second.people == [("Sara Lee", "a@one.com", "org-1")]
+
+
+async def test_a_person_already_recorded_is_never_created_again() -> None:
+    keys = _Keys()
+    keys.saved[(CreatedKind.PERSON, "sara@acme.com")] = "person-9"
+    creator = _Creator()
+
+    report = await _service(creator, _candidate(), keys=keys).run_round()
+
+    assert (creator.orgs, creator.people, report.existing) == ([], [], 1)
+
+
+async def test_an_address_that_keeps_failing_stops_using_the_rounds_cap() -> None:
+    creator = _Creator(fail_person_for="a@one.com")
+    service = _service(creator, _candidate("a@one.com"), _candidate("b@two.com"), cap=1)
+
+    reports = [await service.run_round() for _ in range(5)]
+
+    # It fails three times and then waits for a restart; the next address is then served.
+    assert [r.failed for r in reports] == [1, 1, 1, 0, 0]
+    assert [email for _, email, _ in creator.people] == ["b@two.com"]

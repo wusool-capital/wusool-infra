@@ -120,15 +120,20 @@ async def test_a_domain_shared_by_two_organizations_is_counted_and_links_no_orga
 class _Reviews:
     def __init__(self, *, failing: bool = False) -> None:
         self.cases: list[ReviewCase] = []
+        self.syncs = 0
         self.failing = failing
 
-    async def save_open(self, cases) -> None:
+    async def sync_open(self, cases) -> None:
         if self.failing:
             raise RuntimeError("table is locked")
+        self.syncs += 1
         self.cases.extend(cases)
 
     async def list_open(self):
         return ()
+
+    async def mark_notified(self, items) -> None:
+        raise AssertionError("not used")
 
 
 async def test_a_shared_address_and_a_shared_domain_are_saved_for_review() -> None:
@@ -152,6 +157,15 @@ async def test_a_shared_address_and_a_shared_domain_are_saved_for_review() -> No
         ReviewCase(Ambiguity.SHARED_DOMAIN, "shared.com", ("o3", "o4")),
         ReviewCase(Ambiguity.SHARED_EMAIL, "info@acme.com", ("p1", "p2")),
     ]
+
+
+async def test_review_items_are_synced_even_when_nothing_is_left_unlinked() -> None:
+    reviews = _Reviews()
+
+    await make_service(FakeStore(), reviews=reviews).run_pass()
+
+    # An empty set is what lets a fixed case resolve itself.
+    assert (reviews.syncs, reviews.cases) == (1, [])
 
 
 async def test_a_failing_review_save_does_not_fail_the_pass() -> None:

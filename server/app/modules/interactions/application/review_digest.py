@@ -1,4 +1,4 @@
-"""The daily post of what is still open for review."""
+"""The post about review cases that nobody has been told about yet."""
 
 import logging
 
@@ -22,19 +22,26 @@ class ReviewDigestService:
         self._poster = poster
 
     async def run(self) -> int:
-        """Items listed. Posts nothing when none are open."""
+        """Items listed. Posts only cases not listed before, so a restart repeats nothing."""
         items = await self._store.list_open()
-        if not items:
+        new = tuple(item for item in items if not item.notified)
+        if not new:
             return 0
-        await self._poster.post(_message(items))
-        return min(len(items), _MAX_LISTED)
+        listed = new[:_MAX_LISTED]
+        await self._poster.post(_message(listed, len(new), len(items)))
+        # Marked after the post, so a failed post is tried again.
+        await self._store.mark_notified(listed)
+        return len(listed)
 
 
-def _message(items: tuple[OpenReview, ...]) -> str:
-    lines = [f"*Interactions engine: {len(items)} to review.* Each matched more than one record."]
-    lines += [_line(item) for item in items[:_MAX_LISTED]]
-    if len(items) > _MAX_LISTED:
-        lines.append(f"…and {len(items) - _MAX_LISTED} more")
+def _message(listed: tuple[OpenReview, ...], new: int, total: int) -> str:
+    lines = [
+        f"*Interactions engine: {new} new to review* ({total} open in total). "
+        "Each matched more than one record."
+    ]
+    lines += [_line(item) for item in listed]
+    if new > len(listed):
+        lines.append(f"…and {new - len(listed)} more, in the next post")
     return "\n".join(lines)
 
 

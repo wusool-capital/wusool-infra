@@ -452,6 +452,16 @@ async def test_the_review_digest_runs_once_a_day_with_the_purge() -> None:
     assert digest.runs == 1
 
 
+async def test_the_digest_still_runs_when_the_purge_fails() -> None:
+    service, digest = _Service(failing_purges=1), _Digest()
+    clock = _Clock()
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_loop(service, _locks(), INTERVAL_S, clock, _Sleeper(clock, 1), digest=digest)
+
+    assert digest.runs == 1
+
+
 async def test_a_failing_digest_does_not_stop_the_loop() -> None:
     service, digest = _Service(), _Digest(failing=True)
     clock = _Clock()

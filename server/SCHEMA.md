@@ -553,6 +553,7 @@ a person to review. At most one open item per value.
 | subject | text | yes | | subject of the email that raised it |
 | record_attio_ids | text[] | no | `{}` | the records it could belong to |
 | status | text | no | `open` | `open`, `resolved` or `dismissed` |
+| notified_at | timestamptz | yes | | when the daily post first listed it |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
 ### `auto_create_keys` (`auto_create_key.py`) — new, AZM-159
