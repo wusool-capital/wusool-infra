@@ -60,7 +60,7 @@ def to_seller(
         name=org.name,
         hq=org.hq_country,
         website=org.domains[0] if org.domains else None,
-        sector=", ".join(role.sector) or None,
+        sector=", ".join(role.sector or org.sector_focus) or None,
         geography=org.region or org.hq_country,
         est_revenue_usd=amount(role.est_revenue),
         est_ebitda_usd=amount(role.est_ebitda),

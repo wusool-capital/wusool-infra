@@ -275,6 +275,14 @@ def _buyer_conditions(filters: BuyerFilters) -> list[ColumnElement[bool]]:
     return conditions
 
 
+def _seller_sector() -> ColumnElement[list[str]]:
+    """The role's own sector, or the company's when the role has none (most roles)."""
+    return case(
+        (func.cardinality(SellerRoleRow.sector) > 0, SellerRoleRow.sector),
+        else_=Organization.sector_focus,
+    )
+
+
 def _seller_geography() -> ColumnElement[str | None]:
     return func.coalesce(func.nullif(Organization.region, ""), Organization.hq_country)
 
@@ -282,7 +290,7 @@ def _seller_geography() -> ColumnElement[str | None]:
 def _seller_conditions(filters: SellerFilters) -> list[ColumnElement[bool]]:
     conditions: list[ColumnElement[bool]] = []
     if filters.sectors:
-        conditions.append(SellerRoleRow.sector.overlap(list(filters.sectors)))
+        conditions.append(_seller_sector().overlap(list(filters.sectors)))
     if filters.geographies:
         conditions.append(or_(*(_has_item(_seller_geography(), g) for g in filters.geographies)))
     conditions += _in_range(_money(SellerRoleRow.est_revenue), filters.revenue)
@@ -306,7 +314,7 @@ def _seller_conditions(filters: SellerFilters) -> list[ColumnElement[bool]]:
             or_(
                 Organization.name.icontains(word, autoescape=True),
                 Organization.hq_country.icontains(word, autoescape=True),
-                func.array_to_string(SellerRoleRow.sector, " ").icontains(word, autoescape=True),
+                func.array_to_string(_seller_sector(), " ").icontains(word, autoescape=True),
                 contact,
             )
         )
@@ -375,7 +383,7 @@ async def _buyer_options(session: AsyncSession) -> BuyerFilterOptions:
 async def _seller_options(session: AsyncSession) -> SellerFilterOptions:
     live = and_(*_seller_live())
     base = (
-        select(distinct(SellerRoleRow.sector))
+        select(distinct(_seller_sector()))
         .select_from(SellerRoleRow)
         .join(Organization, SellerRoleRow.org_attio_id == Organization.attio_id)
         .where(live)

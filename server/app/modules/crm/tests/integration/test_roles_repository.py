@@ -187,6 +187,37 @@ async def test_sellers_map_geography_signal_and_contacts(repo: PostgresRolesRepo
     assert page.options.geographies == ("GCC", "Levant")
 
 
+async def test_a_seller_with_no_sector_of_its_own_uses_the_companys(
+    repo: PostgresRolesRepository, db_session: AsyncSession
+) -> None:
+    db_session.add_all(
+        [
+            Organization(
+                attio_id="o8", name="Omega", domains=["o.com"], sector_focus=["Logistics"]
+            ),
+            Organization(attio_id="o9", name="Psi", domains=["p.com"], sector_focus=["Logistics"]),
+        ]
+    )
+    await db_session.flush()
+    db_session.add_all(
+        [
+            SellerRole(org_attio_id="o8", sector=[], is_active=True),
+            SellerRole(org_attio_id="o9", sector=["Retail"], is_active=True),
+        ]
+    )
+    await db_session.flush()
+
+    page = await repo.sellers_page(SellerFilters(), None, 20)
+    by_sector = await repo.sellers_page(SellerFilters(sectors=("Logistics",)), None, 20)
+    searched = await repo.sellers_page(SellerFilters(text="logistics"), None, 20)
+
+    sectors = {r.name: r.sector for r in page.rows}
+    assert (sectors["Omega"], sectors["Psi"]) == ("Logistics", "Retail")
+    assert "Logistics" in page.options.sectors
+    assert [r.name for r in by_sector.rows] == ["Omega"]
+    assert [r.name for r in searched.rows] == ["Omega"]
+
+
 async def test_seller_filters(repo: PostgresRolesRepository) -> None:
     unknown = await repo.sellers_page(SellerFilters(open_to_selling=("Unknown",)), None, 10)
     interested = await repo.sellers_page(SellerFilters(open_to_selling=("Interested",)), None, 10)

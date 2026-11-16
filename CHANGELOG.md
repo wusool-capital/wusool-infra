@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- A seller in the Engine with no sector of its own now shows its company's sector. The Sellers
+  sector column, filter and search use it too. Before, most sellers had none.
 - Web addresses in the Engine's buyer and seller drawers are now links that open in a new
   tab. This covers the website, LinkedIn and the logo. A long address shows only its domain.
 - AWS CloudTrail now has one trail instead of two. Dev and prod share one AWS
