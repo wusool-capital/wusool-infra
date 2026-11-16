@@ -139,8 +139,9 @@ class AttioWriteService:
                 new_scores[record_id] = score
         if new_scores and not self._config.dry_run:
             try:
-                updated = await self._scores.save(obj, new_scores)
-                report = replace(report, scores_updated=report.scores_updated + updated)
+                await self._scores.save(obj, new_scores)
+                # Counted here: a bulk update reports its row count as unknown (-1).
+                report = replace(report, scores_updated=report.scores_updated + len(new_scores))
             except Exception:
                 logger.exception("interactions_score_write_failed object=%s", obj.value)
         return report

@@ -33,7 +33,7 @@ out of sync with each other without it.
 | Stack | Owns | Per-environment? |
 |---|---|---|
 | `account` | GuardDuty, Security Hub, security-alert routing, GitHub OIDC provider + roles, the `wusool-tfstate` state bucket itself | **No** — applied once, no `-var-file` |
-| `base` | VPC, subnets, CloudTrail, the infrastructure-alerts SNS topic | Yes |
+| `base` | VPC, subnets, the CloudTrail bucket and (when `enable_cloudtrail` is true, prod only) the account's one multi-region trail, the infrastructure-alerts SNS topic | Yes |
 | `toolkit` | The wusool-toolkit EC2 instance (an Auto Scaling Group of size 1, not a standalone `aws_instance` — self-heals on termination/hardware failure and keeps its Elastic IP across replacement), its secret, its own ECR repo | Yes |
 | `postgres` | The RDS instance, seeded from a snapshot if `snapshot_identifier` is set | Yes |
 | `peering` | The dev↔prod VPC peering connection and its routes | **No** — spans both environments |

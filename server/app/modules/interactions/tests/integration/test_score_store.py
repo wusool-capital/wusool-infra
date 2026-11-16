@@ -19,12 +19,26 @@ async def test_scores_load_and_save_for_organizations_and_people(
         session.add(Person(attio_id=person_id, name="Sara", company_attio_id=org_id))
     store = SqlAlchemyScoreStore(sessionmaker)
 
-    changed_orgs = await store.save(AttioObject.ORGANIZATIONS, {org_id: Decimal("12.3456")})
-    changed_people = await store.save(AttioObject.PERSON, {person_id: Decimal("3.5")})
-    unknown = await store.save(AttioObject.PERSON, {f"{record_prefix}missing": Decimal("1")})
+    await store.save(AttioObject.ORGANIZATIONS, {org_id: Decimal("12.3456")})
+    await store.save(AttioObject.PERSON, {person_id: Decimal("3.5")})
+    # A record the mirror does not hold changes nothing and does not fail.
+    await store.save(AttioObject.PERSON, {f"{record_prefix}missing": Decimal("1")})
 
     orgs, people = await store.load(AttioObject.ORGANIZATIONS), await store.load(AttioObject.PERSON)
-    assert (changed_orgs, changed_people, unknown) == (1, 1, 0)
     assert orgs[org_id] == Decimal("12.3456")
     assert people[person_id] == Decimal("3.5")
     assert person_id not in orgs
+
+
+async def test_several_scores_saved_at_once_all_land(
+    sessionmaker: async_sessionmaker[AsyncSession], record_prefix: str
+) -> None:
+    ids = [f"{record_prefix}o{i}" for i in range(3)]
+    async with sessionmaker() as session, session.begin():
+        session.add_all([Organization(attio_id=i, name=f"Org {i}") for i in ids])
+    store = SqlAlchemyScoreStore(sessionmaker)
+
+    await store.save(AttioObject.ORGANIZATIONS, {i: Decimal(n + 1) for n, i in enumerate(ids)})
+
+    stored = await store.load(AttioObject.ORGANIZATIONS)
+    assert [stored[i] for i in ids] == [Decimal(1), Decimal(2), Decimal(3)]

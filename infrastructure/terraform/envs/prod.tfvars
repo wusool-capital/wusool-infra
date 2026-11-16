@@ -69,3 +69,6 @@ extra_allowed_security_group_ids = ["sg-0684b8cf83abfd065"]
 
 # RDS-managed master secret for wusool-prod-postgres (see dev.tfvars).
 toolkit_db_master_secret_arn = "arn:aws:secretsmanager:eu-central-1:030179310793:secret:rds!db-96c622e2-a467-437e-9cd9-167fa7744501-Iqbmlq"
+
+# The interactions engine writes to Attio every 15 minutes; alarm after 30 minutes of silence.
+interactions_sync_alarm = true
