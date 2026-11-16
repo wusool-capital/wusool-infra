@@ -70,7 +70,7 @@ export function BuyerDrawer({ buyer, data, panel, onPanel, onClose }: Props) {
           <Item label="Status"><BuyerStatusPill status={buyer.status} /></Item>
           <Item label="Owner">{owner?.name ?? "Not set"}</Item>
           {isLive ? <Item label="Company sector">{buyer.companySector ?? <span className="muted">Not set</span>}</Item> : <Item label="Sectors">{buyer.sectors.join(", ")}</Item>}
-          <Item label="Geography">{buyer.geographies.join(", ")}</Item>
+          <Item label="Target geography">{buyer.geographies.join(", ")}</Item>
           <Item label="Check size">{checkSizeLabel(buyer)}</Item>
           <Item label="Min. EBITDA">{formatMoney(buyer.ebitdaFloorUsd)}</Item>
           <Item label="Website"><LinkText text={buyer.website} /></Item>
@@ -227,81 +227,115 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
         </>
       }
     >
-      <section className="drawer__section">
-        <div className="form-grid">
-          {isNew && (
-            <>
-              <div className="field">
-                <label htmlFor="buyer-name">Name</label>
-                <input id="buyer-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
-              </div>
-              <div className="field">
-                {isLive ? (
-                  <>
-                    <label htmlFor="buyer-hq">HQ country</label>
-                    <select id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
-                      <option value="">Pick a country</option>
-                      {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
-                    </select>
-                  </>
-                ) : (
-                  <>
-                    <label htmlFor="buyer-hq">HQ city</label>
-                    <input id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
-                  </>
-                )}
-              </div>
-              <div className="field">
-                <label htmlFor="buyer-website">Website</label>
-                <input id="buyer-website" value={identity.website} placeholder="example.com" onChange={(event) => setIdentity({ ...identity, website: event.target.value })} />
-              </div>
-            </>
-          )}
-          {isLive && !isNew && (
-            <div className="field">
-              <label htmlFor="buyer-hq-edit">HQ country</label>
-              <select id="buyer-hq-edit" value={draft.hq} onChange={(event) => set("hq", event.target.value)}>
-                {!draft.hq && <option value="">Not set</option>}
-                {[...new Set([draft.hq, ...data.options.hqCountries].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}
-              </select>
-            </div>
-          )}
-          <div className="field">
-            <label htmlFor="buyer-type">Type</label>
-            <select id="buyer-type" value={draft.type ?? ""} disabled={isLive} onChange={(event) => set("type", event.target.value as BuyerRole["type"])}>
-              {draft.type === null && <option value="">Not set</option>}
-              {BUYER_TYPES.map((value) => <option key={value}>{value}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="buyer-status">Status</label>
-            <select id="buyer-status" value={draft.status ?? ""} onChange={(event) => set("status", event.target.value)}>
-              {draft.status === null && <option value="">Not set</option>}
-              {data.options.statuses.map((value) => <option key={value}>{value}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="buyer-owner">Owner</label>
-            <select id="buyer-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
-              {draft.ownerId === null && <option value="">Not set</option>}
-              {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label htmlFor="buyer-ebitda-floor">Min. EBITDA (USD)</label>
-            <AmountInput id="buyer-ebitda-floor" value={draft.ebitdaFloorUsd ?? undefined} onChange={(value) => set("ebitdaFloorUsd", value ?? null)} />
-          </div>
-          <div className="field">
-            <label htmlFor="buyer-ticket-min">Check size from (USD)</label>
-            <AmountInput id="buyer-ticket-min" value={draft.checkSizeMinUsd ?? undefined} onChange={(value) => set("checkSizeMinUsd", value ?? null)} />
-          </div>
-          <div className="field">
-            <label htmlFor="buyer-ticket-max">Check size to (USD)</label>
-            <AmountInput id="buyer-ticket-max" value={draft.checkSizeMaxUsd ?? undefined} onChange={(value) => set("checkSizeMaxUsd", value ?? null)} />
-          </div>
-        </div>
-        {sectorsLocked ? (
+      <DetailFields
+        fields={sectorsLocked ? data.options.fields.filter((field) => field.key !== "sector_focus") : data.options.fields}
+        values={details.values}
+        onChange={details.set}
+        roleName="Buyer"
+        status={details.status}
+        companyFirst={isNew}
+        role={
           <>
+            <div className="form-grid">
+              {sectorsLocked && (
+                <div className="field">
+                  <label htmlFor="buyer-target-vertical">Target vertical</label>
+                  <input id="buyer-target-vertical" value={buyer.sectors.join(", ") || "Not set"} readOnly disabled />
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="buyer-status">Status</label>
+                <select id="buyer-status" value={draft.status ?? ""} onChange={(event) => set("status", event.target.value)}>
+                  {draft.status === null && <option value="">Not set</option>}
+                  {data.options.statuses.map((value) => <option key={value}>{value}</option>)}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="buyer-ebitda-floor">Min. EBITDA (USD)</label>
+                <AmountInput id="buyer-ebitda-floor" value={draft.ebitdaFloorUsd ?? undefined} onChange={(value) => set("ebitdaFloorUsd", value ?? null)} />
+              </div>
+              <div className="field">
+                <label htmlFor="buyer-ticket-min">Check size from (USD)</label>
+                <AmountInput id="buyer-ticket-min" value={draft.checkSizeMinUsd ?? undefined} onChange={(value) => set("checkSizeMinUsd", value ?? null)} />
+              </div>
+              <div className="field">
+                <label htmlFor="buyer-ticket-max">Check size to (USD)</label>
+                <AmountInput id="buyer-ticket-max" value={draft.checkSizeMaxUsd ?? undefined} onChange={(value) => set("checkSizeMaxUsd", value ?? null)} />
+              </div>
+            </div>
+            {!sectorsLocked && (
+              <CheckGroup
+                legend={oneSector ? "Sector (one per buyer)" : "Sectors"}
+                options={data.options.sectorChoices ?? data.options.sectors}
+                picked={draft.sectors}
+                onToggle={(value) => set("sectors", oneSector ? (draft.sectors.includes(value) ? [] : [value]) : toggle(draft.sectors, value))}
+              />
+            )}
+            <CheckGroup legend="Target geography" options={data.options.geographyChoices} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
+            <div className="field">
+              <label htmlFor="buyer-notes">Notes</label>
+              <textarea id="buyer-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
+            </div>
+            {sectorsLocked && <p className="muted">A buyer role has one target vertical. To cover another, use Add buyer with the same website to create a new role for it.</p>}
+          </>
+        }
+        company={
+          <>
+            <div className="form-grid">
+              {isNew && (
+                <>
+                  <div className="field">
+                    <label htmlFor="buyer-name">Name</label>
+                    <input id="buyer-name" value={identity.name} autoFocus onChange={(event) => setIdentity({ ...identity, name: event.target.value })} />
+                  </div>
+                  <div className="field">
+                    {isLive ? (
+                      <>
+                        <label htmlFor="buyer-hq">HQ country</label>
+                        <select id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })}>
+                          <option value="">Pick a country</option>
+                          {data.options.hqCountries.map((value) => <option key={value}>{value}</option>)}
+                        </select>
+                      </>
+                    ) : (
+                      <>
+                        <label htmlFor="buyer-hq">HQ city</label>
+                        <input id="buyer-hq" value={identity.hq} onChange={(event) => setIdentity({ ...identity, hq: event.target.value })} />
+                      </>
+                    )}
+                  </div>
+                  <div className="field">
+                    <label htmlFor="buyer-website">Website</label>
+                    <input id="buyer-website" value={identity.website} placeholder="example.com" onChange={(event) => setIdentity({ ...identity, website: event.target.value })} />
+                  </div>
+                </>
+              )}
+              {isLive && !isNew && (
+                <div className="field">
+                  <label htmlFor="buyer-hq-edit">HQ country</label>
+                  <select id="buyer-hq-edit" value={draft.hq} onChange={(event) => set("hq", event.target.value)}>
+                    {!draft.hq && <option value="">Not set</option>}
+                    {[...new Set([draft.hq, ...data.options.hqCountries].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}
+                  </select>
+                </div>
+              )}
+              {!isLive && (
+                <div className="field">
+                  <label htmlFor="buyer-type">Type</label>
+                  <select id="buyer-type" value={draft.type ?? ""} onChange={(event) => set("type", event.target.value as BuyerRole["type"])}>
+                    {draft.type === null && <option value="">Not set</option>}
+                    {BUYER_TYPES.map((value) => <option key={value}>{value}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="field">
+                <label htmlFor="buyer-owner">Owner</label>
+                <select id="buyer-owner" value={draft.ownerId ?? ""} disabled={isLive} onChange={(event) => set("ownerId", event.target.value)}>
+                  {draft.ownerId === null && <option value="">Not set</option>}
+                  {data.users.filter((user) => user.role === "Advisor").map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+                </select>
+              </div>
+            </div>
             {companySectors && (details.status === "ready" ? (
               <CheckGroup
                 legend="Company sector"
@@ -312,23 +346,9 @@ function EditProfile({ buyer, data, onBack, onClose }: PanelProps) {
             ) : (
               <p className="muted">Loading the company sector…</p>
             ))}
-            <p className="muted">A buyer role has one target vertical, shown under Buyer details. To cover another, use Add buyer with the same website to create a new role for it.</p>
           </>
-        ) : (
-          <CheckGroup
-            legend={oneSector ? "Sector (one per buyer)" : "Sectors"}
-            options={data.options.sectorChoices ?? data.options.sectors}
-            picked={draft.sectors}
-            onToggle={(value) => set("sectors", oneSector ? (draft.sectors.includes(value) ? [] : [value]) : toggle(draft.sectors, value))}
-          />
-        )}
-        <CheckGroup legend="Geography" options={data.options.geographyChoices} picked={draft.geographies} onToggle={(value) => set("geographies", toggle(draft.geographies, value))} />
-        <div className="field">
-          <label htmlFor="buyer-notes">Notes</label>
-          <textarea id="buyer-notes" rows={3} value={draft.notes} onChange={(event) => set("notes", event.target.value)} />
-        </div>
-      </section>
-      <DetailFields fields={sectorsLocked ? data.options.fields.filter((field) => field.key !== "sector_focus") : data.options.fields} values={details.values} onChange={details.set} roleName="Buyer" status={details.status} lead={sectorsLocked ? [{ label: "Target vertical", value: buyer.sectors.join(", ") || "Not set" }] : []} />
+        }
+      />
     </Drawer>
   );
 }
