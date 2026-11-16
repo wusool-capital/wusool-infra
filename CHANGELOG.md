@@ -12,6 +12,10 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's edit forms now cover everything Slack's edit-buyer and edit-seller can change. The
+  company sector and the HQ country are editable. A seller's open to selling is the exact Attio
+  appetite signal, not a three-way summary. A new buyer picks from every vertical Attio allows,
+  not only those already in use.
 - The Engine's buyer and seller drawers and edit forms now keep two sectors apart. The company's
   sector is shown at the top. The role's own sector, a buyer's target vertical or a seller role's
   sector, is shown under Buyer or Seller details, read only.

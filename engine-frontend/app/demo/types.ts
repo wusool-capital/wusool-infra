@@ -225,7 +225,7 @@ export type FieldDef = {
 export type DetailValue = string | number | boolean | string[] | null;
 export type Detail = { key: string; value: DetailValue };
 
-export type BuyerPatch = Partial<Pick<BuyerRole, "type" | "sectors" | "geographies" | "checkSizeMinUsd" | "checkSizeMaxUsd" | "ebitdaFloorUsd" | "ownerId" | "status" | "notes">> & {
+export type BuyerPatch = Partial<Pick<BuyerRole, "type" | "sectors" | "geographies" | "checkSizeMinUsd" | "checkSizeMaxUsd" | "ebitdaFloorUsd" | "ownerId" | "status" | "notes" | "hq">> & {
   /** Extra Slack fields; live only, where the Toolkit lists them. */
   details?: Detail[];
 };
@@ -246,7 +246,7 @@ export type BuyersUniverseData = {
   /** Set when more rows match than this page holds. */
   nextCursor: string | null;
   /** Choices for the filters and the edit form, across every buyer. */
-  options: { sectors: string[]; geographies: string[]; statuses: string[]; geographyChoices: string[]; hqCountries: string[]; fields: FieldDef[] };
+  options: { sectors: string[]; geographies: string[]; statuses: string[]; geographyChoices: string[]; hqCountries: string[]; fields: FieldDef[]; /** Live: every vertical Attio allows, where `sectors` holds those in use. */ sectorChoices?: string[] };
   /** Blocks whose connector is not live yet; they come back empty. */
   unavailable: string[];
 };
@@ -271,6 +271,8 @@ export type SellerRole = {
   ownSector?: string | null;
   /** Live only: the company's sector focus, apart from the role's own. */
   companySector?: string | null;
+  /** Live only: the exact Attio appetite signal behind `openToSelling`. */
+  appetiteSignal?: string | null;
   geography: string;
   /** Attio seller_role.est_revenue and est_ebitda, converted from AED by the Toolkit. */
   estRevenueUsd: number | null;
@@ -289,13 +291,16 @@ export type SellerRole = {
 
 /** The fields behind "Add seller"; the rest start empty. */
 export type NewSellerInput = Pick<SellerRole, "name" | "hq" | "website" | "sector" | "estRevenueUsd" | "openToSelling"> & {
+  appetiteSignal?: string;
   estEbitdaUsd?: number;
   reEngageDate?: string;
   details?: Detail[];
 };
 
 /** A missing key means unchanged, so clearing the EBITDA or the re-engage date sends null. */
-export type SellerPatch = Partial<Pick<SellerRole, "sector" | "geography" | "estRevenueUsd" | "openToSelling" | "ownerId" | "notes">> & {
+export type SellerPatch = Partial<Pick<SellerRole, "sector" | "geography" | "estRevenueUsd" | "openToSelling" | "ownerId" | "notes" | "hq">> & {
+  /** Live: the exact Attio option, where `openToSelling` is only a group of them. */
+  appetiteSignal?: string;
   estEbitdaUsd?: number | null;
   reEngageDate?: string | null;
   details?: Detail[];
@@ -316,7 +321,7 @@ export type SellersUniverseData = {
   matched: number;
   total: number;
   nextCursor: string | null;
-  options: { sectors: string[]; geographies: string[]; sectorChoices: string[]; hqCountries: string[]; fields: FieldDef[] };
+  options: { sectors: string[]; geographies: string[]; sectorChoices: string[]; hqCountries: string[]; fields: FieldDef[]; /** Live: every appetite signal Attio allows. */ appetiteSignals?: string[] };
   unavailable: string[];
 };
 

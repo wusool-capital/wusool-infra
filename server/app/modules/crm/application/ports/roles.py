@@ -60,6 +60,14 @@ class RoleWriterPort(Protocol):
         """The HQ countries Attio allows a company to have."""
         ...
 
+    def buyer_sectors(self) -> tuple[str, ...]:
+        """The target verticals Attio allows a buyer role to have."""
+        ...
+
+    def appetite_signals(self) -> tuple[str, ...]:
+        """The appetite signals Attio allows a seller role to have."""
+        ...
+
     def seller_sectors(self) -> tuple[str, ...]:
         """The sectors Attio allows a company to focus on."""
         ...

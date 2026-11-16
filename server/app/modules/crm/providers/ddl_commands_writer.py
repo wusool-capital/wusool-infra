@@ -90,9 +90,8 @@ def seller_add_row(seller: NewSeller) -> UploadRow:
     }
     optional: UploadRow = {
         "hq_country": seller.hq,
-        "appetite_signal": appetite_signals(seller.open_to_selling)[0]
-        if seller.open_to_selling
-        else None,
+        "appetite_signal": seller.appetite_signal
+        or (appetite_signals(seller.open_to_selling)[0] if seller.open_to_selling else None),
         "est_revenue": seller.est_revenue_usd,
         "est_ebitda": seller.est_ebitda_usd,
         "re_engage_date": seller.re_engage_date.isoformat() if seller.re_engage_date else None,
@@ -112,6 +111,8 @@ def buyer_edit_row(
     }
     if "geographies" in changes.sent:
         row.update(_geography_keys(changes.geographies, regions, countries))
+    if "hq" in changes.sent:
+        row["hq_country"] = changes.hq
     row.update(detail_row(changes.details))
     return row
 
@@ -122,8 +123,12 @@ def seller_edit_row(changes: SellerChanges) -> UploadRow:
         row["est_revenue"] = changes.est_revenue_usd
     if "est_ebitda_usd" in changes.sent:
         row["est_ebitda"] = changes.est_ebitda_usd
-    if "open_to_selling" in changes.sent and changes.open_to_selling is not None:
+    if "appetite_signal" in changes.sent and changes.appetite_signal is not None:
+        row["appetite_signal"] = changes.appetite_signal
+    elif "open_to_selling" in changes.sent and changes.open_to_selling is not None:
         row["appetite_signal"] = appetite_signals(changes.open_to_selling)[0]
+    if "hq" in changes.sent:
+        row["hq_country"] = changes.hq
     if "re_engage_date" in changes.sent:
         row["re_engage_date"] = (
             changes.re_engage_date.isoformat() if changes.re_engage_date else None
@@ -257,6 +262,12 @@ class DdlCommandsRoleWriter:
 
     def seller_sectors(self) -> tuple[str, ...]:
         return _field_options("seller", "sector_focus")
+
+    def buyer_sectors(self) -> tuple[str, ...]:
+        return _buyer_options("target_vertical")
+
+    def appetite_signals(self) -> tuple[str, ...]:
+        return _field_options("seller", "appetite_signal")
 
     async def add_seller(
         self, seller: NewSeller, *, requested_by: str

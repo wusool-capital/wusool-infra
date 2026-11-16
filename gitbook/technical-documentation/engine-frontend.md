@@ -51,9 +51,11 @@ production Toolkit, so its edits change the real CRM.
   the Toolkit refuses it with 412. The check is not atomic with the write, and an
   Attio webhook echo can also change the version. Errors use the RFC 9457 problem
   format.
-* The drawer and edit form show the company's sector at the top. The role's own, a buyer's
-  target vertical or a seller role's sector, sits under Buyer or Seller details, read only.
-  The Sellers list uses the role's sector, or the company's when the role has none.
+* The drawer and edit form show the company's sector at the top, and it is editable. The
+  role's own, a buyer's target vertical or a seller role's sector, sits under Buyer or Seller
+  details, read only. The Sellers list uses the role's sector, or the company's when it has none.
+* The edit form covers every field Slack's edit commands change, including HQ country. Option
+  lists come from Attio, and open to selling is the exact appetite signal.
 * A web address in the drawer is a link that opens in a new tab, shortened to its domain.
 * The record drawer shows the same extra fields as the Edit form, read only, and leaves out
   any field with no value. They load from the single-record read when the drawer opens.
@@ -100,9 +102,8 @@ deploy of each environment. See
 * In live mode, Add to deal, New sell-side lead and the owner approach are
   greyed out until mandates and outreach are connected.
 * Some fields have no source column yet and show as not set: a buyer's type and
-  owner, and a seller's owner and notes. Their edit fields are locked. A buyer's
-  sectors, and a seller's sector and geography, are read only. A new buyer takes
-  its sector from the form.
+  owner, and a seller's owner and notes. Their edit fields are locked, as is a
+  seller's geography.
 * The edit and add forms also offer every other field the Slack commands take.
   Examples are a buyer's model, deal structure and EV ceiling, a seller's sell
   timeline and margins, and a company's description and funding. The Toolkit lists
@@ -113,4 +114,3 @@ deploy of each environment. See
 * A buyer's geography can be edited. The Toolkit sorts the picks into Attio's
   target region and target country fields. As in Slack, a group that has values
   must keep at least one.
-* One hostname and one environment. There is no production copy.

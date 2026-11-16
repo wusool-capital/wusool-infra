@@ -11,6 +11,7 @@ export const sellerRoleViewOpenToSellingEnum = {
 export type SellerRoleViewOpenToSellingEnumKey = (typeof sellerRoleViewOpenToSellingEnum)[keyof typeof sellerRoleViewOpenToSellingEnum];
 
 export type SellerRoleView = {
+  appetiteSignal?: string | (null | null);
   companySector?: string | (null | null);
   contactIds: string[];
   details?: DetailView[];

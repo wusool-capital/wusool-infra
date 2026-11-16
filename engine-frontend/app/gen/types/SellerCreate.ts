@@ -11,6 +11,7 @@ export const sellerCreateOpenToSelling = {
 export type SellerCreateOpenToSellingKey = (typeof sellerCreateOpenToSelling)[keyof typeof sellerCreateOpenToSelling];
 
 export type SellerCreate = {
+  appetiteSignal?: string | (null | null);
   details?: DetailInput[];
   estEbitdaUsd?: number | (null | null);
   estRevenueUsd?: number | (null | null);

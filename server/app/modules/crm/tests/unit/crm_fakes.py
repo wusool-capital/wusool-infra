@@ -161,6 +161,12 @@ class FakeWriter:
     def seller_sectors(self) -> tuple[str, ...]:
         return ("Clinic", "Garage")
 
+    def buyer_sectors(self) -> tuple[str, ...]:
+        return ("Clinic", "Garage", "Legal Services")
+
+    def appetite_signals(self) -> tuple[str, ...]:
+        return ("No Signal", "Warm Introduction / Direct Outreach")
+
     async def add_seller(
         self, seller_: NewSeller, *, requested_by: str
     ) -> tuple[Literal["added", "existing"], str]:

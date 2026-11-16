@@ -64,6 +64,9 @@ These are null (the Engine shows "—") and cannot be edited:
 A buyer with no check size or no EBITDA floor recorded never matches a filter on it. A buyer
 with only one check-size bound counts as open-ended on the other side.
 
+A buyer's or seller's HQ country is editable (`hq`). A seller's open to selling is saved as the exact
+Attio `appetite_signal` (`appetiteSignal`); `openToSelling` only groups those for lists and filters.
+
 A buyer's geography is editable. The Engine shows one list, and the Toolkit sorts the picks
 into Attio's `target_region` and `target_country`. A group that already has values must keep
 at least one, because a multi-select backed by a required column cannot be emptied.

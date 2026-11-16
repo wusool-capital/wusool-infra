@@ -18,6 +18,7 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     Detail,
     NewBuyer,
+    NewSeller,
     RoleAlreadyExistsError,
     RoleNotFoundError,
     SellerChanges,
@@ -28,6 +29,7 @@ from app.modules.crm.persistence.mappers import to_buyer, to_seller
 from app.modules.crm.providers.ddl_commands_writer import (
     buyer_add_row,
     buyer_edit_row,
+    seller_add_row,
     seller_edit_row,
 )
 from app.modules.crm.tests.unit.crm_fakes import JULES, FakeReader, FakeWriter
@@ -222,3 +224,27 @@ def test_a_buyer_keeps_its_company_sector_apart_from_its_target_vertical() -> No
     buyer = to_buyer(role, org)
 
     assert (buyer.sectors, buyer.company_sector) == (("Dental",), "Logistics")
+
+
+def test_hq_and_the_exact_appetite_signal_reach_the_edit_rows() -> None:
+    assert buyer_edit_row(BuyerChanges(frozenset({"hq"}), hq="Qatar")) == {"hq_country": "Qatar"}
+    assert seller_edit_row(
+        SellerChanges(
+            frozenset({"hq", "appetite_signal", "open_to_selling"}),
+            hq="Qatar",
+            open_to_selling="Interested",
+            appetite_signal="Listed on Business-for-Sale Platform",
+        )
+    ) == {"appetite_signal": "Listed on Business-for-Sale Platform", "hq_country": "Qatar"}
+
+
+def test_an_appetite_signal_is_not_a_group_label_when_the_exact_one_is_sent() -> None:
+    seller = NewSeller(
+        name="Acme",
+        website="acme.com",
+        sector="Retail",
+        open_to_selling="Interested",
+        appetite_signal="Listed on Business-for-Sale Platform",
+    )
+
+    assert seller_add_row(seller)["appetite_signal"] == "Listed on Business-for-Sale Platform"

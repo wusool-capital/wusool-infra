@@ -68,6 +68,7 @@ def to_seller(
         est_revenue_usd=amount(role.est_revenue),
         est_ebitda_usd=amount(role.est_ebitda),
         open_to_selling=open_to_selling(role.appetite_signal),
+        appetite_signal=role.appetite_signal,
         re_engage_date=re_engage,
         owner_id=org.owner_attio_id,
         contact_ids=tuple(p.id for p in contacts.get(org.attio_id, [])),
