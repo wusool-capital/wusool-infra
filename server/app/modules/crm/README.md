@@ -64,6 +64,9 @@ These are null (the Engine shows "—") and cannot be edited:
 A buyer with no check size or no EBITDA floor recorded never matches a filter on it. A buyer
 with only one check-size bound counts as open-ended on the other side.
 
+A buyer's or seller's HQ country is editable (`hq`). A seller's open to selling is saved as the exact
+Attio `appetite_signal` (`appetiteSignal`); `openToSelling` only groups those for lists and filters.
+
 A buyer's geography is editable. The Engine shows one list, and the Toolkit sorts the picks
 into Attio's `target_region` and `target_country`. A group that already has values must keep
 at least one, because a multi-select backed by a required column cannot be emptied.
@@ -71,6 +74,14 @@ at least one, because a multi-select backed by a required column cannot be empti
 Buyer `status` is the Attio `mandate_status`. Seller `openToSelling` maps the Attio
 `appetite_signal`: "No Signal" is Unknown, the two inbound signals are Interested, and
 "Warm Introduction / Direct Outreach" is Warm intro.
+
+A seller's sector is the role's own `sector`, or the company's `sector_focus` when the role has
+none, which is most roles. The sector column, filter, options and search all use that same value.
+
+The two sectors stay apart in the drawer and the edit form. Each row also carries `companySector`
+(the company's `sector_focus`, shown at the top) and, for a seller, `ownSector` (the role's own).
+A buyer's role-level sector is its target vertical (`sectors`). The role-level one is shown under
+Buyer or Seller details, read only.
 
 ## Layout
 

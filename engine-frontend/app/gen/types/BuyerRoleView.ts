@@ -5,6 +5,7 @@ import type { DetailView } from './DetailView'
 export type BuyerRoleView = {
   checkSizeMaxUsd: number | (null | null);
   checkSizeMinUsd: number | (null | null);
+  companySector?: string | (null | null);
   contactIds: string[];
   details?: DetailView[];
   ebitdaFloorUsd: number | (null | null);

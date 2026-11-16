@@ -12,6 +12,7 @@ export type BuyerFilterOptionsView = {
   geographies: string[];
   hqCountries: string[];
   regions: string[];
+  sectorChoices: string[];
   sectors: string[];
   statuses: string[];
 };

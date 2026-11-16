@@ -156,6 +156,13 @@
             "title": "Regions",
             "type": "array"
           },
+          "sectorChoices": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sectorchoices",
+            "type": "array"
+          },
           "sectors": {
             "items": {
               "type": "string"
@@ -178,6 +185,7 @@
           "regions",
           "countries",
           "hqCountries",
+          "sectorChoices",
           "fields"
         ],
         "title": "BuyerFilterOptionsView",
@@ -249,6 +257,17 @@
               }
             ],
             "title": "Checksizeminusd"
+          },
+          "companySector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companysector"
           },
           "contactIds": {
             "items": {
@@ -448,6 +467,17 @@
               }
             ],
             "title": "Geographies"
+          },
+          "hq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq"
           },
           "notes": {
             "anyOf": [
@@ -849,6 +879,17 @@
       "SellerCreate": {
         "additionalProperties": false,
         "properties": {
+          "appetiteSignal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appetitesignal"
+          },
           "details": {
             "items": {
               "$ref": "#/components/schemas/DetailInput"
@@ -946,6 +987,13 @@
       "SellerFilterOptionsView": {
         "description": "`sector_choices` and `hq_countries` list everything Attio allows, for the add form.",
         "properties": {
+          "appetiteSignals": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Appetitesignals",
+            "type": "array"
+          },
           "fields": {
             "items": {
               "$ref": "#/components/schemas/FieldDefView"
@@ -987,6 +1035,7 @@
           "geographies",
           "sectorChoices",
           "hqCountries",
+          "appetiteSignals",
           "fields"
         ],
         "title": "SellerFilterOptionsView",
@@ -1037,6 +1086,28 @@
       },
       "SellerRoleView": {
         "properties": {
+          "appetiteSignal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appetitesignal"
+          },
+          "companySector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companysector"
+          },
           "contactIds": {
             "items": {
               "type": "string"
@@ -1127,6 +1198,17 @@
             "title": "Opentoselling",
             "type": "string"
           },
+          "ownSector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownsector"
+          },
           "ownerId": {
             "anyOf": [
               {
@@ -1194,6 +1276,17 @@
       "SellerUpdate": {
         "additionalProperties": false,
         "properties": {
+          "appetiteSignal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Appetitesignal"
+          },
           "details": {
             "items": {
               "$ref": "#/components/schemas/DetailInput"
@@ -1224,6 +1317,17 @@
               }
             ],
             "title": "Estrevenueusd"
+          },
+          "hq": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hq"
           },
           "openToSelling": {
             "anyOf": [

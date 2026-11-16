@@ -12,6 +12,15 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's edit forms now cover everything Slack's edit-buyer and edit-seller can change. The
+  company sector and the HQ country are editable. A seller's open to selling is the exact Attio
+  appetite signal, not a three-way summary. A new buyer picks from every vertical Attio allows,
+  not only those already in use.
+- The Engine's buyer and seller drawers and edit forms now keep two sectors apart. The company's
+  sector is shown at the top. The role's own sector, a buyer's target vertical or a seller role's
+  sector, is shown under Buyer or Seller details, read only.
+- A seller in the Engine with no sector of its own now shows its company's sector. The Sellers
+  sector column, filter and search use it too. Before, most sellers had none.
 - Web addresses in the Engine's buyer and seller drawers are now links that open in a new
   tab. This covers the website, LinkedIn and the logo. A long address shows only its domain.
 - AWS CloudTrail now has one trail instead of two. Dev and prod share one AWS
@@ -58,6 +67,8 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- A seller drawer in the Engine no longer starts its header with a stray comma when the
+  seller has no sector.
 - Editing a seller's extra fields in the Engine, such as the company description or
   LinkedIn, now saves. Before, a seller edit that changed only those fields failed with
   "send at least one field". An edit that also changed a profile field saved the profile

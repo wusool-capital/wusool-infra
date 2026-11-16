@@ -1,7 +1,10 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
+from app.models import BuyerRole as BuyerRoleRow
+from app.models import Organization
+from app.models import SellerRole as SellerRoleRow
 from app.modules.crm.api.schemas import (
     BuyerFilterQuery,
     BuyerUpdate,
@@ -15,15 +18,18 @@ from app.modules.crm.domain.roles import (
     BuyerFilters,
     Detail,
     NewBuyer,
+    NewSeller,
     RoleAlreadyExistsError,
     RoleNotFoundError,
     SellerChanges,
     StaleRoleError,
     open_to_selling,
 )
+from app.modules.crm.persistence.mappers import to_buyer, to_seller
 from app.modules.crm.providers.ddl_commands_writer import (
     buyer_add_row,
     buyer_edit_row,
+    seller_add_row,
     seller_edit_row,
 )
 from app.modules.crm.tests.unit.crm_fakes import JULES, FakeReader, FakeWriter
@@ -184,3 +190,61 @@ def test_an_empty_update_is_refused_and_a_null_counts_as_sent() -> None:
     assert SellerUpdate.model_validate(
         {"reEngageDate": "2027-01-05"}
     ).to_domain().re_engage_date == date(2027, 1, 5)
+
+
+def test_a_seller_without_its_own_sector_shows_the_companys() -> None:
+    org = Organization(attio_id="o1", name="Omega", domains=["o.com"], sector_focus=["Logistics"])
+    role = SellerRoleRow(
+        org_attio_id="o1", sector=[], updated_at=datetime(2026, 11, 16, tzinfo=UTC)
+    )
+
+    assert to_seller(role, org, {}).sector == "Logistics"
+    assert to_seller(role, org, {}).own_sector is None
+    assert to_seller(role, org, {}).company_sector == "Logistics"
+
+    role.sector = ["Dental", "Retail"]
+    assert to_seller(role, org, {}).sector == "Dental, Retail"
+    assert to_seller(role, org, {}).own_sector == "Dental, Retail"
+    assert to_seller(role, org, {}).company_sector == "Logistics"
+
+    role.sector, org.sector_focus = [], []
+    assert to_seller(role, org, {}).sector is None
+
+
+def test_a_buyer_keeps_its_company_sector_apart_from_its_target_vertical() -> None:
+    org = Organization(attio_id="o1", name="Alpha", domains=["a.com"], sector_focus=["Logistics"])
+    role = BuyerRoleRow(
+        org_attio_id="o1",
+        target_vertical="Dental",
+        target_region=[],
+        target_country=[],
+        updated_at=datetime(2026, 11, 16, tzinfo=UTC),
+    )
+
+    buyer = to_buyer(role, org)
+
+    assert (buyer.sectors, buyer.company_sector) == (("Dental",), "Logistics")
+
+
+def test_hq_and_the_exact_appetite_signal_reach_the_edit_rows() -> None:
+    assert buyer_edit_row(BuyerChanges(frozenset({"hq"}), hq="Qatar")) == {"hq_country": "Qatar"}
+    assert seller_edit_row(
+        SellerChanges(
+            frozenset({"hq", "appetite_signal", "open_to_selling"}),
+            hq="Qatar",
+            open_to_selling="Interested",
+            appetite_signal="Listed on Business-for-Sale Platform",
+        )
+    ) == {"appetite_signal": "Listed on Business-for-Sale Platform", "hq_country": "Qatar"}
+
+
+def test_an_appetite_signal_is_not_a_group_label_when_the_exact_one_is_sent() -> None:
+    seller = NewSeller(
+        name="Acme",
+        website="acme.com",
+        sector="Retail",
+        open_to_selling="Interested",
+        appetite_signal="Listed on Business-for-Sale Platform",
+    )
+
+    assert seller_add_row(seller)["appetite_signal"] == "Listed on Business-for-Sale Platform"

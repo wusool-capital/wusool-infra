@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { OPEN_TO_SELLING, type NewSellerInput, type SellerPatch, type SellerRole, type SellersUniverseData } from "../../demo/types";
+import { OPEN_TO_SELLING, type DetailValue, type NewSellerInput, type SellerPatch, type SellerRole, type SellersUniverseData } from "../../demo/types";
 import { getSellerDetails } from "../../api";
 import { changedFields } from "../../lib/action-result";
 import { byId } from "../../lib/by-id";
@@ -11,6 +11,7 @@ import { StatusPill } from "../mandates/status-pill";
 import { LeadDrawer } from "../pipeline/lead-drawer";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { AmountInput } from "../ui/amount-input";
+import { CheckGroup } from "../ui/check-group";
 import { DetailFields } from "../ui/detail-fields";
 import { DetailValues } from "../ui/detail-values";
 import { Drawer } from "../ui/drawer";
@@ -76,12 +77,13 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
   const dealRows = rows.filter((row) => row.dealId);
 
   return (
-    <Drawer title={seller.name} status={`${seller.sector}, ${seller.hq}`} onClose={onClose} actions={<RecordHeaderActions itemName={seller.name} actions={sellerActions(seller).filter((action) => action.panel !== "edit")} onEdit={() => onPanel("edit")} onPick={onPanel} />}>
+    <Drawer title={seller.name} status={[seller.sector, seller.hq].filter(Boolean).join(", ")} onClose={onClose} actions={<RecordHeaderActions itemName={seller.name} actions={sellerActions(seller).filter((action) => action.panel !== "edit")} onEdit={() => onPanel("edit")} onPick={onPanel} />}>
       <section className="drawer__section">
         <h3 className="panel-heading">Profile</h3>
         <dl className="label-grid label-grid--two">
-          <Item label="Open to selling"><OpenToSellingPill value={seller.openToSelling} /></Item>
+          <Item label="Open to selling">{isLive ? (seller.appetiteSignal ?? <span className="muted">Not set</span>) : <OpenToSellingPill value={seller.openToSelling} />}</Item>
           <Item label="Owner">{byId(data.users, seller.ownerId)?.name ?? "Not set"}</Item>
+          {isLive && <Item label="Company sector">{seller.companySector ?? <span className="muted">Not set</span>}</Item>}
           <Item label="Geography">{seller.geography}</Item>
           <Item label="Revenue">{formatMoney(seller.estRevenueUsd)}</Item>
           <Item label="EBITDA">{formatMoney(seller.estEbitdaUsd)}</Item>
@@ -91,7 +93,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{seller.notes}</p>
       </section>
 
-      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} />
+      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} lead={isLive ? [{ label: "Sector (this role)", value: seller.ownSector }] : []} />
 
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
@@ -302,6 +304,8 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
     reEngageDate: seller.reEngageDate ?? "",
     ownerId: seller.ownerId,
     notes: seller.notes,
+    hq: seller.hq,
+    appetiteSignal: seller.appetiteSignal ?? "",
     details: [],
   };
   const [draft, setDraft] = useState(initial);
@@ -312,6 +316,10 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
   // The sector select already sets a new seller's sector focus, so that field is not offered twice.
   const detailFields = isNew ? data.options.fields.filter((field) => field.key !== "sector_focus") : data.options.fields;
   const details = useDetails(detailFields, isNew ? null : () => getSellerDetails(seller.id));
+  // The company's sector is edited as its own checklist, so the same field is left out of Company details.
+  const companySectors = isLive && !isNew ? data.options.fields.find((field) => field.key === "sector_focus") : undefined;
+  const asList = (value: DetailValue | undefined) => (Array.isArray(value) ? value : []);
+  const toggle = (list: string[], value: string) => (list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || details.dirty;
   // Live cannot save these yet. A row's own value is always listed so the select can show it.
   const sectors = [...new Set([...(isNew ? data.options.sectorChoices : data.options.sectors), draft.sector])].filter(Boolean).sort();
@@ -329,6 +337,7 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
         estRevenueUsd: draft.estRevenueUsd,
         estEbitdaUsd: draft.estEbitdaUsd,
         openToSelling: draft.openToSelling,
+        appetiteSignal: draft.appetiteSignal || undefined,
         reEngageDate: draft.reEngageDate || undefined,
         details: details.changes,
       };
@@ -389,13 +398,24 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
               </div>
             </>
           )}
-          <div className="field">
-            <label htmlFor="seller-sector">Sector</label>
-            <select id="seller-sector" value={draft.sector} disabled={isLive && !isNew} onChange={(event) => set("sector", event.target.value)}>
-              {isNew && !draft.sector && <option value="">Pick a sector</option>}
-              {sectors.map((value) => <option key={value}>{value}</option>)}
-            </select>
-          </div>
+          {!(isLive && !isNew) && (
+            <div className="field">
+              <label htmlFor="seller-sector">Sector</label>
+              <select id="seller-sector" value={draft.sector} onChange={(event) => set("sector", event.target.value)}>
+                {!draft.sector && <option value="">{isNew ? "Pick a sector" : "Not set"}</option>}
+                {sectors.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </div>
+          )}
+          {isLive && !isNew && (
+            <div className="field">
+              <label htmlFor="seller-hq-edit">HQ country</label>
+              <select id="seller-hq-edit" value={draft.hq} onChange={(event) => set("hq", event.target.value)}>
+                {!draft.hq && <option value="">Not set</option>}
+                {[...new Set([draft.hq, ...data.options.hqCountries].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}
+              </select>
+            </div>
+          )}
           {!isNew && (
             <div className="field">
               <label htmlFor="seller-geo">Geography</label>
@@ -414,9 +434,16 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
           </div>
           <div className="field">
             <label htmlFor="seller-open">Open to selling</label>
-            <select id="seller-open" value={draft.openToSelling} onChange={(event) => set("openToSelling", event.target.value as SellerRole["openToSelling"])}>
-              {OPEN_TO_SELLING.map((value) => <option key={value}>{value}</option>)}
-            </select>
+            {isLive ? (
+              <select id="seller-open" value={draft.appetiteSignal} onChange={(event) => set("appetiteSignal", event.target.value)}>
+                {!draft.appetiteSignal && <option value="">Not set</option>}
+                {(data.options.appetiteSignals ?? []).map((value) => <option key={value}>{value}</option>)}
+              </select>
+            ) : (
+              <select id="seller-open" value={draft.openToSelling} onChange={(event) => set("openToSelling", event.target.value as SellerRole["openToSelling"])}>
+                {OPEN_TO_SELLING.map((value) => <option key={value}>{value}</option>)}
+              </select>
+            )}
           </div>
           <div className="field">
             <label htmlFor="seller-reengage">Re-engage date</label>
@@ -432,6 +459,16 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
             </div>
           )}
         </div>
+        {companySectors && (details.status === "ready" ? (
+          <CheckGroup
+            legend="Company sector"
+            options={companySectors.options}
+            picked={asList(details.values.sector_focus)}
+            onToggle={(option) => details.set("sector_focus", toggle(asList(details.values.sector_focus), option))}
+          />
+        ) : (
+          <p className="muted">Loading the company sector…</p>
+        ))}
         {!isNew && (
           <div className="field">
             <label htmlFor="seller-notes">Notes</label>
@@ -439,7 +476,7 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
           </div>
         )}
       </section>
-      <DetailFields fields={detailFields} values={details.values} onChange={details.set} roleName="Seller" status={details.status} />
+      <DetailFields fields={detailFields.filter((field) => field.key !== "sector_focus")} values={details.values} onChange={details.set} roleName="Seller" status={details.status} lead={isLive && !isNew ? [{ label: "Sector (this role)", value: seller.ownSector ?? "Not set" }] : []} />
     </Drawer>
   );
 }

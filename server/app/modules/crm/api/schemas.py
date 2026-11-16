@@ -114,6 +114,8 @@ class BuyerRoleView(ApiModel):
     contact_ids: list[str]
     notes: str | None
     etag: str
+    # The company's sector focus; `sectors` is the role's own (its target vertical).
+    company_sector: str | None = None
     # Filled by the single-role read only; lists leave it empty.
     details: list[DetailView] = Field(default_factory=list)
 
@@ -134,6 +136,12 @@ class SellerRoleView(ApiModel):
     etag: str
     # Sellers have no notes column yet.
     notes: str | None = None
+    # The role's own sector; `sector` shows the company's when the role has none.
+    own_sector: str | None = None
+    # The company's sector focus, never the role's.
+    company_sector: str | None = None
+    # The exact Attio appetite signal; `open_to_selling` summarises it in three groups.
+    appetite_signal: str | None = None
     details: list[DetailView] = Field(default_factory=list)
 
 
@@ -146,6 +154,7 @@ class BuyerFilterOptionsView(ApiModel):
     regions: list[str]
     countries: list[str]
     hq_countries: list[str]
+    sector_choices: list[str]
     fields: list[FieldDefView]
 
 
@@ -156,6 +165,7 @@ class SellerFilterOptionsView(ApiModel):
     geographies: list[str]
     sector_choices: list[str]
     hq_countries: list[str]
+    appetite_signals: list[str]
     fields: list[FieldDefView]
 
 
@@ -245,6 +255,7 @@ class BuyerUpdate(_Update):
     check_size_min_usd: Usd = None
     check_size_max_usd: Usd = None
     ebitda_floor_usd: Usd = None
+    hq: str | None = None
     geographies: list[str] | None = None
     details: list[DetailInput] = Field(default_factory=list)
 
@@ -265,6 +276,7 @@ class BuyerUpdate(_Update):
             check_size_min_usd=self.check_size_min_usd,
             check_size_max_usd=self.check_size_max_usd,
             ebitda_floor_usd=self.ebitda_floor_usd,
+            hq=self.hq,
             geographies=tuple(self.geographies or ()),
             details=_details(self.details),
         )
@@ -280,6 +292,7 @@ class SellerCreate(ApiModel):
     sector: str = Field(min_length=1)
     hq: str | None = None
     open_to_selling: OpenToSelling | None = None
+    appetite_signal: str | None = None
     est_revenue_usd: Usd = None
     est_ebitda_usd: Usd = None
     re_engage_date: date | None = None
@@ -297,6 +310,7 @@ class SellerCreate(ApiModel):
             sector=self.sector,
             hq=self.hq,
             open_to_selling=self.open_to_selling,
+            appetite_signal=self.appetite_signal,
             est_revenue_usd=self.est_revenue_usd,
             est_ebitda_usd=self.est_ebitda_usd,
             re_engage_date=self.re_engage_date,
@@ -308,14 +322,17 @@ class SellerUpdate(_Update):
     est_revenue_usd: Usd = None
     est_ebitda_usd: Usd = None
     open_to_selling: OpenToSelling | None = None
+    appetite_signal: str | None = None
     re_engage_date: date | None = None
+    hq: str | None = None
     details: list[DetailInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _consistent(self) -> "SellerUpdate":
         _in_order(self.est_ebitda_usd, self.est_revenue_usd, "EBITDA is above revenue")
-        if "open_to_selling" in self.model_fields_set and self.open_to_selling is None:
-            raise ValueError("open to selling cannot be cleared")
+        for name in ("open_to_selling", "appetite_signal"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"{name.replace('_', ' ')} cannot be cleared")
         return self
 
     def to_domain(self) -> SellerChanges:
@@ -324,7 +341,9 @@ class SellerUpdate(_Update):
             est_revenue_usd=self.est_revenue_usd,
             est_ebitda_usd=self.est_ebitda_usd,
             open_to_selling=self.open_to_selling,
+            appetite_signal=self.appetite_signal,
             re_engage_date=self.re_engage_date,
+            hq=self.hq,
             details=_details(self.details),
         )
 

@@ -12,6 +12,7 @@ export type BuyerUpdate = {
   details?: DetailInput[];
   ebitdaFloorUsd?: number | (null | null);
   geographies?: string[] | (null | null);
+  hq?: string | (null | null);
   notes?: string | (null | null);
   status?: string | (null | null);
 };

@@ -7,6 +7,7 @@ import type { FieldDefView } from './FieldDefView'
  * @type object
  */
 export type SellerFilterOptionsView = {
+  appetiteSignals: string[];
   fields: FieldDefView[];
   geographies: string[];
   hqCountries: string[];
