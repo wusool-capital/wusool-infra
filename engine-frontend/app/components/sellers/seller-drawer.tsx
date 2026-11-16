@@ -93,7 +93,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{seller.notes}</p>
       </section>
 
-      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} lead={isLive ? [{ label: "Sector (this role)", value: seller.ownSector }] : []} />
+      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} />
 
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
@@ -377,12 +377,6 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
         role={
           <>
             <div className="form-grid">
-              {isLive && !isNew && (
-                <div className="field">
-                  <label htmlFor="seller-own-sector">Sector (this role)</label>
-                  <input id="seller-own-sector" value={seller.ownSector ?? "Not set"} readOnly disabled />
-                </div>
-              )}
               <div className="field">
                 <label htmlFor="seller-open">Open to selling</label>
                 {isLive ? (

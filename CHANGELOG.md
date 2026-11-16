@@ -70,6 +70,8 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- A seller in the Engine no longer shows a "Sector (this role)" field that always read Not set. Attio
+  has no sector on a seller role; a seller's sector is the company's, shown under Company details.
 - A seller drawer in the Engine no longer starts its header with a stray comma when the
   seller has no sector.
 - Editing a seller's extra fields in the Engine, such as the company description or

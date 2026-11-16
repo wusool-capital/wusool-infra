@@ -52,9 +52,9 @@ production Toolkit, so its edits change the real CRM.
   Attio webhook echo can also change the version. Errors use the RFC 9457 problem
   format.
 * The edit form has two sections: Buyer or Seller details, then Company details (a new record
-  starts with the company). The company's sector and HQ country are editable. The role's own
-  sector, a buyer's target vertical or a seller role's sector, is read only. The Sellers list
-  uses the role's sector, or the company's when it has none.
+  starts with the company). The company's sector and HQ country are editable. A buyer's target
+  vertical is read only. Attio has no seller role sector, so a seller shows the company's. The
+  Sellers list uses the role's sector, or the company's when it has none.
 * The edit form covers every field Slack's edit commands change, including HQ country. Option
   lists come from Attio, and open to selling is the exact appetite signal.
 * A web address in the drawer is a link that opens in a new tab, shortened to its domain.
