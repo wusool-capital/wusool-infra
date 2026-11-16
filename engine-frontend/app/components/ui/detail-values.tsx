@@ -11,6 +11,8 @@ type Props = {
   /** Changes with each record, so the values reload. */
   recordId: string;
   load: () => Promise<Detail[]>;
+  /** Read-only rows that start the role's own section, such as its sector. A blank one is left out. */
+  lead?: { label: string; value: string | null | undefined }[];
 };
 
 const GROUPS = [
@@ -39,7 +41,7 @@ function show(field: FieldDef, value: DetailValue): ReactNode {
 }
 
 /** The extra Slack fields of a record, read only. A field with no value is left out. */
-export function DetailValues({ fields, roleName, recordId, load }: Props) {
+export function DetailValues({ fields, roleName, recordId, load, lead = [] }: Props) {
   const [values, setValues] = useState<Record<string, DetailValue> | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -64,14 +66,18 @@ export function DetailValues({ fields, roleName, recordId, load }: Props) {
     <>
       {GROUPS.map(({ group, heading }) => {
         const filled = fields.filter((field) => field.group === group && !isEmpty(values[field.key]));
-        if (filled.length === 0) return null;
+        const leading = group === "role" ? lead.filter((row) => row.value) : [];
+        if (filled.length === 0 && leading.length === 0) return null;
         const long = filled.filter((field) => field.kind === "multiline");
         const short = filled.filter((field) => field.kind !== "multiline");
         return (
           <section key={group} className="drawer__section">
             <h3 className="panel-heading">{heading(roleName)}</h3>
-            {short.length > 0 && (
+            {(short.length > 0 || leading.length > 0) && (
               <dl className="label-grid label-grid--two">
+                {leading.map((row) => (
+                  <LabelItem key={row.label} label={row.label}>{row.value}</LabelItem>
+                ))}
                 {short.map((field) => (
                   <LabelItem key={field.key} label={field.label}>{show(field, values[field.key]!)}</LabelItem>
                 ))}

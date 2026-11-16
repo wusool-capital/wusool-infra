@@ -75,6 +75,11 @@ Buyer `status` is the Attio `mandate_status`. Seller `openToSelling` maps the At
 A seller's sector is the role's own `sector`, or the company's `sector_focus` when the role has
 none, which is most roles. The sector column, filter, options and search all use that same value.
 
+The two sectors stay apart in the drawer and the edit form. Each row also carries `companySector`
+(the company's `sector_focus`, shown at the top) and, for a seller, `ownSector` (the role's own).
+A buyer's role-level sector is its target vertical (`sectors`). The role-level one is shown under
+Buyer or Seller details, read only.
+
 ## Layout
 
 `domain/` (frozen dataclasses and errors), `application/` (the service and the reader and

@@ -11,6 +11,7 @@ export const sellerRoleViewOpenToSellingEnum = {
 export type SellerRoleViewOpenToSellingEnumKey = (typeof sellerRoleViewOpenToSellingEnum)[keyof typeof sellerRoleViewOpenToSellingEnum];
 
 export type SellerRoleView = {
+  companySector?: string | (null | null);
   contactIds: string[];
   details?: DetailView[];
   estEbitdaUsd: number | (null | null);
@@ -22,6 +23,7 @@ export type SellerRoleView = {
   name: string;
   notes?: string | (null | null);
   openToSelling: SellerRoleViewOpenToSellingEnumKey;
+  ownSector?: string | (null | null);
   ownerId: string | (null | null);
   reEngageDate: string | (null | null);
   sector: string | (null | null);

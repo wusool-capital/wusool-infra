@@ -2,6 +2,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
+from app.models import BuyerRole as BuyerRoleRow
 from app.models import Organization
 from app.models import SellerRole as SellerRoleRow
 from app.modules.crm.api.schemas import (
@@ -23,7 +24,7 @@ from app.modules.crm.domain.roles import (
     StaleRoleError,
     open_to_selling,
 )
-from app.modules.crm.persistence.mappers import to_seller
+from app.modules.crm.persistence.mappers import to_buyer, to_seller
 from app.modules.crm.providers.ddl_commands_writer import (
     buyer_add_row,
     buyer_edit_row,
@@ -196,9 +197,28 @@ def test_a_seller_without_its_own_sector_shows_the_companys() -> None:
     )
 
     assert to_seller(role, org, {}).sector == "Logistics"
+    assert to_seller(role, org, {}).own_sector is None
+    assert to_seller(role, org, {}).company_sector == "Logistics"
 
     role.sector = ["Dental", "Retail"]
     assert to_seller(role, org, {}).sector == "Dental, Retail"
+    assert to_seller(role, org, {}).own_sector == "Dental, Retail"
+    assert to_seller(role, org, {}).company_sector == "Logistics"
 
     role.sector, org.sector_focus = [], []
     assert to_seller(role, org, {}).sector is None
+
+
+def test_a_buyer_keeps_its_company_sector_apart_from_its_target_vertical() -> None:
+    org = Organization(attio_id="o1", name="Alpha", domains=["a.com"], sector_focus=["Logistics"])
+    role = BuyerRoleRow(
+        org_attio_id="o1",
+        target_vertical="Dental",
+        target_region=[],
+        target_country=[],
+        updated_at=datetime(2026, 11, 16, tzinfo=UTC),
+    )
+
+    buyer = to_buyer(role, org)
+
+    assert (buyer.sectors, buyer.company_sector) == (("Dental",), "Logistics")

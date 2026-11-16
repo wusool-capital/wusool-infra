@@ -82,6 +82,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
         <dl className="label-grid label-grid--two">
           <Item label="Open to selling"><OpenToSellingPill value={seller.openToSelling} /></Item>
           <Item label="Owner">{byId(data.users, seller.ownerId)?.name ?? "Not set"}</Item>
+          {isLive && <Item label="Company sector">{seller.companySector ?? <span className="muted">Not set</span>}</Item>}
           <Item label="Geography">{seller.geography}</Item>
           <Item label="Revenue">{formatMoney(seller.estRevenueUsd)}</Item>
           <Item label="EBITDA">{formatMoney(seller.estEbitdaUsd)}</Item>
@@ -91,7 +92,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
         <p className="record-notes">{seller.notes}</p>
       </section>
 
-      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} />
+      <DetailValues fields={data.options.fields.filter((field) => field.key !== "sector_focus")} roleName="Seller" recordId={seller.id} load={() => getSellerDetails(seller.id)} lead={isLive ? [{ label: "Sector (this role)", value: seller.ownSector }] : []} />
 
       <section className="drawer__section">
         <h3 className="panel-heading">Contacts</h3>
@@ -390,11 +391,15 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
             </>
           )}
           <div className="field">
-            <label htmlFor="seller-sector">Sector</label>
+            <label htmlFor="seller-sector">{isLive && !isNew ? "Company sector" : "Sector"}</label>
+            {isLive && !isNew ? (
+              <input id="seller-sector" value={seller.companySector ?? "Not set"} readOnly disabled />
+            ) : (
             <select id="seller-sector" value={draft.sector} disabled={isLive && !isNew} onChange={(event) => set("sector", event.target.value)}>
-              {isNew && !draft.sector && <option value="">Pick a sector</option>}
+              {!draft.sector && <option value="">{isNew ? "Pick a sector" : "Not set"}</option>}
               {sectors.map((value) => <option key={value}>{value}</option>)}
             </select>
+            )}
           </div>
           {!isNew && (
             <div className="field">
@@ -439,7 +444,7 @@ function EditProfile({ seller, data, onBack, onClose }: PanelProps) {
           </div>
         )}
       </section>
-      <DetailFields fields={detailFields} values={details.values} onChange={details.set} roleName="Seller" status={details.status} />
+      <DetailFields fields={detailFields} values={details.values} onChange={details.set} roleName="Seller" status={details.status} lead={isLive && !isNew ? [{ label: "Sector (this role)", value: seller.ownSector ?? "Not set" }] : []} />
     </Drawer>
   );
 }

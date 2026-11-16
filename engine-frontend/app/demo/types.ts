@@ -188,7 +188,10 @@ export type BuyerRole = {
   type: BuyerType | null;
   hq: string;
   website: string;
+  /** The buyer role's own sector (its target vertical). */
   sectors: string[];
+  /** Live only: the company's sector focus, apart from the role's own. */
+  companySector?: string | null;
   geographies: string[];
   // Attio stores these in AED; the Toolkit converts at the 3.6725 peg so the Engine shows USD only.
   /** Attio buyer_role.check_size_min and _max: what the buyer pays per deal. */
@@ -262,7 +265,12 @@ export type SellerRole = {
   name: string;
   hq: string;
   website: string;
+  /** The sector shown in lists; live, the company's when the role has none of its own. */
   sector: string;
+  /** Live only: the seller role's own sector, empty when it has none. */
+  ownSector?: string | null;
+  /** Live only: the company's sector focus, apart from the role's own. */
+  companySector?: string | null;
   geography: string;
   /** Attio seller_role.est_revenue and est_ebitda, converted from AED by the Toolkit. */
   estRevenueUsd: number | null;

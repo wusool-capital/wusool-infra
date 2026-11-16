@@ -9,6 +9,8 @@ type Props = {
   /** "Buyer" or "Seller": names the group of fields on the role itself. */
   roleName: string;
   status: "loading" | "ready" | "failed";
+  /** Read-only fields that start the role's own section, such as its sector. */
+  lead?: { label: string; value: string }[];
 };
 
 const GROUPS = [
@@ -24,8 +26,8 @@ const asList = (value: DetailValue | undefined) => (Array.isArray(value) ? value
  * Draws every field the Toolkit lists by its kind: a select or checklist from the field's own
  * options, an amount, a date, yes or no, or text. Nothing here names a field.
  */
-export function DetailFields({ fields, values, onChange, roleName, status }: Props) {
-  if (fields.length === 0) return null;
+export function DetailFields({ fields, values, onChange, roleName, status, lead = [] }: Props) {
+  if (fields.length === 0 && lead.length === 0) return null;
   if (status !== "ready") {
     return <p className="muted">{status === "loading" ? "Loading the other fields…" : "Could not load the other fields."}</p>;
   }
@@ -33,13 +35,20 @@ export function DetailFields({ fields, values, onChange, roleName, status }: Pro
     <>
       {GROUPS.map(({ group, heading }) => {
         const inGroup = fields.filter((field) => field.group === group);
-        if (inGroup.length === 0) return null;
+        const leading = group === "role" ? lead : [];
+        if (inGroup.length === 0 && leading.length === 0) return null;
         const wide = inGroup.filter((field) => field.kind === "multiline" || field.kind === "multi_select");
         const narrow = inGroup.filter((field) => !wide.includes(field));
         return (
           <section key={group} className="drawer__section">
             <h3 className="panel-heading">{heading(roleName)}</h3>
             <div className="form-grid">
+              {leading.map((row) => (
+                <div className="field" key={row.label}>
+                  <label htmlFor={`lead-${row.label}`}>{row.label}</label>
+                  <input id={`lead-${row.label}`} value={row.value} readOnly disabled />
+                </div>
+              ))}
               {narrow.map((field) => (
                 <div className="field" key={field.key}>
                   <label htmlFor={`detail-${field.key}`}>{field.label}</label>

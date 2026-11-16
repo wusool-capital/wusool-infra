@@ -48,6 +48,7 @@ def to_buyer(role: BuyerRoleRow, org: Organization) -> BuyerRole:
         contact_ids=(role.key_contact_attio_id,) if role.key_contact_attio_id else (),
         notes=role.notes,
         etag=role.updated_at.isoformat(),
+        company_sector=", ".join(org.sector_focus) or None,
     )
 
 
@@ -61,6 +62,8 @@ def to_seller(
         hq=org.hq_country,
         website=org.domains[0] if org.domains else None,
         sector=", ".join(role.sector or org.sector_focus) or None,
+        own_sector=", ".join(role.sector) or None,
+        company_sector=", ".join(org.sector_focus) or None,
         geography=org.region or org.hq_country,
         est_revenue_usd=amount(role.est_revenue),
         est_ebitda_usd=amount(role.est_ebitda),
