@@ -10,7 +10,11 @@ import httpx
 from app.modules.google_workspace.application.errors import CursorExpired
 from app.modules.google_workspace.application.ports.mail_source import MailPage
 from app.modules.google_workspace.application.ports.token_source import TokenSource
-from app.modules.google_workspace.domain.addresses import normalize_address, parse_address_list
+from app.modules.google_workspace.domain.addresses import (
+    display_name_of,
+    normalize_address,
+    parse_address_list,
+)
 from app.modules.google_workspace.domain.model import MailMessage
 from app.modules.google_workspace.providers.google.http import GoogleApiError, Sleep, get_model
 from app.modules.google_workspace.providers.google.models import (
@@ -174,4 +178,5 @@ def _to_message(raw: GmailMessage) -> MailMessage:
         cc_addresses=parse_address_list(headers.get("cc", "")),
         auto_submitted=headers.get("auto-submitted"),
         has_list_unsubscribe="list-unsubscribe" in headers,
+        from_name=display_name_of(sender) if sender else None,
     )

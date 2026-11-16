@@ -45,6 +45,8 @@ class InteractionReviewItem(Base):
         ARRAY(Text), nullable=False, server_default="{}"
     )
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'open'"))
+    # When the digest first listed it; null until then.
+    notified_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

@@ -56,3 +56,17 @@ def organization_by_domain(
         if len(org_ids) > 1:
             return None, Ambiguity.SHARED_DOMAIN
     return None, None
+
+
+def shared_domain_of(
+    address: str, directory: RecordDirectory
+) -> tuple[str, tuple[str, ...]] | None:
+    """The domain that several Organizations share, with those Organizations. Mirrors
+    `organization_by_domain`: the first domain with any match decides."""
+    for candidate in org_domain_candidates(domain_of(address)):
+        org_ids = directory.org_ids_by_domain.get(candidate, ())
+        if len(org_ids) > 1:
+            return candidate, org_ids
+        if org_ids:
+            return None
+    return None

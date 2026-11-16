@@ -25,7 +25,8 @@ from app.modules.interactions.application.ports.interaction_store import (
     SyncCursor,
 )
 from app.modules.interactions.application.ports.record_directory import RecordDirectoryPort
-from app.modules.interactions.domain.linking import Ambiguity, resolve_link
+from app.modules.interactions.application.ports.review import ReviewCase, ReviewStorePort
+from app.modules.interactions.domain.linking import Ambiguity, resolve_link, shared_domain_of
 from app.modules.interactions.domain.windows import months_before
 
 logger = logging.getLogger(__name__)
@@ -65,7 +66,9 @@ class IngestService:
         calendar: CalendarSourcePort,
         config: IngestConfig,
         clock: Callable[[], datetime] = _utc_now,
+        reviews: ReviewStorePort | None = None,
     ) -> None:
+        self._reviews = reviews
         self._store = store
         self._directory = directory
         self._mail = mail
@@ -314,16 +317,40 @@ class IngestService:
     async def _link_participants(self) -> tuple[int, int, int]:
         addresses = await self._store.unlinked_addresses(self._config.internal_domains)
         if not addresses:
+            await self._sync_reviews({})  # whatever was open has been fixed
             return 0, 0, 0
         directory = await self._directory.load()
         links: list[AddressLink] = []
+        cases: dict[tuple[Ambiguity, str], ReviewCase] = {}
         shared_emails = shared_domains = 0
         for address in addresses:
             resolution = resolve_link(address, directory)
             if resolution.ambiguity is Ambiguity.SHARED_EMAIL:
                 shared_emails += 1
+                ids = tuple(p.attio_id for p in directory.people_by_email[address])
+                cases.setdefault(
+                    (Ambiguity.SHARED_EMAIL, address),
+                    ReviewCase(Ambiguity.SHARED_EMAIL, address, ids),
+                )
             elif resolution.ambiguity is Ambiguity.SHARED_DOMAIN:
                 shared_domains += 1
+                shared = shared_domain_of(address, directory)
+                if shared is not None:
+                    cases.setdefault(
+                        (Ambiguity.SHARED_DOMAIN, shared[0]),
+                        ReviewCase(Ambiguity.SHARED_DOMAIN, shared[0], shared[1]),
+                    )
             if resolution.person_id or resolution.organization_id:
                 links.append(AddressLink(address, resolution.person_id, resolution.organization_id))
-        return await self._store.set_links(links), shared_emails, shared_domains
+        linked = await self._store.set_links(links)
+        await self._sync_reviews(cases)
+        return linked, shared_emails, shared_domains
+
+    async def _sync_reviews(self, cases: dict[tuple[Ambiguity, str], ReviewCase]) -> None:
+        if self._reviews is None:
+            return
+        try:
+            await self._reviews.sync_open(tuple(cases.values()))
+        except Exception:
+            # The links are already saved; the cases are found again next pass.
+            logger.exception("interactions_review_save_failed")

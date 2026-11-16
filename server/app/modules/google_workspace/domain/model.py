@@ -20,6 +20,8 @@ class MailMessage:
     cc_addresses: tuple[str, ...]
     auto_submitted: str | None
     has_list_unsubscribe: bool
+    # The From header's display name; absent when the sender gave none.
+    from_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,7 @@ class Attendee:
     response_status: str | None
     is_self: bool
     resource: bool = False
+    name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -42,3 +45,4 @@ class CalendarEvent:
     subject: str | None
     organizer: str | None
     attendees: tuple[Attendee, ...]
+    organizer_name: str | None = None

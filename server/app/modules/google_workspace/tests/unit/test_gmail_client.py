@@ -98,12 +98,14 @@ async def test_backfill_lists_by_date_then_fetches_each_message_as_metadata() ->
     assert first.labels == frozenset({"INBOX", "IMPORTANT"})
     assert first.subject == "Term sheet"
     assert first.from_address == "sara@acme.com"
+    assert first.from_name == "Sara Lee"
     assert first.to_addresses == ("jules@wusoolcapital.com", "ramzy@dopaminecap.com")
     assert first.cc_addresses == ("legal@acme.com",)
     assert first.auto_submitted == "auto-generated"
     assert first.has_list_unsubscribe is True
     assert (second.message_id, second.from_address, second.to_addresses) == (None, None, ())
     assert second.has_list_unsubscribe is False
+    assert second.from_name is None
 
 
 async def test_each_fetch_asks_for_metadata_and_only_the_wanted_headers() -> None:

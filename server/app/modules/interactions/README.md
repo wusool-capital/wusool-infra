@@ -30,9 +30,13 @@ application/
   calibration.py  # run_calibration(): our labels against Attio's, in memory
   attio_write.py  # AttioWriteService: one round of changed-value writes to Attio
   attio_seed.py   # AttioSeedService: records what Attio holds before the first write
+  auto_create.py  # AutoCreateService: new Persons and Organizations for outside contacts
+  review_digest.py  # ReviewDigestService: the daily Slack post of cases to review
   ports/        # InteractionStorePort, RecordDirectoryPort, TouchReaderPort, StrengthSourcePort
-persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory, SqlAlchemyTouchReader, lock
-providers/      # AttioStrengthSource, AttioSeedSource (reads), AttioRecordWriter (paced PATCH)
+persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory, SqlAlchemyTouchReader,
+                # SqlAlchemyCandidateSource, SqlAlchemyReviewStore, lock
+providers/      # AttioStrengthSource, AttioSeedSource (reads), AttioRecordWriter (paced PATCH),
+                # AttioRecordCreator, SlackDigestPoster
 scripts/        # calibrate_strength.py (shadow-week report), seed_attio_sent_values.py
 bootstrap.py    # run_interactions_forever(): wires everything and runs the poll loop
 config.py       # InteractionsSettings: every tunable, prefixed interactions_
@@ -86,6 +90,27 @@ written first.
   `ATTIO_IS_TEST` is set; capped per round; one failing record never stops the round.
 - **Alarm.** A clean real round logs `interactions_attio_sync_ok`. The prod alarm
   (`interactions_sync_alarm`) fires after 30 minutes without it.
+
+## Creating contacts
+
+`AutoCreateService.run_round()` runs after the write round. It reads unlinked outside addresses
+with a two-way thread or an uncancelled meeting (`SqlAlchemyCandidateSource`), filters them with
+`domain/creatable.py`, and creates a Person and, unless the domain has one, an Organization in
+Attio, both tagged Lead Source Detail "Email sync".
+
+- **Duplicates.** Postgres lags the webhook, so each create is recorded in `auto_create_keys`
+  right after Attio accepts it, and `person_exists` asks Attio by email as a second check.
+- **Failures.** An address Attio rejects three times is dropped until the next restart, so it
+  can't use up every round's cap.
+- **Names.** The Person's name is the sender's display name (`interaction_participants.display_name`,
+  filled for mail read since this column was added), else the address, as the sync bot does.
+- **Shared cases.** An address or domain that matches several records creates nothing. Ingest saves
+  it to `interaction_review_items`; one that is fixed resolves itself, and a dismissed one stays
+  dismissed. `ReviewDigestService` posts the cases it has not listed yet, once a day with the
+  purge, to `INTERACTIONS_REVIEW_SLACK_CHANNEL`.
+- **Safety.** `INTERACTIONS_AUTO_CREATE_MODE` is `off` by default; `dry_run` logs counts only;
+  capped per round; refuses to run while `ATTIO_IS_TEST` is set. Free-email domains extend the
+  benchmark's `FREE_MAIL` list.
 
 ## Reading CRM records
 
