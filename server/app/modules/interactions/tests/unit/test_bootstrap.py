@@ -21,10 +21,17 @@ from app.modules.google_workspace import (
     ServiceAccountKey,
 )
 from app.modules.interactions import bootstrap
+from app.modules.interactions.application.attio_write import WriteReport
 from app.modules.interactions.application.ingest import IngestConfig, PassReport
 from app.modules.interactions.application.ports.interaction_store import InteractionStorePort
 from app.modules.interactions.application.ports.record_directory import RecordDirectoryPort
-from app.modules.interactions.bootstrap import LOCK_KEY, LockFactory, PassRunner, run_loop
+from app.modules.interactions.bootstrap import (
+    LOCK_KEY,
+    LockFactory,
+    PassRunner,
+    WriteRunner,
+    run_loop,
+)
 from app.modules.interactions.config import InteractionsSettings
 
 START = datetime(2026, 11, 5, 12, 0, tzinfo=UTC)
@@ -253,7 +260,12 @@ async def test_the_enabled_loop_asks_for_both_scopes_and_runs_under_the_lock(
         ) -> None:
             seen.config = config
 
-    async def fake_run_loop(service: PassRunner, lock: LockFactory, interval_s: float) -> None:
+    async def fake_run_loop(
+        service: PassRunner,
+        lock: LockFactory,
+        interval_s: float,
+        attio_write: WriteRunner | None = None,
+    ) -> None:
         seen.interval_s = interval_s
         async with lock():
             pass
@@ -357,3 +369,82 @@ async def test_an_unreadable_private_key_stops_the_loop_without_echoing_it(
     # The key in KEY_JSON is the text "pem", which is not a real RSA key.
     assert "private key can't be read" in caplog.text
     assert "pem" not in caplog.text
+
+
+class _Writes:
+    def __init__(self, *reports: WriteReport, failing: bool = False) -> None:
+        self.rounds = 0
+        self._reports = list(reports)
+        self._failing = failing
+
+    async def run_round(self) -> WriteReport:
+        self.rounds += 1
+        if self._failing:
+            raise RuntimeError("attio is down")
+        return self._reports.pop(0) if self._reports else WriteReport()
+
+
+async def _run_with_writes(service: _Service, writes: _Writes, rounds: int) -> None:
+    clock = _Clock()
+    with pytest.raises(asyncio.CancelledError):
+        await run_loop(
+            service, _locks(), INTERVAL_S, clock, _Sleeper(clock, rounds), attio_write=writes
+        )
+
+
+async def test_the_attio_write_runs_after_each_pass(caplog: pytest.LogCaptureFixture) -> None:
+    service, writes = _Service(), _Writes()
+
+    with caplog.at_level(logging.INFO):
+        await _run_with_writes(service, writes, rounds=3)
+
+    assert (service.passes, writes.rounds) == (3, 3)
+
+
+async def test_only_a_clean_real_round_logs_the_line_the_alarm_watches(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    writes = _Writes(
+        WriteReport(failed=1),
+        WriteReport(dry_run=True),
+        WriteReport(patched=2),
+        WriteReport(patched=2, failed=1),
+    )
+
+    with caplog.at_level(logging.INFO):
+        await _run_with_writes(_Service(), writes, rounds=4)
+
+    # Only an all-failed round and a dry run stay silent; one bad record among good ones does not.
+    assert caplog.text.count("interactions_attio_sync_ok") == 2
+
+
+async def test_a_failing_attio_write_does_not_stop_the_loop_or_the_purge() -> None:
+    service, writes = _Service(), _Writes(failing=True)
+
+    await _run_with_writes(service, writes, rounds=2)
+
+    assert (service.passes, writes.rounds, service.purges) == (2, 2, 1)
+
+
+async def test_the_write_step_is_off_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bootstrap, "get_settings", lambda: InteractionsSettings())
+
+    async with bootstrap._attio_write_runner() as runner:
+        assert runner is None
+
+
+async def test_the_write_step_refuses_to_start_on_a_test_instance(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        bootstrap,
+        "get_settings",
+        lambda: InteractionsSettings(interactions_attio_write_mode="on"),
+    )
+    monkeypatch.setattr(bootstrap, "attio_is_test", lambda: True)
+
+    with caplog.at_level(logging.ERROR):
+        async with bootstrap._attio_write_runner() as runner:
+            assert runner is None
+
+    assert "ATTIO_IS_TEST is set" in caplog.text

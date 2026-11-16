@@ -37,7 +37,7 @@ verified live. Update it at each handover or significant release.
 | High | Export the Sanity dataset on a schedule; reports have no other copy | A dated export and a tested import |
 | High | Alert on abandoned lead-tool runs, report code email failures, and Sanity or Webflow sync failures | Alarms exist and have been tested |
 | High | Finish Google access for the interactions engine: key policy exception, key in the toolkit secret, delegation grant, Hugo's address | A dated live sync of one mailbox |
-| Medium | Run the shadow week and tune connection strength against Attio's labels before any write | At least 80% exact and 95% within one level |
+| Medium | Confirm the shadow-week result on fresh data, then run the Attio write in dry run and switch it on | At least 80% exact and 95% within one level, then a clean dry run |
 | Medium | Add RDS alarms; consider Multi-AZ | Alarms exist; decision recorded |
 | Medium | Verify Buyer Network and Valuation submissions end to end against live Attio | Dated production test |
 | Medium | Confirm the Sanity webhooks are enabled and signed, and that Webflow cards go live without a site publish | Dated check |

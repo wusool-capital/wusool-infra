@@ -11,6 +11,7 @@ from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
 
 from app.modules.google_workspace import normalize_address
+from app.modules.interactions.domain.attio_fields import WriteMode
 from app.modules.interactions.domain.model import ScoringRules
 from app.modules.utilities import SecretsManagerSettings
 from app.modules.utilities.domain.database_url import asyncpg_url
@@ -42,6 +43,12 @@ class InteractionsSettings(SecretsManagerSettings):
     interactions_next_window_days: int = Field(default=180, ge=1)
     # Lower bounds of Weak, Good, Strong and Very strong; tuned in the shadow week.
     interactions_label_cutoffs: str = "1 3 7 15"
+
+    # Writing to Attio is off until the shadow-week gate has passed. `dry_run` only logs counts.
+    interactions_attio_write_mode: WriteMode = WriteMode.OFF
+    # Attio has no bulk update, and its webhook re-reads each record we touch.
+    interactions_attio_writes_per_second: float = Field(default=5.0, gt=0, le=20)
+    interactions_attio_max_records_per_round: int = Field(default=500, ge=1)
 
     @field_validator("database_url")
     @classmethod

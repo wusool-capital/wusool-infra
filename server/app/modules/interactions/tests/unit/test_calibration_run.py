@@ -43,6 +43,9 @@ class _Reader:
     async def touches_by_organization(self) -> Mapping[str, tuple[Touch, ...]]:
         return self._touches
 
+    async def touches_by_person(self) -> Mapping[str, tuple[Touch, ...]]:
+        return {}
+
 
 class _Directory:
     async def load(self) -> RecordDirectory:

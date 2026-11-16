@@ -10,11 +10,11 @@ _New to this codebase's layering? See
 
 ## Status
 
-Read-only and unfinished. The module reads and stores Gmail and Calendar
-metadata and links it to CRM records. `IngestService.run_pass()` does one pass,
-and `run_interactions_forever()` runs it on a timer, off by default. Nothing
-writes to Attio: that is a later PR, gated by the shadow-week calibration, which
-`scripts/calibrate_strength.py` now runs.
+The module reads and stores Gmail and Calendar metadata and links it to CRM
+records. `IngestService.run_pass()` does one pass, and `run_interactions_forever()`
+runs it on a timer, off by default. After each pass an optional write round sends
+the computed fields to Attio. It is off (`INTERACTIONS_ATTIO_WRITE_MODE=off`) until
+the shadow-week calibration, which `scripts/calibrate_strength.py` runs, passes.
 
 ## Structure
 
@@ -24,10 +24,12 @@ application/
   ingest.py     # IngestService: backfill, polling, recovery, linking, retention
   mapping.py    # fetched Gmail and Calendar data -> rows to store (pure)
   calibration.py  # run_calibration(): our labels against Attio's, in memory
+  attio_write.py  # AttioWriteService: one round of changed-value writes to Attio
+  attio_seed.py   # AttioSeedService: records what Attio holds before the first write
   ports/        # InteractionStorePort, RecordDirectoryPort, TouchReaderPort, StrengthSourcePort
 persistence/    # SqlAlchemyInteractionStore, SqlAlchemyRecordDirectory, SqlAlchemyTouchReader, lock
-providers/      # AttioStrengthSource: Attio's Companies and their labels
-scripts/        # calibrate_strength.py: the shadow-week report
+providers/      # AttioStrengthSource, AttioSeedSource (reads), AttioRecordWriter (paced PATCH)
+scripts/        # calibrate_strength.py (shadow-week report), seed_attio_sent_values.py
 bootstrap.py    # run_interactions_forever(): wires everything and runs the poll loop
 config.py       # InteractionsSettings: every tunable, prefixed interactions_
 ```
@@ -54,6 +56,27 @@ the report counts them. On prod, Attio labelled 87% of those Very weak.
 The go-live gate is 80% exact match and 95% within one level. Attio scores every team
 mailbox and we read only `INTERACTIONS_MAILBOXES`, hence the mailbox bucket. Cancelled
 meetings never count.
+
+## Writing to Attio
+
+`AttioWriteService.run_round()` runs after each pass, in the same advisory lock. For
+each Organization and Person it computes the 13 fields, compares them with
+`attio_sent_values`, and PATCHes only what changed, then records what was sent. Attio is
+written first.
+
+- **Seed first.** `scripts/seed_attio_sent_values.py` stores what Attio holds today
+  (`value`) and the live Company or Person value (`baseline`, joined by `legacy_attio_id`).
+  Nothing is written for an object until it has run.
+- **Dates only move the right way.** A first date takes the earliest of computed, stored
+  and baseline; a last date the latest. Channel, subject and owner follow the last date.
+- **Hugo's records.** If the baseline strongest user is an unread mailbox, strength and
+  strongest user are left alone.
+- **No clearing yet.** A field that should become empty is counted (`clears_skipped`), not
+  sent. Attio's clear shape is unverified; check it on a test record first.
+- **Safety.** `off` by default; `dry_run` logs counts only; refuses to run while
+  `ATTIO_IS_TEST` is set; capped per round; one failing record never stops the round.
+- **Alarm.** A clean real round logs `interactions_attio_sync_ok`. The prod alarm
+  (`interactions_sync_alarm`) fires after 30 minutes without it.
 
 ## Reading CRM records
 

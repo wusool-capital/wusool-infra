@@ -127,3 +127,9 @@ variable "ecr_repository_arn" {
   description = "ARN of the ECR repository apps' images are pulled from. Scopes this instance's pull permission to just that repo."
   type        = string
 }
+
+variable "interactions_sync_alarm" {
+  description = "Create the stale Attio-sync alarm (prod only). Leave false until the engine writes to Attio, or it alarms at once. It assumes write mode on and a poll interval of at most 20 minutes."
+  type        = bool
+  default     = false
+}

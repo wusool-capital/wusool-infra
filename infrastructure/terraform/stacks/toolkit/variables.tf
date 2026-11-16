@@ -120,3 +120,9 @@ variable "toolkit_db_master_secret_arn" {
   type        = string
   default     = ""
 }
+
+variable "interactions_sync_alarm" {
+  description = "Create the stale Attio-sync alarm (prod only). Set true when the interactions engine goes live."
+  type        = bool
+  default     = false
+}
