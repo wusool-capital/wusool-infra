@@ -531,6 +531,7 @@ person or a deal.
 | record_attio_id | text | no | | unique with object and field |
 | field | text | no | | Attio attribute slug |
 | value | text | yes | | the value as sent; NULL means the engine cleared it |
+| baseline | text | yes | | the seed's baseline for this field |
 | created_at / updated_at | timestamptz | no | `now()` | |
 
 ### `interaction_review_items` (`interaction_review_item.py`) — new, AZM-159 PR 4
