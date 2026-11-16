@@ -37,6 +37,7 @@ from app.modules.interactions.application.auto_create import (
 )
 from app.modules.interactions.application.calibration import CalibrationConfig, run_calibration
 from app.modules.interactions.application.ingest import IngestConfig, IngestService, PassReport
+from app.modules.interactions.application.review_digest import ReviewDigestService
 from app.modules.interactions.config import get_settings
 from app.modules.interactions.domain.addresses import team_member_of
 from app.modules.interactions.domain.attio_fields import WriteMode
@@ -47,6 +48,7 @@ from app.modules.interactions.persistence.candidates import SqlAlchemyCandidateS
 from app.modules.interactions.persistence.database import get_engine, get_sessionmaker
 from app.modules.interactions.persistence.directory import SqlAlchemyRecordDirectory
 from app.modules.interactions.persistence.interaction_store import SqlAlchemyInteractionStore
+from app.modules.interactions.persistence.review_store import SqlAlchemyReviewStore
 from app.modules.interactions.persistence.score_store import SqlAlchemyScoreStore
 from app.modules.interactions.persistence.sent_values import SqlAlchemySentValues
 from app.modules.interactions.persistence.touch_reader import SqlAlchemyTouchReader
@@ -54,6 +56,8 @@ from app.modules.interactions.providers.attio_companies import AttioStrengthSour
 from app.modules.interactions.providers.attio_creator import AttioRecordCreator
 from app.modules.interactions.providers.attio_seed_source import AttioSeedSource
 from app.modules.interactions.providers.attio_writer import AttioRecordWriter
+from app.modules.interactions.providers.slack_digest import SlackDigestPoster
+from app.modules.notifications import SlackWebClientNotifier, get_slack_client
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +78,10 @@ class AutoCreateRunner(Protocol):
     async def run_round(self) -> AutoCreateReport: ...
 
 
+class DigestRunner(Protocol):
+    async def run(self) -> int: ...
+
+
 class PassRunner(Protocol):
     async def run_pass(self) -> PassReport: ...
 
@@ -92,6 +100,7 @@ async def run_loop(
     sleep: Sleep = asyncio.sleep,
     attio_write: WriteRunner | None = None,
     auto_create: AutoCreateRunner | None = None,
+    digest: DigestRunner | None = None,
 ) -> None:
     """One pass every `interval_s`, under the lock. A failed pass is logged and never stops
     the loop: a stuck mailbox matters far less than the loop dying silently."""
@@ -100,7 +109,9 @@ async def run_loop(
         try:
             async with lock() as won:
                 if won:
-                    last_purge = await _round(service, clock, last_purge, attio_write, auto_create)
+                    last_purge = await _round(
+                        service, clock, last_purge, attio_write, auto_create, digest
+                    )
                 else:
                     logger.info("interactions_pass_skipped: another instance holds the lock")
         except asyncio.CancelledError:
@@ -117,9 +128,10 @@ async def _round(
     last_purge: datetime | None,
     attio_write: WriteRunner | None = None,
     auto_create: AutoCreateRunner | None = None,
+    digest: DigestRunner | None = None,
 ) -> datetime | None:
-    """One pass, the Attio write, auto-create, then the daily purge. Each is guarded alone, so
-    none can skip another."""
+    """One pass, the Attio write, auto-create, then the daily purge and review digest. Each is
+    guarded alone, so none can skip another."""
     try:
         await service.run_pass()
     except Exception:
@@ -137,6 +149,8 @@ async def _round(
         logger.exception("interactions_purge_failed")
         return last_purge  # unchanged, so the next round tries again
     logger.info("interactions_purged rows=%d", purged)
+    if digest is not None:
+        await _digest_round(digest)
     return now
 
 
@@ -163,6 +177,16 @@ async def _write_round(attio_write: WriteRunner) -> None:
     # failed, so one bad record cannot keep the alarm on; failures are logged above.
     if not report.dry_run and not report.unseeded and (report.failed == 0 or report.patched > 0):
         logger.info("interactions_attio_sync_ok")
+
+
+async def _digest_round(digest: DigestRunner) -> None:
+    """Once a day, with the purge. A failed post is not retried, so it can't repeat."""
+    try:
+        listed = await digest.run()
+    except Exception:
+        logger.exception("interactions_review_digest_failed")
+        return
+    logger.info("interactions_review_digest listed=%d", listed)
 
 
 async def _auto_create_round(auto_create: AutoCreateRunner) -> None:
@@ -233,6 +257,7 @@ async def _start() -> None:
             GmailClient(http, tokens),
             CalendarClient(http, tokens),
             config,
+            reviews=SqlAlchemyReviewStore(sessionmaker),
         )
         async with _attio_write_runner() as attio_write, _auto_create_runner() as auto_create:
             await run_loop(
@@ -241,6 +266,7 @@ async def _start() -> None:
                 settings.interactions_poll_interval_s,
                 attio_write=attio_write,
                 auto_create=auto_create,
+                digest=_review_digest(),
             )
 
 
@@ -291,6 +317,18 @@ async def _attio_write_runner() -> AsyncIterator[WriteRunner | None]:
             logger.exception("interactions_attio_write_not_started: setup failed")
             service = None
         yield service
+
+
+def _review_digest() -> ReviewDigestService | None:
+    """The daily review post, or None until a channel and the Slack token are set."""
+    settings = get_settings()
+    if not settings.interactions_review_slack_channel or not settings.slack_bot_token:
+        return None
+    notifier = SlackWebClientNotifier(get_slack_client(settings.slack_bot_token))
+    return ReviewDigestService(
+        SqlAlchemyReviewStore(get_sessionmaker()),
+        SlackDigestPoster(notifier, settings.interactions_review_slack_channel),
+    )
 
 
 @asynccontextmanager

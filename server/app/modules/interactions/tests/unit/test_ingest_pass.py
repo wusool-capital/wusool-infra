@@ -2,7 +2,8 @@ from dataclasses import replace
 
 from app.modules.google_workspace import CalendarPage, MailPage
 from app.modules.interactions.application.ports.interaction_store import Source
-from app.modules.interactions.domain.linking import PersonRef, RecordDirectory
+from app.modules.interactions.application.ports.review import ReviewCase
+from app.modules.interactions.domain.linking import Ambiguity, PersonRef, RecordDirectory
 from app.modules.interactions.domain.windows import months_before
 from app.modules.interactions.tests.fakes.ingest import (
     CONFIG,
@@ -114,6 +115,57 @@ async def test_a_domain_shared_by_two_organizations_is_counted_and_links_no_orga
 
     assert (report.linked, report.shared_emails, report.shared_domains) == (0, 0, 1)
     assert store.links == {}
+
+
+class _Reviews:
+    def __init__(self, *, failing: bool = False) -> None:
+        self.cases: list[ReviewCase] = []
+        self.failing = failing
+
+    async def save_open(self, cases) -> None:
+        if self.failing:
+            raise RuntimeError("table is locked")
+        self.cases.extend(cases)
+
+    async def list_open(self):
+        return ()
+
+
+async def test_a_shared_address_and_a_shared_domain_are_saved_for_review() -> None:
+    store, mail, reviews = FakeStore(), FakeMail(), _Reviews()
+    mail.backfill_pages = [
+        MailPage(
+            (message("m1", sender="info@acme.com"), message("m2", sender="a@shared.com")), None
+        )
+    ]
+    directory = FakeDirectory(
+        RecordDirectory(
+            people_by_email={"info@acme.com": (PersonRef("p1", "o1"), PersonRef("p2", "o2"))},
+            org_ids_by_domain={"shared.com": ("o3", "o4")},
+        )
+    )
+
+    await make_service(store, mail, directory=directory, reviews=reviews).run_pass()
+
+    # Addresses are visited in alphabetical order.
+    assert reviews.cases == [
+        ReviewCase(Ambiguity.SHARED_DOMAIN, "shared.com", ("o3", "o4")),
+        ReviewCase(Ambiguity.SHARED_EMAIL, "info@acme.com", ("p1", "p2")),
+    ]
+
+
+async def test_a_failing_review_save_does_not_fail_the_pass() -> None:
+    store, mail = FakeStore(), FakeMail()
+    mail.backfill_pages = [MailPage((message("m1", sender="a@shared.com"),), None)]
+    directory = FakeDirectory(
+        RecordDirectory(people_by_email={}, org_ids_by_domain={"shared.com": ("o3", "o4")})
+    )
+
+    report = await make_service(
+        store, mail, directory=directory, reviews=_Reviews(failing=True)
+    ).run_pass()
+
+    assert report.failures == ()
 
 
 async def test_the_directory_is_not_loaded_when_nothing_needs_linking() -> None:

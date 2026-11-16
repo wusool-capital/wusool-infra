@@ -258,6 +258,7 @@ async def test_the_enabled_loop_asks_for_both_scopes_and_runs_under_the_lock(
             mail: MailSourcePort,
             calendar: CalendarSourcePort,
             config: IngestConfig,
+            reviews: object = None,
         ) -> None:
             seen.config = config
 
@@ -267,6 +268,7 @@ async def test_the_enabled_loop_asks_for_both_scopes_and_runs_under_the_lock(
         interval_s: float,
         attio_write: WriteRunner | None = None,
         auto_create: AutoCreateRunner | None = None,
+        digest: object = None,
     ) -> None:
         seen.interval_s = interval_s
         async with lock():
@@ -418,6 +420,44 @@ async def test_only_a_clean_real_round_logs_the_line_the_alarm_watches(
 
     # Only an all-failed round and a dry run stay silent; one bad record among good ones does not.
     assert caplog.text.count("interactions_attio_sync_ok") == 2
+
+
+class _Digest:
+    def __init__(self, *, failing: bool = False) -> None:
+        self.runs = 0
+        self.failing = failing
+
+    async def run(self) -> int:
+        self.runs += 1
+        if self.failing:
+            raise RuntimeError("slack is down")
+        return 3
+
+
+async def _run_with_digest(digest: _Digest, rounds: int) -> None:
+    clock = _Clock()
+    with pytest.raises(asyncio.CancelledError):
+        await run_loop(
+            _Service(), _locks(), INTERVAL_S, clock, _Sleeper(clock, rounds), digest=digest
+        )
+
+
+async def test_the_review_digest_runs_once_a_day_with_the_purge() -> None:
+    digest = _Digest()
+
+    await _run_with_digest(digest, rounds=3)
+
+    assert digest.runs == 1
+
+
+async def test_a_failing_digest_does_not_stop_the_loop() -> None:
+    service, digest = _Service(), _Digest(failing=True)
+    clock = _Clock()
+
+    with pytest.raises(asyncio.CancelledError):
+        await run_loop(service, _locks(), INTERVAL_S, clock, _Sleeper(clock, 2), digest=digest)
+
+    assert (service.passes, digest.runs) == (2, 1)
 
 
 async def test_a_failing_attio_write_does_not_stop_the_loop_or_the_purge() -> None:

@@ -53,6 +53,9 @@ class InteractionsSettings(SecretsManagerSettings):
     # Creating Persons and Organizations from email is off until a canary record checks out.
     interactions_auto_create_mode: WriteMode = WriteMode.OFF
     interactions_auto_create_max_per_round: int = Field(default=20, ge=1)
+    # Slack channel id for the daily review digest; empty turns the digest off.
+    interactions_review_slack_channel: str = ""
+    slack_bot_token: str = ""
 
     @field_validator("database_url")
     @classmethod
