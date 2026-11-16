@@ -34,6 +34,10 @@ for current production evidence and open handover items.
 - The interactions engine can empty a field in Attio, such as a passed "next
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
+- The interactions engine can create a Person and an Organization from email (AZM-159 PR 5),
+  tagged Lead Source Detail "Email sync". It is off until a canary record is checked. A shared
+  address or domain goes to a review table and a daily Slack post. Sender display names are now
+  stored for the new Person's name.
 - A record deleted or merged away in Attio no longer keeps the stale-sync alarm on. The
   engine logs it as gone and moves on (AZM-159).
 - The interactions engine is live in production (AZM-159). It keeps Attio's last

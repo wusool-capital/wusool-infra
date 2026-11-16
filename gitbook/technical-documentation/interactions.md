@@ -2,7 +2,7 @@
 
 The interactions engine reads the team's Gmail and Google Calendar and records who wrote to whom, and when. Its goal is to keep Attio's last interaction and connection strength live on Organizations and Person.
 
-It reads and stores, and in production it writes the results to Attio.
+It reads and stores, writes the results to Attio in production, and can create the contacts it meets.
 
 ## Status
 
@@ -13,7 +13,8 @@ It reads and stores, and in production it writes the results to Attio.
 | Interaction dates and connection strength | Live on production |
 | Shadow week: compare with Attio's own labels | Passed on prod: 84.6% exact, 96.2% within one level |
 | Write the fields to Attio | Live on production since 16 Nov |
-| Create contacts from email, roll up to Deals, retire Companies and People | Not started |
+| Create contacts from email | Built, off until a canary record is checked |
+| Roll up to Deals, retire Companies and People | Not started |
 
 ## What it reads
 
@@ -58,6 +59,10 @@ Where Attio's strongest user is a mailbox the engine doesn't read, connection st
 
 `INTERACTIONS_ATTIO_WRITE_MODE` is `off` by default, and `dry_run` logs counts only. A production alarm fires after 30 minutes without a clean write round.
 
+## Creating contacts
+
+The engine can create the Person and Organization for an outside contact it meets. It is off by default. See [Creating contacts from email](interactions-contact-creation.md).
+
 ## Settings
 
 | Setting | Default | Purpose |
@@ -71,13 +76,16 @@ Where Attio's strongest user is a mailbox the engine doesn't read, connection st
 | `INTERACTIONS_ATTIO_WRITE_MODE` | `off` | `off`, `dry_run` or `on`. Keep `off` until the shadow-week gate has passed. |
 | `INTERACTIONS_ATTIO_WRITES_PER_SECOND` | `5` | Request rate to Attio. |
 | `INTERACTIONS_ATTIO_MAX_RECORDS_PER_ROUND` | `500` | Most records written per object in one round. |
+| `INTERACTIONS_AUTO_CREATE_MODE` | `off` | `off`, `dry_run` or `on`. Creates Persons and Organizations from email. |
+| `INTERACTIONS_AUTO_CREATE_MAX_PER_ROUND` | `20` | Most Persons created in one round. |
+| `INTERACTIONS_REVIEW_SLACK_CHANNEL` | none | Slack channel id for the daily review post. Empty turns it off. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | none | The service-account key. Secrets Manager only. |
 
 The scoring settings, which are the points, half-life, bonus, and label cut-offs, start at the plan's values. They are tuned during the shadow week.
 
 ## Data stored
 
-Four PostgreSQL tables hold the data: `interactions`, `interaction_participants`, `mailbox_sync_cursors`, and `attio_sent_values`. The first three hold headers, subjects, and event details, never bodies. The last holds what was last sent to Attio.
+Five PostgreSQL tables hold the data: `interactions`, `interaction_participants`, `mailbox_sync_cursors`, `attio_sent_values`, and `interaction_review_items`. The first three hold headers, subjects, sender names, and event details, never bodies. The last two hold what was last sent to Attio and the cases waiting for review.
 
 Subjects can contain deal names, so treat these tables like other CRM data. Nothing is sent to a third party.
 
@@ -92,11 +100,9 @@ Subjects can contain deal names, so treat these tables like other CRM data. Noth
 
 ## Shadow week
 
-A read-only command compares our connection-strength label for each Organization with Attio's label on the matching Company. It writes nothing to Attio or PostgreSQL. Run it inside the deployed container, once the backfill is done and a week of data has settled.
+A read-only command compares our connection-strength label for each Organization with Attio's label on the matching Company. It writes nothing to Attio or PostgreSQL. Run it inside the deployed container once a week of data has settled.
 
-The report prints the exact-match rate, the within-one-level rate, and a 5-by-5 table. Each rate names how many Companies it covers. Companies that aren't a fair comparison are counted separately. Examples are Attio's strongest user being `tech@` or a mailbox we don't read, and no Organization for the domain. A Company with an Attio label but no interactions on our side counts as Very weak.
-
-The report can also save a file of record ids, Attio's labels and our raw scores. It holds no names. It is used to tune the label cut-offs offline.
+The report prints the exact-match rate, the within-one-level rate, and a 5-by-5 table. Companies that aren't a fair comparison, such as those whose strongest user is `tech@` or a mailbox we don't read, are counted separately.
 
 Writing to Attio starts only if at least 80% match exactly and 95% are within one level.
 
