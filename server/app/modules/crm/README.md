@@ -72,6 +72,9 @@ Buyer `status` is the Attio `mandate_status`. Seller `openToSelling` maps the At
 `appetite_signal`: "No Signal" is Unknown, the two inbound signals are Interested, and
 "Warm Introduction / Direct Outreach" is Warm intro.
 
+A seller's sector is the role's own `sector`, or the company's `sector_focus` when the role has
+none, which is most roles. The sector column, filter, options and search all use that same value.
+
 ## Layout
 
 `domain/` (frozen dataclasses and errors), `application/` (the service and the reader and

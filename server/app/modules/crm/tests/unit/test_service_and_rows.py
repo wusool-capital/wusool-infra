@@ -1,7 +1,9 @@
-from datetime import date
+from datetime import UTC, date, datetime
 
 import pytest
 
+from app.models import Organization
+from app.models import SellerRole as SellerRoleRow
 from app.modules.crm.api.schemas import (
     BuyerFilterQuery,
     BuyerUpdate,
@@ -21,6 +23,7 @@ from app.modules.crm.domain.roles import (
     StaleRoleError,
     open_to_selling,
 )
+from app.modules.crm.persistence.mappers import to_seller
 from app.modules.crm.providers.ddl_commands_writer import (
     buyer_add_row,
     buyer_edit_row,
@@ -184,3 +187,18 @@ def test_an_empty_update_is_refused_and_a_null_counts_as_sent() -> None:
     assert SellerUpdate.model_validate(
         {"reEngageDate": "2027-01-05"}
     ).to_domain().re_engage_date == date(2027, 1, 5)
+
+
+def test_a_seller_without_its_own_sector_shows_the_companys() -> None:
+    org = Organization(attio_id="o1", name="Omega", domains=["o.com"], sector_focus=["Logistics"])
+    role = SellerRoleRow(
+        org_attio_id="o1", sector=[], updated_at=datetime(2026, 11, 16, tzinfo=UTC)
+    )
+
+    assert to_seller(role, org, {}).sector == "Logistics"
+
+    role.sector = ["Dental", "Retail"]
+    assert to_seller(role, org, {}).sector == "Dental, Retail"
+
+    role.sector, org.sector_focus = [], []
+    assert to_seller(role, org, {}).sector is None
