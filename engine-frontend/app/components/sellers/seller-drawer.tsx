@@ -76,7 +76,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
   const dealRows = rows.filter((row) => row.dealId);
 
   return (
-    <Drawer title={seller.name} status={`${seller.sector}, ${seller.hq}`} onClose={onClose} actions={<RecordHeaderActions itemName={seller.name} actions={sellerActions(seller).filter((action) => action.panel !== "edit")} onEdit={() => onPanel("edit")} onPick={onPanel} />}>
+    <Drawer title={seller.name} status={[seller.sector, seller.hq].filter(Boolean).join(", ")} onClose={onClose} actions={<RecordHeaderActions itemName={seller.name} actions={sellerActions(seller).filter((action) => action.panel !== "edit")} onEdit={() => onPanel("edit")} onPick={onPanel} />}>
       <section className="drawer__section">
         <h3 className="panel-heading">Profile</h3>
         <dl className="label-grid label-grid--two">

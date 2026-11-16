@@ -58,6 +58,8 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- A seller drawer in the Engine no longer starts its header with a stray comma when the
+  seller has no sector.
 - Editing a seller's extra fields in the Engine, such as the company description or
   LinkedIn, now saves. Before, a seller edit that changed only those fields failed with
   "send at least one field". An edit that also changed a profile field saved the profile
