@@ -250,6 +250,17 @@
             ],
             "title": "Checksizeminusd"
           },
+          "companySector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companysector"
+          },
           "contactIds": {
             "items": {
               "type": "string"
@@ -1037,6 +1048,17 @@
       },
       "SellerRoleView": {
         "properties": {
+          "companySector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Companysector"
+          },
           "contactIds": {
             "items": {
               "type": "string"
@@ -1126,6 +1148,17 @@
             ],
             "title": "Opentoselling",
             "type": "string"
+          },
+          "ownSector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ownsector"
           },
           "ownerId": {
             "anyOf": [

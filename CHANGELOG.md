@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The Engine's buyer and seller drawers and edit forms now keep two sectors apart. The company's
+  sector is shown at the top. The role's own sector, a buyer's target vertical or a seller role's
+  sector, is shown under Buyer or Seller details, read only.
 - A seller in the Engine with no sector of its own now shows its company's sector. The Sellers
   sector column, filter and search use it too. Before, most sellers had none.
 - Web addresses in the Engine's buyer and seller drawers are now links that open in a new

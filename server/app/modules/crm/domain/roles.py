@@ -96,6 +96,8 @@ class BuyerRole:
     # No source column yet.
     type: None = None
     details: tuple[Detail, ...] = ()
+    # The company's sector focus, apart from the role's own `sectors` (its target vertical).
+    company_sector: str | None = None
 
 
 @dataclass(frozen=True)
@@ -114,6 +116,10 @@ class SellerRole:
     contact_ids: tuple[str, ...]
     etag: str
     details: tuple[Detail, ...] = ()
+    # The role's own sector alone; `sector` falls back to the company's when this is empty.
+    own_sector: str | None = None
+    # The company's sector focus alone, never the role's.
+    company_sector: str | None = None
 
 
 @dataclass(frozen=True)

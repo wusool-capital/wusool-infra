@@ -114,6 +114,8 @@ class BuyerRoleView(ApiModel):
     contact_ids: list[str]
     notes: str | None
     etag: str
+    # The company's sector focus; `sectors` is the role's own (its target vertical).
+    company_sector: str | None = None
     # Filled by the single-role read only; lists leave it empty.
     details: list[DetailView] = Field(default_factory=list)
 
@@ -134,6 +136,10 @@ class SellerRoleView(ApiModel):
     etag: str
     # Sellers have no notes column yet.
     notes: str | None = None
+    # The role's own sector; `sector` shows the company's when the role has none.
+    own_sector: str | None = None
+    # The company's sector focus, never the role's.
+    company_sector: str | None = None
     details: list[DetailView] = Field(default_factory=list)
 
 

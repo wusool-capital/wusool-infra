@@ -51,10 +51,10 @@ production Toolkit, so its edits change the real CRM.
   the Toolkit refuses it with 412. The check is not atomic with the write, and an
   Attio webhook echo can also change the version. Errors use the RFC 9457 problem
   format.
-* A seller's sector is the role's own, or the company's when the role has none. The sector
-  column, filter and search use it.
-* A web address in the drawer, such as the website or LinkedIn, is a link that opens in a
-  new tab. A long one is shortened to its domain.
+* The drawer and edit form show the company's sector at the top. The role's own, a buyer's
+  target vertical or a seller role's sector, sits under Buyer or Seller details, read only.
+  The Sellers list uses the role's sector, or the company's when the role has none.
+* A web address in the drawer is a link that opens in a new tab, shortened to its domain.
 * The record drawer shows the same extra fields as the Edit form, read only, and leaves out
   any field with no value. They load from the single-record read when the drawer opens.
 * Range filters (check size, EBITDA, revenue) are a two-handle slider with named steps
