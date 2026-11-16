@@ -128,6 +128,7 @@ def seller_edit_row(changes: SellerChanges) -> UploadRow:
         row["re_engage_date"] = (
             changes.re_engage_date.isoformat() if changes.re_engage_date else None
         )
+    row.update(detail_row(changes.details))
     return row
 
 

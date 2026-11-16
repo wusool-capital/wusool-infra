@@ -13,6 +13,7 @@ from app.modules.crm.application.service import MAX_PAGE_SIZE, CrmService
 from app.modules.crm.domain.roles import (
     BuyerChanges,
     BuyerFilters,
+    Detail,
     NewBuyer,
     RoleAlreadyExistsError,
     RoleNotFoundError,
@@ -111,6 +112,18 @@ def test_edit_rows_carry_only_sent_fields_and_clear_with_none() -> None:
     ) == {
         "appetite_signal": "Warm Introduction / Direct Outreach",
         "re_engage_date": "2027-01-05",
+    }
+
+
+def test_seller_edit_rows_carry_the_extra_fields_even_when_nothing_else_changed() -> None:
+    changes = SellerChanges(
+        frozenset({"details"}),
+        details=(Detail("description", None), Detail("linkedin", "linkedin.com/company/acme")),
+    )
+
+    assert seller_edit_row(changes) == {
+        "description": None,
+        "linkedin": "linkedin.com/company/acme",
     }
 
 
