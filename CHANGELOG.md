@@ -12,6 +12,9 @@ for current production evidence and open handover items.
 
 ### Added
 
+- `attio_sent_values.baseline` holds the seed's baseline for each field
+  (AZM-159 PR 4). It replaces separate prefixed rows.
+
 - Three Postgres tables for the interactions engine's Attio writes
   (AZM-159 PR 4). Nothing writes to them yet.
   - `attio_sent_values` keeps the last value sent per record and field, so
