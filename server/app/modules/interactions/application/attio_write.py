@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 MemberIds = Callable[[], Awaitable[Mapping[str, str]]]
 
 _SCORE_PLACES = 4
+# A score decays a little every round, so only a move of 1% (at least 0.05) is worth a write.
+_MIN_MOVE = Decimal("0.05")
+_MIN_MOVE_RATIO = Decimal("0.01")
 
 
 @dataclass(frozen=True)
@@ -99,8 +102,7 @@ class AttioWriteService:
         new_scores: dict[str, Decimal] = {}
         # A record that went quiet has no touches but still needs its decay and next dates.
         for record_id in sorted(set(touches) | set(stored)):
-            # A dry run has to see everything to be representative; a real round is capped,
-            # counting failed attempts so a run of bad records cannot stretch it.
+            # A dry run sees everything; a real round is capped, counting failed attempts.
             attempts = report.patched + report.failed - start
             if not self._config.dry_run and attempts >= self._config.max_records_per_round:
                 report = replace(report, hit_cap=True)
@@ -124,13 +126,14 @@ class AttioWriteService:
                 report = replace(
                     report, patched=report.patched + 1, fields=report.fields + len(plan.writes)
                 )
-            # The score moves every day with decay, so it is kept even when no Attio field
-            # changed. Strength left alone for an unread mailbox keeps its score alone too.
+            # The score tracks the label. Where the label is left alone (an unread mailbox, or a
+            # quiet record whose label is not cleared yet) the score is left alone too.
             score = Decimal(str(round(summary.score, _SCORE_PLACES)))
             if (
                 not plan.skip_strength
+                and summary.connection_strength is not None
                 and record_id in current_scores
-                and current_scores[record_id] != score
+                and _moved(current_scores[record_id], score)
             ):
                 new_scores[record_id] = score
         if new_scores and not self._config.dry_run:
@@ -140,3 +143,9 @@ class AttioWriteService:
             except Exception:
                 logger.exception("interactions_score_write_failed object=%s", obj.value)
         return report
+
+
+def _moved(old: Decimal | None, new: Decimal) -> bool:
+    if old is None:
+        return True
+    return abs(new - old) >= max(_MIN_MOVE, abs(old) * _MIN_MOVE_RATIO)

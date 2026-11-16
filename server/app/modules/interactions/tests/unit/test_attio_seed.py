@@ -139,3 +139,17 @@ async def test_the_service_seeds_both_objects_and_marks_each_complete() -> None:
         (AttioObject.PERSON, 1, 1),
     ]
     assert sent.marked == sent.seeded == [AttioObject.ORGANIZATIONS, AttioObject.PERSON]
+
+
+class _EmptySource:
+    async def rows(self, obj: AttioObject) -> Sequence[SeedRow]:
+        return []
+
+
+async def test_a_seed_that_read_nothing_is_not_marked_done() -> None:
+    sent = _Sent()
+
+    reports = await AttioSeedService(_EmptySource(), sent).run()
+
+    assert sent.marked == []
+    assert [r.rows_read for r in reports] == [0, 0]

@@ -70,7 +70,7 @@ Where Attio's strongest user is a mailbox the engine doesn't read, connection st
 | `INTERACTIONS_RETENTION_MONTHS` | `12` | How long interactions are kept. At least 1. |
 | `INTERACTIONS_ATTIO_WRITE_MODE` | `off` | `off`, `dry_run` or `on`. Keep `off` until the shadow-week gate has passed. |
 | `INTERACTIONS_ATTIO_WRITES_PER_SECOND` | `5` | Request rate to Attio. |
-| `INTERACTIONS_ATTIO_MAX_RECORDS_PER_ROUND` | `500` | Most records written in one 15-minute round. |
+| `INTERACTIONS_ATTIO_MAX_RECORDS_PER_ROUND` | `500` | Most records written per object in one round. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | none | The service-account key. Secrets Manager only. |
 
 The scoring settings, which are the points, half-life, bonus, and label cut-offs, start at the plan's values. They are tuned during the shadow week.

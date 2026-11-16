@@ -28,6 +28,12 @@ class AttioSeedService:
         for obj in AttioObject:
             rows = await self._source.rows(obj)
             stored = await self._sent.seed(obj, rows)
+            if not rows:
+                # Reading nothing means the wrong scope or an empty page. Marking it done would
+                # let the writer overwrite live values it has never seen.
+                logger.error("interactions_attio_seed_empty object=%s: not marked done", obj.value)
+                reports.append(SeedReport(obj, 0, 0))
+                continue
             await self._sent.mark_seeded(obj)
             logger.info(
                 "interactions_attio_seeded object=%s read=%d stored=%d",

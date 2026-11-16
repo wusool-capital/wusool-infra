@@ -140,8 +140,7 @@ def plan_record(
         merged[slug] = computed.get(slug) if follows else sent.get(slug)
     for slug in _NEXT:
         merged[slug] = computed.get(slug)
-    # Where Attio's strongest user is someone whose mailbox we don't read, our strength would
-    # be missing their mail, so it is left alone.
+    # Our strength would miss an unread mailbox's mail, so it is left alone there.
     baseline_user = baseline.get("strongest_connection_user")
     skip_strength = baseline_user is not None and baseline_user not in read_member_ids
     for slug in _STRENGTH:

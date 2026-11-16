@@ -300,3 +300,29 @@ async def test_no_score_is_stored_by_a_dry_run_or_where_strength_is_left_alone()
         sent2, _Writer(sent2), {"o2": _touches()}, dry_run=True, scores=scores2
     ).run_round()
     assert scores2.saved == {}
+
+
+async def test_a_tiny_decay_is_not_rewritten_but_a_real_move_is() -> None:
+    sent = _Sent(seeded={ORG})
+    scores = _Scores({"o1": None})
+    service = _service(sent, _Writer(sent), {"o1": _touches(3)}, scores=scores)
+    await service.run_round()
+    stored = scores.saved["o1"]
+    scores.rows["o1"] = stored + Decimal("0.001")
+    scores.saved.clear()
+
+    drift = await service.run_round()
+    scores.rows["o1"] = stored * 2
+    moved = await service.run_round()
+
+    assert (drift.scores_updated, moved.scores_updated) == (0, 1)
+
+
+async def test_a_quiet_record_keeps_its_score_while_its_label_cannot_be_cleared() -> None:
+    stored = {"o1": RecordValues({"connection_strength": "Strong"}, {})}
+    sent = _Sent(seeded={ORG}, stored=stored)
+    scores = _Scores({"o1": Decimal("20")})
+
+    report = await _service(sent, _Writer(sent), {}, scores=scores).run_round()
+
+    assert (scores.saved, report.scores_updated) == ({}, 0)

@@ -14,7 +14,10 @@ from app.modules.interactions.bootstrap import run_attio_seed
 
 async def main() -> None:
     for report in await run_attio_seed():
-        print(f"{report.object.value}: read {report.rows_read}, stored {report.rows_stored} new")
+        note = "" if report.rows_read else "  NOT marked done: nothing was read"
+        print(
+            f"{report.object.value}: read {report.rows_read}, stored {report.rows_stored} new{note}"
+        )
 
 
 if __name__ == "__main__":

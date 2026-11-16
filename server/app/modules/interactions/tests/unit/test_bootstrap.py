@@ -448,3 +448,26 @@ async def test_the_write_step_refuses_to_start_on_a_test_instance(
             assert runner is None
 
     assert "ATTIO_IS_TEST is set" in caplog.text
+
+
+async def test_a_failure_setting_up_the_write_step_leaves_ingestion_running(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(
+        bootstrap,
+        "get_settings",
+        lambda: InteractionsSettings(interactions_attio_write_mode="on"),
+    )
+    monkeypatch.setattr(bootstrap, "attio_is_test", lambda: False)
+    monkeypatch.setattr(bootstrap, "get_sessionmaker", lambda: object())
+
+    def broken_client() -> None:
+        raise RuntimeError("no Attio key")
+
+    monkeypatch.setattr(bootstrap, "get_attio_client", broken_client)
+
+    with caplog.at_level(logging.ERROR):
+        async with bootstrap._attio_write_runner() as runner:
+            assert runner is None
+
+    assert "setup failed" in caplog.text

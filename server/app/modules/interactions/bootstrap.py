@@ -8,7 +8,7 @@ the instance that is meant to read the mailboxes turns it on.
 import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from typing import Protocol
 
@@ -220,27 +220,39 @@ async def _attio_write_runner() -> AsyncIterator[WriteRunner | None]:
         return
     sessionmaker = get_sessionmaker()
     internal = settings.internal_domains
-    async with get_attio_client() as client:
+    async with AsyncExitStack() as stack:
+        service: AttioWriteService | None
+        try:
+            client = await stack.enter_async_context(get_attio_client())
 
-        async def member_ids() -> Mapping[str, str]:
-            members = await list_workspace_members(client)
-            return {team_member_of(m.email.strip().lower(), internal): m.member_id for m in members}
+            async def member_ids() -> Mapping[str, str]:
+                members = await list_workspace_members(client)
+                return {
+                    team_member_of(m.email.strip().lower(), internal): m.member_id for m in members
+                }
 
-        yield AttioWriteService(
-            SqlAlchemyTouchReader(sessionmaker, internal),
-            SqlAlchemySentValues(sessionmaker),
-            AttioRecordWriter(client, settings.interactions_attio_writes_per_second),
-            SqlAlchemyScoreStore(sessionmaker),
-            member_ids,
-            AttioWriteConfig(
-                read_mailboxes=frozenset(team_member_of(m, internal) for m in settings.mailboxes),
-                rules=settings.scoring_rules(),
-                max_records_per_round=settings.interactions_attio_max_records_per_round,
-                dry_run=mode is WriteMode.DRY_RUN,
-            ),
-            _utc_now,
-        )
-        logger.info("interactions_attio_write_enabled mode=%s", mode.value)
+            service = AttioWriteService(
+                SqlAlchemyTouchReader(sessionmaker, internal),
+                SqlAlchemySentValues(sessionmaker),
+                AttioRecordWriter(client, settings.interactions_attio_writes_per_second),
+                SqlAlchemyScoreStore(sessionmaker),
+                member_ids,
+                AttioWriteConfig(
+                    read_mailboxes=frozenset(
+                        team_member_of(m, internal) for m in settings.mailboxes
+                    ),
+                    rules=settings.scoring_rules(),
+                    max_records_per_round=settings.interactions_attio_max_records_per_round,
+                    dry_run=mode is WriteMode.DRY_RUN,
+                ),
+                _utc_now,
+            )
+            logger.info("interactions_attio_write_enabled mode=%s", mode.value)
+        except Exception:
+            # The write step is optional; a failure here must never stop mail ingestion.
+            logger.exception("interactions_attio_write_not_started: setup failed")
+            service = None
+        yield service
 
 
 async def run_strength_calibration() -> CalibrationReport:
