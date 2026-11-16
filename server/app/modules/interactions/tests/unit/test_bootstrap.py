@@ -27,6 +27,7 @@ from app.modules.interactions.application.ports.interaction_store import Interac
 from app.modules.interactions.application.ports.record_directory import RecordDirectoryPort
 from app.modules.interactions.bootstrap import (
     LOCK_KEY,
+    AutoCreateRunner,
     LockFactory,
     PassRunner,
     WriteRunner,
@@ -265,6 +266,7 @@ async def test_the_enabled_loop_asks_for_both_scopes_and_runs_under_the_lock(
         lock: LockFactory,
         interval_s: float,
         attio_write: WriteRunner | None = None,
+        auto_create: AutoCreateRunner | None = None,
     ) -> None:
         seen.interval_s = interval_s
         async with lock():
