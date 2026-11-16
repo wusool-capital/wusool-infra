@@ -30,6 +30,8 @@ for current production evidence and open handover items.
 - The interactions engine can empty a field in Attio, such as a passed "next
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
+- A record deleted or merged away in Attio no longer keeps the stale-sync alarm on. The
+  engine logs it as gone and moves on (AZM-159).
 - The interactions engine is live in production (AZM-159). It keeps Attio's last
   interaction and connection strength current on Organizations and People. About
   4,200 records were filled in on 16 November. A production alarm watches for a

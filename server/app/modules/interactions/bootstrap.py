@@ -131,12 +131,13 @@ async def _write_round(attio_write: WriteRunner) -> None:
         logger.exception("interactions_attio_write_round_failed")
         return
     logger.info(
-        "interactions_attio_write patched=%d fields=%d cleared=%d failed=%d "
+        "interactions_attio_write patched=%d fields=%d cleared=%d failed=%d gone=%d "
         "scores_updated=%d unseeded=%d hit_cap=%s dry_run=%s",
         report.patched,
         report.fields,
         report.cleared,
         report.failed,
+        report.gone,
         report.scores_updated,
         len(report.unseeded),
         report.hit_cap,

@@ -5,7 +5,10 @@ from decimal import Decimal
 import pytest
 
 from app.modules.interactions.application.attio_write import AttioWriteConfig, AttioWriteService
-from app.modules.interactions.application.ports.attio_writer import WritesNotAllowedError
+from app.modules.interactions.application.ports.attio_writer import (
+    RecordGoneError,
+    WritesNotAllowedError,
+)
 from app.modules.interactions.application.ports.sent_values import RecordValues, SeedRow
 from app.modules.interactions.domain.attio_fields import AttioObject, FieldValue
 from app.modules.interactions.domain.model import Channel, ScoringRules, Touch
@@ -69,9 +72,16 @@ class _Scores:
 
 
 class _Writer:
-    def __init__(self, sent: _Sent, fail_for: str | None = None, refuse: bool = False) -> None:
+    def __init__(
+        self,
+        sent: _Sent,
+        fail_for: str | None = None,
+        refuse: bool = False,
+        gone_for: str | None = None,
+    ) -> None:
         self.sent = sent
         self.fail_for = fail_for
+        self.gone_for = gone_for
         self.refuse = refuse
         self.patches: list[tuple[str, dict[str, str | None]]] = []
 
@@ -80,6 +90,8 @@ class _Writer:
             raise WritesNotAllowedError("test instance")
         if record_id == self.fail_for:
             raise RuntimeError("attio said no")
+        if record_id == self.gone_for:
+            raise RecordGoneError(record_id)
         self.sent.events.append(f"patch {record_id}")
         self.patches.append((record_id, {f.slug: f.value for f in fields}))
 
@@ -164,6 +176,17 @@ async def test_one_failing_record_is_skipped_unsaved_and_the_rest_continue() -> 
 
     assert [r for r, _ in writer.patches] == ["o2"]
     assert (report.patched, report.failed) == (1, 1)
+    assert "o1" not in sent.stored
+
+
+async def test_a_record_gone_from_attio_is_counted_apart_from_failures() -> None:
+    sent = _Sent(seeded={ORG})
+    writer = _Writer(sent, gone_for="o1")
+
+    report = await _service(sent, writer, {"o1": _touches(), "o2": _touches(3)}).run_round()
+
+    assert [r for r, _ in writer.patches] == ["o2"]
+    assert (report.patched, report.failed, report.gone) == (1, 0, 1)
     assert "o1" not in sent.stored
 
 
