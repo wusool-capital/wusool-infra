@@ -64,9 +64,8 @@ class _Scores:
     async def load(self, obj: AttioObject) -> Mapping[str, Decimal | None]:
         return self.rows if obj is ORG else {}
 
-    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> int:
+    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> None:
         self.saved.update(scores)
-        return len(scores)
 
 
 class _Writer:
@@ -330,3 +329,15 @@ async def test_a_quiet_record_fades_to_very_weak_and_its_score_follows() -> None
     assert writer.patches == [("o1", {"connection_strength": "Very weak"})]
     assert scores.saved == {"o1": Decimal("0")}
     assert report.scores_updated == 1
+
+
+async def test_the_number_of_scores_updated_is_the_number_sent_never_negative() -> None:
+    sent = _Sent(seeded={ORG})
+    ids = [f"o{i}" for i in range(5)]
+    scores = _Scores({i: None for i in ids})
+
+    report = await _service(
+        sent, _Writer(sent), {i: _touches() for i in ids}, scores=scores
+    ).run_round()
+
+    assert report.scores_updated == 5
