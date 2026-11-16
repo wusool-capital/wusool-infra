@@ -193,6 +193,7 @@ class _ParticipantRow(TypedDict):
     email: str
     domain: str
     role: str
+    display_name: str | None
 
 
 def _row(item: NewInteraction) -> _InteractionRow:
@@ -217,6 +218,7 @@ def _participant_rows(
             "email": p.email,
             "domain": p.domain,
             "role": p.role.value,
+            "display_name": p.name,
         }
         for item in items
         for p in item.participants

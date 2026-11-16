@@ -84,6 +84,7 @@ def _to_event(item: CalendarItem) -> CalendarEvent | None:
         subject=item.summary,
         organizer=_address(item.organizer.email) if item.organizer else None,
         attendees=tuple(a for a in map(_to_attendee, item.attendees) if a is not None),
+        organizer_name=item.organizer.display_name if item.organizer else None,
     )
 
 
@@ -106,6 +107,7 @@ def _to_attendee(item: CalendarAttendeeItem) -> Attendee | None:
         response_status=item.response_status,
         is_self=item.is_self,
         resource=item.resource,
+        name=item.display_name,
     )
 
 

@@ -504,6 +504,7 @@ once the record exists.
 | email | text | no | | lowercased, indexed; unique with interaction_id and role |
 | domain | text | no | | indexed |
 | role | text | no | | `from`, `to`, `cc` or `attendee` |
+| display_name | text | yes | | sender or guest name as shown; null on rows read before this column |
 | person_attio_id | text | yes | | FK → person.attio_id, on delete set null, indexed |
 | organization_attio_id | text | yes | | FK → organizations.attio_id, on delete set null, indexed |
 | created_at | timestamptz | no | `now()` | |

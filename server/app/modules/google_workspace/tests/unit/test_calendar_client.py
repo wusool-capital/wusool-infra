@@ -62,9 +62,9 @@ async def test_backfill_bounds_the_window_and_expands_recurring_events() -> None
 
 async def test_a_timed_event_maps_its_attendees_and_the_self_response() -> None:
     event = _timed("e1") | {
-        "organizer": {"email": "Sara@Acme.com"},
+        "organizer": {"email": "Sara@Acme.com", "displayName": "Sara Lee"},
         "attendees": [
-            {"email": "sara@acme.com", "responseStatus": "accepted"},
+            {"email": "sara@acme.com", "responseStatus": "accepted", "displayName": "Sara Lee"},
             {"email": "Jules@WusoolCapital.com", "responseStatus": "declined", "self": True},
             {"displayName": "Room 4"},
         ],
@@ -80,8 +80,9 @@ async def test_a_timed_event_maps_its_attendees_and_the_self_response() -> None:
     assert mapped.starts_at == datetime(2026, 11, 10, 14, tzinfo=timezone(timedelta(hours=4)))
     assert (mapped.all_day, mapped.cancelled, mapped.subject) == (False, False, "Board call")
     assert mapped.organizer == "sara@acme.com"
+    assert mapped.organizer_name == "Sara Lee"
     assert mapped.attendees == (
-        Attendee("sara@acme.com", "accepted", False),
+        Attendee("sara@acme.com", "accepted", False, name="Sara Lee"),
         Attendee("jules@wusoolcapital.com", "declined", True),
     )
 

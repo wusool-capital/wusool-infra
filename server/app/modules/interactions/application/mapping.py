@@ -3,6 +3,7 @@
 Pure: no I/O. Anything the ignore filter drops returns None.
 """
 
+from collections.abc import Mapping
 from datetime import UTC
 
 from app.modules.google_workspace import CalendarEvent, MailMessage
@@ -23,7 +24,12 @@ def email_to_item(
         (Role.TO, list(message.to_addresses)),
         (Role.CC, list(message.cc_addresses)),
     ]
-    participants = _participants(roles, internal_domains)
+    names = (
+        {message.from_address: message.from_name}
+        if message.from_address and message.from_name
+        else {}
+    )
+    participants = _participants(roles, internal_domains, names)
     raw = RawItem(
         channel=Channel.EMAIL,
         participants=tuple(dict.fromkeys(p.email for p in participants)),
@@ -64,7 +70,10 @@ def event_to_item(
     # An organizer missing from the guest list took part; one who is listed and declined did not.
     if event.organizer and event.organizer not in listed:
         attending.append(event.organizer)
-    participants = _participants([(Role.ATTENDEE, attending)], internal_domains)
+    names = {a.address: a.name for a in event.attendees if a.name}
+    if event.organizer and event.organizer_name:
+        names.setdefault(event.organizer, event.organizer_name)
+    participants = _participants([(Role.ATTENDEE, attending)], internal_domains, names)
     raw = RawItem(
         channel=Channel.MEETING,
         participants=tuple(p.email for p in participants),
@@ -88,12 +97,15 @@ def event_to_item(
 
 
 def _participants(
-    roles: list[tuple[Role, list[str]]], internal_domains: tuple[str, ...]
+    roles: list[tuple[Role, list[str]]],
+    internal_domains: tuple[str, ...],
+    names: Mapping[str, str] | None = None,
 ) -> tuple[NewParticipant, ...]:
     """One row per address and role. Team aliases fold into one address first."""
     unique: dict[tuple[str, Role], NewParticipant] = {}
     for role, addresses in roles:
         for address in addresses:
             email = team_member_of(address, internal_domains)
-            unique.setdefault((email, role), NewParticipant(email, domain_of(email), role))
+            name = (names or {}).get(address)
+            unique.setdefault((email, role), NewParticipant(email, domain_of(email), role, name))
     return tuple(unique.values())
