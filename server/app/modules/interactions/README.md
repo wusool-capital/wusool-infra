@@ -12,9 +12,13 @@ _New to this codebase's layering? See
 
 The module reads and stores Gmail and Calendar metadata and links it to CRM
 records. `IngestService.run_pass()` does one pass, and `run_interactions_forever()`
-runs it on a timer, off by default. After each pass an optional write round sends
-the computed fields to Attio. It is off (`INTERACTIONS_ATTIO_WRITE_MODE=off`) until
-the shadow-week calibration, which `scripts/calibrate_strength.py` runs, passes.
+runs it on a timer, off by default. After each pass a write round sends the
+computed fields to Attio.
+
+**Production runs it.** The loop is on, the write mode is `on`, and the scoring
+settings come from the prod secret, not the defaults here: half-life 365 days,
+meeting points 2, two-way bonus 1.0 and label cutoffs 5.7, 17, 37 and 48. The
+shadow-week report (`scripts/calibrate_strength.py`) passed on those values.
 
 ## Structure
 

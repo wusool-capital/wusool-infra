@@ -30,6 +30,10 @@ for current production evidence and open handover items.
 - The interactions engine can empty a field in Attio, such as a passed "next
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
+- The interactions engine is live in production (AZM-159). It keeps Attio's last
+  interaction and connection strength current on Organizations and People. About
+  4,200 records were filled in on 16 November. A production alarm watches for a
+  stalled sync.
 - The interactions engine can write its fields to Attio (AZM-159 PR 4). It
   sends only changed values, slowly, and only in production. It is off until
   the shadow-week gate passes. A seed step first records what Attio holds. A
