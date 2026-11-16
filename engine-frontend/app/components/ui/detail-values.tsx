@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Detail, DetailValue, FieldDef } from "../../demo/types";
 import { formatDate, formatMoney } from "../../lib/format";
+import { LinkText } from "./link-text";
 import { LabelItem } from "./record-parts";
 
 type Props = {
@@ -19,7 +20,7 @@ const GROUPS = [
 
 const isEmpty = (value: DetailValue | undefined) => value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
 
-function show(field: FieldDef, value: DetailValue) {
+function show(field: FieldDef, value: DetailValue): ReactNode {
   if (Array.isArray(value)) return value.join(", ");
   switch (field.kind) {
     case "currency":
@@ -30,6 +31,8 @@ function show(field: FieldDef, value: DetailValue) {
       return typeof value === "string" ? formatDate(value) : String(value);
     case "bool":
       return value ? "Yes" : "No";
+    case "text":
+      return <LinkText text={String(value)} />;
     default:
       return String(value);
   }

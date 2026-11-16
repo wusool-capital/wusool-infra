@@ -12,6 +12,7 @@ import { CheckGroup } from "../ui/check-group";
 import { DetailFields } from "../ui/detail-fields";
 import { DetailValues } from "../ui/detail-values";
 import { Drawer } from "../ui/drawer";
+import { LinkText } from "../ui/link-text";
 import { useRouteAction, useSaveAction } from "../ui/toast";
 import { EmailLogSection, LabelItem as Item, RecordHeaderActions } from "../ui/record-parts";
 import { BuyerStatusPill } from "./buyer-status-pill";
@@ -72,7 +73,7 @@ export function BuyerDrawer({ buyer, data, panel, onPanel, onClose }: Props) {
           <Item label="Geography">{buyer.geographies.join(", ")}</Item>
           <Item label="Check size">{checkSizeLabel(buyer)}</Item>
           <Item label="Min. EBITDA">{formatMoney(buyer.ebitdaFloorUsd)}</Item>
-          <Item label="Website">{buyer.website}</Item>
+          <Item label="Website"><LinkText text={buyer.website} /></Item>
         </dl>
         <p className="record-notes">{buyer.notes}</p>
       </section>

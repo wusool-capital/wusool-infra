@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Web addresses in the Engine's buyer and seller drawers are now links that open in a new
+  tab. This covers the website, LinkedIn and the logo. A long address shows only its domain.
 - AWS CloudTrail now has one trail instead of two. Dev and prod share one AWS
   account and both trails were multi-region. Every event was recorded twice, and
   the second copy cost about $20 a month. Prod keeps its trail. Dev's trail is
@@ -30,6 +32,8 @@ for current production evidence and open handover items.
 - The interactions engine can empty a field in Attio, such as a passed "next
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
+- A record deleted or merged away in Attio no longer keeps the stale-sync alarm on. The
+  engine logs it as gone and moves on (AZM-159).
 - The interactions engine is live in production (AZM-159). It keeps Attio's last
   interaction and connection strength current on Organizations and People. About
   4,200 records were filled in on 16 November. A production alarm watches for a
@@ -54,6 +58,10 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- Editing a seller's extra fields in the Engine, such as the company description or
+  LinkedIn, now saves. Before, a seller edit that changed only those fields failed with
+  "send at least one field". An edit that also changed a profile field saved the profile
+  field and dropped the extra ones.
 - Editing a buyer or seller field to empty, in Slack or through the MCP, now
   empties it in Attio too (AZM-159). Before, only the database changed, and
   the next sync brought the old value back. List fields are never emptied.
