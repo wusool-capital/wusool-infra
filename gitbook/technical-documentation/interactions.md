@@ -54,7 +54,7 @@ After the shadow-week gate has passed, the engine writes 13 fields to Organizati
 
 A seed script first records what Attio holds, including the live Company and Person values. First dates only move earlier and last dates only later, so old mail leaving the window can't undo them.
 
-Where Attio's strongest user is a mailbox the engine doesn't read, connection strength is left alone. A value that should become empty is counted, not cleared. The engine refuses to write while `ATTIO_IS_TEST` is set.
+Where Attio's strongest user is a mailbox the engine doesn't read, connection strength is left alone. An empty value is cleared; strength fades to Very weak. The engine refuses to write while `ATTIO_IS_TEST` is set.
 
 `INTERACTIONS_ATTIO_WRITE_MODE` is `off` by default, and `dry_run` logs counts only. A production alarm fires after 30 minutes without a clean write round.
 

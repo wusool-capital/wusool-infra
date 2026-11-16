@@ -136,7 +136,7 @@ def test_channel_and_subject_stay_when_the_last_interaction_is_older_than_known(
     assert plan.writes == ()
 
 
-def test_a_next_date_that_disappears_is_counted_not_cleared() -> None:
+def test_a_next_date_that_disappears_is_cleared() -> None:
     plan = plan_record(
         computed={"next_interaction_at": None},
         sent={"next_interaction_at": LATE},
@@ -144,7 +144,7 @@ def test_a_next_date_that_disappears_is_counted_not_cleared() -> None:
         read_member_ids=READ,
     )
 
-    assert (plan.writes, plan.clears_skipped) == ((), 1)
+    assert plan.writes == (FieldValue("next_interaction_at", None),)
 
 
 def test_strength_is_left_alone_when_attios_strongest_user_is_an_unread_mailbox() -> None:
@@ -179,7 +179,7 @@ def test_nothing_is_written_when_computed_matches_what_attio_holds() -> None:
 
     plan = plan_record(computed=same, sent=same, baseline={}, read_member_ids=READ)
 
-    assert (plan.writes, plan.clears_skipped) == ((), 0)
+    assert plan.writes == ()
 
 
 def test_a_record_with_no_sent_values_gets_every_computed_field() -> None:
@@ -192,3 +192,56 @@ def test_a_record_with_no_sent_values_gets_every_computed_field() -> None:
 
     assert set(w.slug for w in plan.writes) == {"last_interaction_at", "connection_strength"}
     assert FieldValue("connection_strength", "Weak") in plan.writes
+
+
+def test_a_strength_with_no_recent_interactions_fades_to_very_weak_not_empty() -> None:
+    plan = plan_record(
+        computed={"connection_strength": None},
+        sent={"connection_strength": "Strong"},
+        baseline={},
+        read_member_ids=READ,
+    )
+
+    assert _written(plan) == {"connection_strength": "Very weak"}
+    assert plan.has_strength
+
+
+def test_a_record_that_never_had_a_strength_stays_without_one() -> None:
+    plan = plan_record(
+        computed={"connection_strength": None}, sent={}, baseline={}, read_member_ids=READ
+    )
+
+    assert (plan.writes, plan.has_strength) == ((), False)
+
+
+def test_the_strongest_user_is_kept_when_there_are_no_recent_interactions() -> None:
+    plan = plan_record(
+        computed={"strongest_connection_user": None},
+        sent={"strongest_connection_user": "m-jules"},
+        baseline={},
+        read_member_ids=READ,
+    )
+
+    assert plan.writes == ()
+
+
+def test_a_new_last_interaction_with_no_subject_clears_the_old_subject() -> None:
+    plan = plan_record(
+        computed={"last_interaction_at": LATE, "last_interaction_channel": "Email"},
+        sent={"last_interaction_at": MID, "last_interaction_subject": "Old"},
+        baseline={},
+        read_member_ids=READ,
+    )
+
+    assert FieldValue("last_interaction_subject", None) in plan.writes
+
+
+def test_first_and_last_dates_are_never_cleared() -> None:
+    plan = plan_record(
+        computed={},
+        sent={"first_interaction_at": EARLY, "last_interaction_at": LATE},
+        baseline={},
+        read_member_ids=READ,
+    )
+
+    assert plan.writes == ()

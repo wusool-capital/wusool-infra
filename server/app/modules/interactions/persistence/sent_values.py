@@ -53,7 +53,9 @@ class SqlAlchemySentValues:
             baseline[record_id][field] = base
         return {r: RecordValues(sent[r], baseline[r]) for r in sent}
 
-    async def save(self, obj: AttioObject, record_id: str, fields: Mapping[str, str]) -> None:
+    async def save(
+        self, obj: AttioObject, record_id: str, fields: Mapping[str, str | None]
+    ) -> None:
         rows: list[_SentRow] = [
             {"object": obj.value, "record_attio_id": record_id, "field": field, "value": value}
             for field, value in fields.items()

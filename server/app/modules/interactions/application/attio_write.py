@@ -45,7 +45,7 @@ class AttioWriteConfig:
 class WriteReport:
     patched: int = 0
     fields: int = 0
-    clears_skipped: int = 0
+    cleared: int = 0
     failed: int = 0
     scores_updated: int = 0
     # Objects whose seed has not run; nothing is written for them.
@@ -110,7 +110,6 @@ class AttioWriteService:
             summary = summarize(touches.get(record_id, ()), now, self._config.rules)
             values = stored.get(record_id, RecordValues({}, {}))
             plan = plan_record(fields_for(summary, members), values.sent, values.baseline, read_ids)
-            report = replace(report, clears_skipped=report.clears_skipped + plan.clears_skipped)
             if plan.writes and not self._config.dry_run:
                 try:
                     await self._writer.patch(obj, record_id, plan.writes)
@@ -124,14 +123,16 @@ class AttioWriteService:
                     continue
             if plan.writes:
                 report = replace(
-                    report, patched=report.patched + 1, fields=report.fields + len(plan.writes)
+                    report,
+                    patched=report.patched + 1,
+                    fields=report.fields + len(plan.writes),
+                    cleared=report.cleared + sum(1 for w in plan.writes if w.value is None),
                 )
-            # The score tracks the label. Where the label is left alone (an unread mailbox, or a
-            # quiet record whose label is not cleared yet) the score is left alone too.
+            # The score tracks the label: left alone for an unread mailbox, absent without one.
             score = Decimal(str(round(summary.score, _SCORE_PLACES)))
             if (
                 not plan.skip_strength
-                and summary.connection_strength is not None
+                and plan.has_strength
                 and record_id in current_scores
                 and _moved(current_scores[record_id], score)
             ):
