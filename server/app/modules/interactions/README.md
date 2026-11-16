@@ -71,6 +71,9 @@ written first.
   and baseline; a last date the latest. Channel, subject and owner follow the last date.
 - **Hugo's records.** If the baseline strongest user is an unread mailbox, strength and
   strongest user are left alone.
+- **The score.** The numeric score behind strength goes to `connection_strength_score` on
+  `organizations` and `person`, straight to Postgres, only when it changed. It has no Attio
+  attribute, so the webhook never overwrites it. It is skipped where strength is left alone.
 - **No clearing yet.** A field that should become empty is counted (`clears_skipped`), not
   sent. Attio's clear shape is unverified; check it on a test record first.
 - **Safety.** `off` by default; `dry_run` logs counts only; refuses to run while

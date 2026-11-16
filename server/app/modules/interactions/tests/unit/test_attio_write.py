@@ -1,5 +1,6 @@
 from collections.abc import Mapping, Sequence
 from datetime import timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -53,6 +54,21 @@ class _Sent:
         self.seeded.add(obj)
 
 
+class _Scores:
+    """Scores as the mirror holds them; `rows` are the records it has."""
+
+    def __init__(self, rows: Mapping[str, Decimal | None] | None = None) -> None:
+        self.rows = dict(rows or {})
+        self.saved: dict[str, Decimal] = {}
+
+    async def load(self, obj: AttioObject) -> Mapping[str, Decimal | None]:
+        return self.rows if obj is ORG else {}
+
+    async def save(self, obj: AttioObject, scores: Mapping[str, Decimal]) -> int:
+        self.saved.update(scores)
+        return len(scores)
+
+
 class _Writer:
     def __init__(self, sent: _Sent, fail_for: str | None = None, refuse: bool = False) -> None:
         self.sent = sent
@@ -88,10 +104,11 @@ def _service(
     dry_run: bool = False,
     cap: int = 100,
     by_person: Mapping[str, tuple[Touch, ...]] | None = None,
+    scores: _Scores | None = None,
 ) -> AttioWriteService:
     config = AttioWriteConfig(frozenset({JULES}), ScoringRules(), cap, dry_run)
     return AttioWriteService(
-        _Reader(by_org, by_person), sent, writer, _members, config, lambda: NOW
+        _Reader(by_org, by_person), sent, writer, scores or _Scores(), _members, config, lambda: NOW
     )
 
 
@@ -228,3 +245,58 @@ async def test_a_dry_run_looks_at_every_record_whatever_the_cap() -> None:
     ).run_round()
 
     assert (report.patched, report.hit_cap, writer.patches) == (3, False, [])
+
+
+async def test_the_score_is_stored_for_records_the_mirror_holds_and_only_when_it_changed() -> None:
+    sent = _Sent(seeded={ORG})
+    scores = _Scores({"o1": None, "o2": Decimal("0")})
+
+    report = await _service(
+        sent, _Writer(sent), {"o1": _touches(), "o2": _touches(), "gone": _touches()}, scores=scores
+    ).run_round()
+
+    assert set(scores.saved) == {"o1", "o2"}
+    assert scores.saved["o1"] > 0
+    assert report.scores_updated == 2
+
+
+async def test_a_second_round_does_not_rewrite_an_unchanged_score() -> None:
+    sent = _Sent(seeded={ORG})
+    scores = _Scores({"o1": None})
+    service = _service(sent, _Writer(sent), {"o1": _touches()}, scores=scores)
+    await service.run_round()
+    scores.rows.update(scores.saved)
+    scores.saved.clear()
+
+    again = await service.run_round()
+
+    assert (scores.saved, again.scores_updated) == ({}, 0)
+
+
+async def test_the_score_moves_even_when_no_attio_field_changed() -> None:
+    sent = _Sent(seeded={ORG})
+    scores = _Scores({"o1": Decimal("1")})
+    service = _service(sent, _Writer(sent), {"o1": _touches()}, scores=scores)
+    await service.run_round()
+    scores.rows.update(scores.saved)
+    scores.saved.clear()
+    scores.rows["o1"] = Decimal("0.5")
+
+    report = await service.run_round()
+
+    assert (report.patched, report.scores_updated) == (0, 1)
+
+
+async def test_no_score_is_stored_by_a_dry_run_or_where_strength_is_left_alone() -> None:
+    stored = {"o1": RecordValues({}, {"strongest_connection_user": "m-hugo"})}
+    sent = _Sent(seeded={ORG}, stored=stored)
+    scores = _Scores({"o1": None})
+
+    await _service(sent, _Writer(sent), {"o1": _touches()}, scores=scores).run_round()
+    assert scores.saved == {}
+
+    sent2, scores2 = _Sent(seeded={ORG}), _Scores({"o2": None})
+    await _service(
+        sent2, _Writer(sent2), {"o2": _touches()}, dry_run=True, scores=scores2
+    ).run_round()
+    assert scores2.saved == {}

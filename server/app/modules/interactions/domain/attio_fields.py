@@ -54,6 +54,8 @@ class RecordPlan:
     writes: tuple[FieldValue, ...]
     # Fields that should become empty. Not sent yet: Attio's clear shape is unverified.
     clears_skipped: int
+    # True when strength is left alone because its strongest user's mailbox is unread.
+    skip_strength: bool = False
 
 
 _FIRST = ("first_interaction_at", "first_email_interaction_at", "first_calendar_interaction_at")
@@ -155,4 +157,4 @@ def plan_record(
             clears += 1
         else:
             writes.append(FieldValue(spec.slug, new))
-    return RecordPlan(tuple(writes), clears)
+    return RecordPlan(tuple(writes), clears, skip_strength)

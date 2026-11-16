@@ -40,6 +40,7 @@ from app.modules.interactions.persistence.advisory_lock import try_advisory_lock
 from app.modules.interactions.persistence.database import get_engine, get_sessionmaker
 from app.modules.interactions.persistence.directory import SqlAlchemyRecordDirectory
 from app.modules.interactions.persistence.interaction_store import SqlAlchemyInteractionStore
+from app.modules.interactions.persistence.score_store import SqlAlchemyScoreStore
 from app.modules.interactions.persistence.sent_values import SqlAlchemySentValues
 from app.modules.interactions.persistence.touch_reader import SqlAlchemyTouchReader
 from app.modules.interactions.providers.attio_companies import AttioStrengthSource
@@ -131,11 +132,12 @@ async def _write_round(attio_write: WriteRunner) -> None:
         return
     logger.info(
         "interactions_attio_write patched=%d fields=%d clears_skipped=%d failed=%d "
-        "unseeded=%d hit_cap=%s dry_run=%s",
+        "scores_updated=%d unseeded=%d hit_cap=%s dry_run=%s",
         report.patched,
         report.fields,
         report.clears_skipped,
         report.failed,
+        report.scores_updated,
         len(report.unseeded),
         report.hit_cap,
         report.dry_run,
@@ -228,6 +230,7 @@ async def _attio_write_runner() -> AsyncIterator[WriteRunner | None]:
             SqlAlchemyTouchReader(sessionmaker, internal),
             SqlAlchemySentValues(sessionmaker),
             AttioRecordWriter(client, settings.interactions_attio_writes_per_second),
+            SqlAlchemyScoreStore(sessionmaker),
             member_ids,
             AttioWriteConfig(
                 read_mailboxes=frozenset(team_member_of(m, internal) for m in settings.mailboxes),
