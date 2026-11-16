@@ -14,6 +14,7 @@ import { AmountInput } from "../ui/amount-input";
 import { DetailFields } from "../ui/detail-fields";
 import { DetailValues } from "../ui/detail-values";
 import { Drawer } from "../ui/drawer";
+import { LinkText } from "../ui/link-text";
 import { useRouteAction, useSaveAction } from "../ui/toast";
 import { OpenToSellingPill } from "./open-to-selling-pill";
 
@@ -85,7 +86,7 @@ export function SellerDrawer({ seller, data, panel, onPanel, onClose }: Props) {
           <Item label="Revenue">{formatMoney(seller.estRevenueUsd)}</Item>
           <Item label="EBITDA">{formatMoney(seller.estEbitdaUsd)}</Item>
           <Item label="Re-engage">{seller.reEngageDate ? formatDate(seller.reEngageDate) : <span className="muted">Not set</span>}</Item>
-          <Item label="Website">{seller.website}</Item>
+          <Item label="Website"><LinkText text={seller.website} /></Item>
         </dl>
         <p className="record-notes">{seller.notes}</p>
       </section>

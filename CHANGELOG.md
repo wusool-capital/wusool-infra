@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- Web addresses in the Engine's buyer and seller drawers are now links that open in a new
+  tab. This covers the website, LinkedIn and the logo. A long address shows only its domain.
 - AWS CloudTrail now has one trail instead of two. Dev and prod share one AWS
   account and both trails were multi-region. Every event was recorded twice, and
   the second copy cost about $20 a month. Prod keeps its trail. Dev's trail is
