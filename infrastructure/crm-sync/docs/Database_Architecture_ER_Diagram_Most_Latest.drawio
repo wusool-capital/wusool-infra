@@ -1046,7 +1046,7 @@
           <mxGeometry height="18" width="300" y="132" as="geometry" />
         </mxCell>
         <mxCell id="ix_sent_values" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="attio_sent_values&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · last value sent to Attio (PR 4)&lt;/font&gt;" vertex="1">
-          <mxGeometry height="168" width="300" x="898" y="2689" as="geometry" />
+          <mxGeometry height="186" width="300" x="898" y="2689" as="geometry" />
         </mxCell>
         <mxCell id="ix_sent_values_r0" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#ECECEC;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="PK id : uuid" vertex="1">
           <mxGeometry height="18" width="300" y="42" as="geometry" />
@@ -1068,6 +1068,9 @@
         </mxCell>
         <mxCell id="ix_sent_values_r6" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="UNIQUE (object, record_attio_id, field)" vertex="1">
           <mxGeometry height="18" width="300" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="ix_sent_values_r7" parent="ix_sent_values" style="text;html=1;align=left;verticalAlign=middle;spacingLeft=6;fontSize=10;fillColor=#E1D5E7;strokeColor=#FFFFFF;fontColor=#1A1A1A;" value="baseline : text (seed baseline)" vertex="1">
+          <mxGeometry height="18" width="300" y="168" as="geometry" />
         </mxCell>
         <mxCell id="ix_review_items" parent="1" style="swimlane;html=1;rounded=1;arcSize=3;startSize=42;fillColor=#8E5BA6;swimlaneFillColor=#FFFFFF;strokeColor=#8E5BA6;fontColor=#FFFFFF;fontStyle=1;fontSize=12;verticalAlign=top;align=center;" value="interaction_review_items&lt;br&gt;&lt;font style=&apos;font-size:8px;font-weight:normal&apos;&gt;Postgres · links left for review (PR 4)&lt;/font&gt;" vertex="1">
           <mxGeometry height="168" width="300" x="1228" y="2689" as="geometry" />

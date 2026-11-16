@@ -34,6 +34,8 @@ class AttioSentValue(Base):
     field: Mapped[str] = mapped_column(Text, nullable=False)
     # The value as sent; NULL means the engine cleared the field.
     value: Mapped[str | None] = mapped_column(Text)
+    # The seed's baseline for this field, kept beside the last value sent.
+    baseline: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default=text("now()")
     )

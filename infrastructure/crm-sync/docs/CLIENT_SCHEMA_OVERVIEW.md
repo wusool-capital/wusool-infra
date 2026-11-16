@@ -1129,7 +1129,7 @@ Attio. `server/SCHEMA.md` has every column.
 | `interactions` | Gmail message or Calendar event, per mailbox | `mailbox`, `channel`, `source_id`, `dedupe_key`, `occurred_at`, `direction`, `subject` |
 | `interaction_participants` | address on an interaction | `email`, `domain`, `role`, `person_attio_id`, `organization_attio_id` |
 | `mailbox_sync_cursors` | mailbox and source | `cursor`, `backfill_page_token`, `last_synced_at` |
-| `attio_sent_values` | record and field | `object`, `record_attio_id`, `field`, `value` (last value sent to Attio) |
+| `attio_sent_values` | record and field | `object`, `record_attio_id`, `field`, `value` (last value sent to Attio), `baseline` (the seed's baseline) |
 | `interaction_review_items` | shared domain or email left for review | `kind`, `value`, `subject`, `record_attio_ids`, `status` |
 | `auto_create_keys` | Person or Organization the engine created | `kind`, `key` (email or domain), `record_attio_id` |
 
