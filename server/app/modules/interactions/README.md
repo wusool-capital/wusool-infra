@@ -74,8 +74,10 @@ written first.
 - **The score.** The numeric score behind strength goes to `connection_strength_score` on
   `organizations` and `person`, straight to Postgres, only when it changed. It has no Attio
   attribute, so the webhook never overwrites it. It is skipped where strength is left alone.
-- **No clearing yet.** A field that should become empty is counted (`clears_skipped`), not
-  sent. Attio's clear shape is unverified; check it on a test record first.
+- **Clearing.** A field that should be empty is sent as an empty list, which live Attio
+  accepts for every field kind. A label with no recent interactions drops to Very weak
+  instead of being emptied, and the strongest user is kept. First and last dates are never
+  cleared.
 - **Safety.** `off` by default; `dry_run` logs counts only; refuses to run while
   `ATTIO_IS_TEST` is set; capped per round; one failing record never stops the round.
 - **Alarm.** A clean real round logs `interactions_attio_sync_ok`. The prod alarm

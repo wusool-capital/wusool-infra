@@ -55,6 +55,10 @@ class AttioRecordWriter:
     async def _values(self, obj: AttioObject, fields: Sequence[FieldValue]) -> AttioValues:
         values: AttioValues = {}
         for field in fields:
+            if field.value is None:
+                # Verified on live Attio: an empty list empties any of the four field kinds.
+                values[field.slug] = []
+                continue
             match _KIND_OF[field.slug]:
                 case FieldKind.SELECT:
                     option_id = await get_option_id(

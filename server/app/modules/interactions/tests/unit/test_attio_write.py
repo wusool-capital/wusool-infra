@@ -74,7 +74,7 @@ class _Writer:
         self.sent = sent
         self.fail_for = fail_for
         self.refuse = refuse
-        self.patches: list[tuple[str, dict[str, str]]] = []
+        self.patches: list[tuple[str, dict[str, str | None]]] = []
 
     async def patch(self, obj: AttioObject, record_id: str, fields: Sequence[FieldValue]) -> None:
         if self.refuse:
@@ -186,7 +186,7 @@ async def test_the_round_stops_at_the_cap_and_says_so() -> None:
     assert (report.patched, report.hit_cap) == (2, True)
 
 
-async def test_a_record_that_went_quiet_is_visited_and_its_lost_next_date_is_counted() -> None:
+async def test_a_record_that_went_quiet_is_visited_and_its_passed_next_date_is_cleared() -> None:
     stored = {
         "o1": RecordValues({"next_interaction_at": "2026-12-01T00:00:00.000+00:00"}, {}),
     }
@@ -195,8 +195,9 @@ async def test_a_record_that_went_quiet_is_visited_and_its_lost_next_date_is_cou
 
     report = await _service(sent, writer, {}).run_round()
 
-    assert writer.patches == []
-    assert report.clears_skipped == 1
+    assert writer.patches == [("o1", {"next_interaction_at": None})]
+    assert (report.patched, report.cleared) == (1, 1)
+    assert sent.stored["o1"].sent["next_interaction_at"] is None
 
 
 async def test_strength_is_not_sent_where_attios_strongest_user_is_an_unread_mailbox() -> None:
@@ -318,11 +319,14 @@ async def test_a_tiny_decay_is_not_rewritten_but_a_real_move_is() -> None:
     assert (drift.scores_updated, moved.scores_updated) == (0, 1)
 
 
-async def test_a_quiet_record_keeps_its_score_while_its_label_cannot_be_cleared() -> None:
+async def test_a_quiet_record_fades_to_very_weak_and_its_score_follows() -> None:
     stored = {"o1": RecordValues({"connection_strength": "Strong"}, {})}
     sent = _Sent(seeded={ORG}, stored=stored)
+    writer = _Writer(sent)
     scores = _Scores({"o1": Decimal("20")})
 
-    report = await _service(sent, _Writer(sent), {}, scores=scores).run_round()
+    report = await _service(sent, writer, {}, scores=scores).run_round()
 
-    assert (scores.saved, report.scores_updated) == ({}, 0)
+    assert writer.patches == [("o1", {"connection_strength": "Very weak"})]
+    assert scores.saved == {"o1": Decimal("0")}
+    assert report.scores_updated == 1

@@ -46,16 +46,17 @@ class FieldSpec:
 @dataclass(frozen=True)
 class FieldValue:
     slug: str
-    value: str
+    # None means the field should become empty, which Attio takes as an empty list.
+    value: str | None
 
 
 @dataclass(frozen=True)
 class RecordPlan:
     writes: tuple[FieldValue, ...]
-    # Fields that should become empty. Not sent yet: Attio's clear shape is unverified.
-    clears_skipped: int
     # True when strength is left alone because its strongest user's mailbox is unread.
     skip_strength: bool = False
+    # True when the record holds a strength label after this plan, so a score goes with it.
+    has_strength: bool = False
 
 
 _FIRST = ("first_interaction_at", "first_email_interaction_at", "first_calendar_interaction_at")
@@ -63,6 +64,7 @@ _LAST = ("last_interaction_at", "last_email_interaction_at", "last_calendar_inte
 _NEXT = ("next_interaction_at", "next_calendar_interaction_at")
 _FOLLOW_LAST = ("last_interaction_channel", "last_interaction_subject", "last_interaction_owner")
 _STRENGTH = ("connection_strength", "strongest_connection_user")
+_LOWEST_LABEL = "Very weak"
 
 FIELDS: tuple[FieldSpec, ...] = (
     *(FieldSpec(slug, FieldKind.TIMESTAMP) for slug in (*_FIRST, *_LAST, *_NEXT)),
@@ -145,15 +147,17 @@ def plan_record(
     skip_strength = baseline_user is not None and baseline_user not in read_member_ids
     for slug in _STRENGTH:
         merged[slug] = sent.get(slug) if skip_strength else computed.get(slug)
+    if not skip_strength:
+        # A relationship fades, it never disappears: with no recent interactions a label drops
+        # to the lowest instead of being emptied, and the strongest user is kept.
+        if computed.get("connection_strength") is None and sent.get("connection_strength"):
+            merged["connection_strength"] = _LOWEST_LABEL
+        if computed.get("strongest_connection_user") is None:
+            merged["strongest_connection_user"] = sent.get("strongest_connection_user")
 
-    writes: list[FieldValue] = []
-    clears = 0
-    for spec in FIELDS:
-        new, old = merged[spec.slug], sent.get(spec.slug)
-        if new == old:
-            continue
-        if new is None:
-            clears += 1
-        else:
-            writes.append(FieldValue(spec.slug, new))
-    return RecordPlan(tuple(writes), clears, skip_strength)
+    writes = [
+        FieldValue(spec.slug, merged[spec.slug])
+        for spec in FIELDS
+        if merged[spec.slug] != sent.get(spec.slug)
+    ]
+    return RecordPlan(tuple(writes), skip_strength, merged["connection_strength"] is not None)
