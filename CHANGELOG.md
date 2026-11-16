@@ -45,7 +45,7 @@ for current production evidence and open handover items.
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
 - The interactions engine can create a Person and an Organization from email (AZM-159 PR 5),
-  tagged Lead Source Detail "Email sync". It is off until a canary record is checked. A shared
+  tagged Lead Source Detail "Email sync". It has been on in production since 16 November, up to 20 Persons a round. A shared
   address or domain goes to a review table, and new cases are posted to Slack daily. Sender display names are now
   stored for the new Person's name.
 - A record deleted or merged away in Attio no longer keeps the stale-sync alarm on. The
