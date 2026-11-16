@@ -67,8 +67,7 @@ may only use `http`, `https`, or `mailto`.
   by email only.
 - **IAM Identity Center** signs people in with MFA and seven-day sessions. The
   Developer role is denied the production secret.
-- **CloudTrail** runs per environment, across regions, with log-file
-  validation.
+- One multi-region **CloudTrail** trail with log-file validation.
 - RDS and EC2 volumes are encrypted. OpenTofu state is in an encrypted,
   versioned S3 bucket.
 

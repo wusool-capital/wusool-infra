@@ -51,3 +51,9 @@ variable "slack_channel_id" {
   type        = string
   default     = ""
 }
+
+variable "enable_cloudtrail" {
+  description = "Create this environment's CloudTrail trail. Dev and prod share one AWS account, and the trail is multi-region, so two trails record every event twice and the second copy is billed (about $20 a month). Prod keeps the trail; dev sets this to false."
+  type        = bool
+  default     = true
+}

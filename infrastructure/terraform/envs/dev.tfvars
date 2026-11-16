@@ -8,6 +8,10 @@ public_subnet_cidr           = "10.10.1.0/24"
 private_subnet_cidr          = "10.10.2.0/24"
 database_private_subnet_cidr = "10.10.3.0/24"
 
+# Dev and prod share one AWS account and the trail is multi-region, so prod's
+# trail already records dev's events. A second trail bills the same events again.
+enable_cloudtrail = false
+
 alert_email = "raoof@azmora.ai"
 
 # AWS Chatbot -> #infra-alerts, shared with prod (workspace: Azmora)

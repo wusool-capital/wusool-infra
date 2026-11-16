@@ -10,6 +10,13 @@ for current production evidence and open handover items.
 
 ## 2026-11-16
 
+### Changed
+
+- AWS CloudTrail now has one trail instead of two. Dev and prod share one AWS
+  account and both trails were multi-region. Every event was recorded twice, and
+  the second copy cost about $20 a month. Prod keeps its trail. Dev's trail is
+  removed with `enable_cloudtrail = false`, and its log bucket stays.
+
 ### Added
 
 - People can carry a lead source, like organizations (AZM-159 PR 5). Attio
