@@ -49,6 +49,14 @@ class Deal(Base):
     stage_changed_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     # Active / On hold / Passed / Lost; split out of `stage` in AZM-169.
     deal_status: Mapped[str | None] = mapped_column(Text)
+    # AZM-159 PR 6: rolled up into Attio from the deal's buyer and seller, mirrored here.
+    last_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    next_interaction_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
+    last_interaction_subject: Mapped[str | None] = mapped_column(Text)
+    last_interaction_owner: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("users.attio_id", name="deals_last_interaction_owner_fkey")
+    )
+    connection_strength: Mapped[str | None] = mapped_column(Text)
     buyer_organization_attio_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("organizations.attio_id")
     )

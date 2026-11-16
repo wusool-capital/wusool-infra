@@ -12,6 +12,14 @@ for current production evidence and open handover items.
 
 ### Added
 
+- People can carry a lead source, like organizations (AZM-159 PR 5). Attio
+  Person has new Lead Source and Lead Source Detail fields, and Postgres
+  `person` mirrors them. Lead Source Detail gains "Email sync" for records the
+  interactions engine creates.
+- Deals get five interaction fields in Attio and Postgres (AZM-159 PR 6): last
+  and next interaction, last subject, last owner and connection strength. The
+  engine will roll them up from the deal's buyer and seller.
+
 - The interactions engine can empty a field in Attio, such as a passed "next
   interaction" (AZM-159). A strength with no recent interactions drops to Very
   weak instead. Tested on live Attio with throwaway records.
