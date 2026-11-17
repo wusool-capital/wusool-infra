@@ -1,4 +1,4 @@
-# November 2026: Engine, MCP, and web find-match
+# November 2026: Engine and MCP
 
 Delivery period: 15 October – 17 November 2026.
 
@@ -47,23 +47,3 @@ company description, now saves.
   revenue bands, and metric weights now live in the database. Advisors can
   read and edit them from Claude, and each row shows who last changed it.
   Edits apply to the public benchmark straight away.
-
-## Find-match on the web (new)
-
-- **One page, in order.** `/app` on the Toolkit host walks through buyer,
-  profile check, matching, shortlist, discovery, and export.
-- **Ranked shortlist with reasoning.** Every score is plotted against the
-  discovery threshold. After each decision, the next seller opens.
-- **Approve or reject.** Advisors choose an existing Attio deal or a new
-  one. The shortlist downloads as CSV with the columns picked in Settings.
-- **Search beyond the CRM** from any finished run.
-- **Research in the page.** Approving a seller found outside the CRM runs
-  full research on it. Advisors see proposed fields with confidence,
-  source, and reasoning, plus LinkedIn job changes and posts. They save the
-  fields they tick, or skip. A field filled in meanwhile is never
-  overwritten.
-- **Same sign-in as Slack.** Web runs carry the same Slack user.
-- **Shorter reasoning.** The pitch, risks, and comparison are now bullets.
-- **Wusool look.** The app uses the Wusool Capital logo and brand fonts.
-- Sign out now really signs out, and a failed approval stays on screen
-  with its error.

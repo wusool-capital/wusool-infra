@@ -10,6 +10,10 @@ for current production evidence and open handover items.
 
 ## 2026-11-17
 
+### Changed
+
+- The November release notes and delivery status no longer mention the web find-match app, which clients don't have yet.
+
 ### Added
 
 - The November 2026 release notes are in GitBook, covering 15 October to 17 November.

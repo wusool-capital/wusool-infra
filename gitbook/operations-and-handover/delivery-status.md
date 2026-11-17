@@ -18,7 +18,6 @@ verified live. Update it at each handover or significant release.
 | One buyer role per vertical | Delivered |
 | Deal pipeline with 10 stages and a separate status | Delivered; all 124 deals migrated |
 | Bulk upload of buyers and sellers from Slack | Delivered |
-| Find-match web app at `/app` | Delivered |
 | Wusool MCP for Claude: find, add, edit, bulk import, benchmark editing | Delivered; confirm live sign-in |
 | Wusool Engine at `engine.wusoolcapital.com`: Buyers and Sellers on live data | Delivered to production; other pages greyed out |
 | PostgreSQL on private, encrypted RDS | Delivered; restore test outstanding |
