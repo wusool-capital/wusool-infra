@@ -52,6 +52,9 @@ for current production evidence and open handover items.
   tagged Lead Source Detail "Email sync". It has been on in production since 16 November, up to 20 Persons a round. A shared
   address or domain goes to a review table, and new cases are posted to Slack daily. Sender display names are now
   stored for the new Person's name.
+- New Persons the engine creates are named from the address when the sender has no display name:
+  `sinan@lokam.ai` becomes Sinan. Shared mailboxes such as `info@` keep the full address. Persons
+  already created are not renamed.
 - Attio's Companies and People are left in place and no longer updated (AZM-159). Organizations and
   Person carry the relationship fields, and their lists are untouched.
 - Hugo's mailbox will not be read (AZM-159). Strength and strongest user stay as seeded on records he

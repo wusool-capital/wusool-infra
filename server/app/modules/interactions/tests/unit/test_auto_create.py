@@ -19,17 +19,37 @@ INTERNAL = ("wusoolcapital.com", "dopaminecap.com")
     [
         ("Sara Lee", "Sara Lee"),
         ("  Sara Lee ", "Sara Lee"),
-        (None, "sara@acme.com"),
-        ("", "sara@acme.com"),
-        ("Sara@Acme.com", "sara@acme.com"),
-        ("CEO ceo@bigcorp.com", "sara@acme.com"),
-        ("Sara\x00Lee", "sara@acme.com"),
-        ("x" * 101, "sara@acme.com"),
+        (None, "Sara"),
+        ("", "Sara"),
+        ("Sara@Acme.com", "Sara"),
+        ("CEO ceo@bigcorp.com", "Sara"),
+        ("Sara\x00Lee", "Sara"),
+        ("x" * 101, "Sara"),
         ("Sara\n  Lee", "Sara Lee"),
     ],
 )
-def test_person_name_falls_back_to_the_address(display: str | None, expected: str) -> None:
+def test_person_name_uses_a_sensible_display_name_else_builds_one(
+    display: str | None, expected: str
+) -> None:
     assert person_name(display, "sara@acme.com") == expected
+
+
+@pytest.mark.parametrize(
+    ("email", "expected"),
+    [
+        ("sinan@lokam.ai", "Sinan"),
+        ("abhishek.bajaj@nyu.edu", "Abhishek Bajaj"),
+        ("mary_jane-smith@acme.com", "Mary Jane Smith"),
+        ("THAHA@capella.ae", "Thaha"),
+        ("admin@raizn.net", "admin@raizn.net"),
+        ("info@acme.com", "info@acme.com"),
+        ("jsmith42@acme.com", "jsmith42@acme.com"),
+        ("a1.b@acme.com", "a1.b@acme.com"),
+        ("..@acme.com", "..@acme.com"),
+    ],
+)
+def test_without_a_display_name_the_name_comes_from_the_address(email: str, expected: str) -> None:
+    assert person_name(None, email) == expected
 
 
 @pytest.mark.parametrize(
@@ -163,7 +183,7 @@ async def test_two_contacts_at_one_new_company_share_one_organization() -> None:
 
     assert len(creator.orgs) == 1
     assert [org for _, _, org in creator.people] == ["org-1", "org-1"]
-    assert creator.people[1][0] == "tom@acme.com"
+    assert creator.people[1][0] == "Tom"
 
 
 async def test_a_person_attio_already_has_is_left_for_the_next_pass_to_link() -> None:
