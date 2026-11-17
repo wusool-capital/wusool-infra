@@ -87,7 +87,7 @@ seconds. Two new alarms report watchdog recoveries and a silent app log.
 ## Documentation
 
 - **New pages.** The Technical section gained pages for the Engine, the
-  MCP, benchmark editing, bulk upload, and find-match on the web. It also
+  MCP, benchmark editing, and bulk upload. It also
   covers Scribe notes, speakers, and summaries. Lead-tool analytics and the
   interactions engine have pages too.
 - **Runbooks and diagrams.** A Google access runbook covers setup, rotation,
