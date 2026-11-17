@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router";
+import { redirect, useSearchParams } from "react-router";
 import { ActionEmails } from "../components/home/action-emails";
 import { Agenda } from "../components/home/agenda";
 import { EmailDrawer } from "../components/home/email-drawer";
@@ -21,6 +21,7 @@ import {
 } from "../demo/api";
 import type { WorkstreamStatus } from "../demo/types";
 import { byId } from "../lib/by-id";
+import { START_PATH } from "../lib/nav";
 import { formatLongDate } from "../lib/format";
 import type { Route } from "./+types/home";
 
@@ -28,6 +29,8 @@ import type { Route } from "./+types/home";
 export const handle = { phone: true };
 
 export async function clientLoader() {
+  // Home is demo data; live mode opens on the Buyers page instead.
+  if (START_PATH !== "/") throw redirect(START_PATH);
   return getHome(CURRENT_USER_ID);
 }
 

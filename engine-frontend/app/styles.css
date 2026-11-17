@@ -95,6 +95,10 @@ button:not(:disabled) { cursor: pointer; }
 .left-nav__item.active { transition: none; }
 @media (prefers-reduced-motion: reduce) { .left-nav__item { transition: none; } }
 .left-nav__item.active { background: var(--sky-soft); color: var(--navy); font-weight: 600; }
+.left-nav__item--off, .left-nav__profile--off { cursor: not-allowed; }
+.left-nav__item--off, .left-nav__item--off svg { color: var(--subtle); opacity: 0.6; }
+.left-nav__item--off:hover { background: transparent; }
+.left-nav__profile--off:hover { background: transparent; }
 .left-nav__phone-home { display: none; }
 .left-nav__groups { margin-bottom: 0; }
 
