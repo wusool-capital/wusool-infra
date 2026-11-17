@@ -68,6 +68,9 @@ The code must be easy to follow for a software engineer and for another LLM.
 
 Newest first. One line per tab or change: date, what was built, PR link, open feedback.
 
+- 17 Nov 2026: the Demo badge under the logo shows in demo mode only; live mode has none, as its Buyers and Sellers pages run on real data. Open: none.
+- 17 Nov 2026: the GitBook nav link opens the docs space `.../docs/vttVgqrltuEtLAJkX7dL` directly. Open: none.
+- 17 Nov 2026: live mode greys out and disables the nav items that have no backend (everything except Buyers and Sellers, and the Reports and GitBook links out), the profile link, and opens on Buyers instead of Home (`NavItem.live`, `START_PATH`, `isAvailable` in `lib/nav.ts`). Demo mode is unchanged. Open: the pages are still reachable by typing their address.
 - 16 Nov 2026: removed the seller "Sector (this role)" row from the form and drawer: Attio's seller_role list has no sector attribute (only the company's sector focus), so it could never be filled. The buyer's target vertical stays (a real Attio buyer_role attribute). Open: none.
 - 16 Nov 2026: edit forms have two sections only, Buyer or Seller details then Company details (new records start with the company), through `DetailFields` slots; no repeated fields. Removed the seller Geography select (it repeated HQ or region), the locked Type, Notes and Owner controls with no write path, and renamed the buyer's Geography to Target geography. Open: none.
 - 16 Nov 2026: edit forms match Slack's edit-buyer and edit-seller: HQ country and the company sector (top checklist) are editable, a seller's open to selling is the exact Attio appetite signal (live; demo keeps the three labels), and a new buyer's sector list is every Attio vertical. Filters still group appetite signals in three labels. Open: none.

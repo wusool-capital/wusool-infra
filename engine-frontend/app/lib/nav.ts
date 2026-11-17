@@ -1,6 +1,7 @@
 // The 13 tabs in 5 groups, from the PRD navigation diagram.
 // One list feeds the left nav and the bottleneck form's "Where" field.
 
+import { isLive } from "./data-mode";
 import {
   BookOpen, Briefcase, Calculator, FileText, Gauge, Handshake, House, Kanban, MagnifyingGlass, Newspaper, PaperPlaneTilt, Storefront, Target,
   type Icon,
@@ -13,13 +14,15 @@ export type NavItem = {
   summary: string;
   icon: Icon;
   external?: boolean;
+  /** Has a backend. In live mode every other page is demo data, so its link is greyed out. */
+  live?: boolean;
   /** Other paths that keep this item highlighted, such as a deal page under Pipeline. */
   alsoActiveOn?: string[];
 };
 
 export type NavGroup = { label: string; items: NavItem[] };
 
-export const GITBOOK_URL = "https://wusool-capital.gitbook.io/docs";
+export const GITBOOK_URL = "https://wusool-capital.gitbook.io/docs/vttVgqrltuEtLAJkX7dL";
 // Reports are written and published in Sanity, which already runs the website (decided 9 Nov 2026).
 // Placeholder until the direct Studio address is known: the manage page lists the projects.
 export const SANITY_STUDIO_URL = "https://www.sanity.io/manage";
@@ -36,8 +39,8 @@ export const navGroups: NavGroup[] = [
   {
     label: "Lists",
     items: [
-      { label: "Buyers", icon: Briefcase, path: "/buyers/universe", title: "Buyers universe", summary: "All buyer roles in Attio, with filters and a record drawer." },
-      { label: "Sellers", icon: Storefront, path: "/sellers/universe", title: "Sellers universe", summary: "All seller roles in Attio, with filters and a record drawer." },
+      { label: "Buyers", icon: Briefcase, path: "/buyers/universe", title: "Buyers universe", summary: "All buyer roles in Attio, with filters and a record drawer.", live: true },
+      { label: "Sellers", icon: Storefront, path: "/sellers/universe", title: "Sellers universe", summary: "All seller roles in Attio, with filters and a record drawer.", live: true },
       { label: "Search", icon: MagnifyingGlass, path: "/search/buyers", title: "Search", summary: "Find new buyers or sellers, enrich them, and add them to Attio, a deal or the pipeline.", alsoActiveOn: ["/search"] },
     ],
   },
@@ -62,3 +65,8 @@ export const navGroups: NavGroup[] = [
 
 export const navItems = navGroups.flatMap((group) => group.items);
 
+/** Where sign-in lands: Home is demo data, so live mode opens the Buyers page. */
+export const START_PATH = isLive ? "/buyers/universe" : "/";
+
+/** Demo mode offers every page; live mode only those with a backend (and links out of the app). */
+export const isAvailable = (item: NavItem) => !isLive || item.live === true || item.external === true;

@@ -2,7 +2,8 @@ import { useEffect } from "react";
 import { Link, NavLink, useLocation } from "react-router";
 import logo from "../../assets/logo-line-white.png";
 import type { User } from "../../demo/types";
-import { navGroups } from "../../lib/nav";
+import { START_PATH, isAvailable, navGroups } from "../../lib/nav";
+import { isLive } from "../../lib/data-mode";
 import { lastUrlInSection, rememberUrl } from "../../lib/page-memory";
 
 export function LeftNav({ user }: { user: User }) {
@@ -14,17 +15,17 @@ export function LeftNav({ user }: { user: User }) {
     <nav className="left-nav" aria-label="Main">
       <div className="left-nav__brand">
         <div className="left-nav__lockup">
-          <Link className="left-nav__logo-link" to="/" aria-label="Wusool Engine, go to Home">
+          <Link className="left-nav__logo-link" to={START_PATH} aria-label={isLive ? "Wusool Engine, go to Buyers" : "Wusool Engine, go to Home"}>
             <img className="left-nav__logo" src={logo} alt="" />
           </Link>
           <span className="left-nav__product">Engine</span>
         </div>
-        <span className="badge left-nav__demo">Demo</span>
+        {!isLive && <span className="badge left-nav__demo">Demo</span>}
       </div>
 
       {/* On phone only Home is offered, so it gets its own link outside the groups. */}
-      <NavLink className="left-nav__phone-home" to="/" end>
-        Home
+      <NavLink className="left-nav__phone-home" to={START_PATH} end>
+        {isLive ? "Buyers" : "Home"}
       </NavLink>
 
       {/* Groups are shown by the hairline between them; a visible label read as one more link (8 Nov 2026). */}
@@ -34,7 +35,12 @@ export function LeftNav({ user }: { user: User }) {
             <ul className="left-nav__list" aria-label={group.label}>
               {group.items.map((item) => (
                 <li key={item.path}>
-                  {item.external ? (
+                  {!isAvailable(item) ? (
+                    <span className="left-nav__item left-nav__item--off" aria-disabled="true">
+                      <item.icon size={16} aria-hidden="true" />
+                      {item.label}
+                    </span>
+                  ) : item.external ? (
                     <a className="left-nav__item" href={item.path} target="_blank" rel="noreferrer">
                       <item.icon size={16} aria-hidden="true" />
                       {item.label}
@@ -58,13 +64,24 @@ export function LeftNav({ user }: { user: User }) {
       </div>
 
       <div className="left-nav__footer">
-        <NavLink className="left-nav__profile" to="/profile">
-          <span className="avatar" aria-hidden="true">{user.name.charAt(0)}</span>
-          <span className="left-nav__profile-text">
-            <span className="left-nav__profile-name">{user.name}</span>
-            <span className="left-nav__profile-role">{user.title}</span>
+        {isLive ? (
+          // The profile page is a placeholder with no backend yet, so live mode shows the name only.
+          <span className="left-nav__profile left-nav__profile--off" aria-disabled="true">
+            <span className="avatar" aria-hidden="true">{user.name.charAt(0)}</span>
+            <span className="left-nav__profile-text">
+              <span className="left-nav__profile-name">{user.name}</span>
+              <span className="left-nav__profile-role">{user.title}</span>
+            </span>
           </span>
-        </NavLink>
+        ) : (
+          <NavLink className="left-nav__profile" to="/profile">
+            <span className="avatar" aria-hidden="true">{user.name.charAt(0)}</span>
+            <span className="left-nav__profile-text">
+              <span className="left-nav__profile-name">{user.name}</span>
+              <span className="left-nav__profile-role">{user.title}</span>
+            </span>
+          </NavLink>
+        )}
       </div>
     </nav>
   );
