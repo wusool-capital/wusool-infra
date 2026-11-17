@@ -67,6 +67,12 @@
 ## Release Notes
 
 * [Scribe changelog](release-notes/scribe-changelog.md)
+* [November 2026](release-notes/november-2026.md)
+  * [Engine, MCP, and web find-match](release-notes/november-2026-new-surfaces.md)
+  * [Wusool Toolkit](release-notes/november-2026-toolkit.md)
+  * [Website lead tools and reports](release-notes/november-2026-website.md)
+  * [WusoolScribe](release-notes/november-2026-scribe.md)
+  * [Platform, data, and documentation](release-notes/november-2026-platform.md)
 * [October 2026](release-notes/october-2026.md)
   * [Wusool Toolkit](release-notes/october-2026-toolkit.md)
   * [Website lead tools and reports](release-notes/october-2026-website.md)
