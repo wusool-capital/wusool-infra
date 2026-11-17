@@ -10,6 +10,10 @@ for current production evidence and open handover items.
 
 ## 2026-11-17
 
+### Added
+
+- The November 2026 release notes are in GitBook, covering 15 October to 17 November.
+
 ### Changed
 
 - The Reply button in the internal lead notification emails now copies `contact@wusoolcapital.com`
