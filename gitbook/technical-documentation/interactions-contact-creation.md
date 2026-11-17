@@ -8,7 +8,7 @@ It has been on in production since 16 November, creating at most 20 Persons per 
 
 When an outside address has no Person, the engine can create one. It needs a two-way thread or a meeting that wasn't cancelled. Internal, free-email, no-reply, help, invite, support, and bulk senders never qualify.
 
-It creates the Organization first, unless the domain has one, then the Person linked to it. Both are tagged Lead Source Detail "Email sync". The Person's name is the sender's display name, or the address when there is none.
+It creates the Organization first, unless the domain has one, then the Person linked to it. Both are tagged Lead Source Detail "Email sync". The Person's name is the sender's display name. With none, it is built from the address: `sinan@` becomes Sinan. Shared mailboxes such as `info@` keep the full address.
 
 Postgres lags the webhook, so the engine records each create and asks Attio whether the email exists before creating. An address or domain that matches several records creates nothing. It is saved for review, and new cases are posted to Slack once a day. A case resolves itself once it is fixed.
 

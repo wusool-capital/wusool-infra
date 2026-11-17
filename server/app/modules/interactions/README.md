@@ -106,7 +106,8 @@ Attio, both tagged Lead Source Detail "Email sync".
 - **Failures.** An address Attio rejects three times is dropped until the next restart, so it
   can't use up every round's cap.
 - **Names.** The Person's name is the sender's display name (`interaction_participants.display_name`,
-  filled for mail read since this column was added), else the address, as the sync bot does.
+  filled for mail read since this column was added). Without one, the name is built from the address
+  (`abhishek.bajaj@` is Abhishek Bajaj). Shared mailboxes and addresses with digits keep the address.
 - **Shared cases.** An address or domain that matches several records creates nothing. Ingest saves
   it to `interaction_review_items`; one that is fixed resolves itself, and a dismissed one stays
   dismissed. `ReviewDigestService` posts the cases it has not listed yet, once a day with the
