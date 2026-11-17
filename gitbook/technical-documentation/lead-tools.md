@@ -48,7 +48,7 @@ never lost to a later failure:
    Call link.
 6. **Email the team** a notice linking to the Attio organization and deal.
    The notice lists every form field and sets Reply-To to the lead. Its Reply
-   button pre-fills a call request. Subjects are `New Seller Lead - {Company}`
+   drafts a call request CCing `contact@`. Subjects are `New Seller Lead - {Company}`
    and `New Buyer Lead - {Name}`. An invalid address gets a `⚠️ Invalid email - `
    subject, no Reply-To and no visitor confirmation.
 7. **Finish** the run and add its activity.
