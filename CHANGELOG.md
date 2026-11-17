@@ -10,6 +10,11 @@ for current production evidence and open handover items.
 
 ## 2026-11-17
 
+### Added
+
+- The November 2026 release notes are in GitBook, covering 15 October to 17 November.
+- The delivery status page now lists the Engine, MCP, web find-match and Scribe 0.8.7, and drops n8n.
+
 ### Changed
 
 - The Reply button in the internal lead notification emails now copies `contact@wusoolcapital.com`
