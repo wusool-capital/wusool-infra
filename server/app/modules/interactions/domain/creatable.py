@@ -7,10 +7,16 @@ from app.modules.interactions.domain.addresses import (
 )
 
 _NO_REPLY_LOCAL_PARTS = frozenset({"noreply", "no-reply", "donotreply", "do-not-reply"})
+# Vendor help desks and sign-up invites: a mailbox, not a contact worth a CRM record.
+_AUTOMATED_LOCAL_PARTS = frozenset({"help", "invite", "support"})
 
 
 def is_no_reply_address(address: str) -> bool:
     return address.partition("@")[0] in _NO_REPLY_LOCAL_PARTS
+
+
+def is_automated_address(address: str) -> bool:
+    return address.partition("@")[0] in _AUTOMATED_LOCAL_PARTS
 
 
 def is_creatable(
@@ -25,6 +31,6 @@ def is_creatable(
     """Mail one-way from a stranger never creates a record; a reply or a meeting does."""
     if is_internal(address, internal_domains) or domain_of(address) in free_email_domains:
         return False
-    if has_list_unsubscribe or is_no_reply_address(address):
+    if has_list_unsubscribe or is_no_reply_address(address) or is_automated_address(address):
         return False
     return two_way_thread or attended_meeting

@@ -1,6 +1,10 @@
 import pytest
 
-from app.modules.interactions.domain.creatable import is_creatable, is_no_reply_address
+from app.modules.interactions.domain.creatable import (
+    is_automated_address,
+    is_creatable,
+    is_no_reply_address,
+)
 
 FREE = frozenset({"gmail.com", "yahoo.com"})
 
@@ -44,3 +48,16 @@ def test_no_reply_senders_never_create(local: str) -> None:
 
 def test_a_person_whose_name_contains_reply_is_not_a_no_reply_sender() -> None:
     assert not is_no_reply_address("replyall@acme.com")
+
+
+@pytest.mark.parametrize("local", ["help", "invite", "support"])
+def test_help_desk_and_invite_senders_never_create(local: str) -> None:
+    address = f"{local}@vendor.com"
+
+    assert is_automated_address(address)
+    assert not _creatable(address)
+
+
+@pytest.mark.parametrize("local", ["info", "admin", "team", "sales", "contact"])
+def test_other_generic_addresses_still_create(local: str) -> None:
+    assert _creatable(f"{local}@acme.com")

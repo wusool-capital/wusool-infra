@@ -5,7 +5,7 @@ sent and what Attio holds can be compared with `==`. Timestamps are UTC with mil
 """
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -20,6 +20,7 @@ class AttioObject(StrEnum):
 
     ORGANIZATIONS = "organizations"
     PERSON = "person"
+    DEAL = "deal"
 
 
 class WriteMode(StrEnum):
@@ -65,6 +66,16 @@ _NEXT = ("next_interaction_at", "next_calendar_interaction_at")
 _FOLLOW_LAST = ("last_interaction_channel", "last_interaction_subject", "last_interaction_owner")
 _STRENGTH = ("connection_strength", "strongest_connection_user")
 _LOWEST_LABEL = "Very weak"
+# A Deal has only these of the 13; Attio rejects a write that names an attribute it lacks.
+_DEAL_SLUGS = frozenset(
+    {
+        "last_interaction_at",
+        "next_interaction_at",
+        "last_interaction_subject",
+        "last_interaction_owner",
+        "connection_strength",
+    }
+)
 
 FIELDS: tuple[FieldSpec, ...] = (
     *(FieldSpec(slug, FieldKind.TIMESTAMP) for slug in (*_FIRST, *_LAST, *_NEXT)),
@@ -74,6 +85,12 @@ FIELDS: tuple[FieldSpec, ...] = (
     FieldSpec("last_interaction_owner", FieldKind.ACTOR),
     FieldSpec("strongest_connection_user", FieldKind.ACTOR),
 )
+
+
+def fields_of(obj: AttioObject) -> tuple[FieldSpec, ...]:
+    """The fields this object has in Attio."""
+    return tuple(s for s in FIELDS if s.slug in _DEAL_SLUGS) if obj is AttioObject.DEAL else FIELDS
+
 
 _EXTRA_FRACTION = re.compile(r"(\.\d{6})\d+")
 
@@ -121,7 +138,11 @@ def fields_for(summary: InteractionSummary, member_ids: Mapping[str, str]) -> Fi
 
 
 def plan_record(
-    computed: FieldMap, sent: FieldMap, baseline: FieldMap, read_member_ids: frozenset[str]
+    computed: FieldMap,
+    sent: FieldMap,
+    baseline: FieldMap,
+    read_member_ids: frozenset[str],
+    fields: Sequence[FieldSpec] = FIELDS,
 ) -> RecordPlan:
     """What to write for one record. `sent` is what the record holds in Attio, `baseline` is
     the live value on the matching Company or Person, which also covers mail we don't read."""
@@ -157,7 +178,7 @@ def plan_record(
 
     writes = [
         FieldValue(spec.slug, merged[spec.slug])
-        for spec in FIELDS
+        for spec in fields
         if merged[spec.slug] != sent.get(spec.slug)
     ]
     return RecordPlan(tuple(writes), skip_strength, merged["connection_strength"] is not None)

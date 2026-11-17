@@ -23,7 +23,9 @@ one outside contact) into the fields Attio shows for a Person or Organization.
    one-time seed that must run first.
 7. `domain/creatable.py` and `application/auto_create.py`: who may become a new Person, and one
    round of creating them. `application/review_digest.py` posts the shared cases for review.
-8. `tests/unit/test_scoring.py`: the plan's worked example (Jules and Sara
+8. `domain/deals.py`: a Deal's touches are its buyer's and seller's together; `fields_of` in
+   `domain/attio_fields.py` says which five fields a Deal has.
+9. `tests/unit/test_scoring.py`: the plan's worked example (Jules and Sara
    score 9.1, Strong; three quiet months later about 4.5, Good).
 
 ## Two things that are easy to miss

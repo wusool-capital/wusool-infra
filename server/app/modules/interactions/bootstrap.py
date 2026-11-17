@@ -47,6 +47,7 @@ from app.modules.interactions.persistence.advisory_lock import try_advisory_lock
 from app.modules.interactions.persistence.candidates import SqlAlchemyCandidateSource
 from app.modules.interactions.persistence.created_keys import SqlAlchemyCreatedKeys
 from app.modules.interactions.persistence.database import get_engine, get_sessionmaker
+from app.modules.interactions.persistence.deal_parties import SqlAlchemyDealParties
 from app.modules.interactions.persistence.directory import SqlAlchemyRecordDirectory
 from app.modules.interactions.persistence.interaction_store import SqlAlchemyInteractionStore
 from app.modules.interactions.persistence.review_store import SqlAlchemyReviewStore
@@ -165,12 +166,13 @@ async def _write_round(attio_write: WriteRunner) -> None:
         return
     logger.info(
         "interactions_attio_write patched=%d fields=%d cleared=%d failed=%d gone=%d "
-        "scores_updated=%d unseeded=%d hit_cap=%s dry_run=%s",
+        "deals=%d scores_updated=%d unseeded=%d hit_cap=%s dry_run=%s",
         report.patched,
         report.fields,
         report.cleared,
         report.failed,
         report.gone,
+        report.deals,
         report.scores_updated,
         len(report.unseeded),
         report.hit_cap,
@@ -311,10 +313,17 @@ async def _attio_write_runner() -> AsyncIterator[WriteRunner | None]:
                     rules=settings.scoring_rules(),
                     max_records_per_round=settings.interactions_attio_max_records_per_round,
                     dry_run=mode is WriteMode.DRY_RUN,
+                    deal_mode=settings.interactions_deal_rollup_mode,
+                    max_deals_per_round=settings.interactions_deal_rollup_max_per_round,
                 ),
                 _utc_now,
+                SqlAlchemyDealParties(sessionmaker),
             )
-            logger.info("interactions_attio_write_enabled mode=%s", mode.value)
+            logger.info(
+                "interactions_attio_write_enabled mode=%s deal_rollup=%s",
+                mode.value,
+                settings.interactions_deal_rollup_mode.value,
+            )
         except Exception:
             # The write step is optional; a failure here must never stop mail ingestion.
             logger.exception("interactions_attio_write_not_started: setup failed")
