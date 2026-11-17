@@ -19,7 +19,8 @@ computed fields to Attio.
 settings come from the prod secret, not the defaults here: half-life 365 days,
 meeting points 2, two-way bonus 1.0 and label cutoffs 5.7, 17, 37 and 48. The
 shadow-week report (`scripts/calibrate_strength.py`) passed on those values. Contact creation
-is on too, at most 20 Persons per round, and so is the Deal rollup.
+is on too, at most 20 Persons per round, and so is the Deal rollup. Attio's own Companies and
+People are left in place and no longer updated.
 
 ## Structure
 

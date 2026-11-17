@@ -21,6 +21,7 @@ verified live. Update it at each handover or significant release.
 | Interactions engine: Gmail and Calendar metadata into PostgreSQL | Live on production; off by default elsewhere |
 | Interactions engine: create Persons and Organizations from email | Live on production since 16 Nov, up to 20 Persons a round |
 | Interactions engine: roll interactions up to Deals | Live on production since 17 Nov |
+| Interactions engine: Attio Companies and People | Left in place on purpose; the engine no longer updates them |
 | Website lead tools: Valuation, Readiness, Benchmark, Buyer Network, Get Started | Delivered; see open items for end-to-end checks |
 | Gated reports on `/reports`, with emailed code, PDF, and A4 sheet view | Delivered |
 | Sanity Reports & Insights Studio, Webflow sync, home banner, Insights articles | Delivered; confirm webhooks live |
