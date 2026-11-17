@@ -22,7 +22,7 @@ export type NavItem = {
 
 export type NavGroup = { label: string; items: NavItem[] };
 
-export const GITBOOK_URL = "https://wusool-capital.gitbook.io/docs";
+export const GITBOOK_URL = "https://wusool-capital.gitbook.io/docs/vttVgqrltuEtLAJkX7dL";
 // Reports are written and published in Sanity, which already runs the website (decided 9 Nov 2026).
 // Placeholder until the direct Studio address is known: the manage page lists the projects.
 export const SANITY_STUDIO_URL = "https://www.sanity.io/manage";
