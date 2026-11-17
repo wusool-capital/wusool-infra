@@ -20,7 +20,7 @@ export function LeftNav({ user }: { user: User }) {
           </Link>
           <span className="left-nav__product">Engine</span>
         </div>
-        <span className="badge left-nav__demo">Demo</span>
+        {!isLive && <span className="badge left-nav__demo">Demo</span>}
       </div>
 
       {/* On phone only Home is offered, so it gets its own link outside the groups. */}
