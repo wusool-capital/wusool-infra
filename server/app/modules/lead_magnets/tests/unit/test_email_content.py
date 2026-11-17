@@ -410,6 +410,11 @@ def test_reply_button_prefills_a_call_scheduling_draft(tool: str) -> None:
     assert "—" not in body
 
 
+@pytest.mark.parametrize("tool", list(_PAYLOADS))
+def test_reply_button_ccs_the_shared_inbox(tool: str) -> None:
+    assert _reply_query(tool)["cc"] == ["contact@wusoolcapital.com"]
+
+
 def test_reply_draft_links_the_buyer_calendar_for_buyers_only() -> None:
     assert "4FzN5jAf5KGQszjY7" in _reply_query("buyer_network")["body"][0]
     for tool in ("valuation", "readiness", "benchmark", "get_started"):

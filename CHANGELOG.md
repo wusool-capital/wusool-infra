@@ -8,6 +8,13 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-17
+
+### Changed
+
+- The Reply button in the internal lead notification emails now copies `contact@wusoolcapital.com`
+  on the draft, so the whole team sees the thread. Gmail's own Reply link is unchanged.
+
 ## 2026-11-16
 
 ### Changed
