@@ -481,7 +481,8 @@ The order is the whole point; it is what makes a lost lead impossible.
    organisation/deal (`SubjectRefs.org_web_url`/`deal_web_url`). The notice
    sets Reply-To to the lead's address, so a reply opens a draft to the lead.
    The body shows every form field, a `mailto:` link and a Reply button. The
-   button opens a pre-filled draft that asks the lead for a call: subject
+   button opens a pre-filled draft that asks the lead for a call, with
+   `contact@wusoolcapital.com` in CC (`_REPLY_CC` in `domain/shared/email_content.py`): subject
    `Re: {confirmation subject}` and the tool's calendar link in the body (a
    `ReplyDraft` in each `domain/<tool>/email.py`). An invalid address sets no Reply-To, flags the subject with
    `⚠️ Invalid email - `, and skips the visitor confirmation. The run still

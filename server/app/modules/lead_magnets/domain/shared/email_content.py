@@ -51,6 +51,10 @@ def _mailto(email: str) -> str:
     return esc(f"mailto:{quote(email, safe='@')}")
 
 
+# Fixed shared inbox: the team sees every reply to a lead. Domain code has no settings access.
+_REPLY_CC = "contact@wusoolcapital.com"
+
+
 @dataclass(frozen=True)
 class ReplyDraft:
     """What the Reply button pre-fills. The subject is the confirmation the lead
@@ -72,7 +76,10 @@ def _reply_href(email: str, first_name: str, draft: ReplyDraft) -> str:
         "Warm regards,\nThe Wusool Capital team"
     )
     subject = quote(f"Re: {draft.confirmation_subject}", safe="")
-    return esc(f"mailto:{quote(email, safe='@')}?subject={subject}&body={quote(body, safe='')}")
+    return esc(
+        f"mailto:{quote(email, safe='@')}?cc={_REPLY_CC}&subject={subject}"
+        f"&body={quote(body, safe='')}"
+    )
 
 
 def esc(value: object) -> str:
