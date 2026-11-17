@@ -3,8 +3,8 @@
 ## What it does
 
 The Wusool Engine is the advisors' internal app. The Buyers and Sellers pages
-read and write live Toolkit data. Every other tab is still a clickable prototype
-on invented demo data. It lives in the `engine-frontend/` folder and is served
+read and write live Toolkit data. Every other tab is a prototype on invented
+demo data. It lives in the `engine-frontend/` folder and is served
 from Cloudflare Workers.
 
 There are two copies. **engine-dev.wusoolcapital.com** reads the dev Toolkit and
@@ -14,9 +14,9 @@ production Toolkit, so its edits change the real CRM.
 ## How it is hosted
 
 1. The app is a single-page React app. `npm run build` writes static files to
-   `engine-frontend/build/client`, and the Worker serves them: `wusool-engine-dev` for dev and `wusool-engine-prod` for
-   the live Engine. Any
-   path that is not a file returns `index.html`, so reloads and deep links work.
+   `engine-frontend/build/client`, and the Worker serves them: `wusool-engine-dev` for dev and
+   `wusool-engine-prod` for the live Engine. A path that is not a file returns `index.html`,
+   so reloads work.
 2. Cloudflare Access sits in front of the hostname. A visitor enters an
    `@wusoolcapital.com` or `@dopaminecap.com` address, Access emails a one-time
    code, and the sign-in lasts 24 hours. Other addresses get no code. The Toolkit
@@ -98,8 +98,7 @@ deploy of each environment. See
 
 ## Limits
 
-* Only the Buyers and Sellers pages are live. Everything else is invented demo
-  data.
+* In live mode the nav links for demo pages are greyed out, and sign-in opens Buyers.
 * In live mode, Add to deal, New sell-side lead and the owner approach are
   greyed out until mandates and outreach are connected.
 * Some fields have no source column yet and show as not set: a buyer's type and

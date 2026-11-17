@@ -12,6 +12,8 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- In the live Engine, nav links for pages without a backend are greyed out and cannot be
+  clicked. Sign-in opens Buyers instead of Home. Only Buyers, Sellers and the links out stay active.
 - The Engine's buyer and seller edit forms now have two sections, Buyer or Seller details and
   then Company details, with no repeated fields. The seller Geography field is gone, because it
   only repeated the HQ country or the region. A buyer's geography is now labelled Target geography.
