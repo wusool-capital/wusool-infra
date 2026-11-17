@@ -26,7 +26,7 @@ class InteractionsSettings(SecretsManagerSettings):
     interactions_enabled: bool = False
     # At least a minute: a smaller value would hammer Google's quota and the database.
     interactions_poll_interval_s: int = Field(default=900, ge=60)
-    # Primary addresses to impersonate. Hugo's is added once the admin confirms it.
+    # Primary addresses to impersonate. Hugo's mailbox is deliberately not read.
     interactions_mailboxes: str = "jules@wusoolcapital.com ramzy@wusoolcapital.com"
     # The first domain is canonical; the rest are aliases of it.
     interactions_internal_domains: str = "wusoolcapital.com dopaminecap.com"

@@ -78,8 +78,9 @@ written first.
   Nothing is written for an object until it has run.
 - **Dates only move the right way.** A first date takes the earliest of computed, stored
   and baseline; a last date the latest. Channel, subject and owner follow the last date.
-- **Hugo's records.** If the baseline strongest user is an unread mailbox, strength and
-  strongest user are left alone.
+- **Unread mailboxes.** Hugo's mailbox is deliberately not read. If the baseline strongest user
+  is an unread mailbox (Hugo, or `tech@`), strength and strongest user stay as seeded. On prod
+  that is 447 Organizations and 733 Persons; their dates, subject and owner still update.
 - **The score.** The numeric score behind strength goes to `connection_strength_score` on
   `organizations` and `person`, straight to Postgres, only when it changed. It has no Attio
   attribute, so the webhook never overwrites it. It is skipped where strength is left alone.

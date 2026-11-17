@@ -21,7 +21,7 @@ It reads and stores, writes the results to Attio in production, and can create t
 
 - **Gmail:** sender, recipients, subject, Message-ID, labels, and time. It never requests message bodies or attachments.
 - **Calendar:** title, start time, organizer, and each guest's response.
-- **Mailboxes:** the addresses in `INTERACTIONS_MAILBOXES`. That is Jules and Ramzy today. Hugo's is added once his primary address is confirmed. The `tech@` inbox is excluded.
+- **Mailboxes:** the addresses in `INTERACTIONS_MAILBOXES`. That is Jules and Ramzy. Hugo's mailbox is not read, and neither is `tech@`.
 - **Team domains:** `wusoolcapital.com` and `dopaminecap.com` count as one team.
 
 It ignores internal-only mail and meetings, spam, trash, drafts, and chat. It also ignores all-day and cancelled events, meetings the team member declined, calendar notification emails, and auto-replies.

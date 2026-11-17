@@ -52,6 +52,8 @@ for current production evidence and open handover items.
   tagged Lead Source Detail "Email sync". It has been on in production since 16 November, up to 20 Persons a round. A shared
   address or domain goes to a review table, and new cases are posted to Slack daily. Sender display names are now
   stored for the new Person's name.
+- Hugo's mailbox will not be read (AZM-159). Strength and strongest user stay as seeded on records he
+  leads: 447 Organizations and 733 Persons. Their dates, subject and owner still update.
 - The seed script now says whether each object was marked done, and how many records it read.
 - Contact creation skips `help@`, `invite@` and `support@` senders from now on. Records already created
   are left as they are.
