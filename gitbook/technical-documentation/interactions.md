@@ -14,14 +14,14 @@ It reads and stores, writes the results to Attio in production, and can create t
 | Shadow week: compare with Attio's own labels | Passed on prod: 84.6% exact, 96.2% within one level |
 | Write the fields to Attio | Live on production since 16 Nov |
 | Create contacts from email | Live on production since 16 Nov |
-| Roll up to Deals ([details](interactions-deal-rollup.md)) | Built, off until a canary deal is checked |
-| Retire Companies and People | Not started |
+| Roll up to Deals ([details](interactions-deal-rollup.md)) | Live on production since 17 Nov |
+| Attio Companies and People | Left in place, no longer updated |
 
 ## What it reads
 
 - **Gmail:** sender, recipients, subject, Message-ID, labels, and time. It never requests message bodies or attachments.
 - **Calendar:** title, start time, organizer, and each guest's response.
-- **Mailboxes:** the addresses in `INTERACTIONS_MAILBOXES`. That is Jules and Ramzy today. Hugo's is added once his primary address is confirmed. The `tech@` inbox is excluded.
+- **Mailboxes:** the addresses in `INTERACTIONS_MAILBOXES`. That is Jules and Ramzy. Hugo's mailbox is not read, and neither is `tech@`.
 - **Team domains:** `wusoolcapital.com` and `dopaminecap.com` count as one team.
 
 It ignores internal-only mail and meetings, spam, trash, drafts, and chat. It also ignores all-day and cancelled events, meetings the team member declined, calendar notification emails, and auto-replies.

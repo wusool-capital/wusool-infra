@@ -19,7 +19,8 @@ computed fields to Attio.
 settings come from the prod secret, not the defaults here: half-life 365 days,
 meeting points 2, two-way bonus 1.0 and label cutoffs 5.7, 17, 37 and 48. The
 shadow-week report (`scripts/calibrate_strength.py`) passed on those values. Contact creation
-is on too, at most 20 Persons per round.
+is on too, at most 20 Persons per round, and so is the Deal rollup. Attio's own Companies and
+People are left in place and no longer updated.
 
 ## Structure
 
@@ -78,8 +79,9 @@ written first.
   Nothing is written for an object until it has run.
 - **Dates only move the right way.** A first date takes the earliest of computed, stored
   and baseline; a last date the latest. Channel, subject and owner follow the last date.
-- **Hugo's records.** If the baseline strongest user is an unread mailbox, strength and
-  strongest user are left alone.
+- **Unread mailboxes.** Hugo's mailbox is deliberately not read. If the baseline strongest user
+  is an unread mailbox (Hugo, or `tech@`), strength and strongest user stay as seeded. On prod
+  that is 447 Organizations and 733 Persons; their dates, subject and owner still update.
 - **The score.** The numeric score behind strength goes to `connection_strength_score` on
   `organizations` and `person`, straight to Postgres, only when it changed. It has no Attio
   attribute, so the webhook never overwrites it. It is skipped where strength is left alone.
@@ -104,7 +106,8 @@ Attio, both tagged Lead Source Detail "Email sync".
 - **Failures.** An address Attio rejects three times is dropped until the next restart, so it
   can't use up every round's cap.
 - **Names.** The Person's name is the sender's display name (`interaction_participants.display_name`,
-  filled for mail read since this column was added), else the address, as the sync bot does.
+  filled for mail read since this column was added). Without one, the name is built from the address
+  (`abhishek.bajaj@` is Abhishek Bajaj). Shared mailboxes and addresses with digits keep the address.
 - **Shared cases.** An address or domain that matches several records creates nothing. Ingest saves
   it to `interaction_review_items`; one that is fixed resolves itself, and a dismissed one stays
   dismissed. `ReviewDigestService` posts the cases it has not listed yet, once a day with the
