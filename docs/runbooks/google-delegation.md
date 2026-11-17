@@ -174,3 +174,4 @@ A created record can only be undone in Attio: delete the Person and Organization
 5. Raise the cap (the default is 500) once the canary looks right.
 
 Turning the mode back to `off` stops the rollup. The fields already written stay on the Deals.
+Production followed these steps on 17 November: seed, dry run, one Deal, then all of them.

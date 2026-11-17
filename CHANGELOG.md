@@ -52,11 +52,12 @@ for current production evidence and open handover items.
   tagged Lead Source Detail "Email sync". It has been on in production since 16 November, up to 20 Persons a round. A shared
   address or domain goes to a review table, and new cases are posted to Slack daily. Sender display names are now
   stored for the new Person's name.
+- The seed script now says whether each object was marked done, and how many records it read.
 - Contact creation skips `help@`, `invite@` and `support@` senders from now on. Records already created
   are left as they are.
 - The interactions engine can keep five fields current on each Deal in Attio (AZM-159 PR 6).
   They are last and next interaction, last subject, last owner and connection strength, taken
-  from the buyer and seller together. It is off until a canary deal is checked.
+  from the buyer and seller together. It has been on in production since 17 November.
 - A record deleted or merged away in Attio no longer keeps the stale-sync alarm on. The
   engine logs it as gone and moves on (AZM-159).
 - The interactions engine is live in production (AZM-159). It keeps Attio's last

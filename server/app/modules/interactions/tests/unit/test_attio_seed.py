@@ -155,6 +155,7 @@ async def test_a_seed_that_read_nothing_is_not_marked_done() -> None:
 
     assert sent.marked == []
     assert [r.rows_read for r in reports] == [0, 0, 0]
+    assert [r.marked for r in reports] == [False, False, False]
 
 
 class _RecordsButNoValuesSource:
@@ -170,6 +171,7 @@ async def test_an_object_whose_records_hold_nothing_yet_is_still_marked_done() -
 
     assert sent.marked == list(AttioObject)
     assert [r.rows_stored for r in reports] == [0, 0, 0]
+    assert [(r.records_read, r.marked) for r in reports] == [(3, True)] * 3
 
 
 DEAL = {

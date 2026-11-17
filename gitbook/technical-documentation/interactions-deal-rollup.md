@@ -1,6 +1,6 @@
 # Deal rollup
 
-How the interactions engine keeps five fields current on each Deal in Attio. See [Interactions engine](interactions.md) for the rest of the engine.
+How the interactions engine keeps five fields current on each Deal in Attio. See [Interactions engine](interactions.md) for the rest of the engine. It has been on in production since 17 November.
 
 ## What it writes
 

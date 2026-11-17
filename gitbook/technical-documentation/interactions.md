@@ -14,7 +14,7 @@ It reads and stores, writes the results to Attio in production, and can create t
 | Shadow week: compare with Attio's own labels | Passed on prod: 84.6% exact, 96.2% within one level |
 | Write the fields to Attio | Live on production since 16 Nov |
 | Create contacts from email | Live on production since 16 Nov |
-| Roll up to Deals ([details](interactions-deal-rollup.md)) | Built, off until a canary deal is checked |
+| Roll up to Deals ([details](interactions-deal-rollup.md)) | Live on production since 17 Nov |
 | Retire Companies and People | Not started |
 
 ## What it reads
