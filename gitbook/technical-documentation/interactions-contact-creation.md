@@ -2,9 +2,11 @@
 
 How the interactions engine turns an unknown outside address into a Person and an Organization in Attio. See [Interactions engine](interactions.md) for the rest of the engine and its settings.
 
+It has been on in production since 16 November, creating at most 20 Persons per round.
+
 ## Who qualifies
 
-When an outside address has no Person, the engine can create one. It needs a two-way thread or a meeting that wasn't cancelled. Internal, free-email, no-reply, and bulk senders never qualify.
+When an outside address has no Person, the engine can create one. It needs a two-way thread or a meeting that wasn't cancelled. Internal, free-email, no-reply, help, invite, support, and bulk senders never qualify.
 
 It creates the Organization first, unless the domain has one, then the Person linked to it. Both are tagged Lead Source Detail "Email sync". The Person's name is the sender's display name, or the address when there is none.
 

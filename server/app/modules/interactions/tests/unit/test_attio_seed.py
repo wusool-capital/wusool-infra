@@ -1,6 +1,7 @@
 from collections.abc import Mapping, Sequence
 
 from app.modules.interactions.application.attio_seed import AttioSeedService
+from app.modules.interactions.application.ports.seed_source import SeedRead
 from app.modules.interactions.application.ports.sent_values import RecordValues, SeedRow
 from app.modules.interactions.domain.attio_fields import AttioObject
 from app.modules.interactions.providers.attio_seed_source import AttioSeedSource
@@ -69,7 +70,7 @@ class _Client:
 
 async def _rows(pages: Mapping[str, list[dict]]) -> Sequence[SeedRow]:
     source = AttioSeedSource(_Client(pages), owns=lambda is_test: not is_test)
-    return await source.rows(AttioObject.ORGANIZATIONS)
+    return (await source.read(AttioObject.ORGANIZATIONS)).rows
 
 
 async def test_the_seed_stores_what_the_record_holds_and_the_live_company_value() -> None:
@@ -103,8 +104,8 @@ async def test_a_record_with_no_matching_company_still_keeps_its_own_values() ->
 
 
 class _Source:
-    async def rows(self, obj: AttioObject) -> Sequence[SeedRow]:
-        return [SeedRow(f"{obj.value}-1", "connection_strength", "Weak", None)]
+    async def read(self, obj: AttioObject) -> SeedRead:
+        return SeedRead([SeedRow(f"{obj.value}-1", "connection_strength", "Weak", None)], 1)
 
 
 class _Sent:
@@ -129,7 +130,7 @@ class _Sent:
         self.marked.append(obj)
 
 
-async def test_the_service_seeds_both_objects_and_marks_each_complete() -> None:
+async def test_the_service_seeds_every_object_and_marks_each_complete() -> None:
     sent = _Sent()
 
     reports = await AttioSeedService(_Source(), sent).run()
@@ -137,13 +138,14 @@ async def test_the_service_seeds_both_objects_and_marks_each_complete() -> None:
     assert [(r.object, r.rows_read, r.rows_stored) for r in reports] == [
         (AttioObject.ORGANIZATIONS, 1, 1),
         (AttioObject.PERSON, 1, 1),
+        (AttioObject.DEAL, 1, 1),
     ]
-    assert sent.marked == sent.seeded == [AttioObject.ORGANIZATIONS, AttioObject.PERSON]
+    assert sent.marked == sent.seeded == list(AttioObject)
 
 
 class _EmptySource:
-    async def rows(self, obj: AttioObject) -> Sequence[SeedRow]:
-        return []
+    async def read(self, obj: AttioObject) -> SeedRead:
+        return SeedRead([], 0)
 
 
 async def test_a_seed_that_read_nothing_is_not_marked_done() -> None:
@@ -152,4 +154,42 @@ async def test_a_seed_that_read_nothing_is_not_marked_done() -> None:
     reports = await AttioSeedService(_EmptySource(), sent).run()
 
     assert sent.marked == []
-    assert [r.rows_read for r in reports] == [0, 0]
+    assert [r.rows_read for r in reports] == [0, 0, 0]
+
+
+class _RecordsButNoValuesSource:
+    async def read(self, obj: AttioObject) -> SeedRead:
+        return SeedRead([], 3)
+
+
+async def test_an_object_whose_records_hold_nothing_yet_is_still_marked_done() -> None:
+    # A Deal starts with none of the rollup fields filled, so there is nothing to store.
+    sent = _Sent()
+
+    reports = await AttioSeedService(_RecordsButNoValuesSource(), sent).run()
+
+    assert sent.marked == list(AttioObject)
+    assert [r.rows_stored for r in reports] == [0, 0, 0]
+
+
+DEAL = {
+    "id": {"record_id": "deal-1"},
+    "values": {
+        "last_interaction_at": _ts("2026-10-01T08:00:00.000000000Z"),
+        "connection_strength": [{"option": {"title": "Good"}, "active_until": None}],
+        "first_interaction_at": _ts("2026-01-01T00:00:00.000000000Z"),
+    },
+}
+
+
+async def test_a_deal_is_seeded_from_its_own_five_fields_with_no_baseline() -> None:
+    pages = {"deal": [DEAL, {"id": {"record_id": "deal-2"}, "values": {}}]}
+    source = AttioSeedSource(_Client(pages), owns=lambda is_test: not is_test)
+
+    read = await source.read(AttioObject.DEAL)
+
+    assert read.records == 2
+    assert {(r.record_id, r.field, r.baseline) for r in read.rows} == {
+        ("deal-1", "last_interaction_at", None),
+        ("deal-1", "connection_strength", None),
+    }

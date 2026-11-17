@@ -26,11 +26,11 @@ class AttioSeedService:
         """Safe to run again: a field that already has a row is never overwritten."""
         reports: list[SeedReport] = []
         for obj in AttioObject:
-            rows = await self._source.rows(obj)
-            stored = await self._sent.seed(obj, rows)
-            if not rows:
-                # Reading nothing means the wrong scope or an empty page. Marking it done would
-                # let the writer overwrite live values it has never seen.
+            read = await self._source.read(obj)
+            stored = await self._sent.seed(obj, read.rows)
+            if read.records == 0:
+                # Reading no records means the wrong scope or an empty page. Marking it done
+                # would let the writer overwrite live values it has never seen.
                 logger.error("interactions_attio_seed_empty object=%s: not marked done", obj.value)
                 reports.append(SeedReport(obj, 0, 0))
                 continue
@@ -38,8 +38,8 @@ class AttioSeedService:
             logger.info(
                 "interactions_attio_seeded object=%s read=%d stored=%d",
                 obj.value,
-                len(rows),
+                len(read.rows),
                 stored,
             )
-            reports.append(SeedReport(obj, len(rows), stored))
+            reports.append(SeedReport(obj, len(read.rows), stored))
         return tuple(reports)

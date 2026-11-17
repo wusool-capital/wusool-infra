@@ -13,8 +13,9 @@ It reads and stores, writes the results to Attio in production, and can create t
 | Interaction dates and connection strength | Live on production |
 | Shadow week: compare with Attio's own labels | Passed on prod: 84.6% exact, 96.2% within one level |
 | Write the fields to Attio | Live on production since 16 Nov |
-| Create contacts from email | Built, off until a canary record is checked |
-| Roll up to Deals, retire Companies and People | Not started |
+| Create contacts from email | Live on production since 16 Nov |
+| Roll up to Deals ([details](interactions-deal-rollup.md)) | Built, off until a canary deal is checked |
+| Retire Companies and People | Not started |
 
 ## What it reads
 
@@ -61,7 +62,7 @@ Where Attio's strongest user is a mailbox the engine doesn't read, connection st
 
 ## Creating contacts
 
-The engine can create the Person and Organization for an outside contact it meets. It is off by default. See [Creating contacts from email](interactions-contact-creation.md).
+The engine can create the Person and Organization for an outside contact it meets. It is on in production and off by default elsewhere. See [Creating contacts from email](interactions-contact-creation.md).
 
 ## Settings
 
@@ -76,12 +77,9 @@ The engine can create the Person and Organization for an outside contact it meet
 | `INTERACTIONS_ATTIO_WRITE_MODE` | `off` | `off`, `dry_run` or `on`. Keep `off` until the shadow-week gate has passed. |
 | `INTERACTIONS_ATTIO_WRITES_PER_SECOND` | `5` | Request rate to Attio. |
 | `INTERACTIONS_ATTIO_MAX_RECORDS_PER_ROUND` | `500` | Most records written per object in one round. |
-| `INTERACTIONS_AUTO_CREATE_MODE` | `off` | `off`, `dry_run` or `on`. Creates Persons and Organizations from email. |
-| `INTERACTIONS_AUTO_CREATE_MAX_PER_ROUND` | `20` | Most Persons created in one round. |
-| `INTERACTIONS_REVIEW_SLACK_CHANNEL` | none | Slack channel id for the daily review post. Empty turns it off. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | none | The service-account key. Secrets Manager only. |
 
-The scoring settings, which are the points, half-life, bonus, and label cut-offs, start at the plan's values. They are tuned during the shadow week.
+The scoring settings, which are the points, half-life, bonus, and label cut-offs, start at the plan's values. They are tuned during the shadow week. The settings for [creating contacts](interactions-contact-creation.md) and the [Deal rollup](interactions-deal-rollup.md) are on their pages.
 
 ## Data stored
 

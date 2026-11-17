@@ -40,6 +40,7 @@
 * [Attio and database sync](technical-documentation/attio-sync.md)
 * [Interactions engine](technical-documentation/interactions.md)
   * [Creating contacts from email](technical-documentation/interactions-contact-creation.md)
+  * [Deal rollup](technical-documentation/interactions-deal-rollup.md)
 * [Wusool Engine frontend](technical-documentation/engine-frontend.md)
 * [Website lead tools](technical-documentation/lead-tools.md)
   * [Valuation](technical-documentation/lead-tools-valuation.md)

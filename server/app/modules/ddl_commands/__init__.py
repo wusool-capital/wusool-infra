@@ -43,12 +43,14 @@ from app.modules.ddl_commands.api.write_errors import (
 )
 from app.modules.ddl_commands.application.buyers import BuyerNotFoundError
 from app.modules.ddl_commands.application.sellers import SellerNotFoundError
+from app.modules.ddl_commands.persistence.deal_parties import DealPartyIds, list_live_deal_parties
 from app.modules.ddl_commands.persistence.person_emails import (
     PersonEmails,
     list_live_person_emails,
 )
 
 __all__ = [
+    "DealPartyIds",
     "LIST_LIMIT_MAX",
     "MAX_ROWS",
     "AddOutcome",
@@ -81,6 +83,7 @@ __all__ = [
     "find_records",
     "get_record",
     "list_buyer_records",
+    "list_live_deal_parties",
     "list_live_person_emails",
     "list_seller_records",
     "routes_for",

@@ -155,8 +155,22 @@ shows `failures=0`.
    counts for a few rounds.
 3. Set the mode to `on` and `INTERACTIONS_AUTO_CREATE_MAX_PER_ROUND=1`, restart, and check the one
    new Person and Organization in Attio: name, domain, tag, and the link between them.
-4. Raise the cap (the default is 20) once the canary looks right.
+4. Raise the cap (the default is 20) once the canary looks right. Production went from 1 to 10 to 20.
 5. For the daily review post, set `INTERACTIONS_REVIEW_SLACK_CHANNEL` to the channel id and restart.
 
 A created record can only be undone in Attio: delete the Person and Organization there.
 `created_orgs` counts Organizations the round made; `existing` counts addresses Attio already had.
+
+## Turning on the Deal rollup
+
+1. Confirm `INTERACTIONS_ATTIO_WRITE_MODE=on`; the rollup runs inside the write step.
+2. Run the seed in the container: `python -m app.modules.interactions.scripts.seed_attio_sent_values`.
+   It must say the `deal` object was read and marked done. Until then the rollup writes nothing,
+   and the write round reports it as unseeded, which stops the stale-sync line.
+3. Set `INTERACTIONS_DEAL_ROLLUP_MODE=dry_run`, restart, and read `deals=` in the
+   `interactions_attio_write` line for a few rounds.
+4. Set the mode to `on` and `INTERACTIONS_DEAL_ROLLUP_MAX_PER_ROUND=1`, restart, and check the one
+   Deal in Attio: last interaction, next interaction, subject, owner and strength.
+5. Raise the cap (the default is 500) once the canary looks right.
+
+Turning the mode back to `off` stops the rollup. The fields already written stay on the Deals.

@@ -18,7 +18,8 @@ computed fields to Attio.
 **Production runs it.** The loop is on, the write mode is `on`, and the scoring
 settings come from the prod secret, not the defaults here: half-life 365 days,
 meeting points 2, two-way bonus 1.0 and label cutoffs 5.7, 17, 37 and 48. The
-shadow-week report (`scripts/calibrate_strength.py`) passed on those values.
+shadow-week report (`scripts/calibrate_strength.py`) passed on those values. Contact creation
+is on too, at most 20 Persons per round.
 
 ## Structure
 
@@ -111,6 +112,21 @@ Attio, both tagged Lead Source Detail "Email sync".
 - **Safety.** `INTERACTIONS_AUTO_CREATE_MODE` is `off` by default; `dry_run` logs counts only;
   capped per round; refuses to run while `ATTIO_IS_TEST` is set. Free-email domains extend the
   benchmark's `FREE_MAIL` list.
+
+## Deal rollup
+
+A Deal has a seller Organization and a buyer, a Person or an Organization. `domain/deals.py`
+merges the touches of both sides, counting a touch once however many sides hold it, and the
+same `summarize` and `plan_record` run on the result. Only five of the 13 fields exist on a Deal,
+so `fields_of(AttioObject.DEAL)` limits what is written.
+
+- **Reading Deals.** Through `ddl_commands.list_live_deal_parties`, the module that owns `deals`.
+- **No score.** A Deal's strength has no score column; the score store refuses the object.
+- **Unread mailbox.** If the buyer's or seller's baseline strongest user is a mailbox we don't read,
+  the Deal's strength is left alone.
+- **Safety.** `INTERACTIONS_DEAL_ROLLUP_MODE` is `off` by default and runs inside the write step.
+  Seed first: an unseeded object is reported and writes nothing. It is only counted as unseeded
+  when the mode is not off, so it can't silence the stale-sync alarm.
 
 ## Reading CRM records
 
