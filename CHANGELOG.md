@@ -12,6 +12,7 @@ for current production evidence and open handover items.
 
 ### Changed
 
+- The live Engine no longer shows the Demo badge under its logo. The demo build keeps it.
 - The Engine's GitBook link now opens the Wusool docs space directly.
 - In the live Engine, nav links for pages without a backend are greyed out and cannot be
   clicked. Sign-in opens Buyers instead of Home. Only Buyers, Sellers and the links out stay active.
