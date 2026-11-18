@@ -5,6 +5,7 @@ pipeline, so there's no separate domain value object/mapper layer the way
 same as the concrete class they abstract.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol, TypedDict, Unpack
@@ -62,17 +63,23 @@ class BuyerFilters:
     target_country: tuple[str, ...] = ()
     check_size_usd: float | None = None
     hq_country: str | None = None
+    sector_focus: tuple[str, ...] = ()
 
 
 class BuyerRepositoryPort(Protocol):
     async def get_by_id(self, buyer_role_id: str) -> BuyerRole | None: ...
     async def get_with_organization(self, buyer_role_id: str) -> BuyerRole | None: ...
+    async def get_many_with_organization(
+        self, buyer_role_ids: Sequence[str]
+    ) -> list[BuyerRole]: ...
     async def get_active_by_org_and_vertical(
         self, org_attio_id: str, target_vertical: str | None
     ) -> BuyerRole | None: ...
     async def create(self, org_attio_id: str, **fields: Unpack[BuyerRoleFields]) -> BuyerRole: ...
     async def search_by_organization_name(self, term: str, limit: int = 10) -> list[BuyerRole]: ...
-    async def list_filtered(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]: ...
+    async def list_filtered(
+        self, filters: BuyerFilters, limit: int, offset: int = 0
+    ) -> list[BuyerRole]: ...
     async def update(
         self, buyer_role_id: str, **fields: Unpack[BuyerRoleFields]
     ) -> BuyerRole | None: ...

@@ -14,8 +14,8 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows. Returns new, existing and invalid rows | Nothing |
 | `confirm_import` | After the person agrees, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
-| `get_buyer`, `get_seller` | Every field of one record, keyed like the edit tools' `fields` | Read only |
-| `list_buyers`, `list_sellers` | Active records matching filters, up to 50, with `truncated` when more match | Read only |
+| `get_buyer`, `get_seller` | Every field of up to 100 records in one call, keyed like the edit tools' `fields`. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
+| `list_buyers`, `list_sellers` | Active records matching filters, up to 200 a page. When `truncated`, pass `next_offset` as `offset` for the next page. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
 | `list_field_options` | Every field's type and allowed values | Read only |
 
@@ -23,7 +23,7 @@ No tool deletes, sends, spends provider credits or shows fees.
 
 The five benchmark tools, which edit the public benchmark's peer dataset, are described in [Benchmark tools](toolkit-mcp-benchmark.md).
 
-Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them.
+Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them. The one exception is `get_buyer` and `get_seller`, which took a list of `role_ids` on 18 November 2026 so there are no duplicate tools.
 
 ## How a call runs
 

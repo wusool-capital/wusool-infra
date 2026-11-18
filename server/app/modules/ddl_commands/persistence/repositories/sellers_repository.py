@@ -4,6 +4,7 @@
 Implements `application.ports.sellers.SellerRepositoryPort`.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Unpack
 
@@ -32,6 +33,15 @@ class SellerRepository:
             .options(selectinload(SellerRole.organization))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_many_with_organization(self, seller_role_ids: Sequence[str]) -> list[SellerRole]:
+        """Unknown ids are simply absent from the result."""
+        stmt = (
+            select(SellerRole)
+            .where(SellerRole.id.in_(seller_role_ids))
+            .options(selectinload(SellerRole.organization))
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def get_by_org_attio_id(self, org_attio_id: str) -> SellerRole | None:
         """Used by `DdlCommandsService.create_seller` to check, inside the write
@@ -100,7 +110,9 @@ class SellerRepository:
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def list_filtered(self, filters: SellerFilters, limit: int) -> list[SellerRole]:
+    async def list_filtered(
+        self, filters: SellerFilters, limit: int, offset: int = 0
+    ) -> list[SellerRole]:
         """Active roles of live organizations, ordered by organization name then id."""
         conditions: list[ColumnElement[bool]] = [
             SellerRole.is_active.is_(True),
@@ -124,6 +136,7 @@ class SellerRepository:
             .options(contains_eager(SellerRole.organization))
             .order_by(Organization.name, SellerRole.id)
             .limit(limit)
+            .offset(offset)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 

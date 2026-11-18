@@ -258,6 +258,34 @@ async def test_get_of_an_inactive_buyer_raises_not_found(monkeypatch: pytest.Mon
         await flat_records.get_record("buyer", _ROLE_ID)
 
 
+async def test_get_records_keeps_input_order_and_names_every_missing_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first, second, inactive, unknown = (uuid.uuid4() for _ in range(4))
+    live_org = SimpleNamespace(removed_at=None)
+    roles = [
+        SimpleNamespace(id=second, is_active=True, removed_at=None, organization=live_org),
+        SimpleNamespace(id=first, is_active=True, removed_at=None, organization=live_org),
+        SimpleNamespace(id=inactive, is_active=False, removed_at=None, organization=live_org),
+    ]
+    resolve = AsyncMock(return_value=roles)
+    service = SimpleNamespace(resolve_buyers_by_ids=resolve)
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+    monkeypatch.setattr(
+        flat_records,
+        "_detail",
+        lambda _kind, role: flat_records.RecordDetail(
+            role_id=role.id, org_attio_id="org-1", org_name="Acme", domains=(), fields={}
+        ),
+    )
+
+    found = await flat_records.get_records("buyer", [first, second, first, inactive, unknown])
+
+    resolve.assert_awaited_once_with([str(first), str(second), str(inactive), str(unknown)])
+    assert [d.role_id for d in found.records] == [first, second]
+    assert found.not_found == (inactive, unknown)
+
+
 async def test_list_filters_are_checked_before_any_query(monkeypatch: pytest.MonkeyPatch) -> None:
     service = SimpleNamespace(list_buyers=AsyncMock())
     monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
@@ -280,10 +308,28 @@ async def test_list_uses_canonical_values_and_reports_truncation(
 
     found = await flat_records.list_buyer_records(mandate_status="active", limit=2)
 
-    filters, limit = service.list_buyers.await_args.args
+    filters, limit, offset = service.list_buyers.await_args.args
     assert filters.mandate_status == "Active"
     assert limit == 3  # one extra, to know whether more match
+    assert offset == 0
     assert len(found.records) == 2 and found.truncated is True
+    assert found.next_offset == 2
+
+
+async def test_the_next_page_starts_after_the_last_returned_record(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    roles = [
+        SimpleNamespace(id=uuid.uuid4(), is_active=True, organization=_org()) for _ in range(3)
+    ]
+    service = SimpleNamespace(list_sellers=AsyncMock(return_value=roles))
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+
+    page = await flat_records.list_seller_records(limit=2, offset=4)
+    last = await flat_records.list_seller_records(limit=3, offset=4)
+
+    assert page.next_offset == 6
+    assert last.truncated is False and last.next_offset is None
 
 
 async def test_get_of_a_buyer_whose_company_was_removed_raises_not_found(

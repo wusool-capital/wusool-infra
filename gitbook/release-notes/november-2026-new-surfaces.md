@@ -33,9 +33,12 @@ company description, now saves.
 
 - **Connect once.** Advisors sign in with Slack. Only active members of the
   Wusool workspace can connect. Someone who leaves loses access.
-- **Find.** Claude can list buyers and sellers by vertical, region, check
-  size, and status, and read a full record. It can run the `/check-buyer`
-  check and show each field's allowed values.
+- **Find.** Claude can list buyers and sellers by vertical, sector focus,
+  region, check size, and status. It can read the full record of up to 100
+  at once. Lists return 200 at a time, and Claude pages through the rest.
+  Ranking, such as the top buyers by EBITDA, no longer takes one call per
+  row. Claude can also run the `/check-buyer` check and show each field's
+  allowed values.
 - **Add and edit.** Changes save straight away, Attio first. A company that
   already holds the role comes back as the existing record.
 - **Bulk import.** Claude checks a list of up to 1,000 rows and shows a

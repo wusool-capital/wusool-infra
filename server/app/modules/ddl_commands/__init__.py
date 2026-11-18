@@ -21,17 +21,20 @@ from app.modules.ddl_commands.api.bulk_upload import (
     status,
 )
 from app.modules.ddl_commands.api.flat_records import (
+    GET_IDS_MAX,
     LIST_LIMIT_MAX,
     AddOutcome,
     InvalidFieldsError,
     InvalidFiltersError,
     RecordDetail,
+    RecordDetails,
     RecordList,
     RecordRef,
     add_one,
     edit_one,
     find_records,
     get_record,
+    get_records,
     list_buyer_records,
     list_seller_records,
 )
@@ -51,6 +54,7 @@ from app.modules.ddl_commands.persistence.person_emails import (
 
 __all__ = [
     "DealPartyIds",
+    "GET_IDS_MAX",
     "LIST_LIMIT_MAX",
     "MAX_ROWS",
     "AddOutcome",
@@ -67,6 +71,7 @@ __all__ = [
     "PreviewNotFoundError",
     "PreviewResult",
     "RecordDetail",
+    "RecordDetails",
     "RecordList",
     "RecordRef",
     "RejectedUpload",
@@ -82,6 +87,7 @@ __all__ = [
     "edit_one",
     "find_records",
     "get_record",
+    "get_records",
     "list_buyer_records",
     "list_live_deal_parties",
     "list_live_person_emails",

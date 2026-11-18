@@ -18,8 +18,8 @@ The Wusool connector lets you find, add and edit buyers and sellers from a Claud
 | Ask Claude to… | What happens |
 | --- | --- |
 | Find a buyer or seller by name or website | Lists matching records |
-| Show everything about a buyer or seller | Shows every field of the record |
-| List buyers or sellers that fit some criteria | For example, active Fintech buyers in the UAE whose check size fits a $5M deal. Shows up to 50 |
+| Show everything about a buyer or seller | Shows every field of the record, for up to 100 at a time |
+| List buyers or sellers that fit some criteria | For example, active Fintech buyers in the UAE whose check size fits a $5M deal. Claude reads the list 200 at a time and keeps going until it has them all. Ranking, such as the top 10 by EBITDA, takes one more step to read the numbers |
 | Check a buyer's profile | Shows what's missing or in conflict, as `/check-buyer` does in Slack |
 | Add a buyer or seller | Saved at once. If the company already has that record, Claude shows the existing one instead |
 | Change some fields of a record | Saved at once. Only the fields you name change |

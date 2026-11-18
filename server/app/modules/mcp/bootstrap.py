@@ -25,6 +25,8 @@ _INSTRUCTIONS = (
     "Wusool's CRM of buyers and sellers. Look a company up before adding or editing it. "
     "Every add and edit is saved straight away under the signed-in person's name; a bulk "
     "list is only saved after the person confirms the preview. Nothing here deletes records. "
+    "To rank or compare by numbers, page through list_buyers or list_sellers, then pass all "
+    "the role_ids to get_buyer or get_seller in one call. "
     "It also holds the GCC SME Benchmark's peer dataset. Read a row before editing it: it shows "
     "who last changed it, by name, and when. Old values are not kept, so tell the person what "
     "a row held before you overwrite it. A benchmark edit changes what visitors to the public "

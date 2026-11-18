@@ -4,6 +4,7 @@
 Implements `application.ports.buyers.BuyerRepositoryPort`.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Unpack
@@ -34,6 +35,15 @@ class BuyerRepository:
             .options(selectinload(BuyerRole.organization))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_many_with_organization(self, buyer_role_ids: Sequence[str]) -> list[BuyerRole]:
+        """Unknown ids are simply absent from the result."""
+        stmt = (
+            select(BuyerRole)
+            .where(BuyerRole.id.in_(buyer_role_ids))
+            .options(selectinload(BuyerRole.organization))
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def get_active_by_org_and_vertical(
         self, org_attio_id: str, target_vertical: str | None
@@ -120,7 +130,9 @@ class BuyerRepository:
         rank = {org_id: i for i, org_id in enumerate(org_ids)}
         return sorted(roles, key=lambda r: (rank[r.org_attio_id], r.target_vertical or ""))
 
-    async def list_filtered(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]:
+    async def list_filtered(
+        self, filters: BuyerFilters, limit: int, offset: int = 0
+    ) -> list[BuyerRole]:
         """Active roles of live organizations, ordered by organization name then id
         so the order is stable when an organization holds several roles."""
         conditions: list[ColumnElement[bool]] = [
@@ -140,6 +152,8 @@ class BuyerRepository:
             conditions.append(BuyerRole.target_country.overlap(list(filters.target_country)))
         if filters.hq_country is not None:
             conditions.append(joined_text_has(Organization.hq_country, filters.hq_country))
+        if filters.sector_focus:
+            conditions.append(Organization.sector_focus.overlap(list(filters.sector_focus)))
         if filters.check_size_usd is not None:
             amount = filters.check_size_usd
             conditions.append(
@@ -161,6 +175,7 @@ class BuyerRepository:
             .options(contains_eager(BuyerRole.organization))
             .order_by(Organization.name, BuyerRole.id)
             .limit(limit)
+            .offset(offset)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 

@@ -17,6 +17,7 @@ session is a harmless no-op) rather than a separate raw session, so every
 method here shares the one constructor `ServiceBase` provides.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -58,9 +59,15 @@ class BuyerService(ServiceBase):
         status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return BuyerResolution(status=status, candidates=matches)
 
-    async def list_buyers(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]:
+    async def list_buyers(
+        self, filters: BuyerFilters, limit: int, offset: int = 0
+    ) -> list[BuyerRole]:
         async with self._uow_factory() as uow:
-            return await uow.buyers.list_filtered(filters, limit)
+            return await uow.buyers.list_filtered(filters, limit, offset)
+
+    async def resolve_buyers_by_ids(self, buyer_role_ids: Sequence[str]) -> list[BuyerRole]:
+        async with self._uow_factory() as uow:
+            return await uow.buyers.get_many_with_organization(buyer_role_ids)
 
     async def resolve_buyer_by_id(self, buyer_role_id: str) -> BuyerRole | None:
         """Used after a Slack buyer-selection modal submission. Returns the

@@ -1,6 +1,7 @@
 """Seller resolution semantics and write use cases — mirrors `buyers.py`
 exactly."""
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -38,9 +39,15 @@ class SellerService(ServiceBase):
         status: ResolutionStatus = "single" if len(matches) == 1 else "multiple"
         return SellerResolution(status=status, candidates=matches)
 
-    async def list_sellers(self, filters: SellerFilters, limit: int) -> list[SellerRole]:
+    async def list_sellers(
+        self, filters: SellerFilters, limit: int, offset: int = 0
+    ) -> list[SellerRole]:
         async with self._uow_factory() as uow:
-            return await uow.sellers.list_filtered(filters, limit)
+            return await uow.sellers.list_filtered(filters, limit, offset)
+
+    async def resolve_sellers_by_ids(self, seller_role_ids: Sequence[str]) -> list[SellerRole]:
+        async with self._uow_factory() as uow:
+            return await uow.sellers.get_many_with_organization(seller_role_ids)
 
     async def resolve_seller_by_id(self, seller_role_id: str) -> SellerRole | None:
         async with self._uow_factory() as uow:

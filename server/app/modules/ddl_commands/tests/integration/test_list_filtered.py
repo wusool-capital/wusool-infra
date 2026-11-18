@@ -139,3 +139,57 @@ async def test_a_role_removed_in_attio_is_left_out(
     )
 
     assert [r.id for r in found] == [live.id]
+
+
+async def test_offset_pages_do_not_overlap_and_cover_every_row(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    roles = [await _buyer(db_session, throwaway_org) for _ in range(5)]
+    repo = BuyerRepository(db_session)
+    filters = BuyerFilters(target_vertical=_VERTICAL)
+
+    pages = [await repo.list_filtered(filters, limit=2, offset=o) for o in (0, 2, 4)]
+
+    ids = [r.id for page in pages for r in page]
+    assert ids == sorted(r.id for r in roles)
+    assert [len(p) for p in pages] == [2, 2, 1]
+
+
+async def test_sector_focus_matches_a_buyer_whose_vertical_differs(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    sector = f"Test sector {uuid.uuid4()}"
+    throwaway_org.sector_focus = [sector, "Fintech"]
+    in_focus = await _buyer(db_session, throwaway_org)  # target_vertical is _VERTICAL
+    other = Organization(
+        attio_id=f"test-org-{uuid.uuid4()}", name="Other", sector_focus=["Fintech"]
+    )
+    db_session.add(other)
+    await db_session.flush()
+    await _buyer(db_session, other)
+
+    found = await BuyerRepository(db_session).list_filtered(
+        BuyerFilters(sector_focus=(sector, "No such sector")), limit=50
+    )
+
+    assert [r.id for r in found] == [in_focus.id]
+
+
+async def test_get_many_with_organization_skips_unknown_ids(
+    db_session: AsyncSession, throwaway_org: Organization
+) -> None:
+    buyer = await _buyer(db_session, throwaway_org)
+    seller = SellerRole(org_attio_id=throwaway_org.attio_id, is_active=True)
+    db_session.add(seller)
+    await db_session.flush()
+
+    buyers = await BuyerRepository(db_session).get_many_with_organization(
+        [str(buyer.id), str(uuid.uuid4()), str(seller.id)]
+    )
+    sellers = await SellerRepository(db_session).get_many_with_organization(
+        [str(seller.id), str(buyer.id)]
+    )
+
+    assert [r.id for r in buyers] == [buyer.id]
+    assert [r.id for r in sellers] == [seller.id]
+    assert buyers[0].organization.attio_id == throwaway_org.attio_id

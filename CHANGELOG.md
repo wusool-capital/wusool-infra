@@ -8,6 +8,17 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-18
+
+### Changed
+
+- `get_buyer` and `get_seller` in the MCP now take up to 100 `role_ids` and return `{records, not_found}`, so ranking buyers by a number no longer needs one call per row. The input changed from `role_id` to `role_ids`.
+- `list_buyers` and `list_sellers` return up to 200 per page (default 50) and take `offset`; a truncated page returns `next_offset`. Before, a second call returned the same 50.
+
+### Added
+
+- `list_buyers` takes `sector_focus`, which matches the company's multi-value sector list. `target_vertical` only matches a buyer's single vertical.
+
 ## 2026-11-17
 
 ### Changed

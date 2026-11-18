@@ -9,10 +9,12 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 
 from app.modules.ddl_commands import (
+    GET_IDS_MAX,
     LIST_LIMIT_MAX,
     BuyerNotFoundError,
     UploadKind,
     get_record,
+    get_records,
     list_buyer_records,
     list_seller_records,
 )
@@ -22,7 +24,7 @@ from app.modules.mcp.api.tools.schemas import (
     BuyerCheck,
     FieldOptions,
     Gap,
-    RecordDetail,
+    RecordDetails,
     RecordList,
 )
 from app.modules.mcp.domain.access import Caller, Permission
@@ -34,7 +36,18 @@ _READ_PERMISSION: dict[UploadKind, Permission] = {
 }
 
 RoleId = Annotated[uuid.UUID, Field(description="role_id from find_* or list_*")]
+RoleIds = Annotated[
+    list[uuid.UUID],
+    Field(
+        min_length=1,
+        max_length=GET_IDS_MAX,
+        description="role_ids from find_* or list_*; unknown ones come back in not_found",
+    ),
+]
 Limit = Annotated[int, Field(ge=1, le=LIST_LIMIT_MAX, description="Most records to return")]
+Offset = Annotated[
+    int, Field(ge=0, description="Records to skip; use next_offset from the previous page")
+]
 Option = Annotated[
     str | None, Field(description="One allowed value; see list_field_options. Case is ignored")
 ]
@@ -55,20 +68,21 @@ def register(server: MCPServer, runner: ToolRunner) -> None:
 def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> None:
     name = f"get_{kind}"
 
-    async def get(role_id: RoleId) -> RecordDetail:
-        async def call(_: Caller) -> RecordDetail:
-            return RecordDetail.of_detail(await get_record(kind, role_id))
+    async def get(role_ids: RoleIds) -> RecordDetails:
+        async def call(_: Caller) -> RecordDetails:
+            return RecordDetails.of(await get_records(kind, role_ids))
 
-        return await runner.run(name, _READ_PERMISSION[kind], call, output=RecordDetail)
+        return await runner.run(name, _READ_PERMISSION[kind], call, output=RecordDetails)
 
     server.tool(
         name=name,
-        title=f"Get a {kind}",
+        title=f"Get {kind}s",
         description=(
-            f"Every field of one {kind} and its company, keyed exactly like edit_{kind}'s "
-            "`fields`, so read a value before changing it. Money is USD, dates YYYY-MM-DD, "
-            "null means unset.\n"
-            'Example: {"role_id": "0b6e..."}'
+            f"Every field of up to {GET_IDS_MAX} {kind}s and their companies in one call, keyed "
+            f"exactly like edit_{kind}'s `fields`, so read a value before changing it. To rank "
+            f"or compare by numbers, pass the role_ids from list_{kind}s. Money is USD, "
+            "dates YYYY-MM-DD, null means unset.\n"
+            'Example: {"role_ids": ["0b6e...", "7c1d..."]}'
         ),
         annotations=_READ,
     )(get)
@@ -86,7 +100,9 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
             Field(gt=0, description="A deal size in USD that the buyer's check size fits"),
         ] = None,
         hq_country: Option = None,
-        limit: Limit = 20,
+        sector_focus: Options = None,
+        limit: Limit = 50,
+        offset: Offset = 0,
     ) -> RecordList:
         async def call(_: Caller) -> RecordList:
             found = await list_buyer_records(
@@ -97,7 +113,9 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
                 target_country=target_country or (),
                 check_size_usd=check_size_usd,
                 hq_country=hq_country,
+                sector_focus=sector_focus or (),
                 limit=limit,
+                offset=offset,
             )
             return RecordList.of(found)
 
@@ -109,7 +127,8 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
         region: Option = None,
         relationship_status: Option = None,
         outreach_tier: Option = None,
-        limit: Limit = 20,
+        limit: Limit = 50,
+        offset: Offset = 0,
     ) -> RecordList:
         async def call(_: Caller) -> RecordList:
             found = await list_seller_records(
@@ -119,6 +138,7 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
                 relationship_status=relationship_status,
                 outreach_tier=outreach_tier,
                 limit=limit,
+                offset=offset,
             )
             return RecordList.of(found)
 
@@ -128,10 +148,14 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
         name="list_buyers",
         title="List buyers",
         description=(
-            "Active buyers matching every filter given, ordered by company name. Region and "
-            "country match when any value overlaps. check_size_usd keeps buyers whose check "
-            "size range contains it; a buyer with no min or max set still matches, so confirm "
-            "with get_buyer. If `truncated` is true, narrow the filters.\n"
+            "Active buyers matching every filter given, ordered by company name; rows hold "
+            "ids only, so pass the role_ids to get_buyer for numbers. Region, country and "
+            "sector_focus match when any value overlaps; sector_focus is the company's "
+            "multi-value sector list, target_vertical its single vertical, so use "
+            "sector_focus to catch buyers with the sector only there. check_size_usd keeps "
+            "buyers whose check size range contains it; a buyer with no min or max set still "
+            "matches, so confirm with get_buyer. If `truncated` is true, call again with "
+            "offset=next_offset for the next page.\n"
             'Example: {"target_vertical": "Fintech", "target_country": ["United Arab Emirates"], '
             '"check_size_usd": 5000000}'
         ),
@@ -141,8 +165,10 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
         name="list_sellers",
         title="List sellers",
         description=(
-            "Active sellers matching every filter given, ordered by company name. `sector` "
-            "matches the company's sector focus. If `truncated` is true, narrow the filters.\n"
+            "Active sellers matching every filter given, ordered by company name; rows hold "
+            "ids only, so pass the role_ids to get_seller for numbers. `sector` matches the "
+            "company's sector focus. If `truncated` is true, call again with "
+            "offset=next_offset for the next page.\n"
             'Example: {"sector": "Healthcare Services / Clinics", "hq_country": "Saudi Arabia"}'
         ),
         annotations=_READ,

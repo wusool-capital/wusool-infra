@@ -1,5 +1,6 @@
 """The MCP's contract. Claude conversations and skills depend on these names:
-add fields, never rename one or change what it means. A breaking change is a new tool."""
+add fields, never rename one or change what it means. A breaking change is a new tool,
+except `get_buyer`/`get_seller`, which took many `role_ids` on 2026-11-18 (no duplicate tools)."""
 
 import uuid
 from datetime import datetime
@@ -20,6 +21,7 @@ from app.modules.ddl_commands import (
     columns_for,
 )
 from app.modules.ddl_commands import RecordDetail as DdlRecordDetail
+from app.modules.ddl_commands import RecordDetails as DdlRecordDetails
 from app.modules.ddl_commands import RecordList as DdlRecordList
 
 FieldValue = str | float | bool | list[str] | None
@@ -303,13 +305,37 @@ class RecordDetail(Record):
         return cls(**Record.of(detail).model_dump(), fields=dict(detail.fields))
 
 
+class RecordDetails(BaseModel):
+    records: list[RecordDetail] = Field(description="In the order the ids were given")
+    not_found: list[uuid.UUID] = Field(
+        description="Ids that are unknown, inactive, removed or of the other kind (buyer vs seller)"
+    )
+
+    @classmethod
+    def of(cls, found: DdlRecordDetails) -> "RecordDetails":
+        return cls(
+            records=[RecordDetail.of_detail(d) for d in found.records],
+            not_found=list(found.not_found),
+        )
+
+
 class RecordList(BaseModel):
     records: list[Record]
-    truncated: bool = Field(description="True when more records match: narrow the filters")
+    truncated: bool = Field(
+        description="True when more records match: call again with offset=next_offset, "
+        "or narrow the filters"
+    )
+    next_offset: int | None = Field(
+        default=None, description="The `offset` that returns the next page; null on the last page"
+    )
 
     @classmethod
     def of(cls, found: DdlRecordList) -> "RecordList":
-        return cls(records=[Record.of(r) for r in found.records], truncated=found.truncated)
+        return cls(
+            records=[Record.of(r) for r in found.records],
+            truncated=found.truncated,
+            next_offset=found.next_offset,
+        )
 
 
 class Gap(BaseModel):

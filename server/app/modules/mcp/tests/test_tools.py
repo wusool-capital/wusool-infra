@@ -18,6 +18,7 @@ from app.modules.ddl_commands import (
     PartialWriteError,
     PreviewResult,
     RecordDetail,
+    RecordDetails,
     RecordList,
     RecordRef,
     RejectedUpload,
@@ -264,33 +265,74 @@ async def test_a_reused_request_id_for_a_different_change_is_refused(
     add.assert_awaited_once()
 
 
-async def test_get_buyer_returns_every_field(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_get_buyer_returns_every_field_of_each_id_and_names_missing_ones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    missing = uuid.uuid4()
     detail = RecordDetail(**_REF.model_dump(), fields={"notes": "hi", "check_size_min": 5e6})
-    get = AsyncMock(return_value=detail)
-    monkeypatch.setattr(lookups, "get_record", get)
+    get = AsyncMock(return_value=RecordDetails(records=(detail,), not_found=(missing,)))
+    monkeypatch.setattr(lookups, "get_records", get)
 
     async with Client(_server()) as client:
-        result = await client.call_tool("get_buyer", {"role_id": str(_REF.role_id)})
+        result = await client.call_tool(
+            "get_buyer", {"role_ids": [str(_REF.role_id), str(missing)]}
+        )
 
     assert result.structured_content is not None
-    assert result.structured_content["fields"] == {"notes": "hi", "check_size_min": 5e6}
-    get.assert_awaited_once_with("buyer", _REF.role_id)
+    (record,) = result.structured_content["records"]
+    assert record["fields"] == {"notes": "hi", "check_size_min": 5e6}
+    assert result.structured_content["not_found"] == [str(missing)]
+    get.assert_awaited_once_with("buyer", [_REF.role_id, missing])
+
+
+async def test_get_seller_reads_sellers(monkeypatch: pytest.MonkeyPatch) -> None:
+    get = AsyncMock(return_value=RecordDetails(records=(), not_found=(_REF.role_id,)))
+    monkeypatch.setattr(lookups, "get_records", get)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("get_seller", {"role_ids": [str(_REF.role_id)]})
+
+    assert result.structured_content is not None
+    assert result.structured_content["not_found"] == [str(_REF.role_id)]
+    get.assert_awaited_once_with("seller", [_REF.role_id])
+
+
+@pytest.mark.parametrize("count", [0, 101])
+async def test_get_buyer_refuses_no_ids_or_too_many(
+    monkeypatch: pytest.MonkeyPatch, count: int
+) -> None:
+    get = AsyncMock()
+    monkeypatch.setattr(lookups, "get_records", get)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "get_buyer", {"role_ids": [str(uuid.uuid4()) for _ in range(count)]}
+        )
+
+    assert result.is_error
+    get.assert_not_awaited()
 
 
 async def test_list_buyers_passes_filters_and_flags_truncation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    listed = AsyncMock(return_value=RecordList(records=(_REF,), truncated=True))
+    listed = AsyncMock(return_value=RecordList(records=(_REF,), truncated=True, next_offset=50))
     monkeypatch.setattr(lookups, "list_buyer_records", listed)
 
     async with Client(_server()) as client:
         result = await client.call_tool(
             "list_buyers",
-            {"target_vertical": "fintech", "target_country": ["UAE"], "check_size_usd": 5e6},
+            {
+                "target_vertical": "fintech",
+                "target_country": ["UAE"],
+                "check_size_usd": 5e6,
+                "sector_focus": ["AI / ML"],
+            },
         )
 
     assert result.structured_content is not None
     assert result.structured_content["truncated"] is True
+    assert result.structured_content["next_offset"] == 50
     assert listed.await_args is not None
     assert listed.await_args.kwargs == {
         "target_vertical": "fintech",
@@ -300,8 +342,26 @@ async def test_list_buyers_passes_filters_and_flags_truncation(
         "target_country": ["UAE"],
         "check_size_usd": 5e6,
         "hq_country": None,
-        "limit": 20,
+        "sector_focus": ["AI / ML"],
+        "limit": 50,
+        "offset": 0,
     }
+
+
+async def test_list_sellers_takes_an_offset_and_a_limit_up_to_200(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    listed = AsyncMock(return_value=RecordList(records=(), truncated=False))
+    monkeypatch.setattr(lookups, "list_seller_records", listed)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("list_sellers", {"limit": 200, "offset": 200})
+
+    assert result.structured_content is not None
+    assert result.structured_content["next_offset"] is None
+    assert listed.await_args is not None
+    assert listed.await_args.kwargs["limit"] == 200
+    assert listed.await_args.kwargs["offset"] == 200
 
 
 async def test_a_bad_filter_value_names_the_allowed_values(

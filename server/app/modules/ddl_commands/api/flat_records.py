@@ -205,7 +205,8 @@ def _ref(role: BuyerRole | SellerRole, org: Organization) -> RecordRef:
 
 
 FieldValue = str | float | bool | list[str] | None
-LIST_LIMIT_MAX = 50
+LIST_LIMIT_MAX = 200
+GET_IDS_MAX = 100  # a full record is ~60 fields; more than this overflows the caller's context
 
 
 class RecordDetail(RecordRef):
@@ -215,11 +216,21 @@ class RecordDetail(RecordRef):
     fields: dict[str, FieldValue]
 
 
+class RecordDetails(BaseModel):
+    """`not_found`: ids that are unknown, inactive, removed, or of the other kind."""
+
+    model_config = ConfigDict(frozen=True)
+
+    records: tuple[RecordDetail, ...]
+    not_found: tuple[uuid.UUID, ...]
+
+
 class RecordList(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     records: tuple[RecordRef, ...]
     truncated: bool  # more records match than were returned
+    next_offset: int | None = None  # pass as `offset` to get the next page
 
 
 async def get_record(kind: UploadKind, role_id: uuid.UUID) -> RecordDetail:
@@ -234,6 +245,27 @@ async def get_record(kind: UploadKind, role_id: uuid.UUID) -> RecordDetail:
         role = await resolve_seller_by_id(str(role_id))
         if role is None or not _is_live(role):
             raise SellerNotFoundError(str(role_id))
+    return _detail(kind, role)
+
+
+async def get_records(kind: UploadKind, role_ids: Sequence[uuid.UUID]) -> RecordDetails:
+    """One query for all ids. Duplicates are dropped; results keep the input order."""
+    ordered = tuple(dict.fromkeys(role_ids))
+    ids = [str(role_id) for role_id in ordered]
+    service = ddl_commands_service()
+    found: Sequence[BuyerRole | SellerRole] = (
+        await service.resolve_buyers_by_ids(ids)
+        if kind == "buyer"
+        else await service.resolve_sellers_by_ids(ids)
+    )
+    live = {uuid.UUID(str(role.id)): role for role in found if _is_live(role)}
+    return RecordDetails(
+        records=tuple(_detail(kind, live[role_id]) for role_id in ordered if role_id in live),
+        not_found=tuple(role_id for role_id in ordered if role_id not in live),
+    )
+
+
+def _detail(kind: UploadKind, role: BuyerRole | SellerRole) -> RecordDetail:
     org = role.organization
     fields = {
         key: _plain(getattr(role if route.target == "role" else org, route.name))
@@ -251,7 +283,9 @@ async def list_buyer_records(
     target_country: Sequence[str] = (),
     check_size_usd: float | None = None,
     hq_country: str | None = None,
+    sector_focus: Sequence[str] = (),
     limit: int = 20,
+    offset: int = 0,
 ) -> RecordList:
     """Select values match ignoring case; a value outside a field's options raises
     `InvalidFieldsError` naming the allowed values."""
@@ -264,10 +298,11 @@ async def list_buyer_records(
         target_country=checker.many("target_country", target_country),
         check_size_usd=check_size_usd,
         hq_country=checker.one("hq_country", hq_country),
+        sector_focus=checker.many("sector_focus", sector_focus),
     )
     checker.raise_problems()
-    roles = await ddl_commands_service().list_buyers(filters, limit + 1)
-    return _record_list(roles, limit)
+    roles = await ddl_commands_service().list_buyers(filters, limit + 1, offset)
+    return _record_list(roles, limit, offset)
 
 
 async def list_seller_records(
@@ -278,6 +313,7 @@ async def list_seller_records(
     relationship_status: str | None = None,
     outreach_tier: str | None = None,
     limit: int = 20,
+    offset: int = 0,
 ) -> RecordList:
     checker = _OptionChecker("seller")
     filters = SellerFilters(
@@ -288,8 +324,8 @@ async def list_seller_records(
         outreach_tier=checker.one("outreach_tier", outreach_tier),
     )
     checker.raise_problems()
-    roles = await ddl_commands_service().list_sellers(filters, limit + 1)
-    return _record_list(roles, limit)
+    roles = await ddl_commands_service().list_sellers(filters, limit + 1, offset)
+    return _record_list(roles, limit, offset)
 
 
 def _is_live(role: BuyerRole | SellerRole) -> bool:
@@ -329,10 +365,12 @@ class _OptionChecker:
             raise InvalidFiltersError(self._problems)
 
 
-def _record_list(roles: Sequence[BuyerRole | SellerRole], limit: int) -> RecordList:
+def _record_list(roles: Sequence[BuyerRole | SellerRole], limit: int, offset: int) -> RecordList:
+    truncated = len(roles) > limit
     return RecordList(
         records=tuple(_ref(role, role.organization) for role in roles[:limit]),
-        truncated=len(roles) > limit,
+        truncated=truncated,
+        next_offset=offset + limit if truncated else None,
     )
 
 
