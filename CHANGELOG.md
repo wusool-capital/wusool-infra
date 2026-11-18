@@ -20,7 +20,7 @@ for current production evidence and open handover items.
 
 - The new `record_filters` module holds the filter logic for buyers, sellers and their companies. It has one catalog of every data column, the operators each kind takes, and the SQL. The Engine can adopt it later.
 - The MCP can filter on any of those columns: equals, in, contains, ranges, and set or not set. That includes the company's region and sector focus, and computed columns such as benchmark score.
-- `list_field_options` now returns every filterable column with whether it is editable and the operators it takes, and takes `fields` to return just those keys. `get_buyer` and `get_seller` take `fields` to read any column.
+- `list_field_options` now returns every filterable column with whether it is editable and the operators it takes, and takes `fields` to return just those keys. `get_buyer` and `get_seller` return an advisor template by default, take `fields` to read exact columns, and take `return_all` for every column.
 
 ## 2026-11-17
 

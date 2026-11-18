@@ -282,7 +282,7 @@ async def test_get_buyer_returns_every_field_of_each_id_and_names_missing_ones(
     (record,) = result.structured_content["records"]
     assert record["fields"] == {"notes": "hi", "check_size_min": 5e6}
     assert result.structured_content["not_found"] == [str(missing)]
-    get.assert_awaited_once_with("buyer", [_REF.role_id, missing], None)
+    get.assert_awaited_once_with("buyer", [_REF.role_id, missing], None, return_all=False)
 
 
 async def test_get_seller_reads_sellers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,7 +294,7 @@ async def test_get_seller_reads_sellers(monkeypatch: pytest.MonkeyPatch) -> None
 
     assert result.structured_content is not None
     assert result.structured_content["not_found"] == [str(_REF.role_id)]
-    get.assert_awaited_once_with("seller", [_REF.role_id], None)
+    get.assert_awaited_once_with("seller", [_REF.role_id], None, return_all=False)
 
 
 @pytest.mark.parametrize("count", [0, 101])
@@ -501,7 +501,25 @@ async def test_get_passes_the_requested_fields_through(monkeypatch: pytest.Monke
             {"role_ids": [str(_REF.role_id)], "fields": ["benchmark_score", "est_ebitda"]},
         )
 
-    get.assert_awaited_once_with("seller", [_REF.role_id], ["benchmark_score", "est_ebitda"])
+    get.assert_awaited_once_with(
+        "seller", [_REF.role_id], ["benchmark_score", "est_ebitda"], return_all=False
+    )
+
+
+async def test_return_all_is_passed_through_and_defaults_off(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    get = AsyncMock(return_value=RecordDetails(records=(), not_found=()))
+    monkeypatch.setattr(lookups, "get_records", get)
+
+    async with Client(_server()) as client:
+        await client.call_tool("get_buyer", {"role_ids": [str(_REF.role_id)], "return_all": True})
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+
+    get.assert_awaited_once_with("buyer", [_REF.role_id], None, return_all=True)
+    schema = tools["get_buyer"].input_schema["properties"]
+    assert set(schema) == {"role_ids", "fields", "return_all"}
+    assert schema["return_all"]["default"] is False
 
 
 async def test_an_unknown_field_key_is_named_with_the_tool_to_call(

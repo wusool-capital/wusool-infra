@@ -8,6 +8,7 @@ import pytest
 from pydantic import TypeAdapter
 
 from app.modules.ddl_commands.api import flat_records
+from app.modules.ddl_commands.api.bulk_store import UploadKind
 from app.modules.ddl_commands.api.bulk_upload import RowMatch
 from app.modules.ddl_commands.application.buyers import BuyerNotFoundError
 
@@ -396,18 +397,49 @@ async def test_a_bad_filter_names_the_filter_the_caller_used(
     assert "list_field_options" in problem.message
 
 
-def test_without_fields_every_editable_field_is_returned_and_nothing_else() -> None:
+def test_get_record_still_returns_every_editable_field_for_the_edit_flow() -> None:
     from app.modules.ddl_commands.api.bulk_columns import routes_for
 
-    selected = flat_records._selected("seller", None)
+    selected = flat_records._selected("seller", None, default="editable")
 
     assert [f.key for f in selected] == list(routes_for("seller"))
     assert all(f.editable for f in selected)
 
 
-def test_fields_can_name_a_computed_column_and_keep_the_order_asked() -> None:
+@pytest.mark.parametrize("kind", ["buyer", "seller"])
+def test_every_advisor_field_is_in_the_catalog(kind: UploadKind) -> None:
+    from app.modules.ddl_commands.api.advisor_fields import ADVISOR_FIELDS
+    from app.modules.ddl_commands.api.filter_catalog import filter_catalog
+
+    keys = ADVISOR_FIELDS[kind]
+
+    assert len(keys) == len(set(keys))
+    assert all(filter_catalog(kind).get(key) is not None for key in keys)
+
+
+def test_the_advisor_template_is_the_default_and_leaves_the_junk_out() -> None:
+    selected = [f.key for f in flat_records._selected("seller", None, default="advisor")]
+
+    assert "est_ebitda" in selected and "benchmark_score" in selected
+    assert "last_interaction_at" in selected
+    assert not {"created_at", "pct_ebitda_margin", "twitter", "logo_url", "review_note"} & set(
+        selected
+    )
+    every = flat_records._selected("seller", None, default="all")
+    assert 0 < len(selected) < len(every)
+
+
+def test_return_all_gives_every_catalog_column() -> None:
+    from app.modules.ddl_commands.api.filter_catalog import filter_catalog
+
+    selected = flat_records._selected("buyer", None, default="all")
+
+    assert selected == filter_catalog("buyer").fields
+
+
+def test_fields_win_over_the_default_and_keep_the_order_asked() -> None:
     selected = flat_records._selected(
-        "seller", ["benchmark_score", "est_ebitda", "benchmark_score"]
+        "seller", ["benchmark_score", "est_ebitda", "benchmark_score"], default="all"
     )
 
     assert [(f.key, f.editable) for f in selected] == [
@@ -418,6 +450,6 @@ def test_fields_can_name_a_computed_column_and_keep_the_order_asked() -> None:
 
 def test_an_unknown_field_key_names_every_bad_key() -> None:
     with pytest.raises(flat_records.InvalidFieldKeysError) as caught:
-        flat_records._selected("buyer", ["ebitda_ceiling", "nope", "also_nope"])
+        flat_records._selected("buyer", ["ebitda_ceiling", "nope", "also_nope"], default="advisor")
 
     assert [p.field for p in caught.value.problems] == ["nope", "also_nope"]

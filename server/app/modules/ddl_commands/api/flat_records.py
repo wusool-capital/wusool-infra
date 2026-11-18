@@ -13,6 +13,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.models import BuyerRole, Organization, SellerRole
+from app.modules.ddl_commands.api.advisor_fields import ADVISOR_FIELDS
 from app.modules.ddl_commands.api.bulk_store import InvokedVia, UploadKind
 from app.modules.ddl_commands.api.bulk_upload import (
     RowProblem,
@@ -246,16 +247,20 @@ async def get_record(kind: UploadKind, role_id: uuid.UUID) -> RecordDetail:
         role = await resolve_seller_by_id(str(role_id))
         if role is None or not _is_live(role):
             raise SellerNotFoundError(str(role_id))
-    return _detail(role, _selected(kind, None))
+    return _detail(role, _selected(kind, None, default="editable"))
 
 
 async def get_records(
-    kind: UploadKind, role_ids: Sequence[uuid.UUID], fields: Sequence[str] | None = None
+    kind: UploadKind,
+    role_ids: Sequence[uuid.UUID],
+    fields: Sequence[str] | None = None,
+    *,
+    return_all: bool = False,
 ) -> RecordDetails:
     """One query for all ids. Duplicates are dropped; results keep the input order.
-    `fields` are keys from `list_field_options`, any filterable column; without them,
-    every editable field. An unknown key raises `InvalidFieldKeysError`."""
-    selected = _selected(kind, fields)
+    `fields` (keys from `list_field_options`) wins; else `return_all` gives every
+    column; else the advisor template. An unknown key raises `InvalidFieldKeysError`."""
+    selected = _selected(kind, fields, default="all" if return_all else "advisor")
     ordered = tuple(dict.fromkeys(role_ids))
     ids = [str(role_id) for role_id in ordered]
     service = ddl_commands_service()
@@ -271,10 +276,22 @@ async def get_records(
     )
 
 
-def _selected(kind: UploadKind, keys: Sequence[str] | None) -> tuple[FilterableField, ...]:
+def _selected(
+    kind: UploadKind,
+    keys: Sequence[str] | None,
+    *,
+    default: Literal["editable", "advisor", "all"],
+) -> tuple[FilterableField, ...]:
+    """`keys` when given, else the `default` set: the editable fields, the advisor
+    template, or every column."""
     catalog = filter_catalog(kind)
     if keys is None:
-        return tuple(f for f in catalog.fields if f.editable)
+        if default == "all":
+            return catalog.fields
+        wanted = ADVISOR_FIELDS[kind] if default == "advisor" else None
+        return tuple(
+            f for f in catalog.fields if (f.key in wanted if wanted is not None else f.editable)
+        )
     found = [(key, catalog.get(key)) for key in dict.fromkeys(keys)]
     unknown = [key for key, field in found if field is None]
     if unknown:

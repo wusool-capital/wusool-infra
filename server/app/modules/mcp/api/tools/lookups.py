@@ -53,6 +53,10 @@ FieldKeys = Annotated[
         description="Field keys from list_field_options; omit for every editable field",
     ),
 ]
+ReturnAll = Annotated[
+    bool,
+    Field(description="Return every column instead of the advisor template; `fields` wins"),
+]
 Limit = Annotated[int, Field(ge=1, le=LIST_LIMIT_MAX, description="Most records to return")]
 Filters = Annotated[
     list[FieldFilter] | None,
@@ -84,9 +88,13 @@ def register(server: MCPServer, runner: ToolRunner) -> None:
 def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> None:
     name = f"get_{kind}"
 
-    async def get(role_ids: RoleIds, fields: FieldKeys = None) -> RecordDetails:
+    async def get(
+        role_ids: RoleIds, fields: FieldKeys = None, return_all: ReturnAll = False
+    ) -> RecordDetails:
         async def call(_: Caller) -> RecordDetails:
-            return RecordDetails.of(await get_records(kind, role_ids, fields))
+            return RecordDetails.of(
+                await get_records(kind, role_ids, fields, return_all=return_all)
+            )
 
         return await runner.run(name, _READ_PERMISSION[kind], call, output=RecordDetails)
 
@@ -94,12 +102,13 @@ def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> No
         name=name,
         title=f"Get {kind}s",
         description=(
-            f"The fields of up to {GET_IDS_MAX} {kind}s and their companies in one call, keyed "
-            f"exactly like edit_{kind}'s `fields`, so read a value before changing it. Without "
-            "`fields` you get every editable field; pass `fields` (keys from list_field_options) "
-            "for just those, including computed columns you filtered on. To rank or compare "
-            f"by numbers, pass the role_ids from list_{kind}s. Money is USD, dates YYYY-MM-DD, "
-            "null means unset.\n"
+            f"What an advisor needs to decide about up to {GET_IDS_MAX} {kind}s and their "
+            "companies, in one call: the mandate, size, status, financials, relationship and "
+            "company basics. Pass `fields` (keys from list_field_options) for exactly those, "
+            "including computed columns you filtered on, or `return_all` for every column. "
+            f"Before editing a field, read it with `fields`, as the keys match edit_{kind}'s "
+            f"`fields`. To rank or compare by numbers, pass the role_ids from list_{kind}s. "
+            "Money is USD, dates YYYY-MM-DD, null means unset.\n"
             'Example: {"role_ids": ["0b6e...", "7c1d..."], "fields": ["ebitda_ceiling"]}'
         ),
         annotations=_READ,

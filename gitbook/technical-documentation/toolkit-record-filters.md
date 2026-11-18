@@ -38,4 +38,9 @@ A filter is `{field, op, value}`. Every filter given must match. Each kind of co
 
 ## Reading the values
 
-`get_buyer` and `get_seller` return the editable fields by default. Pass `fields` with keys from `list_field_options` to read any column, such as a computed score you filtered on.
+`get_buyer` and `get_seller` return an advisor template by default, not every column. It holds what an advisor needs to decide:
+
+- **Buyers:** the mandate, what they will buy, the relationship, and company basics.
+- **Sellers:** status and readiness, financials, the benchmark result, the relationship, and company basics.
+
+Bookkeeping, raw percentiles, social links and review notes stay out. Pass `fields` with keys from `list_field_options` to read exactly those columns, such as a score you filtered on. Pass `return_all` for every column. `fields` wins if both are sent. The template lives in `ddl_commands/api/advisor_fields.py`, and a test checks every key in it exists.
