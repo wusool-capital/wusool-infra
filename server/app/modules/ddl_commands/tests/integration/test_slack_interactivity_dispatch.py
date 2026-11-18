@@ -992,8 +992,8 @@ def test_organization_selection_existing_buyer_org_opens_vertical_step(monkeypat
         attio_id="org-attio-9",
         name="Found Co",
         buyer_roles=[
-            SimpleNamespace(id="role-live", is_active=True, target_vertical="Fintech"),
-            SimpleNamespace(id="role-stale", is_active=False, target_vertical="Clinic"),
+            SimpleNamespace(id="role-live", is_current=True, target_vertical="Fintech"),
+            SimpleNamespace(id="role-stale", is_current=False, target_vertical="Clinic"),
         ],
     )
     monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
@@ -1066,7 +1066,7 @@ def test_organization_selection_existing_org_with_role_is_rejected(
     monkeypatch, _mock_slack_web_client
 ) -> None:
     org = _fake_org(
-        attio_id="org-attio-9", name="Found Co", seller_roles=[SimpleNamespace(is_active=True)]
+        attio_id="org-attio-9", name="Found Co", seller_roles=[SimpleNamespace(is_current=True)]
     )
     monkeypatch.setattr(actions_module, "resolve_organization", _async_returning(org))
 
