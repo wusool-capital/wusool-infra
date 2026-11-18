@@ -1,6 +1,7 @@
 """One add, edit or find from a flat field map, as the Wusool MCP sends it."""
 
 import uuid
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -126,7 +127,9 @@ async def test_edit_routes_org_and_role_fields_and_sends_only_those(
     monkeypatch.setattr(
         flat_records,
         "resolve_buyer_by_id",
-        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1", is_active=True)),
+        AsyncMock(
+            return_value=SimpleNamespace(org_attio_id="org-1", is_active=True, removed_at=None)
+        ),
     )
     write = AsyncMock()
     monkeypatch.setattr(flat_records, "write_buyer_edit", write)
@@ -151,7 +154,9 @@ async def test_edit_empties_a_field_sent_as_null_or_blank(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         flat_records,
         "resolve_buyer_by_id",
-        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1", is_active=True)),
+        AsyncMock(
+            return_value=SimpleNamespace(org_attio_id="org-1", is_active=True, removed_at=None)
+        ),
     )
     write = AsyncMock()
     monkeypatch.setattr(flat_records, "write_buyer_edit", write)
@@ -204,6 +209,46 @@ async def test_find_by_domain_lists_only_active_roles(
     found = await flat_records.find_records("buyer", "www.acme.com")
 
     assert [r.target_vertical for r in found] == [_VERTICAL]
+
+
+def _removed(role: flat_records.BuyerRole) -> flat_records.BuyerRole:
+    """Attio deleted it: `removed_at` is set and `is_active` still true."""
+    role.removed_at = datetime.now(UTC)
+    return role
+
+
+async def test_find_leaves_out_a_role_attio_deleted(
+    monkeypatch: pytest.MonkeyPatch, org_lookup: AsyncMock
+) -> None:
+    org_lookup.return_value = _org(buyers=(_buyer(), _removed(_buyer("Banking"))))
+    monkeypatch.setattr(
+        flat_records, "find_organization_by_domains", AsyncMock(return_value=_org())
+    )
+
+    found = await flat_records.find_records("buyer", "www.acme.com")
+
+    assert [r.target_vertical for r in found] == [_VERTICAL]
+
+
+@pytest.mark.parametrize("kind", ["buyer", "seller"])
+async def test_edit_of_a_role_attio_deleted_raises_not_found(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    role = _removed(_buyer())
+    monkeypatch.setattr(flat_records, "resolve_buyer_by_id", AsyncMock(return_value=role))
+    monkeypatch.setattr(flat_records, "resolve_seller_by_id", AsyncMock(return_value=role))
+    write_buyer, write_seller = AsyncMock(), AsyncMock()
+    monkeypatch.setattr(flat_records, "write_buyer_edit", write_buyer)
+    monkeypatch.setattr(flat_records, "write_seller_edit", write_seller)
+    expected = BuyerNotFoundError if kind == "buyer" else flat_records.SellerNotFoundError
+
+    with pytest.raises(expected):
+        await flat_records.edit_one(
+            kind, _ROLE_ID, {"description": "hi"}, requested_by="U1", invoked_via="mcp"
+        )
+
+    write_buyer.assert_not_awaited()
+    write_seller.assert_not_awaited()
 
 
 async def test_edit_of_an_inactive_buyer_raises_not_found(monkeypatch: pytest.MonkeyPatch) -> None:

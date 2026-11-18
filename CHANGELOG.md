@@ -22,6 +22,10 @@ for current production evidence and open handover items.
 - The MCP can filter on any of those columns: equals, in, contains, ranges, and set or not set. That includes the company's region and sector focus, and computed columns such as benchmark score.
 - `list_field_options` now returns every filterable column with whether it is editable and the operators it takes, and takes `fields` to return just those keys. `get_buyer` and `get_seller` return an advisor template by default and take `fields` to read exact columns. `return_all` gives every column for up to 25 ids, but only when the template lacks what the advisor needs.
 
+### Fixed
+
+- Finding or editing a buyer or seller no longer returns a role Attio already deleted. Attio's delete event left it marked active until the nightly resync, so the MCP could find a role it then reported as not found. Slack's name search had the same gap.
+
 ## 2026-11-17
 
 ### Changed

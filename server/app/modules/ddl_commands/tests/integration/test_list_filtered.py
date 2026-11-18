@@ -223,3 +223,29 @@ async def test_get_many_with_organization_skips_unknown_ids(
     assert [r.id for r in buyers] == [buyer.id]
     assert [r.id for r in sellers] == [seller.id]
     assert buyers[0].organization.attio_id == throwaway_org.attio_id
+
+
+async def test_name_search_leaves_out_a_role_attio_deleted(db_session: AsyncSession) -> None:
+    name = f"Zqxv {uuid.uuid4().hex[:12]}"
+    org = Organization(attio_id=f"test-org-{uuid.uuid4()}", name=name)
+    db_session.add(org)
+    await db_session.flush()
+    live_buyer = BuyerRole(org_attio_id=org.attio_id, target_vertical="Live", is_active=True)
+    gone_buyer = BuyerRole(
+        org_attio_id=org.attio_id,
+        target_vertical="Gone",
+        is_active=True,
+        removed_at=datetime.now(UTC),
+    )
+    live_seller = SellerRole(org_attio_id=org.attio_id, is_active=True)
+    gone_seller = SellerRole(
+        org_attio_id=org.attio_id, is_active=True, removed_at=datetime.now(UTC)
+    )
+    db_session.add_all([live_buyer, gone_buyer, live_seller, gone_seller])
+    await db_session.flush()
+
+    buyers = await BuyerRepository(db_session).search_by_organization_name(name)
+    sellers = await SellerRepository(db_session).search_by_organization_name(name)
+
+    assert [r.id for r in buyers] == [live_buyer.id]
+    assert [r.id for r in sellers] == [live_seller.id]

@@ -110,7 +110,12 @@ class BuyerRepository:
         org_stmt = (
             select(BuyerRole.org_attio_id, func.max(similarity).label("score"))
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(BuyerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
+            .where(
+                BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
+                Organization.removed_at.is_(None),
+                predicate,
+            )
             .group_by(BuyerRole.org_attio_id)
             .order_by(literal_column("score").desc())
             .limit(limit)
@@ -121,7 +126,11 @@ class BuyerRepository:
 
         roles_stmt = (
             select(BuyerRole)
-            .where(BuyerRole.org_attio_id.in_(org_ids), BuyerRole.is_active.is_(True))
+            .where(
+                BuyerRole.org_attio_id.in_(org_ids),
+                BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
+            )
             .options(selectinload(BuyerRole.organization))
         )
         roles = (await self._session.execute(roles_stmt)).scalars().all()
