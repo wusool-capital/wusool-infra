@@ -55,7 +55,12 @@ class BuyerRepository:
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(BuyerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
+            .where(
+                BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
+                Organization.removed_at.is_(None),
+                predicate,
+            )
             .options(selectinload(BuyerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)

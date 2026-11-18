@@ -84,7 +84,7 @@ def build_organization_selection_modal(
     for org in candidates:
         # A buyer org can take another role for a different vertical, so only
         # sellers get flagged.
-        has_role = kind == "seller" and any(r.is_active for r in org.seller_roles)
+        has_role = kind == "seller" and any(r.is_current for r in org.seller_roles)
         suffix = " (already has a seller role)" if has_role else ""
         options.append(Option(value=org.attio_id, text=f"{org.name}{suffix}"[:75]))
     options.append(

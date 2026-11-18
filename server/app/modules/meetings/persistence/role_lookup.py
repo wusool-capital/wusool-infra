@@ -31,7 +31,11 @@ class RoleLookup:
         """
         stmt = (
             select(BuyerRole)
-            .where(BuyerRole.org_attio_id == org_attio_id, BuyerRole.is_active.is_(True))
+            .where(
+                BuyerRole.org_attio_id == org_attio_id,
+                BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
+            )
             .limit(2)
         )
         roles = (await self._session.execute(stmt)).scalars().all()
@@ -42,7 +46,11 @@ class RoleLookup:
     async def get_active_seller_role(self, org_attio_id: str) -> ActiveRoleRef | None:
         stmt = (
             select(SellerRole)
-            .where(SellerRole.org_attio_id == org_attio_id, SellerRole.is_active.is_(True))
+            .where(
+                SellerRole.org_attio_id == org_attio_id,
+                SellerRole.is_active.is_(True),
+                SellerRole.removed_at.is_(None),
+            )
             .order_by(SellerRole.created_at.desc(), SellerRole.id.desc())
             .limit(1)
         )

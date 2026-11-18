@@ -127,9 +127,7 @@ async def test_edit_routes_org_and_role_fields_and_sends_only_those(
     monkeypatch.setattr(
         flat_records,
         "resolve_buyer_by_id",
-        AsyncMock(
-            return_value=SimpleNamespace(org_attio_id="org-1", is_active=True, removed_at=None)
-        ),
+        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1", is_current=True)),
     )
     write = AsyncMock()
     monkeypatch.setattr(flat_records, "write_buyer_edit", write)
@@ -154,9 +152,7 @@ async def test_edit_empties_a_field_sent_as_null_or_blank(monkeypatch: pytest.Mo
     monkeypatch.setattr(
         flat_records,
         "resolve_buyer_by_id",
-        AsyncMock(
-            return_value=SimpleNamespace(org_attio_id="org-1", is_active=True, removed_at=None)
-        ),
+        AsyncMock(return_value=SimpleNamespace(org_attio_id="org-1", is_current=True)),
     )
     write = AsyncMock()
     monkeypatch.setattr(flat_records, "write_buyer_edit", write)
@@ -311,9 +307,9 @@ async def test_get_records_keeps_input_order_and_names_every_missing_id(
     first, second, inactive, unknown = (uuid.uuid4() for _ in range(4))
     live_org = SimpleNamespace(removed_at=None)
     roles = [
-        SimpleNamespace(id=second, is_active=True, removed_at=None, organization=live_org),
-        SimpleNamespace(id=first, is_active=True, removed_at=None, organization=live_org),
-        SimpleNamespace(id=inactive, is_active=False, removed_at=None, organization=live_org),
+        SimpleNamespace(id=second, is_current=True, organization=live_org),
+        SimpleNamespace(id=first, is_current=True, organization=live_org),
+        SimpleNamespace(id=inactive, is_current=False, organization=live_org),
     ]
     resolve = AsyncMock(return_value=roles)
     service = SimpleNamespace(resolve_buyers_by_ids=resolve)
@@ -417,8 +413,7 @@ async def test_get_of_a_buyer_whose_company_was_removed_raises_not_found(
     from datetime import UTC, datetime
 
     role = SimpleNamespace(
-        is_active=True,
-        removed_at=None,
+        is_current=True,
         organization=SimpleNamespace(removed_at=datetime.now(UTC)),
     )
     monkeypatch.setattr(flat_records, "resolve_buyer_by_id", AsyncMock(return_value=role))
