@@ -79,7 +79,7 @@ class FakeCrm:
 
     async def resolve_organization(self, org_attio_id: str) -> SimpleNamespace:
         active = self._host(org_attio_id) in self.sellers
-        return SimpleNamespace(seller_roles=[SimpleNamespace(is_active=True)] if active else [])
+        return SimpleNamespace(seller_roles=[SimpleNamespace(is_current=True)] if active else [])
 
     async def write_buyer_add(
         self,

@@ -29,7 +29,7 @@ class SellerRepository:
     async def get_with_organization(self, seller_role_id: str) -> SellerRole | None:
         stmt = (
             select(SellerRole)
-            .where(SellerRole.id == seller_role_id)
+            .where(SellerRole.id == seller_role_id, SellerRole.removed_at.is_(None))
             .options(selectinload(SellerRole.organization))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
@@ -38,7 +38,7 @@ class SellerRepository:
         """Unknown ids are simply absent from the result."""
         stmt = (
             select(SellerRole)
-            .where(SellerRole.id.in_(seller_role_ids))
+            .where(SellerRole.id.in_(seller_role_ids), SellerRole.removed_at.is_(None))
             .options(selectinload(SellerRole.organization))
         )
         return list((await self._session.execute(stmt)).scalars().all())
@@ -48,13 +48,16 @@ class SellerRepository:
         transaction, whether this organization already has an *active*
         seller role — `org_attio_id` stopped being unique in the 2026-08-28
         migration (an org can hold stale/duplicate rows too), so this
-        filters to the one flagged `is_active`, same truthy convention as
-        `handle_organization_selection_submission`'s
-        `any(r.is_active for r in roles)`.
+        filters to the one that is current (`is_active`, not removed), same convention as
+        `handle_organization_selection_submission`'s `any(r.is_current for r in roles)`.
         """
         stmt = (
             select(SellerRole)
-            .where(SellerRole.org_attio_id == org_attio_id, SellerRole.is_active.is_(True))
+            .where(
+                SellerRole.org_attio_id == org_attio_id,
+                SellerRole.is_active.is_(True),
+                SellerRole.removed_at.is_(None),
+            )
             .order_by(SellerRole.created_at.desc())
         )
         return (await self._session.execute(stmt)).scalars().first()

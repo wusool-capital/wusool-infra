@@ -155,7 +155,7 @@ async def resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
     resolved: list[ResolvedOrgRole] = []
     for org in candidates:
         for role in org.seller_roles:
-            if role.is_active:
+            if role.is_current:
                 resolved.append(
                     ResolvedOrgRole(
                         org_attio_id=org.attio_id,
@@ -165,7 +165,7 @@ async def resolve_org_roles(org_name: str) -> list[ResolvedOrgRole]:
                     )
                 )
         for role in org.buyer_roles:
-            if role.is_active:
+            if role.is_current:
                 resolved.append(
                     ResolvedOrgRole(
                         org_attio_id=org.attio_id,

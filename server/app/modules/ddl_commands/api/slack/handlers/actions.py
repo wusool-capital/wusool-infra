@@ -685,7 +685,7 @@ def register(app: AsyncApp) -> None:
                     roles=[
                         RoleRef(role_id=str(r.id), target_vertical=r.target_vertical)
                         for r in org.buyer_roles
-                        if r.is_active
+                        if r.is_current
                     ],
                     requested_by=requested_by,
                     channel_id=channel_id,
@@ -693,7 +693,7 @@ def register(app: AsyncApp) -> None:
             )
             return
 
-        if any(r.is_active for r in org.seller_roles):
+        if any(r.is_current for r in org.seller_roles):
             await ack()
             await client.chat_postEphemeral(
                 channel=channel_id,

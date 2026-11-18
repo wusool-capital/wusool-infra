@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,5 +37,21 @@ async def test_search_by_organization_name_excludes_inactive_role(
 
     repo = BuyerRepository(db_session)
     results = await repo.search_by_organization_name("Stale Duplicate Buyer Co")
+
+    assert not any(r.org_attio_id == org.attio_id for r in results)
+
+
+async def test_search_by_organization_name_excludes_a_role_attio_deleted(
+    db_session: AsyncSession,
+) -> None:
+    """Attio's delete event sets `removed_at` and leaves `is_active` true until the resync."""
+    org = Organization(attio_id=f"test-{uuid.uuid4()}", name="Deleted Role Buyer Co")
+    db_session.add(org)
+    await db_session.flush()
+    gone = BuyerRole(org_attio_id=org.attio_id, is_active=True, removed_at=datetime.now(UTC))
+    db_session.add(gone)
+    await db_session.flush()
+
+    results = await BuyerRepository(db_session).search_by_organization_name("Deleted Role Buyer Co")
 
     assert not any(r.org_attio_id == org.attio_id for r in results)

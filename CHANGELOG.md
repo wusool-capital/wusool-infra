@@ -25,6 +25,7 @@ for current production evidence and open handover items.
 ### Fixed
 
 - Finding or editing a buyer or seller no longer returns a role Attio already deleted. Attio's delete event left it marked active until the nightly resync, so the MCP could find a role it then reported as not found. Slack's name search had the same gap.
+- A role Attio deleted is now skipped everywhere, not only in the MCP. Adding a buyer or seller no longer refuses it as "already existing", and loading a role by id no longer returns it. The Slack add and organization pickers, the bulk upload check, meeting note matching, match search and enrichment skip it too. Companies Attio deleted were already skipped.
 
 ## 2026-11-17
 

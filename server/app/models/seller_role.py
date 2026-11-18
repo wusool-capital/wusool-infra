@@ -147,3 +147,9 @@ class SellerRole(Base):
     )
 
     organization: Mapped["Organization"] = relationship(back_populates="seller_roles")
+
+    @property
+    def is_current(self) -> bool:
+        """Attio's delete event sets `removed_at` and leaves `is_active` until the nightly
+        resync, so a role is current only when both agree."""
+        return bool(self.is_active) and self.removed_at is None

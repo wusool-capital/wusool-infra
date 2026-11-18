@@ -136,7 +136,7 @@ async def edit_one(
     if kind == "buyer":
         buyer = await resolve_buyer_by_id(str(role_id))
         # An inactive row is a stale duplicate; Slack never offers one for editing either.
-        if buyer is None or not _role_active(buyer):
+        if buyer is None or not buyer.is_current:
             raise BuyerNotFoundError(str(role_id))
         await write_buyer_edit(
             buyer_role_id=str(role_id),
@@ -148,7 +148,7 @@ async def edit_one(
         )
     else:
         seller = await resolve_seller_by_id(str(role_id))
-        if seller is None or not _role_active(seller):
+        if seller is None or not seller.is_current:
             raise SellerNotFoundError(str(role_id))
         await write_seller_edit(
             seller_role_id=str(role_id),
@@ -193,7 +193,7 @@ def _refs(kind: UploadKind, org: Organization) -> list[RecordRef]:
     roles: Sequence[BuyerRole | SellerRole] = (
         org.buyer_roles if kind == "buyer" else org.seller_roles
     )
-    return [_ref(role, org) for role in roles if _role_active(role)]
+    return [_ref(role, org) for role in roles if role.is_current]
 
 
 def _ref(role: BuyerRole | SellerRole, org: Organization) -> RecordRef:
@@ -337,14 +337,8 @@ async def list_seller_records(
     return _record_list(roles, limit, offset)
 
 
-def _role_active(role: BuyerRole | SellerRole) -> bool:
-    """Attio's delete webhook sets `removed_at` and leaves `is_active` until the nightly
-    resync, so a role Attio deleted can still read as active."""
-    return bool(role.is_active) and role.removed_at is None
-
-
 def _is_live(role: BuyerRole | SellerRole) -> bool:
-    return _role_active(role) and role.organization.removed_at is None
+    return role.is_current and role.organization.removed_at is None
 
 
 class InvalidFiltersError(InvalidFieldsError):

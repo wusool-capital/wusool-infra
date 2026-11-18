@@ -424,7 +424,7 @@ async def match_row(kind: UploadKind, row: PlannedRow) -> RowMatch:
         return RowMatch(org.attio_id, exists)
     # One active seller role per organization, whatever the sector.
     with_roles = await resolve_organization(org.attio_id)
-    has_role = with_roles is not None and any(r.is_active for r in with_roles.seller_roles)
+    has_role = with_roles is not None and any(r.is_current for r in with_roles.seller_roles)
     return RowMatch(org.attio_id, has_role)
 
 

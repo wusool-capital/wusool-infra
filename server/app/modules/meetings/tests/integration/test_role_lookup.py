@@ -167,3 +167,23 @@ async def test_newest_active_seller_role_wins(db_session) -> None:
     assert result is not None
     assert result.id == newer.id
     assert result.legacy_entry_id == "entry-new"
+
+
+async def test_a_role_attio_deleted_is_never_the_active_role(db_session) -> None:
+    """Attio's delete event sets `removed_at` and leaves `is_active` true until the resync."""
+    org = await _org(db_session, f"deleted-{uuid4()}")
+    now = datetime.now(UTC)
+    buyer = _buyer_role(org_attio_id=org.attio_id, is_active=True, created_at=now)
+    seller = _seller_role(org_attio_id=org.attio_id, is_active=True, created_at=now)
+    db_session.add_all([buyer, seller])
+    await db_session.flush()
+    lookup = RoleLookup(db_session)
+    assert await lookup.get_active_buyer_role(org.attio_id) is not None
+    assert await lookup.get_active_seller_role(org.attio_id) is not None
+
+    buyer.removed_at = now
+    seller.removed_at = now
+    await db_session.flush()
+
+    assert await lookup.get_active_buyer_role(org.attio_id) is None
+    assert await lookup.get_active_seller_role(org.attio_id) is None

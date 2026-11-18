@@ -29,7 +29,7 @@ class BuyerRepository:
     async def get_with_organization(self, buyer_role_id: str) -> BuyerRole | None:
         stmt = (
             select(BuyerRole)
-            .where(BuyerRole.id == buyer_role_id)
+            .where(BuyerRole.id == buyer_role_id, BuyerRole.removed_at.is_(None))
             .options(selectinload(BuyerRole.organization))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
@@ -38,7 +38,7 @@ class BuyerRepository:
         """Unknown ids are simply absent from the result."""
         stmt = (
             select(BuyerRole)
-            .where(BuyerRole.id.in_(buyer_role_ids))
+            .where(BuyerRole.id.in_(buyer_role_ids), BuyerRole.removed_at.is_(None))
             .options(selectinload(BuyerRole.organization))
         )
         return list((await self._session.execute(stmt)).scalars().all())
@@ -57,6 +57,7 @@ class BuyerRepository:
             .where(
                 BuyerRole.org_attio_id == org_attio_id,
                 BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
                 BuyerRole.target_vertical == target_vertical,
             )
             .order_by(BuyerRole.created_at.desc())
