@@ -520,6 +520,8 @@ async def test_return_all_is_passed_through_and_defaults_off(
     schema = tools["get_buyer"].input_schema["properties"]
     assert set(schema) == {"role_ids", "fields", "return_all"}
     assert schema["return_all"]["default"] is False
+    for text in (schema["return_all"]["description"], tools["get_buyer"].description or ""):
+        assert "only" in text and "lacks" in text  # the agent is told when not to use it
 
 
 async def test_an_unknown_field_key_is_named_with_the_tool_to_call(

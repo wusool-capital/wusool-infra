@@ -55,7 +55,12 @@ FieldKeys = Annotated[
 ]
 ReturnAll = Annotated[
     bool,
-    Field(description="Return every column instead of the advisor template; `fields` wins"),
+    Field(
+        description=(
+            "Every column. Use only when the default template lacks what you need and "
+            "`fields` can't name it; `fields` wins"
+        )
+    ),
 ]
 Limit = Annotated[int, Field(ge=1, le=LIST_LIMIT_MAX, description="Most records to return")]
 Filters = Annotated[
@@ -105,7 +110,8 @@ def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> No
             f"What an advisor needs to decide about up to {GET_IDS_MAX} {kind}s and their "
             "companies, in one call: the mandate, size, status, financials, relationship and "
             "company basics. Pass `fields` (keys from list_field_options) for exactly those, "
-            "including computed columns you filtered on, or `return_all` for every column. "
+            "including computed columns you filtered on. Use `return_all` (every column) only "
+            "when the default lacks what you need and you can't name the fields. "
             f"Before editing a field, read it with `fields`, as the keys match edit_{kind}'s "
             f"`fields`. To rank or compare by numbers, pass the role_ids from list_{kind}s. "
             "Money is USD, dates YYYY-MM-DD, null means unset.\n"
