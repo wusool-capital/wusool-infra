@@ -14,8 +14,8 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows. Returns new, existing and invalid rows | Nothing |
 | `confirm_import` | After the person agrees, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
-| `get_buyer`, `get_seller` | An advisor template of up to 100 records in one call, keyed like the edit tools' `fields`. `fields` picks exact columns and `return_all` gives every column. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
-| `list_buyers`, `list_sellers` | Active records matching `filters` on any field (`{field, op, value}`), up to 200 a page. When `truncated`, pass `next_offset` as `offset`. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
+| `get_buyer`, `get_seller` | An advisor template of up to 100 records in one call, keyed like the edit tools' `fields`. `fields` picks exact columns and `return_all` gives every column for up to 25 ids. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
+| `list_buyers`, `list_sellers` | Active records matching `filters` on any field (`{field, op, value}`), up to 50 a page. When `truncated`, pass `next_offset` as `offset`. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
 | `list_field_options` | Every field's type, allowed values, whether it is editable and the filter operators it takes. `fields` returns just those keys | Read only |
 
@@ -41,7 +41,7 @@ Tool and field names only grow. A breaking change becomes a new tool, because co
 - `list_buyers` and `list_sellers` take one `filters` list of `{field, op, value}` on any column. With no filters, every active record is listed. The fields, operators and rules are in [Record filters](toolkit-record-filters.md).
 - `get_buyer` and `get_seller` return an advisor template by default. Their `fields` option reads exact columns, `return_all` reads every column, and `list_field_options` lists them all.
 - Records removed in Attio are left out of lists, and `get_*` treats them as not found.
-- Results are ordered by company name. A list returns up to 200 records a page and gives `next_offset` when more match.
+- Results are ordered by company name. A list returns up to 50 records a page and gives `next_offset` when more match.
 - `check_buyer` runs without an advisor's note, so it never calls the model. It reports what the profile is missing or holds in conflict.
 - Tool descriptions list option values only for short lists. Longer ones, such as verticals and countries, come from `list_field_options`.
 

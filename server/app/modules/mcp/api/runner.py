@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from app.modules.benchmark_data import InvalidEditError, UnknownRecordError
 from app.modules.ddl_commands import (
+    RETURN_ALL_IDS_MAX,
     BuyerNotFoundError,
     InvalidFieldKeysError,
     InvalidFieldsError,
@@ -26,6 +27,7 @@ from app.modules.ddl_commands import (
     OrgRemovedError,
     PartialWriteError,
     PreviewNotFoundError,
+    ReturnAllTooLargeError,
     RowProblem,
     SellerNotFoundError,
 )
@@ -69,6 +71,11 @@ def _message(exc: Exception) -> str | None:
         case InvalidFiltersError():
             details = "\n".join(p.message for p in exc.problems[:_MAX_PROBLEMS_SHOWN])
             return f"Fix these filters and try again:\n{details}"
+        case ReturnAllTooLargeError():
+            return (
+                f"return_all takes at most {RETURN_ALL_IDS_MAX} role_ids, and you sent "
+                f"{exc.count}. Send fewer, or name just the columns you need with `fields`."
+            )
         case InvalidFieldKeysError():
             details = "\n".join(p.message for p in exc.problems[:_MAX_PROBLEMS_SHOWN])
             return f"Those fields don't exist. Call list_field_options for the keys:\n{details}"

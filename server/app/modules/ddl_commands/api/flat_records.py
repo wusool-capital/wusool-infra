@@ -207,8 +207,9 @@ def _ref(role: BuyerRole | SellerRole, org: Organization) -> RecordRef:
 
 
 FieldValue = str | float | bool | list[str] | None
-LIST_LIMIT_MAX = 200
+LIST_LIMIT_MAX = 50
 GET_IDS_MAX = 100  # a full record is ~60 fields; more than this overflows the caller's context
+RETURN_ALL_IDS_MAX = 25  # every column is ~100 fields a record: 100 would be ~300 KB
 
 
 class RecordDetail(RecordRef):
@@ -259,9 +260,13 @@ async def get_records(
 ) -> RecordDetails:
     """One query for all ids. Duplicates are dropped; results keep the input order.
     `fields` (keys from `list_field_options`) wins; else `return_all` gives every
-    column; else the advisor template. An unknown key raises `InvalidFieldKeysError`."""
+    column, for at most `RETURN_ALL_IDS_MAX` ids; else the advisor template. An unknown
+    key raises `InvalidFieldKeysError`, too many ids for `return_all`
+    `ReturnAllTooLargeError`."""
     selected = _selected(kind, fields, default="all" if return_all else "advisor")
     ordered = tuple(dict.fromkeys(role_ids))
+    if fields is None and return_all and len(ordered) > RETURN_ALL_IDS_MAX:
+        raise ReturnAllTooLargeError(len(ordered))
     ids = [str(role_id) for role_id in ordered]
     service = ddl_commands_service()
     found: Sequence[BuyerRole | SellerRole] = (
@@ -338,6 +343,14 @@ def _is_live(role: BuyerRole | SellerRole) -> bool:
 
 class InvalidFiltersError(InvalidFieldsError):
     """A list filter value is not allowed. Nothing was read; `problems` name the filter."""
+
+
+class ReturnAllTooLargeError(Exception):
+    """`return_all` was asked for more ids than fit in the caller's context. Nothing was read."""
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        super().__init__(f"return_all takes at most {RETURN_ALL_IDS_MAX} role_ids, got {count}")
 
 
 class InvalidFieldKeysError(InvalidFieldsError):

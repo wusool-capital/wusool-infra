@@ -456,3 +456,47 @@ def test_an_unknown_field_key_names_every_bad_key() -> None:
         flat_records._selected("buyer", ["ebitda_ceiling", "nope", "also_nope"], default="advisor")
 
     assert [p.field for p in caught.value.problems] == ["nope", "also_nope"]
+
+
+def _ids(count: int) -> list[uuid.UUID]:
+    return [uuid.uuid4() for _ in range(count)]
+
+
+async def test_return_all_refuses_more_ids_than_it_allows_before_any_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = SimpleNamespace(resolve_sellers_by_ids=AsyncMock())
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+
+    with pytest.raises(flat_records.ReturnAllTooLargeError) as caught:
+        await flat_records.get_records(
+            "seller", _ids(flat_records.RETURN_ALL_IDS_MAX + 1), return_all=True
+        )
+
+    assert caught.value.count == flat_records.RETURN_ALL_IDS_MAX + 1
+    service.resolve_sellers_by_ids.assert_not_awaited()
+
+
+async def test_return_all_allows_exactly_the_cap_and_counts_distinct_ids(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = SimpleNamespace(resolve_sellers_by_ids=AsyncMock(return_value=[]))
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+    ids = _ids(flat_records.RETURN_ALL_IDS_MAX)
+
+    found = await flat_records.get_records("seller", [*ids, *ids], return_all=True)
+
+    assert found.records == () and len(found.not_found) == flat_records.RETURN_ALL_IDS_MAX
+
+
+async def test_the_cap_does_not_apply_to_the_template_or_to_named_fields(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = SimpleNamespace(resolve_sellers_by_ids=AsyncMock(return_value=[]))
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+    many = _ids(flat_records.GET_IDS_MAX)
+
+    await flat_records.get_records("seller", many)
+    await flat_records.get_records("seller", many, ["est_ebitda"], return_all=True)
+
+    assert service.resolve_sellers_by_ids.await_count == 2

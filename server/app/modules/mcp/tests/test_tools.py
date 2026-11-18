@@ -399,20 +399,20 @@ async def test_more_than_ten_filters_are_refused(monkeypatch: pytest.MonkeyPatch
     listed.assert_not_awaited()
 
 
-async def test_list_sellers_takes_an_offset_and_a_limit_up_to_200(
+async def test_list_sellers_takes_an_offset_and_a_limit_up_to_50(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     listed = AsyncMock(return_value=RecordList(records=(), truncated=False))
     monkeypatch.setattr(lookups, "list_seller_records", listed)
 
     async with Client(_server()) as client:
-        result = await client.call_tool("list_sellers", {"limit": 200, "offset": 200})
+        result = await client.call_tool("list_sellers", {"limit": 50, "offset": 100})
 
     assert result.structured_content is not None
     assert result.structured_content["next_offset"] is None
     assert listed.await_args is not None
-    assert listed.await_args.kwargs["limit"] == 200
-    assert listed.await_args.kwargs["offset"] == 200
+    assert listed.await_args.kwargs["limit"] == 50
+    assert listed.await_args.kwargs["offset"] == 100
 
 
 async def test_a_bad_filter_value_sends_the_agent_to_list_field_options(
@@ -522,6 +522,34 @@ async def test_return_all_is_passed_through_and_defaults_off(
     assert schema["return_all"]["default"] is False
     for text in (schema["return_all"]["description"], tools["get_buyer"].description or ""):
         assert "only" in text and "lacks" in text  # the agent is told when not to use it
+
+
+async def test_a_list_page_over_50_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    listed = AsyncMock()
+    monkeypatch.setattr(lookups, "list_buyer_records", listed)
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("list_buyers", {"limit": 51})
+
+    assert result.is_error
+    listed.assert_not_awaited()
+
+
+async def test_return_all_for_too_many_ids_says_how_many_are_allowed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.ddl_commands import ReturnAllTooLargeError
+
+    monkeypatch.setattr(lookups, "get_records", AsyncMock(side_effect=ReturnAllTooLargeError(30)))
+
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "get_seller", {"role_ids": [str(uuid.uuid4()) for _ in range(30)], "return_all": True}
+        )
+
+    assert result.is_error
+    assert "at most 25" in _text(result) and "you sent 30" in _text(result)
+    assert "`fields`" in _text(result)
 
 
 async def test_an_unknown_field_key_is_named_with_the_tool_to_call(

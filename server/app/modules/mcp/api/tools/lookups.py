@@ -11,6 +11,7 @@ from pydantic import Field
 from app.modules.ddl_commands import (
     GET_IDS_MAX,
     LIST_LIMIT_MAX,
+    RETURN_ALL_IDS_MAX,
     BuyerNotFoundError,
     UploadKind,
     get_record,
@@ -57,8 +58,8 @@ ReturnAll = Annotated[
     bool,
     Field(
         description=(
-            "Every column. Use only when the default template lacks what you need and "
-            "`fields` can't name it; `fields` wins"
+            f"Every column, for at most {RETURN_ALL_IDS_MAX} role_ids. Use only when the default "
+            "template lacks what you need and `fields` can't name it; `fields` wins"
         )
     ),
 ]
@@ -111,7 +112,8 @@ def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> No
             "companies, in one call: the mandate, size, status, financials, relationship and "
             "company basics. Pass `fields` (keys from list_field_options) for exactly those, "
             "including computed columns you filtered on. Use `return_all` (every column) only "
-            "when the default lacks what you need and you can't name the fields. "
+            f"when the default lacks what you need and you can't name the fields; it takes at "
+            f"most {RETURN_ALL_IDS_MAX} role_ids. "
             f"Before editing a field, read it with `fields`, as the keys match edit_{kind}'s "
             f"`fields`. To rank or compare by numbers, pass the role_ids from list_{kind}s. "
             "Money is USD, dates YYYY-MM-DD, null means unset.\n"

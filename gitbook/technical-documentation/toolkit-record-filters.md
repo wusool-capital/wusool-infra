@@ -43,4 +43,4 @@ A filter is `{field, op, value}`. Every filter given must match. Each kind of co
 - **Buyers:** the mandate, what they will buy, the relationship, and company basics.
 - **Sellers:** status and readiness, financials, the benchmark result, the relationship, and company basics.
 
-Bookkeeping, raw percentiles, social links and review notes stay out. Pass `fields` with keys from `list_field_options` to read exactly those columns, such as a score you filtered on. Pass `return_all` for every column, but only when the template lacks what the advisor needs and `fields` can't name it. `fields` wins if both are sent. The template lives in `ddl_commands/api/advisor_fields.py`, and a test checks every key in it exists.
+Bookkeeping, raw percentiles, social links and review notes stay out. Pass `fields` with keys from `list_field_options` to read exactly those columns, such as a score you filtered on. Pass `return_all` for every column of up to 25 records, but only when the template lacks what the advisor needs and `fields` can't name it. `fields` wins if both are sent. The template lives in `ddl_commands/api/advisor_fields.py`, and a test checks every key in it exists.

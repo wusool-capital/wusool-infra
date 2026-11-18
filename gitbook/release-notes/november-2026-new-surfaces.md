@@ -35,7 +35,7 @@ company description, now saves.
   Wusool workspace can connect. Someone who leaves loses access.
 - **Find.** Claude can list buyers and sellers by any field, such as sector
   focus, region, EBITDA range, or check size. It can read the full record of
-  up to 100 at once. Lists return 200 at a time, and Claude pages through
+  up to 100 at once. Lists return 50 at a time, and Claude pages through
   the rest. Ranking, such as the top buyers by EBITDA, no longer takes one
   call per row. Claude can also run the `/check-buyer` check and show each field's
   allowed values.
