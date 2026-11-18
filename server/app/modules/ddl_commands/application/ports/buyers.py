@@ -5,12 +5,14 @@ pipeline, so there's no separate domain value object/mapper layer the way
 same as the concrete class they abstract.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol, TypedDict, Unpack
 
 from app.models import BuyerRole
 from app.modules.attio.providers.attio.money import MoneyJson
+from app.modules.record_filters import FieldCondition
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -51,28 +53,25 @@ class BuyerRoleFields(TypedDict, total=False):
 
 @dataclass(frozen=True)
 class BuyerFilters:
-    """Every set filter must match. List filters match when any value overlaps.
-    `check_size_usd` fits when it lies within the buyer's min and max; a missing
-    bound doesn't exclude the buyer."""
+    """Every condition must match. Each checks one field and comes from the MCP's `filters`."""
 
-    target_vertical: str | None = None
-    mandate_status: str | None = None
-    model: str | None = None
-    target_region: tuple[str, ...] = ()
-    target_country: tuple[str, ...] = ()
-    check_size_usd: float | None = None
-    hq_country: str | None = None
+    conditions: tuple[FieldCondition, ...] = ()
 
 
 class BuyerRepositoryPort(Protocol):
     async def get_by_id(self, buyer_role_id: str) -> BuyerRole | None: ...
     async def get_with_organization(self, buyer_role_id: str) -> BuyerRole | None: ...
+    async def get_many_with_organization(
+        self, buyer_role_ids: Sequence[str]
+    ) -> list[BuyerRole]: ...
     async def get_active_by_org_and_vertical(
         self, org_attio_id: str, target_vertical: str | None
     ) -> BuyerRole | None: ...
     async def create(self, org_attio_id: str, **fields: Unpack[BuyerRoleFields]) -> BuyerRole: ...
     async def search_by_organization_name(self, term: str, limit: int = 10) -> list[BuyerRole]: ...
-    async def list_filtered(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]: ...
+    async def list_filtered(
+        self, filters: BuyerFilters, limit: int, offset: int = 0
+    ) -> list[BuyerRole]: ...
     async def update(
         self, buyer_role_id: str, **fields: Unpack[BuyerRoleFields]
     ) -> BuyerRole | None: ...

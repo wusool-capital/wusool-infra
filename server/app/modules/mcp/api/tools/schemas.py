@@ -2,6 +2,7 @@
 add fields, never rename one or change what it means. A breaking change is a new tool."""
 
 import uuid
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Literal
 
@@ -11,6 +12,7 @@ from app.modules.ddl_commands import (
     AddOutcome,
     Column,
     CommitProgress,
+    InvalidFieldKeysError,
     RecordRef,
     RowOutcome,
     RowProblem,
@@ -18,9 +20,12 @@ from app.modules.ddl_commands import (
     UploadRow,
     can_clear,
     columns_for,
+    filter_catalog,
 )
 from app.modules.ddl_commands import RecordDetail as DdlRecordDetail
+from app.modules.ddl_commands import RecordDetails as DdlRecordDetails
 from app.modules.ddl_commands import RecordList as DdlRecordList
+from app.modules.record_filters import FieldCatalog, FieldShape, FilterableField
 
 FieldValue = str | float | bool | list[str] | None
 Fields = Annotated[
@@ -303,13 +308,37 @@ class RecordDetail(Record):
         return cls(**Record.of(detail).model_dump(), fields=dict(detail.fields))
 
 
+class RecordDetails(BaseModel):
+    records: list[RecordDetail] = Field(description="In the order the ids were given")
+    not_found: list[uuid.UUID] = Field(
+        description="Ids that are unknown, inactive, removed or of the other kind (buyer vs seller)"
+    )
+
+    @classmethod
+    def of(cls, found: DdlRecordDetails) -> "RecordDetails":
+        return cls(
+            records=[RecordDetail.of_detail(d) for d in found.records],
+            not_found=list(found.not_found),
+        )
+
+
 class RecordList(BaseModel):
     records: list[Record]
-    truncated: bool = Field(description="True when more records match: narrow the filters")
+    truncated: bool = Field(
+        description="True when more records match: call again with offset=next_offset, "
+        "or narrow the filters"
+    )
+    next_offset: int | None = Field(
+        default=None, description="The `offset` that returns the next page; null on the last page"
+    )
 
     @classmethod
     def of(cls, found: DdlRecordList) -> "RecordList":
-        return cls(records=[Record.of(r) for r in found.records], truncated=found.truncated)
+        return cls(
+            records=[Record.of(r) for r in found.records],
+            truncated=found.truncated,
+            next_offset=found.next_offset,
+        )
 
 
 class Gap(BaseModel):
@@ -331,7 +360,26 @@ class FieldOption(BaseModel):
     label: str
     kind: str
     required: bool
+    editable: bool = Field(
+        description="False for computed or synced columns: readable and filterable, not editable"
+    )
+    filter_ops: list[str] = Field(
+        description="The operators `filters` accepts on this field; empty when it can't be filtered"
+    )
     options: list[str] = Field(description="Allowed values; empty for free-form fields")
+
+
+# `kind` for a column the add and edit forms don't have, in the forms' own words.
+_KIND_OF_SHAPE: dict[FieldShape, str] = {
+    "text": "text",
+    "array": "multi_select_text",
+    "joined_text": "multi_select_as_text",
+    "money": "currency",
+    "number": "number",
+    "date": "date",
+    "datetime": "datetime",
+    "bool": "bool",
+}
 
 
 class FieldOptions(BaseModel):
@@ -339,17 +387,55 @@ class FieldOptions(BaseModel):
     fields: list[FieldOption]
 
     @classmethod
-    def of(cls, kind: UploadKind) -> "FieldOptions":
-        return cls(
-            kind=kind,
-            fields=[
-                FieldOption(
-                    key=c.field,
-                    label=c.label,
-                    kind=c.spec.kind if c.spec else "text",
-                    required=c.required,
-                    options=list(c.spec.options) if c.spec else [],
+    def of(cls, kind: UploadKind, keys: Sequence[str] | None = None) -> "FieldOptions":
+        """The add and edit fields first, then every other filterable column. `keys`
+        narrows it; an unknown key raises `InvalidFieldKeysError`."""
+        catalog = filter_catalog(kind)
+        options = [_form_option(c, catalog) for c in columns_for(kind)]
+        form_keys = {o.key for o in options}
+        options += [
+            _column_option(f) for f in catalog.fields if not f.editable and f.key not in form_keys
+        ]
+        if keys is not None:
+            known = {o.key for o in options}
+            unknown = [key for key in dict.fromkeys(keys) if key not in known]
+            if unknown:
+                raise InvalidFieldKeysError(
+                    [
+                        RowProblem(
+                            row=1,
+                            kind="unknown_field",
+                            field=key,
+                            message=f"'{key}' is not a {kind} field",
+                        )
+                        for key in unknown
+                    ]
                 )
-                for c in columns_for(kind)
-            ],
-        )
+            wanted = set(keys)
+            options = [o for o in options if o.key in wanted]
+        return cls(kind=kind, fields=options)
+
+
+def _form_option(column: Column, catalog: FieldCatalog) -> FieldOption:
+    field = catalog.get(column.field)
+    return FieldOption(
+        key=column.field,
+        label=column.label,
+        kind=column.spec.kind if column.spec else "text",
+        required=column.required,
+        editable=True,
+        filter_ops=list(field.ops) if field else [],
+        options=list(column.spec.options) if column.spec else [],
+    )
+
+
+def _column_option(field: FilterableField) -> FieldOption:
+    return FieldOption(
+        key=field.key,
+        label=field.label,
+        kind=_KIND_OF_SHAPE[field.shape],
+        required=False,
+        editable=False,
+        filter_ops=list(field.ops),
+        options=list(field.options),
+    )

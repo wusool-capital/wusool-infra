@@ -31,6 +31,7 @@
   * [Bulk upload](technical-documentation/toolkit-bulk-upload.md)
   * [Wusool MCP](technical-documentation/toolkit-mcp.md)
   * [Benchmark tools in the MCP](technical-documentation/toolkit-mcp-benchmark.md)
+  * [Record filters](technical-documentation/toolkit-record-filters.md)
   * [Enrichment](technical-documentation/toolkit-enrichment.md)
   * [Seller discovery](technical-documentation/toolkit-discovery.md)
 * [WusoolScribe](technical-documentation/scribe.md)

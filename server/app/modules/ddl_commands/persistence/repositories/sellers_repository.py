@@ -4,6 +4,7 @@
 Implements `application.ports.sellers.SellerRepositoryPort`.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Unpack
 
@@ -14,8 +15,8 @@ from sqlalchemy.orm import contains_eager, selectinload
 
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.application.ports.sellers import SellerFilters, SellerRoleFields
-from app.modules.ddl_commands.persistence.repositories.filters import joined_text_has
 from app.modules.organizations import org_name_trigram_predicate
+from app.modules.record_filters import condition_sql
 
 
 class SellerRepository:
@@ -32,6 +33,15 @@ class SellerRepository:
             .options(selectinload(SellerRole.organization))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_many_with_organization(self, seller_role_ids: Sequence[str]) -> list[SellerRole]:
+        """Unknown ids are simply absent from the result."""
+        stmt = (
+            select(SellerRole)
+            .where(SellerRole.id.in_(seller_role_ids))
+            .options(selectinload(SellerRole.organization))
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def get_by_org_attio_id(self, org_attio_id: str) -> SellerRole | None:
         """Used by `DdlCommandsService.create_seller` to check, inside the write
@@ -93,37 +103,37 @@ class SellerRepository:
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
-            .where(SellerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
+            .where(
+                SellerRole.is_active.is_(True),
+                SellerRole.removed_at.is_(None),
+                Organization.removed_at.is_(None),
+                predicate,
+            )
             .options(selectinload(SellerRole.organization))
             .order_by(similarity.desc())
             .limit(limit)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
-    async def list_filtered(self, filters: SellerFilters, limit: int) -> list[SellerRole]:
-        """Active roles of live organizations, ordered by organization name then id."""
-        conditions: list[ColumnElement[bool]] = [
+    async def list_filtered(
+        self, filters: SellerFilters, limit: int, offset: int = 0
+    ) -> list[SellerRole]:
+        """Active roles of live organizations matching every condition, ordered by
+        organization name then id."""
+        where: list[ColumnElement[bool]] = [
             SellerRole.is_active.is_(True),
             SellerRole.removed_at.is_(None),
             Organization.removed_at.is_(None),
+            *(condition_sql("seller", c) for c in filters.conditions),
         ]
-        if filters.sector is not None:
-            conditions.append(Organization.sector_focus.contains([filters.sector]))
-        if filters.hq_country is not None:
-            conditions.append(joined_text_has(Organization.hq_country, filters.hq_country))
-        if filters.region is not None:
-            conditions.append(joined_text_has(Organization.region, filters.region))
-        if filters.relationship_status is not None:
-            conditions.append(SellerRole.relationship_status == filters.relationship_status)
-        if filters.outreach_tier is not None:
-            conditions.append(SellerRole.outreach_tier == filters.outreach_tier)
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
-            .where(and_(*conditions))
+            .where(and_(*where))
             .options(contains_eager(SellerRole.organization))
             .order_by(Organization.name, SellerRole.id)
             .limit(limit)
+            .offset(offset)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 

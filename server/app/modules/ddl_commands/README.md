@@ -149,9 +149,12 @@ refuse an inactive role. A preview made with an `owner` can be confirmed and
 read only by that person. Bad fields raise `InvalidFieldsError` with structured problems, and nothing
 is written. `get_record` returns every field of an active role, keyed like
 `edit_one`'s fields (money as a USD amount, dates as ISO). `list_buyer_records` /
-`list_seller_records` turn filter values into each field's own spelling, then call
-the repositories' `list_filtered` (active roles of live organizations, ordered by
-name, one extra row fetched to report `truncated`). Both edits take `invoked_via` (`slack` by default, `mcp` here).
+`list_seller_records` check each `FieldFilter` against the field catalog (`api/filter_catalog.py`,
+built by `record_filters` from the add and edit fields plus every other data column), turn them
+into `FieldCondition`s carried by `BuyerFilters`/`SellerFilters`, then call the repositories'
+`list_filtered` (active roles of live organizations matching every condition, ordered by name,
+one extra row fetched to report `truncated`, `offset` to page). `get_records` can return any
+catalog column through `fields`. Both edits take `invoked_via` (`slack` by default, `mcp` here).
 
 ### Headless seller add (discovery)
 

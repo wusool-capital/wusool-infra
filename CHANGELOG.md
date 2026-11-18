@@ -8,6 +8,24 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-18
+
+### Changed
+
+- `get_buyer` and `get_seller` in the MCP now take up to 100 `role_ids` and return `{records, not_found}`, so ranking buyers by a number no longer needs one call per row. The input changed from `role_id` to `role_ids`.
+- `list_buyers` and `list_sellers` return up to 50 per page and take `offset`; a truncated page returns `next_offset`. Before, a second call returned the same 50.
+- `list_buyers` and `list_sellers` now filter only through a `filters` list of `{field, op, value}`, replacing the named filters such as `target_vertical` and `check_size_usd`. Nothing MCP-related was live, so nothing breaks.
+
+### Added
+
+- The new `record_filters` module holds the filter logic for buyers, sellers and their companies. It has one catalog of every data column, the operators each kind takes, and the SQL. The Engine can adopt it later.
+- The MCP can filter on any of those columns: equals, in, contains, ranges, and set or not set. That includes the company's region and sector focus, and computed columns such as benchmark score.
+- `list_field_options` now returns every filterable column with whether it is editable and the operators it takes, and takes `fields` to return just those keys. `get_buyer` and `get_seller` return an advisor template by default and take `fields` to read exact columns. `return_all` gives every column for up to 25 ids, but only when the template lacks what the advisor needs.
+
+### Fixed
+
+- Finding or editing a buyer or seller no longer returns a role Attio already deleted. Attio's delete event left it marked active until the nightly resync, so the MCP could find a role it then reported as not found. Slack's name search had the same gap.
+
 ## 2026-11-17
 
 ### Changed
