@@ -1,6 +1,6 @@
 # November 2026: Website lead tools and reports
 
-Delivery period: 15 October – 17 November 2026.
+Delivery period: 15 October – 18 November 2026.
 
 ## Interactive reports and Insights
 

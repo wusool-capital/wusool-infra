@@ -1,6 +1,6 @@
 # November 2026: Engine and MCP
 
-Delivery period: 15 October – 17 November 2026.
+Delivery period: 15 October – 18 November 2026.
 
 ## The Wusool Engine (new)
 
