@@ -4,20 +4,19 @@
 Implements `application.ports.buyers.BuyerRepositoryPort`.
 """
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Unpack
 
-from sqlalchemy import ColumnElement, Numeric, and_, case, func, literal_column, or_, select
+from sqlalchemy import ColumnElement, and_, func, literal_column, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import InstrumentedAttribute, contains_eager, selectinload
+from sqlalchemy.orm import contains_eager, selectinload
 
 from app.models import BuyerRole, Organization
 from app.modules.ddl_commands.application.ports.buyers import BuyerFilters, BuyerRoleFields
-from app.modules.ddl_commands.persistence.repositories.filters import joined_text_has
 from app.modules.organizations import org_name_trigram_predicate
-from app.modules.utilities.domain.json_types import JsonObject
+from app.modules.record_filters import condition_sql
 
 
 class BuyerRepository:
@@ -34,6 +33,15 @@ class BuyerRepository:
             .options(selectinload(BuyerRole.organization))
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def get_many_with_organization(self, buyer_role_ids: Sequence[str]) -> list[BuyerRole]:
+        """Unknown ids are simply absent from the result."""
+        stmt = (
+            select(BuyerRole)
+            .where(BuyerRole.id.in_(buyer_role_ids))
+            .options(selectinload(BuyerRole.organization))
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def get_active_by_org_and_vertical(
         self, org_attio_id: str, target_vertical: str | None
@@ -102,7 +110,12 @@ class BuyerRepository:
         org_stmt = (
             select(BuyerRole.org_attio_id, func.max(similarity).label("score"))
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(BuyerRole.is_active.is_(True), Organization.removed_at.is_(None), predicate)
+            .where(
+                BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
+                Organization.removed_at.is_(None),
+                predicate,
+            )
             .group_by(BuyerRole.org_attio_id)
             .order_by(literal_column("score").desc())
             .limit(limit)
@@ -113,54 +126,37 @@ class BuyerRepository:
 
         roles_stmt = (
             select(BuyerRole)
-            .where(BuyerRole.org_attio_id.in_(org_ids), BuyerRole.is_active.is_(True))
+            .where(
+                BuyerRole.org_attio_id.in_(org_ids),
+                BuyerRole.is_active.is_(True),
+                BuyerRole.removed_at.is_(None),
+            )
             .options(selectinload(BuyerRole.organization))
         )
         roles = (await self._session.execute(roles_stmt)).scalars().all()
         rank = {org_id: i for i, org_id in enumerate(org_ids)}
         return sorted(roles, key=lambda r: (rank[r.org_attio_id], r.target_vertical or ""))
 
-    async def list_filtered(self, filters: BuyerFilters, limit: int) -> list[BuyerRole]:
-        """Active roles of live organizations, ordered by organization name then id
-        so the order is stable when an organization holds several roles."""
-        conditions: list[ColumnElement[bool]] = [
+    async def list_filtered(
+        self, filters: BuyerFilters, limit: int, offset: int = 0
+    ) -> list[BuyerRole]:
+        """Active roles of live organizations matching every condition, ordered by
+        organization name then id so the order is stable when an organization holds
+        several roles."""
+        where: list[ColumnElement[bool]] = [
             BuyerRole.is_active.is_(True),
             BuyerRole.removed_at.is_(None),
             Organization.removed_at.is_(None),
+            *(condition_sql("buyer", c) for c in filters.conditions),
         ]
-        if filters.target_vertical is not None:
-            conditions.append(BuyerRole.target_vertical == filters.target_vertical)
-        if filters.mandate_status is not None:
-            conditions.append(BuyerRole.mandate_status == filters.mandate_status)
-        if filters.model is not None:
-            conditions.append(BuyerRole.model == filters.model)
-        if filters.target_region:
-            conditions.append(BuyerRole.target_region.overlap(list(filters.target_region)))
-        if filters.target_country:
-            conditions.append(BuyerRole.target_country.overlap(list(filters.target_country)))
-        if filters.hq_country is not None:
-            conditions.append(joined_text_has(Organization.hq_country, filters.hq_country))
-        if filters.check_size_usd is not None:
-            amount = filters.check_size_usd
-            conditions.append(
-                or_(
-                    _money(BuyerRole.check_size_min).is_(None),
-                    _money(BuyerRole.check_size_min) <= amount,
-                )
-            )
-            conditions.append(
-                or_(
-                    _money(BuyerRole.check_size_max).is_(None),
-                    _money(BuyerRole.check_size_max) >= amount,
-                )
-            )
         stmt = (
             select(BuyerRole)
             .join(Organization, BuyerRole.org_attio_id == Organization.attio_id)
-            .where(and_(*conditions))
+            .where(and_(*where))
             .options(contains_eager(BuyerRole.organization))
             .order_by(Organization.name, BuyerRole.id)
             .limit(limit)
+            .offset(offset)
         )
         return list((await self._session.execute(stmt)).scalars().all())
 
@@ -176,13 +172,3 @@ class BuyerRepository:
         role.updated_at = datetime.now(UTC)
         await self._session.flush()
         return role
-
-
-def _money(column: InstrumentedAttribute[JsonObject | None]) -> ColumnElement[Decimal | None]:
-    """The stored USD amount, or NULL when missing or not a number, so one
-    malformed row never fails the whole query."""
-    amount = column["amount"]
-    return case(
-        (func.jsonb_typeof(amount) == "number", amount.astext.cast(Numeric)),
-        else_=None,
-    )

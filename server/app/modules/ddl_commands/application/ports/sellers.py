@@ -4,12 +4,14 @@
 methods return the ORM row directly.
 """
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 from typing import Protocol, TypedDict, Unpack
 
 from app.models import SellerRole
 from app.modules.attio.providers.attio.money import MoneyJson
+from app.modules.record_filters import FieldCondition
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -52,23 +54,23 @@ class SellerRoleFields(TypedDict, total=False):
 
 @dataclass(frozen=True)
 class SellerFilters:
-    """Every set filter must match. `sector` matches any value in the
-    organization's `sector_focus`."""
+    """Every condition must match. Each checks one field and comes from the MCP's `filters`."""
 
-    sector: str | None = None
-    hq_country: str | None = None
-    region: str | None = None
-    relationship_status: str | None = None
-    outreach_tier: str | None = None
+    conditions: tuple[FieldCondition, ...] = ()
 
 
 class SellerRepositoryPort(Protocol):
     async def get_by_id(self, seller_role_id: str) -> SellerRole | None: ...
     async def get_with_organization(self, seller_role_id: str) -> SellerRole | None: ...
+    async def get_many_with_organization(
+        self, seller_role_ids: Sequence[str]
+    ) -> list[SellerRole]: ...
     async def get_by_org_attio_id(self, org_attio_id: str) -> SellerRole | None: ...
     async def create(self, org_attio_id: str, **fields: Unpack[SellerRoleFields]) -> SellerRole: ...
     async def search_by_organization_name(self, term: str, limit: int = 10) -> list[SellerRole]: ...
-    async def list_filtered(self, filters: SellerFilters, limit: int) -> list[SellerRole]: ...
+    async def list_filtered(
+        self, filters: SellerFilters, limit: int, offset: int = 0
+    ) -> list[SellerRole]: ...
     async def update(
         self, seller_role_id: str, **fields: Unpack[SellerRoleFields]
     ) -> SellerRole | None: ...

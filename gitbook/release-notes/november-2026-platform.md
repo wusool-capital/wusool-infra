@@ -1,6 +1,6 @@
 # November 2026: Platform, data, and documentation
 
-Delivery period: 15 October – 17 November 2026.
+Delivery period: 15 October – 18 November 2026.
 
 ## Interactions engine (new)
 

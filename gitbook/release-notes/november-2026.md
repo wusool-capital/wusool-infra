@@ -1,6 +1,6 @@
 # November 2026
 
-Delivery period: 15 October – 17 November 2026.
+Delivery period: 15 October – 18 November 2026.
 
 In five weeks, more than 110 pull requests were merged across every Wusool
 product. Two new surfaces launched: the Wusool Engine and the Wusool MCP for
