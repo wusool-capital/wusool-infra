@@ -49,7 +49,7 @@ def condition_sql(kind: RecordKind, condition: FieldCondition) -> ColumnElement[
 
     if op in ("is_set", "is_not_set"):
         if shape == "array":
-            is_set = func.cardinality(column) > 0
+            is_set = func.coalesce(func.cardinality(column), 0) > 0
         elif shape == "money":
             is_set = money_amount(column).is_not(None)
         elif shape in ("text", "joined_text"):

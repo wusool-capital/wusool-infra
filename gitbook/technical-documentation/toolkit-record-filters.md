@@ -28,7 +28,7 @@ A filter is `{field, op, value}`. Every filter given must match. Each kind of co
 - Money is USD. A stored amount that is a numeric string counts as a number, as `get_*` shows it.
 - `contains` ignores case and treats `%` as plain text.
 - A company with several HQ countries or regions matches any one of them.
-- A date is `YYYY-MM-DD`. A date and time also accepts an ISO time, and a bare date means midnight UTC.
+- A date is `YYYY-MM-DD`. A date and time also accepts an ISO time. A bare date means the start of that day, or its end for `lte`.
 
 ## Checks
 

@@ -102,3 +102,23 @@ def test_a_column_name_both_tables_have_gets_a_prefixed_key() -> None:
 def test_a_field_the_caller_names_on_a_missing_column_is_a_bug_not_a_silent_skip() -> None:
     with pytest.raises(KeyError):
         build_catalog("buyer", [FieldMeta("x", "role", "no_such_column", "X")])
+
+
+def test_every_json_column_is_a_known_usd_money_column() -> None:
+    """A JSONB column is filtered as `{amount, currency}` money. A new one must be
+    checked, and added here, before it is offered as a range filter."""
+    known = {
+        "ebitda_floor", "check_size_min", "check_size_max", "ev_ceiling", "ebitda_ceiling",
+        "estimated_aum", "est_revenue", "est_ebitda", "owner_salary", "valuation_low",
+        "valuation_mid", "valuation_high", "revenue_last_full_year", "revenue_year_before",
+        "annual_rent_cost", "implied_ev_low", "implied_ev_high", "ebitda_adjusted",
+        "funding_raised",
+    }  # fmt: skip
+    found = {
+        f.column
+        for kind in ("buyer", "seller")
+        for f in build_catalog(kind, []).fields
+        if f.shape == "money"
+    }
+
+    assert found == known

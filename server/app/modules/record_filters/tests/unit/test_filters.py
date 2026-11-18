@@ -140,3 +140,25 @@ def test_a_free_text_field_without_options_accepts_any_text() -> None:
 def test_a_malformed_filter_does_not_even_parse(bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         _ADAPTER.validate_python(bad)
+
+
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf", "1e999"])
+def test_a_number_must_be_finite(bad: str) -> None:
+    conditions, problems = _resolve(field="ebitda_ceiling", op="gte", value=bad)
+
+    assert conditions == ()
+    assert "takes a number" in problems[0].message
+
+
+def test_an_upper_bound_day_on_a_timestamp_keeps_that_whole_day() -> None:
+    (upper,), _ = _resolve(field="last_interaction_at", op="lte", value="2026-11-18")
+    (lower,), _ = _resolve(field="last_interaction_at", op="gte", value="2026-11-18")
+
+    assert upper.value == datetime(2026, 11, 18, 23, 59, 59, 999999, tzinfo=UTC)
+    assert lower.value == datetime(2026, 11, 18, tzinfo=UTC)
+
+
+def test_an_explicit_time_is_never_moved() -> None:
+    (condition,), _ = _resolve(field="last_interaction_at", op="lte", value="2026-11-18T09:30:00")
+
+    assert condition.value == datetime(2026, 11, 18, 9, 30, tzinfo=UTC)

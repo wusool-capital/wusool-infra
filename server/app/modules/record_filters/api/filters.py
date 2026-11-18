@@ -1,8 +1,9 @@
 """Filters on any buyer or seller field, in the shape an agent or a web client sends,
 and their check against the field's type before any query runs."""
 
+import math
 from collections.abc import Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -118,7 +119,7 @@ def _value(field: FilterableField, item: FieldFilter) -> ConditionValue:
             raise _BadValueError(f"{key} takes a YYYY-MM-DD date")
         return day
     if field.shape == "datetime":
-        moment = _moment(item.value)
+        moment = _moment(item.value, end_of_day=isinstance(item, LteFilter))
         if moment is None:
             raise _BadValueError(f"{key} takes a YYYY-MM-DD date or an ISO date and time")
         return moment
@@ -144,12 +145,11 @@ def _spelled(field: FilterableField, text: str) -> str:
 def _number(value: str | float | bool) -> float | None:
     if isinstance(value, bool):
         return None
-    if isinstance(value, str):
-        try:
-            return float(value)
-        except ValueError:
-            return None
-    return float(value)
+    try:
+        number = float(value)
+    except ValueError:
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _day(value: str | float | bool) -> date | None:
@@ -161,11 +161,15 @@ def _day(value: str | float | bool) -> date | None:
         return None
 
 
-def _moment(value: str | float | bool) -> datetime | None:
+def _moment(value: str | float | bool, *, end_of_day: bool) -> datetime | None:
+    """A bare date means the start of that day, or its end for an upper bound, so
+    `lte 2026-11-18` keeps everything that happened on the 18th."""
     if not isinstance(value, str):
         return None
     try:
         moment = datetime.fromisoformat(value)
     except ValueError:
         return None
+    if end_of_day and len(value.strip()) == len("YYYY-MM-DD"):
+        moment = datetime.combine(moment.date(), time.max)
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
