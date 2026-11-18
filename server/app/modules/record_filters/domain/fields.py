@@ -6,8 +6,7 @@ from datetime import date, datetime
 from typing import Literal
 
 RecordKind = Literal["buyer", "seller"]
-# How a column is stored, not how its form field looks: a ", "-joined text and a text
-# array are both multi-selects but need different SQL.
+# Storage, not form type: a ", "-joined text and a text array need different SQL.
 FieldShape = Literal["text", "array", "joined_text", "money", "number", "date", "datetime", "bool"]
 FilterOp = Literal["eq", "in", "contains", "gte", "lte", "is_set", "is_not_set"]
 ConditionValue = str | float | bool | date | datetime | tuple[str, ...] | None

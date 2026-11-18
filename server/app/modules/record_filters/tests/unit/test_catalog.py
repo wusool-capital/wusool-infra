@@ -108,12 +108,26 @@ def test_every_json_column_is_a_known_usd_money_column() -> None:
     """A JSONB column is filtered as `{amount, currency}` money. A new one must be
     checked, and added here, before it is offered as a range filter."""
     known = {
-        "ebitda_floor", "check_size_min", "check_size_max", "ev_ceiling", "ebitda_ceiling",
-        "estimated_aum", "est_revenue", "est_ebitda", "owner_salary", "valuation_low",
-        "valuation_mid", "valuation_high", "revenue_last_full_year", "revenue_year_before",
-        "annual_rent_cost", "implied_ev_low", "implied_ev_high", "ebitda_adjusted",
+        "ebitda_floor",
+        "check_size_min",
+        "check_size_max",
+        "ev_ceiling",
+        "ebitda_ceiling",
+        "estimated_aum",
+        "est_revenue",
+        "est_ebitda",
+        "owner_salary",
+        "valuation_low",
+        "valuation_mid",
+        "valuation_high",
+        "revenue_last_full_year",
+        "revenue_year_before",
+        "annual_rent_cost",
+        "implied_ev_low",
+        "implied_ev_high",
+        "ebitda_adjusted",
         "funding_raised",
-    }  # fmt: skip
+    }
     found = {
         f.column
         for kind in ("buyer", "seller")

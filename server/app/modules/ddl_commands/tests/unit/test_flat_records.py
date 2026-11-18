@@ -288,7 +288,10 @@ async def test_get_records_keeps_input_order_and_names_every_missing_id(
     assert found.not_found == (inactive, unknown)
 
 
-def _filters(*items: dict[str, object]) -> list[flat_records.FieldFilter]:
+RawFilter = dict[str, str | float | bool | list[str]]
+
+
+def _filters(*items: RawFilter) -> list[flat_records.FieldFilter]:
     adapter: TypeAdapter[flat_records.FieldFilter] = TypeAdapter(flat_records.FieldFilter)
     return [adapter.validate_python(item) for item in items]
 

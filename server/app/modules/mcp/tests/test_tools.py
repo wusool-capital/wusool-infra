@@ -375,7 +375,7 @@ async def test_list_buyers_takes_typed_filters_on_any_field(
     ],
 )
 async def test_a_malformed_filter_is_refused_before_any_query(
-    monkeypatch: pytest.MonkeyPatch, bad: dict[str, object]
+    monkeypatch: pytest.MonkeyPatch, bad: dict[str, str | float | bool | list[str]]
 ) -> None:
     listed = AsyncMock()
     monkeypatch.setattr(lookups, "list_seller_records", listed)

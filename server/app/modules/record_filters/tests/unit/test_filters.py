@@ -34,7 +34,12 @@ _CATALOG = build_catalog(
 )
 
 
-def _resolve(**filter_: object) -> tuple[tuple[FieldCondition, ...], list[FilterProblem]]:
+RawFilter = dict[str, str | float | bool | list[str]]
+
+
+def _resolve(
+    **filter_: str | float | bool | list[str],
+) -> tuple[tuple[FieldCondition, ...], list[FilterProblem]]:
     return resolve_filters(_CATALOG, [_ADAPTER.validate_python(filter_)])
 
 
@@ -92,7 +97,7 @@ def test_dates_are_parsed() -> None:
         ({"field": "target_country", "op": "in", "value": ["Mars"]}, "not allowed"),
     ],
 )
-def test_each_bad_filter_is_named(filter_: dict[str, object], fragment: str) -> None:
+def test_each_bad_filter_is_named(filter_: RawFilter, fragment: str) -> None:
     conditions, problems = _resolve(**filter_)
 
     assert conditions == ()
@@ -137,7 +142,7 @@ def test_a_free_text_field_without_options_accepts_any_text() -> None:
         {"op": "is_set"},
     ],
 )
-def test_a_malformed_filter_does_not_even_parse(bad: dict[str, object]) -> None:
+def test_a_malformed_filter_does_not_even_parse(bad: RawFilter) -> None:
     with pytest.raises(ValidationError):
         _ADAPTER.validate_python(bad)
 
