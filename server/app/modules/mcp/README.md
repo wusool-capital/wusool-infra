@@ -14,10 +14,10 @@ Slack. It is served from the Toolkit app at `/mcp` (Streamable HTTP, stateless).
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows: new, existing, invalid | Nothing |
 | `confirm_import` | After the person says go, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
-| `get_buyer`, `get_seller` | Every field of up to 100 records in one call, keyed like the edit tools' `fields`. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
-| `list_buyers`, `list_sellers` | Active records matching filters, up to 200 a page. When `truncated`, pass `next_offset` as `offset` for the next page. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
+| `get_buyer`, `get_seller` | The fields of up to 100 records in one call, keyed like the edit tools' `fields`; `fields` picks any column. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
+| `list_buyers`, `list_sellers` | Active records matching `filters` on any field (`{field, op, value}`), up to 200 a page. When `truncated`, pass `next_offset` as `offset`. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
-| `list_field_options` | Every field's type and allowed values | Read only |
+| `list_field_options` | Every field's type, allowed values, whether it is editable and the filter operators it takes. `fields` returns just those keys | Read only |
 | `get_benchmark_overview`, `get_peer_cut` | The benchmark peer dataset in brief, and one peer set's anchors | Read only |
 | `edit_benchmark_peer_cut`, `edit_revenue_band`, `set_metric_weights` | Change anchors, sample sizes, band factors or weights. Checked first; saved straight away | Straight away |
 

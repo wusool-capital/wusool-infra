@@ -28,6 +28,7 @@ from app.modules.mcp.api.tools.schemas import (
     RecordList,
 )
 from app.modules.mcp.domain.access import Caller, Permission
+from app.modules.record_filters import MAX_FILTERS, FieldFilter
 
 _READ = ToolAnnotations(read_only_hint=True, idempotent_hint=True, open_world_hint=False)
 _READ_PERMISSION: dict[UploadKind, Permission] = {
@@ -35,6 +36,7 @@ _READ_PERMISSION: dict[UploadKind, Permission] = {
     "seller": "sellers.read",
 }
 
+_FIELD_KEYS_MAX = 200  # more than a buyer or seller has columns
 RoleId = Annotated[uuid.UUID, Field(description="role_id from find_* or list_*")]
 RoleIds = Annotated[
     list[uuid.UUID],
@@ -44,16 +46,30 @@ RoleIds = Annotated[
         description="role_ids from find_* or list_*; unknown ones come back in not_found",
     ),
 ]
+FieldKeys = Annotated[
+    list[str] | None,
+    Field(
+        max_length=_FIELD_KEYS_MAX,
+        description="Field keys from list_field_options; omit for every editable field",
+    ),
+]
 Limit = Annotated[int, Field(ge=1, le=LIST_LIMIT_MAX, description="Most records to return")]
+Filters = Annotated[
+    list[FieldFilter] | None,
+    Field(
+        max_length=MAX_FILTERS,
+        description=(
+            "Filters on any field, all of which must match: {field, op, value}. Call "
+            "list_field_options first for the field keys and, for a select or multi-select, its "
+            "exact values; send only the fields you need. Ops by kind: select, text, multi-select "
+            "take in/eq (text also contains); money, number, percent and date take gte/lte/eq; "
+            "checkbox takes eq; every field takes is_set/is_not_set. gte/lte/eq never match a "
+            "record with no value, so use is_set first to see how many have one. Money is USD."
+        ),
+    ),
+]
 Offset = Annotated[
     int, Field(ge=0, description="Records to skip; use next_offset from the previous page")
-]
-Option = Annotated[
-    str | None, Field(description="One allowed value; see list_field_options. Case is ignored")
-]
-Options = Annotated[
-    list[str] | None,
-    Field(description="Any of these allowed values; see list_field_options"),
 ]
 
 
@@ -68,9 +84,9 @@ def register(server: MCPServer, runner: ToolRunner) -> None:
 def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> None:
     name = f"get_{kind}"
 
-    async def get(role_ids: RoleIds) -> RecordDetails:
+    async def get(role_ids: RoleIds, fields: FieldKeys = None) -> RecordDetails:
         async def call(_: Caller) -> RecordDetails:
-            return RecordDetails.of(await get_records(kind, role_ids))
+            return RecordDetails.of(await get_records(kind, role_ids, fields))
 
         return await runner.run(name, _READ_PERMISSION[kind], call, output=RecordDetails)
 
@@ -78,11 +94,13 @@ def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> No
         name=name,
         title=f"Get {kind}s",
         description=(
-            f"Every field of up to {GET_IDS_MAX} {kind}s and their companies in one call, keyed "
-            f"exactly like edit_{kind}'s `fields`, so read a value before changing it. To rank "
-            f"or compare by numbers, pass the role_ids from list_{kind}s. Money is USD, "
-            "dates YYYY-MM-DD, null means unset.\n"
-            'Example: {"role_ids": ["0b6e...", "7c1d..."]}'
+            f"The fields of up to {GET_IDS_MAX} {kind}s and their companies in one call, keyed "
+            f"exactly like edit_{kind}'s `fields`, so read a value before changing it. Without "
+            "`fields` you get every editable field; pass `fields` (keys from list_field_options) "
+            "for just those, including computed columns you filtered on. To rank or compare "
+            f"by numbers, pass the role_ids from list_{kind}s. Money is USD, dates YYYY-MM-DD, "
+            "null means unset.\n"
+            'Example: {"role_ids": ["0b6e...", "7c1d..."], "fields": ["ebitda_ceiling"]}'
         ),
         annotations=_READ,
     )(get)
@@ -90,56 +108,19 @@ def _register_get(server: MCPServer, runner: ToolRunner, kind: UploadKind) -> No
 
 def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
     async def list_buyers(
-        target_vertical: Option = None,
-        mandate_status: Option = None,
-        model: Option = None,
-        target_region: Options = None,
-        target_country: Options = None,
-        check_size_usd: Annotated[
-            float | None,
-            Field(gt=0, description="A deal size in USD that the buyer's check size fits"),
-        ] = None,
-        hq_country: Option = None,
-        sector_focus: Options = None,
-        limit: Limit = 50,
-        offset: Offset = 0,
+        filters: Filters = None, limit: Limit = 50, offset: Offset = 0
     ) -> RecordList:
         async def call(_: Caller) -> RecordList:
-            found = await list_buyer_records(
-                target_vertical=target_vertical,
-                mandate_status=mandate_status,
-                model=model,
-                target_region=target_region or (),
-                target_country=target_country or (),
-                check_size_usd=check_size_usd,
-                hq_country=hq_country,
-                sector_focus=sector_focus or (),
-                limit=limit,
-                offset=offset,
-            )
+            found = await list_buyer_records(filters=filters or (), limit=limit, offset=offset)
             return RecordList.of(found)
 
         return await runner.run("list_buyers", "buyers.read", call, output=RecordList)
 
     async def list_sellers(
-        sector: Option = None,
-        hq_country: Option = None,
-        region: Option = None,
-        relationship_status: Option = None,
-        outreach_tier: Option = None,
-        limit: Limit = 50,
-        offset: Offset = 0,
+        filters: Filters = None, limit: Limit = 50, offset: Offset = 0
     ) -> RecordList:
         async def call(_: Caller) -> RecordList:
-            found = await list_seller_records(
-                sector=sector,
-                hq_country=hq_country,
-                region=region,
-                relationship_status=relationship_status,
-                outreach_tier=outreach_tier,
-                limit=limit,
-                offset=offset,
-            )
+            found = await list_seller_records(filters=filters or (), limit=limit, offset=offset)
             return RecordList.of(found)
 
         return await runner.run("list_sellers", "sellers.read", call, output=RecordList)
@@ -148,16 +129,15 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
         name="list_buyers",
         title="List buyers",
         description=(
-            "Active buyers matching every filter given, ordered by company name; rows hold "
-            "ids only, so pass the role_ids to get_buyer for numbers. Region, country and "
-            "sector_focus match when any value overlaps; sector_focus is the company's "
-            "multi-value sector list, target_vertical its single vertical, so use "
-            "sector_focus to catch buyers with the sector only there. check_size_usd keeps "
-            "buyers whose check size range contains it; a buyer with no min or max set still "
-            "matches, so confirm with get_buyer. If `truncated` is true, call again with "
-            "offset=next_offset for the next page.\n"
-            'Example: {"target_vertical": "Fintech", "target_country": ["United Arab Emirates"], '
-            '"check_size_usd": 5000000}'
+            "Active buyers matching every filter given, ordered by company name; no filter "
+            "lists all. Rows hold ids only, so pass the role_ids to get_buyer for numbers. "
+            "target_vertical is a buyer's single vertical; sector_focus is the company's "
+            "multi-value sector list. A check size range that contains a deal size is two "
+            "filters: check_size_min lte it and check_size_max gte it. If `truncated` is true, "
+            "call again with offset=next_offset for the next page.\n"
+            'Example: {"filters": [{"field": "target_vertical", "op": "eq", "value": "Fintech"}, '
+            '{"field": "region", "op": "in", "value": ["GCC"]}, '
+            '{"field": "ebitda_ceiling", "op": "gte", "value": 2000000}]}'
         ),
         annotations=_READ,
     )(list_buyers)
@@ -165,11 +145,13 @@ def _register_lists(server: MCPServer, runner: ToolRunner) -> None:
         name="list_sellers",
         title="List sellers",
         description=(
-            "Active sellers matching every filter given, ordered by company name; rows hold "
-            "ids only, so pass the role_ids to get_seller for numbers. `sector` matches the "
-            "company's sector focus. If `truncated` is true, call again with "
-            "offset=next_offset for the next page.\n"
-            'Example: {"sector": "Healthcare Services / Clinics", "hq_country": "Saudi Arabia"}'
+            "Active sellers matching every filter given, ordered by company name; no filter "
+            "lists all. Rows hold ids only, so pass the role_ids to get_seller for numbers. "
+            "sector_focus is the company's sector list. If `truncated` is true, call again "
+            "with offset=next_offset for the next page.\n"
+            'Example: {"filters": [{"field": "sector_focus", "op": "eq", '
+            '"value": "Healthcare Services / Clinics"}, '
+            '{"field": "hq_country", "op": "eq", "value": "Saudi Arabia"}]}'
         ),
         annotations=_READ,
     )(list_sellers)
@@ -211,9 +193,11 @@ def _gap(criterion: str, stored: str, stated: str | None) -> Gap:
 
 
 def _register_field_options(server: MCPServer, runner: ToolRunner) -> None:
-    async def list_field_options(kind: Literal["buyer", "seller"]) -> FieldOptions:
+    async def list_field_options(
+        kind: Literal["buyer", "seller"], fields: FieldKeys = None
+    ) -> FieldOptions:
         async def call(_: Caller) -> FieldOptions:
-            return FieldOptions.of(kind)
+            return FieldOptions.of(kind, fields)
 
         return await runner.run(
             "list_field_options", _READ_PERMISSION[kind], call, output=FieldOptions
@@ -223,9 +207,12 @@ def _register_field_options(server: MCPServer, runner: ToolRunner) -> None:
         name="list_field_options",
         title="Field options",
         description=(
-            "Every field a buyer or seller row accepts, with its type and allowed values. "
-            "Use it to pick valid values for add, edit, bulk import and list filters.\n"
-            'Example: {"kind": "buyer"}'
+            "Every field of a buyer or seller and its company: key, type, allowed values, "
+            "whether it is editable, and the filter operators it takes. Pass `fields` for "
+            "just those keys, for example to get a select's exact values before filtering "
+            "on it. Use it to pick valid keys and values for add, edit, bulk import, get and "
+            "list filters.\n"
+            'Example: {"kind": "buyer", "fields": ["target_vertical", "ebitda_ceiling"]}'
         ),
         annotations=_READ,
     )(list_field_options)

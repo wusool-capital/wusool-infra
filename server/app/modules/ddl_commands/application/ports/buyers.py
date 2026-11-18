@@ -12,6 +12,7 @@ from typing import Protocol, TypedDict, Unpack
 
 from app.models import BuyerRole
 from app.modules.attio.providers.attio.money import MoneyJson
+from app.modules.record_filters import FieldCondition
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -52,18 +53,9 @@ class BuyerRoleFields(TypedDict, total=False):
 
 @dataclass(frozen=True)
 class BuyerFilters:
-    """Every set filter must match. List filters match when any value overlaps.
-    `check_size_usd` fits when it lies within the buyer's min and max; a missing
-    bound doesn't exclude the buyer."""
+    """Every condition must match. Each checks one field and comes from the MCP's `filters`."""
 
-    target_vertical: str | None = None
-    mandate_status: str | None = None
-    model: str | None = None
-    target_region: tuple[str, ...] = ()
-    target_country: tuple[str, ...] = ()
-    check_size_usd: float | None = None
-    hq_country: str | None = None
-    sector_focus: tuple[str, ...] = ()
+    conditions: tuple[FieldCondition, ...] = ()
 
 
 class BuyerRepositoryPort(Protocol):

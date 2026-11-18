@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
+from pydantic import TypeAdapter
 
 from app.modules.ddl_commands.api import flat_records
 from app.modules.ddl_commands.api.bulk_upload import RowMatch
@@ -274,7 +275,7 @@ async def test_get_records_keeps_input_order_and_names_every_missing_id(
     monkeypatch.setattr(
         flat_records,
         "_detail",
-        lambda _kind, role: flat_records.RecordDetail(
+        lambda role, _selected: flat_records.RecordDetail(
             role_id=role.id, org_attio_id="org-1", org_name="Acme", domains=(), fields={}
         ),
     )
@@ -286,18 +287,33 @@ async def test_get_records_keeps_input_order_and_names_every_missing_id(
     assert found.not_found == (inactive, unknown)
 
 
+def _filters(*items: dict[str, object]) -> list[flat_records.FieldFilter]:
+    adapter: TypeAdapter[flat_records.FieldFilter] = TypeAdapter(flat_records.FieldFilter)
+    return [adapter.validate_python(item) for item in items]
+
+
 async def test_list_filters_are_checked_before_any_query(monkeypatch: pytest.MonkeyPatch) -> None:
     service = SimpleNamespace(list_buyers=AsyncMock())
     monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
 
-    with pytest.raises(flat_records.InvalidFieldsError) as caught:
-        await flat_records.list_buyer_records(mandate_status="sleeping", target_country=["Mars"])
+    with pytest.raises(flat_records.InvalidFiltersError) as caught:
+        await flat_records.list_buyer_records(
+            filters=_filters(
+                {"field": "mandate_status", "op": "eq", "value": "sleeping"},
+                {"field": "target_country", "op": "in", "value": ["Mars"]},
+                {"field": "no_such_field", "op": "is_set"},
+            )
+        )
 
-    assert {p.field for p in caught.value.problems} == {"mandate_status", "target_country"}
+    assert {p.field for p in caught.value.problems} == {
+        "mandate_status",
+        "target_country",
+        "no_such_field",
+    }
     service.list_buyers.assert_not_awaited()
 
 
-async def test_list_uses_canonical_values_and_reports_truncation(
+async def test_list_hands_the_service_canonical_conditions_and_reports_truncation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     roles = [
@@ -306,14 +322,28 @@ async def test_list_uses_canonical_values_and_reports_truncation(
     service = SimpleNamespace(list_buyers=AsyncMock(return_value=roles))
     monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
 
-    found = await flat_records.list_buyer_records(mandate_status="active", limit=2)
+    found = await flat_records.list_buyer_records(
+        filters=_filters({"field": "mandate_status", "op": "eq", "value": "active"}), limit=2
+    )
 
-    filters, limit, offset = service.list_buyers.await_args.args
-    assert filters.mandate_status == "Active"
+    wanted, limit, offset = service.list_buyers.await_args.args
+    assert [(c.column, c.op, c.value) for c in wanted.conditions] == [
+        ("mandate_status", "eq", "Active")
+    ]
     assert limit == 3  # one extra, to know whether more match
     assert offset == 0
     assert len(found.records) == 2 and found.truncated is True
     assert found.next_offset == 2
+
+
+async def test_no_filter_hands_the_service_no_conditions(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = SimpleNamespace(list_sellers=AsyncMock(return_value=[]))
+    monkeypatch.setattr(flat_records, "ddl_commands_service", lambda: service)
+
+    await flat_records.list_seller_records()
+
+    wanted, limit, offset = service.list_sellers.await_args.args
+    assert (wanted.conditions, limit, offset) == ((), 21, 0)
 
 
 async def test_the_next_page_starts_after_the_last_returned_record(
@@ -356,8 +386,38 @@ async def test_a_bad_filter_names_the_filter_the_caller_used(
     )
 
     with pytest.raises(flat_records.InvalidFiltersError) as caught:
-        await flat_records.list_seller_records(sector="Fintechh")
+        await flat_records.list_seller_records(
+            filters=_filters({"field": "sector_focus", "op": "eq", "value": "Fintechh"})
+        )
 
     (problem,) = caught.value.problems
-    assert problem.field == "sector"
-    assert problem.message.startswith("'Fintechh' is not allowed for sector. Allowed:")
+    assert problem.field == "sector_focus"
+    assert problem.message.startswith("'Fintechh' is not allowed for sector_focus.")
+    assert "list_field_options" in problem.message
+
+
+def test_without_fields_every_editable_field_is_returned_and_nothing_else() -> None:
+    from app.modules.ddl_commands.api.bulk_columns import routes_for
+
+    selected = flat_records._selected("seller", None)
+
+    assert [f.key for f in selected] == list(routes_for("seller"))
+    assert all(f.editable for f in selected)
+
+
+def test_fields_can_name_a_computed_column_and_keep_the_order_asked() -> None:
+    selected = flat_records._selected(
+        "seller", ["benchmark_score", "est_ebitda", "benchmark_score"]
+    )
+
+    assert [(f.key, f.editable) for f in selected] == [
+        ("benchmark_score", False),
+        ("est_ebitda", True),
+    ]
+
+
+def test_an_unknown_field_key_names_every_bad_key() -> None:
+    with pytest.raises(flat_records.InvalidFieldKeysError) as caught:
+        flat_records._selected("buyer", ["ebitda_ceiling", "nope", "also_nope"])
+
+    assert [p.field for p in caught.value.problems] == ["nope", "also_nope"]

@@ -12,6 +12,12 @@ from app.modules.ddl_commands.persistence.repositories.buyers_repository import 
 from app.modules.ddl_commands.persistence.repositories.sellers_repository import (
     SellerRepository,
 )
+from app.modules.record_filters import (
+    ConditionValue,
+    FieldCondition,
+    FieldShape,
+    FilterOp,
+)
 
 # A vertical no real row uses, so each test sees only its own rows.
 _VERTICAL = f"Test vertical {uuid.uuid4()}"
@@ -19,6 +25,27 @@ _VERTICAL = f"Test vertical {uuid.uuid4()}"
 
 def _usd(amount: float | str) -> dict[str, float | str]:
     return {"amount": amount, "currency": "USD"}
+
+
+def _role(
+    column: str, shape: FieldShape, op: FilterOp, value: ConditionValue = None
+) -> FieldCondition:
+    return FieldCondition("role", column, shape, op, value)
+
+
+def _org(
+    column: str, shape: FieldShape, op: FilterOp, value: ConditionValue = None
+) -> FieldCondition:
+    return FieldCondition("org", column, shape, op, value)
+
+
+async def _buyers(
+    session: AsyncSession, *conditions: FieldCondition, limit: int = 50, offset: int = 0
+) -> list[BuyerRole]:
+    """Only this file's buyers, narrowed by `conditions`."""
+    vertical = _role("target_vertical", "text", "eq", _VERTICAL)
+    filters = BuyerFilters(conditions=(vertical, *conditions))
+    return await BuyerRepository(session).list_filtered(filters, limit, offset)
 
 
 async def _buyer(session: AsyncSession, org: Organization, **fields) -> BuyerRole:
@@ -30,22 +57,24 @@ async def _buyer(session: AsyncSession, org: Organization, **fields) -> BuyerRol
     return role
 
 
-async def test_check_size_fits_and_unknown_bounds_still_match(
+async def test_a_check_size_range_around_a_deal_size_skips_unknown_and_malformed_bounds(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
     fits = await _buyer(
         db_session, throwaway_org, check_size_min=_usd(1e6), check_size_max=_usd(1e7)
     )
-    no_bounds = await _buyer(db_session, throwaway_org)
-    malformed = await _buyer(db_session, throwaway_org, check_size_min=_usd("lots"))
+    await _buyer(db_session, throwaway_org)  # no bounds
+    await _buyer(db_session, throwaway_org, check_size_min=_usd("lots"))
     await _buyer(db_session, throwaway_org, check_size_max=_usd(2e6))  # too small
     await _buyer(db_session, throwaway_org, check_size_min=_usd(2e7))  # too big
 
-    found = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(target_vertical=_VERTICAL, check_size_usd=5e6), limit=50
+    found = await _buyers(
+        db_session,
+        _role("check_size_min", "money", "lte", 5e6),
+        _role("check_size_max", "money", "gte", 5e6),
     )
 
-    assert {r.id for r in found} == {fits.id, no_bounds.id, malformed.id}
+    assert [r.id for r in found] == [fits.id]
 
 
 async def test_regions_overlap_and_inactive_or_removed_are_left_out(
@@ -63,9 +92,8 @@ async def test_regions_overlap_and_inactive_or_removed_are_left_out(
     await db_session.flush()
     await _buyer(db_session, removed, target_country=["United Arab Emirates"])
 
-    found = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(target_vertical=_VERTICAL, target_country=("United Arab Emirates",)),
-        limit=50,
+    found = await _buyers(
+        db_session, _role("target_country", "array", "in", ("United Arab Emirates",))
     )
 
     assert [r.id for r in found] == [uae.id]
@@ -76,9 +104,7 @@ async def test_limit_and_stable_order(
 ) -> None:
     roles = [await _buyer(db_session, throwaway_org) for _ in range(3)]
 
-    found = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(target_vertical=_VERTICAL), limit=2
-    )
+    found = await _buyers(db_session, limit=2)
 
     assert [r.id for r in found] == sorted(r.id for r in roles)[:2]
 
@@ -96,7 +122,13 @@ async def test_sellers_filter_on_sector_and_tier(
     await db_session.flush()
 
     found = await SellerRepository(db_session).list_filtered(
-        SellerFilters(sector=sector, outreach_tier="Tier 1"), limit=50
+        SellerFilters(
+            conditions=(
+                _org("sector_focus", "array", "eq", sector),
+                _role("outreach_tier", "text", "eq", "Tier 1"),
+            )
+        ),
+        limit=50,
     )
 
     assert [r.id for r in found] == [match.id]
@@ -112,16 +144,18 @@ async def test_hq_country_and_region_match_one_item_of_a_joined_value(
     db_session.add(seller)
     await db_session.flush()
 
-    buyers = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(target_vertical=_VERTICAL, hq_country="Saudi Arabia"), limit=50
-    )
+    buyers = await _buyers(db_session, _org("hq_country", "joined_text", "eq", "Saudi Arabia"))
     sellers = await SellerRepository(db_session).list_filtered(
-        SellerFilters(region="MENA", hq_country="United Arab Emirates", outreach_tier="Tier 2"),
+        SellerFilters(
+            conditions=(
+                _org("region", "joined_text", "eq", "MENA"),
+                _org("hq_country", "joined_text", "eq", "United Arab Emirates"),
+                _role("outreach_tier", "text", "eq", "Tier 2"),
+            )
+        ),
         limit=50,
     )
-    none = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(target_vertical=_VERTICAL, hq_country="Saudi"), limit=50
-    )
+    none = await _buyers(db_session, _org("hq_country", "joined_text", "eq", "Saudi"))
 
     assert [r.id for r in buyers] == [role.id]
     assert seller.id in {r.id for r in sellers}
@@ -134,9 +168,7 @@ async def test_a_role_removed_in_attio_is_left_out(
     live = await _buyer(db_session, throwaway_org)
     await _buyer(db_session, throwaway_org, removed_at=datetime.now(UTC))
 
-    found = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(target_vertical=_VERTICAL), limit=50
-    )
+    found = await _buyers(db_session)
 
     assert [r.id for r in found] == [live.id]
 
@@ -145,13 +177,10 @@ async def test_offset_pages_do_not_overlap_and_cover_every_row(
     db_session: AsyncSession, throwaway_org: Organization
 ) -> None:
     roles = [await _buyer(db_session, throwaway_org) for _ in range(5)]
-    repo = BuyerRepository(db_session)
-    filters = BuyerFilters(target_vertical=_VERTICAL)
 
-    pages = [await repo.list_filtered(filters, limit=2, offset=o) for o in (0, 2, 4)]
+    pages = [await _buyers(db_session, limit=2, offset=o) for o in (0, 2, 4)]
 
-    ids = [r.id for page in pages for r in page]
-    assert ids == sorted(r.id for r in roles)
+    assert [r.id for page in pages for r in page] == sorted(r.id for r in roles)
     assert [len(p) for p in pages] == [2, 2, 1]
 
 
@@ -169,7 +198,8 @@ async def test_sector_focus_matches_a_buyer_whose_vertical_differs(
     await _buyer(db_session, other)
 
     found = await BuyerRepository(db_session).list_filtered(
-        BuyerFilters(sector_focus=(sector, "No such sector")), limit=50
+        BuyerFilters(conditions=(_org("sector_focus", "array", "in", (sector, "No such sector")),)),
+        limit=50,
     )
 
     assert [r.id for r in found] == [in_focus.id]

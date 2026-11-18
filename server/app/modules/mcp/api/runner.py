@@ -18,6 +18,7 @@ from pydantic import BaseModel
 from app.modules.benchmark_data import InvalidEditError, UnknownRecordError
 from app.modules.ddl_commands import (
     BuyerNotFoundError,
+    InvalidFieldKeysError,
     InvalidFieldsError,
     InvalidFiltersError,
     InvalidUploadError,
@@ -68,6 +69,9 @@ def _message(exc: Exception) -> str | None:
         case InvalidFiltersError():
             details = "\n".join(p.message for p in exc.problems[:_MAX_PROBLEMS_SHOWN])
             return f"Fix these filters and try again:\n{details}"
+        case InvalidFieldKeysError():
+            details = "\n".join(p.message for p in exc.problems[:_MAX_PROBLEMS_SHOWN])
+            return f"Those fields don't exist. Call list_field_options for the keys:\n{details}"
         case InvalidFieldsError():
             problems = describe_problems(exc.problems)
             return f"Nothing was saved. Fix these fields and try again:\n{problems}"

@@ -11,6 +11,7 @@ from typing import Protocol, TypedDict, Unpack
 
 from app.models import SellerRole
 from app.modules.attio.providers.attio.money import MoneyJson
+from app.modules.record_filters import FieldCondition
 from app.modules.utilities.domain.json_types import JsonObject
 
 
@@ -53,14 +54,9 @@ class SellerRoleFields(TypedDict, total=False):
 
 @dataclass(frozen=True)
 class SellerFilters:
-    """Every set filter must match. `sector` matches any value in the
-    organization's `sector_focus`."""
+    """Every condition must match. Each checks one field and comes from the MCP's `filters`."""
 
-    sector: str | None = None
-    hq_country: str | None = None
-    region: str | None = None
-    relationship_status: str | None = None
-    outreach_tier: str | None = None
+    conditions: tuple[FieldCondition, ...] = ()
 
 
 class SellerRepositoryPort(Protocol):

@@ -15,8 +15,8 @@ from sqlalchemy.orm import contains_eager, selectinload
 
 from app.models import Organization, SellerRole
 from app.modules.ddl_commands.application.ports.sellers import SellerFilters, SellerRoleFields
-from app.modules.ddl_commands.persistence.repositories.filters import joined_text_has
 from app.modules.organizations import org_name_trigram_predicate
+from app.modules.record_filters import condition_sql
 
 
 class SellerRepository:
@@ -113,26 +113,18 @@ class SellerRepository:
     async def list_filtered(
         self, filters: SellerFilters, limit: int, offset: int = 0
     ) -> list[SellerRole]:
-        """Active roles of live organizations, ordered by organization name then id."""
-        conditions: list[ColumnElement[bool]] = [
+        """Active roles of live organizations matching every condition, ordered by
+        organization name then id."""
+        where: list[ColumnElement[bool]] = [
             SellerRole.is_active.is_(True),
             SellerRole.removed_at.is_(None),
             Organization.removed_at.is_(None),
+            *(condition_sql("seller", c) for c in filters.conditions),
         ]
-        if filters.sector is not None:
-            conditions.append(Organization.sector_focus.contains([filters.sector]))
-        if filters.hq_country is not None:
-            conditions.append(joined_text_has(Organization.hq_country, filters.hq_country))
-        if filters.region is not None:
-            conditions.append(joined_text_has(Organization.region, filters.region))
-        if filters.relationship_status is not None:
-            conditions.append(SellerRole.relationship_status == filters.relationship_status)
-        if filters.outreach_tier is not None:
-            conditions.append(SellerRole.outreach_tier == filters.outreach_tier)
         stmt = (
             select(SellerRole)
             .join(Organization, SellerRole.org_attio_id == Organization.attio_id)
-            .where(and_(*conditions))
+            .where(and_(*where))
             .options(contains_eager(SellerRole.organization))
             .order_by(Organization.name, SellerRole.id)
             .limit(limit)

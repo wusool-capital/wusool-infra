@@ -14,16 +14,16 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `bulk_import_buyers`, `bulk_import_sellers` | Check up to 1,000 rows. Returns new, existing and invalid rows | Nothing |
 | `confirm_import` | After the person agrees, adds the new rows in the background | The rows |
 | `get_import` | Progress: added, skipped, failed | Read only |
-| `get_buyer`, `get_seller` | Every field of up to 100 records in one call, keyed like the edit tools' `fields`. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
-| `list_buyers`, `list_sellers` | Active records matching filters, up to 200 a page. When `truncated`, pass `next_offset` as `offset` for the next page. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
+| `get_buyer`, `get_seller` | The fields of up to 100 records in one call, keyed like the edit tools' `fields`; `fields` picks any column. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
+| `list_buyers`, `list_sellers` | Active records matching `filters` on any field (`{field, op, value}`), up to 200 a page. When `truncated`, pass `next_offset` as `offset`. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
-| `list_field_options` | Every field's type and allowed values | Read only |
+| `list_field_options` | Every field's type, allowed values, whether it is editable and the filter operators it takes. `fields` returns just those keys | Read only |
 
 No tool deletes, sends, spends provider credits or shows fees.
 
 The five benchmark tools, which edit the public benchmark's peer dataset, are described in [Benchmark tools](toolkit-mcp-benchmark.md).
 
-Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them. The one exception is `get_buyer` and `get_seller`, which took a list of `role_ids` on 18 November 2026 so there are no duplicate tools.
+Tool and field names only grow. A breaking change becomes a new tool, because conversations and skills depend on them.
 
 ## How a call runs
 
@@ -38,11 +38,10 @@ Tool and field names only grow. A breaking change becomes a new tool, because co
 
 ## Lists and checks
 
-- Buyer filters: `target_vertical`, `mandate_status`, `model`, `target_region`, `target_country`, `check_size_usd` and `hq_country`. Seller filters: `sector`, `hq_country`, `region`, `relationship_status` and `outreach_tier`.
-- Every filter given must match. Region and country lists match when any value overlaps. A company with several HQ countries or regions matches any one of them. A value outside a field's options is refused with the allowed values.
-- `check_size_usd` keeps buyers whose check size range contains it. A buyer with no minimum or maximum set still matches.
+- `list_buyers` and `list_sellers` take one `filters` list of `{field, op, value}` on any column. With no filters, every active record is listed. The fields, operators and rules are in [Record filters](toolkit-record-filters.md).
+- `get_buyer` and `get_seller` return the editable fields by default. Their `fields` option reads any column, and `list_field_options` lists them all.
 - Records removed in Attio are left out of lists, and `get_*` treats them as not found.
-- Results are ordered by company name. A list returns at most 50 records and says when more match.
+- Results are ordered by company name. A list returns up to 200 records a page and gives `next_offset` when more match.
 - `check_buyer` runs without an advisor's note, so it never calls the model. It reports what the profile is missing or holds in conflict.
 - Tool descriptions list option values only for short lists. Longer ones, such as verticals and countries, come from `list_field_options`.
 

@@ -20,10 +20,12 @@ from app.modules.ddl_commands.api.bulk_upload import (
     preview_sellers,
     status,
 )
+from app.modules.ddl_commands.api.filter_catalog import filter_catalog
 from app.modules.ddl_commands.api.flat_records import (
     GET_IDS_MAX,
     LIST_LIMIT_MAX,
     AddOutcome,
+    InvalidFieldKeysError,
     InvalidFieldsError,
     InvalidFiltersError,
     RecordDetail,
@@ -61,6 +63,7 @@ __all__ = [
     "BuyerNotFoundError",
     "Column",
     "CommitProgress",
+    "InvalidFieldKeysError",
     "InvalidFieldsError",
     "InvalidFiltersError",
     "InvalidUploadError",
@@ -85,6 +88,7 @@ __all__ = [
     "columns_for",
     "commit",
     "edit_one",
+    "filter_catalog",
     "find_records",
     "get_record",
     "get_records",

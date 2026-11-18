@@ -13,7 +13,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.models import BuyerRole, Organization, SellerRole
-from app.modules.ddl_commands.api.bulk_columns import match_option, routes_for
 from app.modules.ddl_commands.api.bulk_store import InvokedVia, UploadKind
 from app.modules.ddl_commands.api.bulk_upload import (
     RowProblem,
@@ -33,6 +32,7 @@ from app.modules.ddl_commands.api.dependencies import (
     resolve_organization,
     resolve_seller_by_id,
 )
+from app.modules.ddl_commands.api.filter_catalog import filter_catalog
 from app.modules.ddl_commands.api.schemas import PrefillValue
 from app.modules.ddl_commands.api.seller_edit import write_seller_edit
 from app.modules.ddl_commands.application.buyers import (
@@ -45,6 +45,7 @@ from app.modules.ddl_commands.application.sellers import (
     SellerAlreadyExistsError,
     SellerNotFoundError,
 )
+from app.modules.record_filters import FieldCondition, FieldFilter, FilterableField, resolve_filters
 
 
 class InvalidFieldsError(Exception):
@@ -245,11 +246,16 @@ async def get_record(kind: UploadKind, role_id: uuid.UUID) -> RecordDetail:
         role = await resolve_seller_by_id(str(role_id))
         if role is None or not _is_live(role):
             raise SellerNotFoundError(str(role_id))
-    return _detail(kind, role)
+    return _detail(role, _selected(kind, None))
 
 
-async def get_records(kind: UploadKind, role_ids: Sequence[uuid.UUID]) -> RecordDetails:
-    """One query for all ids. Duplicates are dropped; results keep the input order."""
+async def get_records(
+    kind: UploadKind, role_ids: Sequence[uuid.UUID], fields: Sequence[str] | None = None
+) -> RecordDetails:
+    """One query for all ids. Duplicates are dropped; results keep the input order.
+    `fields` are keys from `list_field_options`, any filterable column; without them,
+    every editable field. An unknown key raises `InvalidFieldKeysError`."""
+    selected = _selected(kind, fields)
     ordered = tuple(dict.fromkeys(role_ids))
     ids = [str(role_id) for role_id in ordered]
     service = ddl_commands_service()
@@ -260,71 +266,52 @@ async def get_records(kind: UploadKind, role_ids: Sequence[uuid.UUID]) -> Record
     )
     live = {uuid.UUID(str(role.id)): role for role in found if _is_live(role)}
     return RecordDetails(
-        records=tuple(_detail(kind, live[role_id]) for role_id in ordered if role_id in live),
+        records=tuple(_detail(live[role_id], selected) for role_id in ordered if role_id in live),
         not_found=tuple(role_id for role_id in ordered if role_id not in live),
     )
 
 
-def _detail(kind: UploadKind, role: BuyerRole | SellerRole) -> RecordDetail:
+def _selected(kind: UploadKind, keys: Sequence[str] | None) -> tuple[FilterableField, ...]:
+    catalog = filter_catalog(kind)
+    if keys is None:
+        return tuple(f for f in catalog.fields if f.editable)
+    found = [(key, catalog.get(key)) for key in dict.fromkeys(keys)]
+    unknown = [key for key, field in found if field is None]
+    if unknown:
+        raise InvalidFieldKeysError(
+            [
+                RowProblem(
+                    row=1, kind="unknown_field", field=key, message=f"'{key}' is not a {kind} field"
+                )
+                for key in unknown
+            ]
+        )
+    return tuple(field for _, field in found if field is not None)
+
+
+def _detail(role: BuyerRole | SellerRole, selected: Sequence[FilterableField]) -> RecordDetail:
     org = role.organization
     fields = {
-        key: _plain(getattr(role if route.target == "role" else org, route.name))
-        for key, route in routes_for(kind).items()
+        f.key: _plain(getattr(role if f.target == "role" else org, f.column)) for f in selected
     }
     return RecordDetail(**_ref(role, org).model_dump(), fields=fields)
 
 
 async def list_buyer_records(
-    *,
-    target_vertical: str | None = None,
-    mandate_status: str | None = None,
-    model: str | None = None,
-    target_region: Sequence[str] = (),
-    target_country: Sequence[str] = (),
-    check_size_usd: float | None = None,
-    hq_country: str | None = None,
-    sector_focus: Sequence[str] = (),
-    limit: int = 20,
-    offset: int = 0,
+    *, filters: Sequence[FieldFilter] = (), limit: int = 20, offset: int = 0
 ) -> RecordList:
-    """Select values match ignoring case; a value outside a field's options raises
-    `InvalidFieldsError` naming the allowed values."""
-    checker = _OptionChecker("buyer")
-    filters = BuyerFilters(
-        target_vertical=checker.one("target_vertical", target_vertical),
-        mandate_status=checker.one("mandate_status", mandate_status),
-        model=checker.one("model", model),
-        target_region=checker.many("target_region", target_region),
-        target_country=checker.many("target_country", target_country),
-        check_size_usd=check_size_usd,
-        hq_country=checker.one("hq_country", hq_country),
-        sector_focus=checker.many("sector_focus", sector_focus),
-    )
-    checker.raise_problems()
-    roles = await ddl_commands_service().list_buyers(filters, limit + 1, offset)
+    """`filters` are checked against each field's type first; any problem raises
+    `InvalidFiltersError` naming each one."""
+    wanted = BuyerFilters(conditions=_conditions("buyer", filters))
+    roles = await ddl_commands_service().list_buyers(wanted, limit + 1, offset)
     return _record_list(roles, limit, offset)
 
 
 async def list_seller_records(
-    *,
-    sector: str | None = None,
-    hq_country: str | None = None,
-    region: str | None = None,
-    relationship_status: str | None = None,
-    outreach_tier: str | None = None,
-    limit: int = 20,
-    offset: int = 0,
+    *, filters: Sequence[FieldFilter] = (), limit: int = 20, offset: int = 0
 ) -> RecordList:
-    checker = _OptionChecker("seller")
-    filters = SellerFilters(
-        sector=checker.one("sector_focus", sector, name="sector"),
-        hq_country=checker.one("hq_country", hq_country),
-        region=checker.one("region", region),
-        relationship_status=checker.one("relationship_status", relationship_status),
-        outreach_tier=checker.one("outreach_tier", outreach_tier),
-    )
-    checker.raise_problems()
-    roles = await ddl_commands_service().list_sellers(filters, limit + 1, offset)
+    wanted = SellerFilters(conditions=_conditions("seller", filters))
+    roles = await ddl_commands_service().list_sellers(wanted, limit + 1, offset)
     return _record_list(roles, limit, offset)
 
 
@@ -336,33 +323,20 @@ class InvalidFiltersError(InvalidFieldsError):
     """A list filter value is not allowed. Nothing was read; `problems` name the filter."""
 
 
-class _OptionChecker:
-    """Turns filter values into each field's own spelling, collecting every problem."""
+class InvalidFieldKeysError(InvalidFieldsError):
+    """A requested field key does not exist. Nothing was read; `problems` name each key."""
 
-    def __init__(self, kind: UploadKind) -> None:
-        self._routes = routes_for(kind)
-        self._problems: list[RowProblem] = []
 
-    def one(self, key: str, value: str | None, *, name: str | None = None) -> str | None:
-        """`name` is the filter as the caller knows it, when it differs from the field key."""
-        if value is None:
-            return None
-        spec = self._routes[key].spec
-        matched = match_option(spec, value)
-        if matched is None:
-            shown = name or key
-            message = f"'{value}' is not allowed for {shown}. Allowed: {'; '.join(spec.options)}"
-            self._problems.append(
-                RowProblem(row=1, kind="not_allowed", field=shown, message=message)
-            )
-        return matched
-
-    def many(self, key: str, values: Sequence[str]) -> tuple[str, ...]:
-        return tuple(m for v in values if (m := self.one(key, v)) is not None)
-
-    def raise_problems(self) -> None:
-        if self._problems:
-            raise InvalidFiltersError(self._problems)
+def _conditions(kind: UploadKind, filters: Sequence[FieldFilter]) -> tuple[FieldCondition, ...]:
+    conditions, problems = resolve_filters(filter_catalog(kind), filters)
+    if problems:
+        raise InvalidFiltersError(
+            [
+                RowProblem(row=p.position, kind=p.kind, field=p.field, message=p.message)
+                for p in problems
+            ]
+        )
+    return conditions
 
 
 def _record_list(roles: Sequence[BuyerRole | SellerRole], limit: int, offset: int) -> RecordList:
