@@ -23,6 +23,9 @@ from app.modules.utilities import FixedWindowRateLimiter
 
 _INSTRUCTIONS = (
     "Wusool's CRM of buyers and sellers. Look a company up before adding or editing it. "
+    "Before setting any optional field, call list_field_options with `fields` set to those "
+    "keys: it gives each one's format (a date is YYYY-MM-DD, money is a USD number) and "
+    "allowed values. If a call is refused, do the same for the fields named in the error. "
     "Every add and edit is saved straight away under the signed-in person's name; a bulk "
     "list is only saved after the person confirms the preview. Nothing here deletes records. "
     "To filter, call list_field_options for the keys and exact values you need, then pass "

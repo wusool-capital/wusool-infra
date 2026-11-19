@@ -90,7 +90,7 @@ def test_dates_are_parsed() -> None:
         ({"field": "notes", "op": "gte", "value": 1}, "does not apply"),
         ({"field": "last_interaction_at", "op": "eq", "value": "2026-01-01"}, "does not apply"),
         ({"field": "ebitda_ceiling", "op": "gte", "value": "lots"}, "takes a number"),
-        ({"field": "profitable_only", "op": "eq", "value": "yes"}, "true or false"),
+        ({"field": "profitable_only", "op": "eq", "value": "maybe"}, "true or false"),
         ({"field": "last_mandate_briefing_date", "op": "gte", "value": "soon"}, "YYYY-MM-DD"),
         ({"field": "last_interaction_at", "op": "gte", "value": "soon"}, "ISO date"),
         ({"field": "mandate_status", "op": "eq", "value": "sleeping"}, "list_field_options"),
@@ -167,3 +167,27 @@ def test_an_explicit_time_is_never_moved() -> None:
     (condition,), _ = _resolve(field="last_interaction_at", op="lte", value="2026-11-18T09:30:00")
 
     assert condition.value == datetime(2026, 11, 18, 9, 30, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("sent", "expected"),
+    [
+        (True, True),
+        (False, False),
+        ("true", True),
+        ("False", False),
+        ("yes", True),
+        (" No ", False),
+    ],
+)
+def test_a_yes_no_filter_accepts_text_as_well(sent: str | bool, expected: bool) -> None:
+    (condition,), problems = _resolve(field="profitable_only", op="eq", value=sent)
+
+    assert problems == []
+    assert condition.value is expected
+
+
+def test_a_yes_no_filter_refuses_anything_else() -> None:
+    conditions, problems = _resolve(field="profitable_only", op="eq", value="maybe")
+
+    assert conditions == () and "true or false" in problems[0].message

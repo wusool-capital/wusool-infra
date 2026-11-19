@@ -6,6 +6,7 @@ organization appears under its domain, and a role under (domain, vertical).
 import uuid
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -574,7 +575,7 @@ async def test_an_organization_validation_error_names_the_organization_column(
     result = rejected(await bulk.preview_sellers([row]))
 
     # Not `relationship_status`, which is the seller role's own column.
-    assert result.problems[0].message == "invalid 'org_relationship_status' (string_too_long)"
+    assert result.problems[0].message == "invalid 'org_relationship_status': is too long"
 
 
 async def test_rows_already_in_the_crm_count_as_skipped_before_and_after_the_commit(
@@ -648,3 +649,25 @@ async def test_an_owned_preview_reads_as_missing_to_anyone_else() -> None:
         bulk.status(result.preview_id, requested_by="U_BOB")
     with pytest.raises(bulk.PreviewNotFoundError):
         bulk.commit(result.preview_id, requested_by="U_BOB")
+
+
+async def test_a_bulk_row_from_claude_reaches_the_write_with_typed_values(crm: FakeCrm) -> None:
+    """The MCP's `bulk_import_*` rows carry text for dates, numbers and amounts."""
+    rows: list[bulk.UploadRow] = [
+        {
+            "org_name": "Co 1",
+            "domain": "co1.com",
+            "foundation_date": "2003-07-01",
+            "gross_margin_pct": "18",
+            "revenue_last_full_year": "94827000000",
+        }
+    ]
+
+    result = await sellers_ok(rows)
+    progress = await commit_and_wait(result.preview_id)
+
+    assert progress.added == 1
+    call = crm.calls[0]
+    assert call.org_extracted["foundation_date"] == date(2003, 7, 1)
+    assert call.role_extracted["gross_margin_pct"] == 18.0
+    assert call.role_extracted["revenue_last_full_year"] == 94827000000.0

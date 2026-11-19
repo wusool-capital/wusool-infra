@@ -110,9 +110,10 @@ def _value(field: FilterableField, item: FieldFilter) -> ConditionValue:
             raise _BadValueError(f"{key} takes text")
         return _spelled(field, item.value)
     if field.shape == "bool":
-        if not isinstance(item.value, bool):
+        flag = _flag(item.value)
+        if flag is None:
             raise _BadValueError(f"{key} takes true or false")
-        return item.value
+        return flag
     if field.shape == "date":
         day = _day(item.value)
         if day is None:
@@ -140,6 +141,18 @@ def _spelled(field: FilterableField, text: str) -> str:
             f"'{text}' is not allowed for {field.key}. Call list_field_options for its exact values"
         )
     return matched
+
+
+def _flag(value: str | float | bool) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in ("true", "yes"):
+            return True
+        if text in ("false", "no"):
+            return False
+    return None
 
 
 def _number(value: str | float | bool) -> float | None:
