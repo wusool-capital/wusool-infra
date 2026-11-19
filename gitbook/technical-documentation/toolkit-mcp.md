@@ -62,7 +62,7 @@ Client ids, codes and tokens are HMAC-signed with `MCP_TOKEN_SECRET`, each for i
 - `MCP_PUBLIC_URL`: the Toolkit's public base URL.
 - `MCP_TOKEN_SECRET`: a long random value in the toolkit secret.
 - Sign in with Slack must be configured (`SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`), and the Slack app must list `<MCP_PUBLIC_URL>/mcp/oauth/callback` as a redirect URL.
-- A Claude organization owner adds the connector with the URL `<MCP_PUBLIC_URL>/mcp`.
+- A Claude organization owner adds the connector with the URL `<MCP_PUBLIC_URL>/mcp`. In production that is `https://toolkit-3-69-122-231.sslip.io/mcp`. The steps are in [Wusool MCP](../user-guide/toolkit-claude.md).
 
 Until the settings are present, `/mcp` isn't mounted.
 
