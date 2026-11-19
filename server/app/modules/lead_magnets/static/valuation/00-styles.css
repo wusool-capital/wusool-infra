@@ -1,5 +1,5 @@
 *{font-family:'Inter',sans-serif;box-sizing:border-box;margin:0;padding:0}
-:root{--sb:#000523;--sp:#DC2626;--ng:#16DA80;--ab:#C6E1EE;--bw:#ffffff;--bb:#000523;--gg:#888888;--db:#1A1A1A}
+:root{--sb:#000523;--sp:#DC2626;--ng:#16DA80;--ab:#C6E1EE;--bw:#ffffff;--bb:#000523;--gg:#686868;--db:#1A1A1A}
 body{background:#F7F5F0;color:var(--bb)}
 
 /* ── GATE FORM ── */
@@ -49,7 +49,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .ai-loader-dots span{display:inline-block;animation:dotPulse 1.2s ease-in-out infinite}
 .ai-loader-dots span:nth-child(2){animation-delay:0.2s}
 .ai-loader-dots span:nth-child(3){animation-delay:0.4s}
-.ok-badge{display:inline-flex;align-items:center;gap:5px;background:#f0fff8;border:1px solid var(--ng);border-radius:20px;padding:3px 10px;font-size:11px;color:#00a060;font-weight:600;margin-left:8px}
+.ok-badge{display:inline-flex;align-items:center;gap:5px;background:#f0fff8;border:1px solid var(--ng);border-radius:20px;padding:3px 10px;font-size:11px;color:#008550;font-weight:600;margin-left:8px}
 .domain-wrap{position:relative}
 .domain-icon{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none}
 
@@ -100,7 +100,7 @@ textarea.fi{resize:vertical;min-height:64px;transition:height 0.4s ease,border-c
 .mod-toggle{font-size:12px;color:var(--gg)}
 .mod-body{padding:20px;border-top:1px solid #f5f5f5}
 .auto-badge{background:#f0f0f0;color:#444;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
-.dcf-auto-badge{background:#f0fff8;color:#00a060;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
+.dcf-auto-badge{background:#f0fff8;color:#008550;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
 .sub-hdr{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--gg);margin:20px 0 10px}
 .sub-hdr:first-child{margin-top:0}
 
