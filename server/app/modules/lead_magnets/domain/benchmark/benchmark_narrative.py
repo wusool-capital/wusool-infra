@@ -38,7 +38,32 @@ def _ordinal(value: float) -> str:
 
 
 def _percent(value: float) -> str:
-    return f"{js_round(value * 10) / 10}%"
+    """One decimal, with a whole number printed bare, as the browser's `pct` does."""
+    rounded = js_round(value * 10) / 10
+    return f"{int(rounded) if rounded.is_integer() else rounded}%"
+
+
+def _short_money(value: float) -> str:
+    """Matches `fmtM` in `static/benchmark/30-helpers.js`, so both sides print alike."""
+    if value >= 1e9:
+        return f"{js_round(value / 1e9 * 10) / 10:.1f}bn"
+    if value >= 1e6:
+        return f"{js_round(value / 1e6 * 10) / 10:.1f}m"
+    if value >= 1e3:
+        return f"{js_round(value / 1e3)}k"
+    return str(js_round(value))
+
+
+def _shown(unit: str, value: float) -> str:
+    """A metric value as the flag copy reads it, by unit. `k` is a bare thousands figure
+    because the copy adds the currency and the `k`; `x` is revenue per dollar raised."""
+    if unit == "k":
+        return str(js_round(value))
+    if unit == "$":
+        return f"${_short_money(value)}"
+    if unit == "x":
+        return f"${js_round(value * 100) / 100:.2f}"
+    return _percent(value)
 
 
 def flag_for(
@@ -50,8 +75,8 @@ def flag_for(
 ) -> Flag | None:
     """The paragraph for one metric, or `None` when it is unremarkable.
 
-    `revEmp` is the one metric whose value is a money figure rather than a
-    percentage — its copy carries the `{c}` currency placeholder and prints
+    Each value is shown in its metric's unit (see `_shown`). `revEmp` is the one
+    metric whose copy carries the `{c}` currency placeholder and prints
     a rounded thousands figure.
     """
     from app.modules.lead_magnets.domain.benchmark.benchmark_copy import (
@@ -70,9 +95,9 @@ def flag_for(
     if not good and not bad:
         return None
 
-    is_money = result.spec.unit == "k"
-    value = str(js_round(result.value or 0)) if is_money else _percent(result.value or 0)
-    median = str(js_round(result.anchors[2])) if is_money else _percent(result.anchors[2])
+    unit = result.spec.unit
+    value = _shown(unit, result.value or 0)
+    median = _shown(unit, result.anchors[2])
 
     title = copy.good_title if good else copy.bad_title
     body = (copy.good_body if good else copy.bad_body).format(

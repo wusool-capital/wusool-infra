@@ -34,14 +34,22 @@ const TECH_FLAG = {
 };
 function fill(t,o){ return t.replace(/\{(\w)\}/g,(_,k)=>o[k]); }
 
+// A value as the flag copy reads it, by unit; mirrors `_shown` in benchmark_narrative.py.
+function shownIn(unit,n){
+  return unit==="k" ? Math.round(toDisp(n))
+       : unit==="$" ? sh(n,"$")
+       : unit==="x" ? "$"+(Math.round(n*100)/100).toFixed(2)
+       : pct(n);
+}
+
 function flagFor(key,d,secLabel){
   const t=(MODE==="tech"&&TECH_FLAG[key]) ? TECH_FLAG[key] : FLAGTEXT[key]; if(!t||d.pct==null) return null;
   const good=d.pct>=68, bad=d.pct<40;
   if(!good&&!bad) return null;
   const set=good?t.good:t.bad;
   const unit=d.meta.unit;
-  const vs = unit==="k" ? Math.round(toDisp(d.value)) : pct(d.value);
-  const med = unit==="k" ? Math.round(toDisp(d.anchors[2])) : pct(d.anchors[2]);
+  const vs = shownIn(unit,d.value);
+  const med = shownIn(unit,d.anchors[2]);
   return {
     tone: good?"good":(d.pct<25?"bad":"mid"),
     title: set[0],
