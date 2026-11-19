@@ -1,4 +1,4 @@
-# Use Wusool from Claude
+# Use Wusool from Claude (MCP)
 
 The Wusool connector lets you find, add and edit buyers and sellers from a Claude conversation, and add a whole researched list at once. Changes go to Attio and the Wusool database under your own name, with the same duplicate checks as the Slack commands.
 
@@ -7,11 +7,22 @@ The Wusool connector lets you find, add and edit buyers and sellers from a Claud
 - A Claude organization owner adds the Wusool connector once for everyone.
 - You need an active account in the Wusool Slack workspace. Guest accounts can't connect.
 
-## Connect once
+## Connect Claude to Wusool
 
-1. In Claude, open **Settings → Connectors** and click **Connect** next to Wusool.
-2. Sign in with Slack when asked, and allow access.
-3. You're back in Claude, connected. Claude keeps you signed in. If you leave the Slack workspace, the connection stops working within an hour.
+Claude reaches Wusool through an MCP connector. You add it once, then connect it with your own Slack sign-in.
+
+1. Open [claude.ai](https://claude.ai) and go to **Settings → Customize**.
+2. Click **Add**, then **Add custom connector**.
+3. Enter the name `wusool-mcp`.
+4. Enter the MCP server URL: `https://toolkit-3-69-122-231.sslip.io/mcp`.
+5. Keep every other option at its default and click **Add**.
+6. Click **Connect**.
+7. Sign in with Slack when asked, and allow access.
+8. You're back in Claude, connected. Claude keeps you signed in. If you leave the Slack workspace, the connection stops working within an hour.
+
+{% hint style="info" %}
+Use the address exactly as shown, including `/mcp`. If `wusool-mcp` is already listed, click **Connect** next to it and continue from step 7.
+{% endhint %}
 
 ## What you can ask
 

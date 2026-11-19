@@ -9,7 +9,7 @@
   * [Find matches](user-guide/toolkit-find-match.md)
   * [Find matches on the web](user-guide/toolkit-find-match-web.md)
   * [Add many profiles from a file](user-guide/toolkit-bulk-upload.md)
-  * [Use Wusool from Claude](user-guide/toolkit-claude.md)
+* [Wusool MCP (Claude connector)](user-guide/toolkit-claude.md)
 * [WusoolScribe](user-guide/scribe.md)
   * [Work with transcripts](user-guide/scribe-transcripts.md)
   * [Take notes](user-guide/scribe-notes.md)
