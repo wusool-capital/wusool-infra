@@ -135,6 +135,24 @@ async def test_bad_fields_come_back_as_a_readable_error(monkeypatch: pytest.Monk
     assert result.is_error
     assert "unknown field 'colour'" in _text(result)
     assert "Traceback" not in _text(result)
+    assert 'list_field_options with fields=["colour"]' in _text(result)
+
+
+async def test_a_refused_field_points_to_list_field_options_for_every_bad_field(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    problems = [
+        RowProblem(row=1, kind="invalid", field="hq_country", message="invalid 'hq_country': x"),
+        RowProblem(row=1, kind="invalid", field="foundation_date", message="invalid 'f': y"),
+        RowProblem(row=1, kind="invalid", field="hq_country", message="invalid 'hq_country': z"),
+    ]
+    monkeypatch.setattr(records, "add_one", AsyncMock(side_effect=InvalidFieldsError(problems)))
+
+    async with Client(_server()) as client:
+        result = await client.call_tool("add_buyer", {"buyer": _BUYER, "request_id": "req-00004"})
+
+    assert 'fields=["hq_country", "foundation_date"]' in _text(result)  # each name once
+    assert "format and allowed values" in _text(result)
 
 
 async def test_a_partial_attio_write_says_what_landed(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -157,6 +175,22 @@ async def test_an_unexpected_crash_reveals_nothing(monkeypatch: pytest.MonkeyPat
 
     assert result.is_error
     assert "db password" not in _text(result)
+    assert "RuntimeError" in _text(result)  # the class says what kind of failure, not why
+    assert "read it again before retrying" in _text(result)
+
+
+async def test_an_unexpected_crash_still_logs_the_traceback(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(records, "find_records", AsyncMock(side_effect=RuntimeError("boom")))
+
+    with caplog.at_level("ERROR"):
+        async with Client(_server()) as client:
+            await client.call_tool("find_buyers", {"query": "acme"})
+
+    crashed = [r for r in caplog.records if "mcp_tool_crashed" in r.getMessage()]
+    assert crashed and crashed[0].exc_info is not None
+    assert "tool=find_buyers" in crashed[0].getMessage()
 
 
 async def test_edit_sends_only_the_given_fields(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -588,6 +622,45 @@ async def test_list_field_options_includes_every_filterable_column_with_its_oper
     assert by_key["last_interaction_at"]["kind"] == "datetime"
     assert by_key["org_name"]["filter_ops"] == []  # add-only
     assert "raw_attio" not in by_key and "removed_at" not in by_key and "id" not in by_key
+
+
+async def test_list_field_options_says_how_to_send_each_value() -> None:
+    async with Client(_server()) as client:
+        result = await client.call_tool(
+            "list_field_options",
+            {
+                "kind": "seller",
+                "fields": [
+                    "foundation_date",
+                    "gross_margin_pct",
+                    "hq_country",
+                    "est_ebitda",
+                    "benchmark_score",
+                    "last_interaction_at",
+                ],
+            },
+        )
+
+    assert result.structured_content is not None
+    formats = {f["key"]: f["value_format"] for f in result.structured_content["fields"]}
+    assert formats["foundation_date"] == "a date, YYYY-MM-DD"
+    assert formats["gross_margin_pct"] == "a number in percent points: 18 means 18%"
+    assert formats["hq_country"] == "one allowed value as text, or a list of them"
+    assert formats["est_ebitda"] == "a number in USD, e.g. 5000000"
+    assert "ISO" in formats["last_interaction_at"]
+    assert formats["benchmark_score"] == "a number"  # read-only, so no form format applies
+
+
+async def test_the_agent_is_told_to_look_up_field_formats_before_writing() -> None:
+    server = _server()
+    async with Client(server) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+    instructions = server.instructions or ""
+
+    for name in ("add_buyer", "add_seller", "edit_buyer", "edit_seller"):
+        assert "call list_field_options with" in (tools[name].description or "")
+    assert "list_field_options" in instructions and "YYYY-MM-DD" in instructions
+    assert "named in the error" in instructions
 
 
 async def test_list_field_options_can_return_just_the_fields_asked_for() -> None:

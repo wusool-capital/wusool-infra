@@ -138,6 +138,24 @@ def coerce_cell(spec: FieldSpec, raw: CellValue) -> PrefillValue | None:
             raise CellError("this column is not supported")
 
 
+_TYPED_KINDS = frozenset({"currency", "percent", "number", "date", "bool"})
+
+
+def coerce_flat(spec: FieldSpec, value: PrefillValue) -> PrefillValue | None:
+    """A value Claude sent as JSON, in the type the field stores: a date string becomes a
+    date, "18" becomes 18, a list for a ", "-joined multi-select is joined, and a text for
+    a list-valued one becomes its list. The same
+    rules as a file's cells. A blank value is `None`. Raises `CellError`; a typed or list
+    value passes through."""
+    if spec.kind == "multi_select_as_text" and isinstance(value, list):
+        return coerce_cell(spec, _LIST_SEPARATOR.join(value))
+    if spec.kind == "multi_select_text" and isinstance(value, str):
+        return coerce_cell(spec, value)  # one value, or several separated by ;
+    if spec.kind in _TYPED_KINDS and isinstance(value, str | float | bool):
+        return coerce_cell(spec, value)
+    return value
+
+
 def _text(raw: CellValue) -> str:
     if isinstance(raw, float) and raw.is_integer():
         return str(int(raw))
@@ -212,8 +230,13 @@ def _date(raw: CellValue) -> date:
         return raw.date()
     if isinstance(raw, date):
         return raw
+    text = str(raw).strip()
     try:
-        return date.fromisoformat(str(raw).strip())
+        return date.fromisoformat(text)
+    except ValueError:
+        pass
+    try:
+        return datetime.fromisoformat(text).date()  # a date and time keeps its date
     except ValueError:
         raise CellError("use the date format YYYY-MM-DD") from None
 

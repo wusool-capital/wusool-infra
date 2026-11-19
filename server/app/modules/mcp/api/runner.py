@@ -65,6 +65,18 @@ def describe_problems(problems: tuple[RowProblem, ...]) -> str:
     return "\n".join(shown + ([f"…and {more} more"] if more > 0 else []))
 
 
+def _field_options_hint(problems: tuple[RowProblem, ...]) -> str:
+    """Sends the agent to the tool that says each field's format and allowed values."""
+    names = list(dict.fromkeys(p.field for p in problems if p.field))[:_MAX_PROBLEMS_SHOWN]
+    if not names:
+        return ""
+    keys = ", ".join(f'"{name}"' for name in names)
+    return (
+        f"\nCall list_field_options with fields=[{keys}] for each one's format and allowed "
+        "values, then send the corrected fields."
+    )
+
+
 def _message(exc: Exception) -> str | None:
     """The sentence Claude sees for an error we expect, or None for a crash."""
     match exc:
@@ -81,7 +93,10 @@ def _message(exc: Exception) -> str | None:
             return f"Those fields don't exist. Call list_field_options for the keys:\n{details}"
         case InvalidFieldsError():
             problems = describe_problems(exc.problems)
-            return f"Nothing was saved. Fix these fields and try again:\n{problems}"
+            return (
+                f"Nothing was saved. Fix these fields and try again:\n{problems}"
+                f"{_field_options_hint(exc.problems)}"
+            )
         case InvalidUploadError():
             return f"Nothing was saved: {exc}"
         case PreviewNotFoundError():
@@ -176,7 +191,12 @@ class ToolRunner:
             message = _message(exc)
             if message is None:
                 result_code = "error"
-                raise
+                logger.exception("mcp_tool_crashed tool=%s user=%s", tool, caller.slack_user_id)
+                raise ToolError(
+                    f"Something failed on our side ({type(exc).__name__}). If you were changing "
+                    "a record it may not have saved: read it again before retrying. Tell the "
+                    "person if it keeps happening."
+                ) from exc
             result_code = type(exc).__name__
             raise ToolError(message) from exc
         finally:
