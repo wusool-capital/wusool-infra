@@ -20,7 +20,7 @@ const $ = id => document.getElementById(id);
 const num = v => { const n = parseFloat(String(v).replace(/[^0-9.\-]/g,"")); return isNaN(n)?null:n; };
 const fmt = n => n==null ? "n/a" : Math.round(n).toLocaleString("en-US");
 const pct = n => n==null ? "n/a" : (Math.round(n*10)/10) + "%";
-const fmtM = n => n>=1e9 ? (n/1e9).toFixed(1)+"bn" : n>=1e6 ? (n/1e6).toFixed(1)+"m" : Math.round(n/1e3)+"k";
+const fmtM = n => n>=1e9 ? (n/1e9).toFixed(1)+"bn" : n>=1e6 ? (n/1e6).toFixed(1)+"m" : n>=1e3 ? Math.round(n/1e3)+"k" : String(Math.round(n));
 const sh = (n,u) => u==="%" ? (Math.round(n*10)/10)+"%"
                   : u==="x" ? (Math.round(n*100)/100)+"x"
                   : u==="$" ? "$"+fmtM(n)

@@ -12,10 +12,16 @@ for current production evidence and open handover items.
 
 ### Fixed
 
+- The benchmark's report text printed every non-money value as a percentage in tech mode. Revenue for stage read "At 40000% you are...", and revenue per dollar raised read "0%". It now reads "At $40k" and "$0.04".
+- The same text on the server printed whole percentages as "100.0%" where the page printed "100%". The server now matches the page, and a test runs the page's script and compares both.
+- Small dollar amounts on the page printed as "$0k". Amounts under 1,000 now print whole.
+
 - Adding or editing a buyer or seller through the MCP crashed when a field held a date, such as `foundation_date`. The MCP sends dates as text, and the write expected a date. Every date field was affected.
 - The same gap hit every typed field sent as text, 38 in all. That covers amounts, numbers, percentages, yes/no values, and a list for comma-joined text such as `hq_country`. Nothing was written by the failed calls.
 - Values now convert the way file uploads do, for `add_*`, `edit_*` and `bulk_import_*`. A date and time keeps its date, and a text for a list-valued field becomes its list.
 - A yes/no filter in `list_buyers` and `list_sellers` accepts `"true"`, `"false"`, `"yes"` and `"no"` as well as true and false.
+
+- Pale text in the lead tools was too faint to read. The metric labels in the benchmark were at 1.9:1 contrast. Readiness, buyers, get-started, report and valuation had the same grey. Text now reaches at least 4.5:1, and the layout and fonts are unchanged.
 
 ### Changed
 

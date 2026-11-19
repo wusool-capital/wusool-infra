@@ -351,11 +351,11 @@ function App(){
             <div style={{background:"#fff",border:"1px solid #e8e8e8",borderRadius:12,padding:"24px 32px",maxWidth:480,width:"100%",boxShadow:"0 -4px 24px rgba(0,9,54,0.10), 0 16px 48px rgba(0,9,54,0.22)",textAlign:"center",pointerEvents:"auto"}}>
               <div style={{display:"inline-flex",alignItems:"center",gap:6,background:"#f0fff8",border:"1px solid rgba(22,218,128,0.4)",borderRadius:8,padding:"4px 12px",fontSize:11,fontWeight:700,color:"#007a50",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.5px"}}>Full Report Ready</div>
               <h2 style={{fontSize:20,fontWeight:800,color:"#000523",marginBottom:8,letterSpacing:"-0.3px",lineHeight:1.25}}>Get Your Free Valuation Report Now</h2>
-              <p style={{fontSize:13,color:"#888",lineHeight:1.5,marginBottom:18}}>Your {gate.sector} business in {gate.geo} has been valued across multiple methods. Get your full report and our team will walk you through the complete analysis.</p>
+              <p style={{fontSize:13,color:"#686868",lineHeight:1.5,marginBottom:18}}>Your {gate.sector} business in {gate.geo} has been valued across multiple methods. Get your full report and our team will walk you through the complete analysis.</p>
               {/* Unlocks on click, after a short delay — deliberate choice,
                   not gated on an actual booking confirmation. */}
               <a href="https://calendar.app.google/UfXxu6dBkZ8wjhnT6" target="_blank" rel="noopener noreferrer" onClick={()=>{if(unlocking)return;setUnlocking(true);setTimeout(()=>setReportUnlocked(true),5000);}} style={{display:"block",width:"100%",padding:"14px",background:"#000523",color:"#fff",borderRadius:8,fontSize:15,fontWeight:700,cursor:"pointer",textDecoration:"none",fontFamily:"'Inter',sans-serif",boxSizing:"border-box"}}>{unlocking?"Waiting for booking confirmation..":"Get Your Free Valuation Report Now →"}</a>
-              <div style={{fontSize:11,color:"#aaa",marginTop:9}}>Free · No commitment · Response within 24 hours</div>
+              <div style={{fontSize:11,color:"#686868",marginTop:9}}>Free · No commitment · Response within 24 hours</div>
             </div>
           </div>
         </div>
