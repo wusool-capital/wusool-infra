@@ -17,7 +17,7 @@ The Wusool MCP lets advisors find, add, edit and bulk-import buyers and sellers 
 | `get_buyer`, `get_seller` | An advisor template of up to 100 records in one call, keyed like the edit tools' `fields`. `fields` picks exact columns and `return_all` gives every column for up to 25 ids. Ids that are unknown, inactive or of the other kind come back in `not_found` | Read only |
 | `list_buyers`, `list_sellers` | Active records matching `filters` on any field (`{field, op, value}`), up to 50 a page. When `truncated`, pass `next_offset` as `offset`. Rows hold ids only, so pass them to `get_*` for numbers | Read only |
 | `check_buyer` | The `/check-buyer` check: missing or conflicting matching criteria | Read only |
-| `list_field_options` | Every field's type, allowed values, whether it is editable and the filter operators it takes. `fields` returns just those keys | Read only |
+| `list_field_options` | Every field's type, how to send a value, allowed values, whether it is editable and the filter operators it takes. `fields` returns just those keys | Read only |
 
 No tool deletes, sends, spends provider credits or shows fees.
 
@@ -29,6 +29,7 @@ Tool and field names only grow. A breaking change becomes a new tool, because co
 
 - The tools call `ddl_commands`' public functions: `add_one`, `edit_one`, `find_records`, `preview_buyers`, `preview_sellers`, `commit` and `status`. Writes go to Attio first, then the database, as in [Profile commands](toolkit-profile-commands.md) and [Bulk upload](toolkit-bulk-upload.md).
 - A single add follows the bulk-upload row rules: `org_name`, `domain`, `target_vertical` for buyers, and optional `fields` keyed like the template columns. Each add, edit and bulk-import description says which keys are required. It then lists the optional keys with their types and allowed values, built from the same field definitions as the Slack forms. Long value lists point to `list_field_options`.
+- Values in `fields` arrive as JSON text. They are converted the way file uploads convert them: dates, amounts, numbers, yes/no, and lists for multi-selects. A value that can't convert is refused with what the field takes.
 - Every add, edit and confirm carries a `request_id`. A retry with the same id returns the first result and never writes twice. The same id with different arguments is refused.
 - A bulk preview belongs to the person who made it. Only they can confirm it or read its progress.
 - Edits apply only to active records. An inactive duplicate is treated as not found.

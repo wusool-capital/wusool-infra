@@ -18,7 +18,12 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.models import BuyerRole, SellerRole
-from app.modules.ddl_commands.api.bulk_columns import canonical_value, routes_for
+from app.modules.ddl_commands.api.bulk_columns import (
+    CellError,
+    canonical_value,
+    coerce_flat,
+    routes_for,
+)
 from app.modules.ddl_commands.api.bulk_store import (
     MAX_ROWS,
     CommitProgress,
@@ -303,6 +308,23 @@ def _problem(
     return RowProblem(row=index, kind=kind, field=field, message=message, error_type=error_type)
 
 
+# What a pydantic error type means for the sender; the type itself can't say which value.
+_VALIDATION_HINTS = {
+    "string_type": "must be text",
+    "string_too_long": "is too long",
+    "bool_type": "must be true or false",
+    "bool_parsing": "must be true or false",
+    "int_type": "must be a whole number",
+    "int_parsing": "must be a whole number",
+    "float_type": "must be a number",
+    "float_parsing": "must be a number",
+    "date_type": "must be a date, YYYY-MM-DD",
+    "date_parsing": "must be a date, YYYY-MM-DD",
+    "date_from_datetime_parsing": "must be a date, YYYY-MM-DD",
+    "list_type": "must be a list",
+}
+
+
 def route_fields(
     kind: UploadKind,
     index: int,
@@ -333,11 +355,17 @@ def route_fields(
     )
 
     # The same spelling rules for a file's rows and for Claude's.
-    given = {
-        k: canonical_value(fields[k], v)
-        for k, v in raw.items()
-        if k in fields and v is not None and not empty(v)
-    }
+    given: dict[str, PrefillValue] = {}
+    for k, v in raw.items():
+        if k not in fields or v is None or empty(v):
+            continue
+        try:
+            coerced = coerce_flat(fields[k], canonical_value(fields[k], v))
+        except CellError as error:
+            problems.append(_problem(index, "invalid", k, f"invalid '{k}': {error}"))
+            continue
+        if coerced is not None:
+            given[k] = coerced
     normalized = normalize_prefill(given, fields, warn_on_drop=False)
     # A silently dropped value, or a trimmed list, would be lost data, so say so.
     problems.extend(
@@ -365,7 +393,7 @@ def route_fields(
             # Location and type only, as messages can quote values. Keys are the row's own.
             for e in exc.errors():
                 key = keys.get((target, str(e["loc"][0])), ".".join(map(str, e["loc"])))
-                message = f"invalid '{key}' ({e['type']})"
+                message = f"invalid '{key}': {_VALIDATION_HINTS.get(e['type'], e['type'])}"
                 problems.append(_problem(index, "invalid", key, message, error_type=e["type"]))
     return RoutedFields(org_extracted, role_extracted, tuple(problems))
 

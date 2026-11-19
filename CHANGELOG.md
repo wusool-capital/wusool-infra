@@ -8,6 +8,21 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-19
+
+### Fixed
+
+- Adding or editing a buyer or seller through the MCP crashed when a field held a date, such as `foundation_date`. The MCP sends dates as text, and the write expected a date. Every date field was affected.
+- The same gap hit every typed field sent as text, 38 in all. That covers amounts, numbers, percentages, yes/no values, and a list for comma-joined text such as `hq_country`. Nothing was written by the failed calls.
+- Values now convert the way file uploads do, for `add_*`, `edit_*` and `bulk_import_*`. A date and time keeps its date, and a text for a list-valued field becomes its list.
+- A yes/no filter in `list_buyers` and `list_sellers` accepts `"true"`, `"false"`, `"yes"` and `"no"` as well as true and false.
+
+### Changed
+
+- A refused field now says what it needs, such as "must be text", and tells the agent to call `list_field_options` for those fields.
+- An unexpected failure in an MCP tool now tells the agent something failed on our side, with the error type. It used to say only "Error executing tool". The full error is still logged.
+- `list_field_options` gives each field a `value_format`, such as "a date, YYYY-MM-DD" or "a number in percent points: 18 means 18%". The server instructions and the add and edit tool text say to look fields up before setting them.
+
 ## 2026-11-18
 
 ### Changed

@@ -178,7 +178,8 @@ def field_guide(kind: UploadKind, *, editing: bool = False) -> str:
     optional = [_describe(c) for c in columns if c.field not in _ROW_KEYS]
     values = (
         "(lists for multi-select; money in USD; dates as YYYY-MM-DD). "
-        "Allowed values match ignoring case:\n"
+        "Allowed values match ignoring case. Before sending any, call list_field_options with "
+        "`fields` set to those keys for each one's exact format and allowed values:\n"
     )
     if editing:
         cannot = ", ".join(c.field for c in columns if c.field in _ROW_KEYS)
@@ -366,8 +367,37 @@ class FieldOption(BaseModel):
     filter_ops: list[str] = Field(
         description="The operators `filters` accepts on this field; empty when it can't be filtered"
     )
+    value_format: str = Field(description="How to send a value for this field")
     options: list[str] = Field(description="Allowed values; empty for free-form fields")
 
+
+# How each kind of value is sent in `fields` (and, for read-only columns, what it holds).
+_VALUE_FORMAT: dict[str, str] = {
+    "text": "text",
+    "multiline": "text",
+    "select": "one allowed value, as text",
+    "multi_select_text": "a list of allowed values",
+    "multi_select_as_text": "one allowed value as text, or a list of them",
+    "currency": "a number in USD, e.g. 5000000",
+    "percent": "a number in percent points: 18 means 18%",
+    "number": "a whole number",
+    "date": "a date, YYYY-MM-DD",
+    "datetime": "a date, YYYY-MM-DD, or an ISO date and time",
+    "bool": "true or false",
+}
+
+
+# The same for a read-only column, which only filters and `get_*` use.
+_SHAPE_FORMAT: dict[FieldShape, str] = {
+    "text": "text",
+    "array": "a list of values",
+    "joined_text": "text",
+    "money": "a number in USD",
+    "number": "a number",
+    "date": "a date, YYYY-MM-DD",
+    "datetime": "a date, YYYY-MM-DD, or an ISO date and time",
+    "bool": "true or false",
+}
 
 # `kind` for a column the add and edit forms don't have, in the forms' own words.
 _KIND_OF_SHAPE: dict[FieldShape, str] = {
@@ -425,6 +455,7 @@ def _form_option(column: Column, catalog: FieldCatalog) -> FieldOption:
         required=column.required,
         editable=True,
         filter_ops=list(field.ops) if field else [],
+        value_format=_VALUE_FORMAT[column.spec.kind] if column.spec else "text",
         options=list(column.spec.options) if column.spec else [],
     )
 
@@ -437,5 +468,6 @@ def _column_option(field: FilterableField) -> FieldOption:
         required=False,
         editable=False,
         filter_ops=list(field.ops),
+        value_format=_SHAPE_FORMAT[field.shape],
         options=list(field.options),
     )
