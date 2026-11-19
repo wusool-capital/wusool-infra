@@ -28,6 +28,7 @@ for current production evidence and open handover items.
 - A refused field now says what it needs, such as "must be text", and tells the agent to call `list_field_options` for those fields.
 - An unexpected failure in an MCP tool now tells the agent something failed on our side, with the error type. It used to say only "Error executing tool". The full error is still logged.
 - `list_field_options` gives each field a `value_format`, such as "a date, YYYY-MM-DD" or "a number in percent points: 18 means 18%". The server instructions and the add and edit tool text say to look fields up before setting them.
+- The user guide has a Wusool MCP section with the steps to add and connect the Claude connector, using the Toolkit's production address `https://toolkit-3-69-122-231.sslip.io/mcp`. It is linked from Choose a tool, the products table, the glossary and troubleshooting.
 
 ## 2026-11-18
 

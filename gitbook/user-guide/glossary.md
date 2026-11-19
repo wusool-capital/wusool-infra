@@ -45,3 +45,10 @@ Terms used across this guide, in plain words.
 | **Silo** | The website topic a report or article is filed under, such as Business Valuation or Exit Strategy. |
 | **Pin** | Feature a report in the home page banner, or an article at the top of `/insights`. |
 | **Publish / unpublish** | Make a Sanity document live on the website, or take it down. |
+
+## Claude connector
+
+| Term | Meaning |
+| --- | --- |
+| **MCP** | A standard way to connect Claude to another system. The Wusool MCP lets Claude read and change Wusool records. |
+| **Connector** | The entry in Claude's settings that links it to an MCP. Ours is named `wusool-mcp`. |

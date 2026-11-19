@@ -15,6 +15,7 @@ tell a service failure from invalid input.
 | Scribe has no transcript | Confirm the model downloaded, then check the model, language, and microphone |
 | Scribe push fails | Check **Settings → Scribe Push**, your connection, and the selected organization |
 | Report code never arrives | Check spam, then use **Resend code**; codes expire after 10 minutes. If it still fails, send support the reader's email and the report link |
+| Claude can't connect to Wusool | Check that you are an active, non-guest member of the Wusool Slack workspace, then click **Connect** again. If `wusool-mcp` is missing, add it with the steps in [Wusool MCP](toolkit-claude.md#connect-claude-to-wusool) |
 | Attio change is missing elsewhere | Confirm it saved, then allow a few minutes |
 | Website tool fails | Note the tool name, time, company domain, and exact error; retry once |
 

@@ -9,6 +9,8 @@ infrastructure.
 | Check a buyer's profile before matching | [Wusool Toolkit](toolkit.md#check-a-buyer-before-matching) |
 | Find and review buyer–seller matches | [Find matches](toolkit-find-match.md) |
 | Add, edit, or research a buyer or seller | [Wusool Toolkit](toolkit.md#maintain-buyer-and-seller-records) |
+| Connect Claude to Wusool | [Wusool MCP](toolkit-claude.md#connect-claude-to-wusool) |
+| Ask Claude to find, filter, add or edit buyers and sellers | [Wusool MCP](toolkit-claude.md#what-you-can-ask) |
 | Record and transcribe a meeting | [WusoolScribe](scribe.md#record-a-meeting) |
 | Send a meeting note to the CRM | [WusoolScribe](scribe.md#send-a-meeting-to-attio) |
 | Find or update a CRM record | [Attio CRM](attio.md) |
@@ -23,6 +25,7 @@ infrastructure.
 | Product | Purpose | Where you use it |
 | --- | --- | --- |
 | **Wusool Toolkit** | Match buyers and sellers and maintain their profiles | Slack |
+| **Wusool MCP** | Find, filter, add and edit buyers and sellers, and the benchmark data, from a chat | Claude (claude.ai) |
 | **WusoolScribe** | Record, transcribe, summarize, and file meetings | Mac app |
 | **Attio** | View and manage the business CRM | Web browser or Attio app |
 | **Website lead tools** | Give website visitors useful reports and capture their details | Wusool Capital website |
