@@ -21,6 +21,8 @@ for current production evidence and open handover items.
 - Values now convert the way file uploads do, for `add_*`, `edit_*` and `bulk_import_*`. A date and time keeps its date, and a text for a list-valued field becomes its list.
 - A yes/no filter in `list_buyers` and `list_sellers` accepts `"true"`, `"false"`, `"yes"` and `"no"` as well as true and false.
 
+- Pale text in the lead tools was too faint to read. The metric labels in the benchmark were at 1.9:1 contrast. Readiness, buyers, get-started, report and valuation had the same grey. Text now reaches at least 4.5:1, and the layout and fonts are unchanged.
+
 ### Changed
 
 - A refused field now says what it needs, such as "must be text", and tells the agent to call `list_field_options` for those fields.
