@@ -435,9 +435,9 @@ PostgreSQL stores the CRM mirror, analytical data, automation state, generated d
 | CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |
 | Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |
 | Activity and pipeline | `activities`, `command_runs`, `linkedin_scans`, `deal_stage_events`, `signals` | The business-event index, the Slack command ledger, the LinkedIn scan ledger, deal movements, and buyer signals |
-| Intelligence and matching | `buyer_intel`, `seller_financials`, `match_scores`, `match_results` | Research, financial normalization, targeting, scoring, and shortlisted match runs |
+| Intelligence and matching | `seller_financials`, `match_scores`, `match_results` | Research, financial normalization, targeting, scoring, and shortlisted match runs |
 | Notes | `notes` | Unified notes on organizations, people, and buyer/seller roles, replacing fields formerly scattered across those tables |
-| Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |
+| Knowledge and documents | `documents`, `scorecards` | Generated files and reporting |
 | Integration operations | `attio_sync_state`, `attio_raw_events` | Synchronization progress and incoming Attio events |
 | Scribe integration | `meetings` | Buyer/seller meeting summaries published by the standalone scribe service |
 | Interactions engine | `interactions`, `interaction_participants`, `mailbox_sync_cursors`, `attio_sent_values`, `interaction_review_items`, `auto_create_keys` | Gmail and Calendar metadata, sync positions, values sent to Attio, links left for review, and records the engine created (AZM-159) |
@@ -888,19 +888,6 @@ about an organization, linked from `activities` (`ledger_type='signal'`).
 
 **Indexes** — `(org_attio_id, ts DESC)`, `uq_signals_source_external_id` (unique, partial: `(source, external_id)` where `external_id IS NOT NULL`).
 
-### buyer_intel
-
-| Column | Type | Nullable | Key | References | Default |
-|---|---|---:|---|---|---|
-| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `buyer_attio_id` | `text` | No | - | `organizations.attio_id` | - |
-| `cash_window` | `jsonb` | No | - | - | `'{}'::jsonb` |
-| `appetite_score` | `numeric` | Yes | - | - | - |
-| `brief` | `text` | Yes | - | - | - |
-| `ideal_target` | `jsonb` | No | - | - | `'{}'::jsonb` |
-| `generated_at` | `timestamptz` | No | - | - | `now()` |
-| `created_at` | `timestamptz` | No | - | - | `now()` |
-
 ### seller_financials
 
 | Column | Type | Nullable | Key | References | Default |
@@ -1026,33 +1013,6 @@ columns meaningful); `rank IS NOT NULL` is a shortlisted candidate row
 | `created_at` | `timestamptz` | No | - | - | `now()` |
 | `updated_at` | `timestamptz` | No | - | - | `now()` |
 
-### vertical_kb
-
-| Column | Type | Nullable | Key | References | Default |
-|---|---|---:|---|---|---|
-| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `sector` | `text` | No | - | - | - |
-| `tier1_research` | `jsonb` | No | - | - | `'{}'::jsonb` |
-| `source_cite` | `jsonb` | No | - | - | `'[]'::jsonb` |
-| `created_at` | `timestamptz` | No | - | - | `now()` |
-| `updated_at` | `timestamptz` | No | - | - | `now()` |
-
-### graph_edges
-
-| Column | Type | Nullable | Key | References | Default |
-|---|---|---:|---|---|---|
-| `id` | `uuid` | No | PK | - | `gen_random_uuid()` |
-| `person_a_attio_id` | `text` | No | - | `person.attio_id` | - |
-| `person_b_attio_id` | `text` | No | - | `person.attio_id` | - |
-| `hop` | `text` | No | - | - | - |
-| `basis` | `text` | Yes | - | - | - |
-| `source_cite` | `jsonb` | No | - | - | `'[]'::jsonb` |
-| `created_at` | `timestamptz` | No | - | - | `now()` |
-
-**Table constraints**
-
-- `CONSTRAINT graph_edges_not_self CHECK (person_a_attio_id <> person_b_attio_id)`
-
 ### attio_sync_state
 
 Written since 2026-10-19 (AZM-150): one row, `attio_full_resync`, upserted by the
@@ -1176,7 +1136,6 @@ hold the numeric score behind `connection_strength`. They are Postgres-only.
 | `signals.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `signals.linkedin_scan_id` | `linkedin_scans.id` | Many-to-one unless constrained unique |
 | `linkedin_scans.org_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
-| `buyer_intel.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `seller_financials.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `match_scores.buyer_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
 | `match_scores.seller_attio_id` | `organizations.attio_id` | Many-to-one unless constrained unique |
@@ -1186,8 +1145,6 @@ hold the numeric score behind `connection_strength`. They are Postgres-only.
 | `match_results.seller_role_id` | `seller_roles.id` | Many-to-one unless constrained unique |
 | `match_results.match_score_id` | `match_scores.id` | Many-to-one unless constrained unique |
 | `documents.deal_attio_id` | `deals.attio_id` | Many-to-one unless constrained unique |
-| `graph_edges.person_a_attio_id` | `person.attio_id` | Many-to-one unless constrained unique |
-| `graph_edges.person_b_attio_id` | `person.attio_id` | Many-to-one unless constrained unique |
 | `scorecards.created_by_attio_id` | `users.attio_id` | Many-to-one unless constrained unique |
 | `meetings.org_id` | `organizations.attio_id` | Many-to-one; nullable, enforced via `fk_meetings_org` when set |
 | `notes.organization_id` | `organizations.attio_id` | Many-to-one; nullable (2026-08-29) |
@@ -1202,7 +1159,6 @@ Notable rules:
   (2026-08-28) — an org can have more than one entry (duplicate SOURCE
   submissions); `is_active` distinguishes the current one, and the unique
   constraint moved to `legacy_entry_id`.
-- `graph_edges` rejects self-referencing person edges.
 - `meetings.org_id` is nullable — `org_name_raw` is set instead when scribe
   cannot resolve an organization at publish time. When `org_id` is set, it
   must reference an existing `organizations.attio_id` row (`fk_meetings_org`,

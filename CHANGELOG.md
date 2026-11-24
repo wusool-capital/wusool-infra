@@ -8,6 +8,16 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-25
+
+### Removed
+
+- The `buyer_intel`, `vertical_kb` and `graph_edges` tables, with their models, and the `vector` extension. All three were empty and never written. Migration `ded7cf3cd954` refuses to drop a table that holds a row. This clears the way for the Postgres 18 upgrade (AZM-181).
+
+### Changed
+
+- Local Docker Compose and the CI schema and integration jobs run Postgres 18 (`pgvector/pgvector:pg18`), the version dev moves to next. Run `docker compose down -v` once to reset an old local volume.
+
 ## 2026-11-19
 
 ### Fixed

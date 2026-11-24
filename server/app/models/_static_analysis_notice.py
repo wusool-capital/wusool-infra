@@ -3,6 +3,8 @@
 `activities`, `deal_stage_events`, `signals`, `buyer_intel`,
 `seller_financials`, `mandate_targets`, `documents`, `vertical_kb`,
 `graph_edges`, `attio_sync_state`, `attio_raw_events`, `scorecards`).
+`buyer_intel`, `vertical_kb` and `graph_edges` were dropped, with their models,
+in revision `ded7cf3cd954` (AZM-181); 11 of the batch remain.
 
 Every file in that batch opens with a short comment pointing back here — read
 this once, not fourteen times.

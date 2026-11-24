@@ -15,11 +15,10 @@ and `ddl_commands`' `import_all_models()` do, and what Alembic's `env.py`'s
 2: a model that never gets imported here is invisible to `--autogenerate`,
 which then proposes dropping its table).
 
-The 14 models below `MatchScore`/`Meeting` (from `activity.py` onward,
-alphabetically through `vertical_kb.py`) were added as a batch of
-static-analysis drafts, not from a live-DB reflection — see
-`app/models/_static_analysis_notice.py` before trusting any of them for
-`alembic stamp head`.
+The 11 models left from the "missing tables" batch (`activity.py`,
+`user.py` and the others named in `app/models/_static_analysis_notice.py`)
+were added as static-analysis drafts, not from a live-DB reflection — see
+that notice before trusting any of them for `alembic stamp head`.
 """
 
 from app.models.activity import Activity
@@ -28,7 +27,6 @@ from app.models.attio_sent_value import AttioSentValue
 from app.models.attio_sync_state import AttioSyncState
 from app.models.auto_create_key import AutoCreateKey
 from app.models.benchmark_data import BenchmarkPeerCut, BenchmarkRule
-from app.models.buyer_intel import BuyerIntel
 from app.models.buyer_role import BuyerRole
 from app.models.command_run import CommandRun
 from app.models.deal import Deal
@@ -36,7 +34,6 @@ from app.models.deal_stage_event import DealStageEvent
 from app.models.discovery_review import DiscoveryReview
 from app.models.document import Document
 from app.models.feedback_submission import FeedbackSubmission
-from app.models.graph_edge import GraphEdge
 from app.models.interaction import Interaction
 from app.models.interaction_participant import InteractionParticipant
 from app.models.interaction_review_item import InteractionReviewItem
@@ -55,7 +52,6 @@ from app.models.seller_role import SellerRole
 from app.models.signal import Signal
 from app.models.tool_run import ToolRun
 from app.models.user import User
-from app.models.vertical_kb import VerticalKb
 
 __all__ = [
     "Activity",
@@ -65,7 +61,6 @@ __all__ = [
     "AutoCreateKey",
     "BenchmarkPeerCut",
     "BenchmarkRule",
-    "BuyerIntel",
     "BuyerRole",
     "CommandRun",
     "LinkedInScan",
@@ -74,7 +69,6 @@ __all__ = [
     "DiscoveryReview",
     "Document",
     "FeedbackSubmission",
-    "GraphEdge",
     "Interaction",
     "InteractionParticipant",
     "InteractionReviewItem",
@@ -92,5 +86,4 @@ __all__ = [
     "Signal",
     "ToolRun",
     "User",
-    "VerticalKb",
 ]
