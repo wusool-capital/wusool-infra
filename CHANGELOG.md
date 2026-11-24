@@ -10,6 +10,10 @@ for current production evidence and open handover items.
 
 ## 2026-11-25
 
+### Changed
+
+- Dev's database moves to Postgres 18, upgraded in place, with pg_cron preloaded through a new parameter group (`cron.database_name = wusool_crm`). Prod stays on Postgres 16 until AZM-183. The new Terraform settings (`allow_major_version_upgrade`, `apply_immediately`, `enable_pg_cron`) default to off.
+
 ### Removed
 
 - The `buyer_intel`, `vertical_kb` and `graph_edges` tables, with their models, and the `vector` extension. All three were empty and never written. Migration `ded7cf3cd954` refuses to drop a table that holds a row. This clears the way for the Postgres 18 upgrade (AZM-181).

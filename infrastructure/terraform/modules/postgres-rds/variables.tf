@@ -46,6 +46,24 @@ variable "engine_version" {
   default     = "16"
 }
 
+variable "allow_major_version_upgrade" {
+  description = "Allow an engine_version change across a major version (e.g. 16 to 18)."
+  type        = bool
+  default     = false
+}
+
+variable "apply_immediately" {
+  description = "Apply instance changes now instead of in the maintenance window."
+  type        = bool
+  default     = false
+}
+
+variable "enable_pg_cron" {
+  description = "Attach a parameter group that preloads pg_cron for db_name."
+  type        = bool
+  default     = false
+}
+
 variable "instance_class" {
   description = "RDS instance class."
   type        = string
