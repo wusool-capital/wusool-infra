@@ -12,7 +12,7 @@ for current production evidence and open handover items.
 
 ### Added
 
-- The first batch of the Engine schema (AZM-182 batch 1): schemas `ref`, `core`, `audit`, `util` and `pgmq` with 69 tables, the 20 PGMQ queues, the event log, field-level history and the evidence tables. Nothing reads or writes them yet; the old `public` tables are unchanged. They need Postgres 18 (`uuidv7()`).
+- The first batch of the Engine schema (AZM-182 batch 1). It adds schemas `ref`, `core`, `audit`, `util` and `pgmq`, with 69 tables and 20 PGMQ queues. The tables include the event log, field-level history and evidence. Nothing reads or writes them yet; the old `public` tables are unchanged. They need Postgres 18 (`uuidv7()`).
 
 ### Removed
 
