@@ -4,7 +4,7 @@ services:
     # `CREATE EXTENSION vector` failure is fatal to Postgres's own init-script
     # runner (unlike a manual, non-`set -e` apply) — use an image that
     # actually has the extension, closer to the real RDS instance anyway.
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_USER: matching
       POSTGRES_PASSWORD: matching
@@ -12,7 +12,8 @@ services:
     ports:
       - "${COMPOSE_DB_PORT:-55433}:5432"
     volumes:
-      - matching-engine-db-data:/var/lib/postgresql/data
+      # Postgres 18 images keep data under /var/lib/postgresql/18, so mount the parent.
+      - matching-engine-db-data:/var/lib/postgresql
       # Schema setup is Alembic-based, not raw SQL applied on Postgres init
       # — the `migrate` service below runs `alembic upgrade head` against
       # this db once it's healthy, rather than relying on

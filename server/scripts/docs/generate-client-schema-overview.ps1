@@ -163,8 +163,8 @@ Add '|---|---|---|'
 Add '| CRM mirror | `users`, `organizations`, `person`, `deals` | Structured copies of core CRM records |'
 Add '| Business roles | `buyer_roles`, `seller_roles`, `investor_lender_roles` | Buyer, seller, investor, and lender-specific information |'
 Add '| Activity and pipeline | `activities`, `deal_stage_events`, `signals` | Interactions, deal movements, and market or buyer signals |'
-Add '| Intelligence and matching | `buyer_intel`, `seller_financials`, `mandate_targets`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |'
-Add '| Knowledge and documents | `documents`, `vertical_kb`, `graph_edges`, `scorecards` | Generated files, sector research, relationship networks, and reporting |'
+Add '| Intelligence and matching | `seller_financials`, `mandate_targets`, `match_scores` | Research, financial normalization, targeting, and opportunity matching |'
+Add '| Knowledge and documents | `documents`, `scorecards` | Generated files and reporting |'
 Add '| Integration operations | `attio_sync_state`, `attio_raw_events` | Synchronization progress and incoming Attio events |'
 Add
 
@@ -209,7 +209,6 @@ Add
 Add '- `deals` allows either an organization buyer or a person buyer, but not both.'
 Add '- Role tables are one-to-one with an organization because `org_attio_id` is unique.'
 Add '- `mandate_targets` is unique per `(mandate_id, seller_attio_id)` pair.'
-Add '- `graph_edges` rejects self-referencing person edges.'
 Add
 Add '## Data ownership'
 Add

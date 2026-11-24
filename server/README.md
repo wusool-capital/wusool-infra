@@ -120,6 +120,10 @@ throwaway local Postgres and a one-shot migration step —
 docker compose up --build
 ```
 
+The bundled Postgres is version 18. A volume created by the earlier Postgres
+16 image will not start under it, so run `docker compose down -v` once to reset
+it. The data is disposable.
+
 Compose mounts `~/.aws` into the container and passes `AWS_PROFILE` (default
 `wusool-sso`, so name your profile that), so run `aws sso login` first. The bundled Postgres overrides
 `DATABASE_URL`; every other secret still comes from the dev secret.

@@ -19,7 +19,7 @@
 --      advisors' approval history and exists ONLY in Postgres -- re-running
 --      the Attio resync will not bring it back. It cascades off both
 --      `buyer_roles.id` and `organizations.attio_id`. Deleting one removed
---      organization can take buyer_intel, buyer_roles, match_results (x2
+--      organization can take buyer_roles, match_results (x2
 --      FKs), match_scores (x2) and investor_lender_role with it.
 --
 --   2. FK VIOLATIONS. `notes.buyer_role_id` and `tool_runs.buyer_role_id`

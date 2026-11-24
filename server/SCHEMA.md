@@ -10,14 +10,14 @@ head: **`e1f7a3c95b28`** (`add_organizations_lead_source_detail`).
 - **Confirmed** tables were mapped from a real, applied DDL history (Stage
   1-3 of the Alembic migration, or a hand-written migration in this repo) and
   are not flagged as drafts anywhere in their source file.
-- **Static-analysis draft** tables (13, marked below) were derived by reading
+- **Static-analysis draft** tables (10, marked below) were derived by reading
   `database/sql/00*.sql` end-to-end, *not* from a live-database reflection —
   see `wusool_db/models/_static_analysis_notice.py` for the full caveat.
   Whoever runs the still-pending "Stage 4" live-DB reflection must diff each
   one against a real `psql \d` / `sqlalchemy.inspect()` before trusting it for
-  `alembic stamp head`. Two columns in this tier (`buyer_intel.brief_embedding`,
-  `vertical_kb.embedding`) are additionally conditional on the `vector`
-  Postgres extension being installed — confirm before relying on them.
+  `alembic stamp head`. `buyer_intel`, `vertical_kb` and `graph_edges`, the
+  only tables that used the `vector` extension, were dropped with it in
+  `ded7cf3cd954` (AZM-181).
 
 Money-shaped JSONB columns (marked below) hold either `{"amount": ...,
 "currency": ...}` or `NULL` — never a fabricated value when Attio has none.
@@ -733,21 +733,6 @@ Constraint: `signals_source_check` (`NOT VALID`) — `transcript`, `news`, `link
 Indexed on `(org_attio_id, ts DESC)` and `uq_signals_source_external_id` (unique,
 partial: `(source, external_id)` where `external_id IS NOT NULL`).
 
-### `buyer_intel` (`buyer_intel.py`)
-
-| Column | Type | Nullable | Default | Notes |
-|---|---|---|---|---|
-| id | uuid | no | `gen_random_uuid()` | PK |
-| buyer_attio_id | text | no | | FK → organizations, CASCADE |
-| cash_window | jsonb | no | `{}` | |
-| appetite_score | numeric | yes | | |
-| brief | text | yes | | |
-| ideal_target | jsonb | no | `{}` | |
-| generated_at / created_at | timestamptz | no | `now()` | |
-| brief_embedding | vector(1536) | yes | | **conditional on `vector` extension** |
-
-Indexed on `(buyer_attio_id, generated_at DESC)`.
-
 ### `seller_financials` (`seller_financial.py`)
 
 | Column | Type | Nullable | Default | Notes |
@@ -773,19 +758,6 @@ Indexed on `(buyer_attio_id, generated_at DESC)`.
 | qc_state | text | yes | | |
 | version | integer | no | `1` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
-
-### `graph_edges` (`graph_edge.py`)
-
-| Column | Type | Nullable | Default | Notes |
-|---|---|---|---|---|
-| id | uuid | no | `gen_random_uuid()` | PK |
-| person_a_attio_id / person_b_attio_id | text | no | | FK → person, CASCADE; composite index |
-| hop | text | no | | |
-| basis | text | yes | | |
-| source_cite | jsonb | no | `[]` | |
-| created_at | timestamptz | no | `now()` | |
-
-Constraint: `graph_edges_not_self` — `person_a_attio_id <> person_b_attio_id`.
 
 ### `attio_sync_state` (`attio_sync_state.py`) — written since AZM-150
 
@@ -833,17 +805,6 @@ days are deleted by the nightly resync. Indexed on `received_at`.
 | created_by_attio_id | text | yes | | FK → users.attio_id |
 | raw_attio | jsonb | no | `{}` | |
 | created_at / updated_at | timestamptz | no | `now()` | |
-
-### `vertical_kb` (`vertical_kb.py`)
-
-| Column | Type | Nullable | Default | Notes |
-|---|---|---|---|---|
-| id | uuid | no | `gen_random_uuid()` | PK |
-| sector | text | no | | indexed |
-| tier1_research | jsonb | no | `{}` | |
-| source_cite | jsonb | no | `[]` | |
-| created_at / updated_at | timestamptz | no | `now()` | |
-| embedding | vector(1536) | yes | | **conditional on `vector` extension** |
 
 ---
 
