@@ -27,7 +27,13 @@ def _serve(monkeypatch, handler) -> None:
 
 @pytest.mark.parametrize(
     "url",
-    ["http://acme.ae", "https://localhost", "https://private.test", "https://metadata.test"],
+    [
+        "http://acme.ae",
+        "https://localhost",
+        "https://private.test",
+        "https://metadata.test",
+        "https://acme.ae:8443",
+    ],
 )
 async def test_blocks_non_https_and_non_public_hosts(monkeypatch, url) -> None:
     _resolve(

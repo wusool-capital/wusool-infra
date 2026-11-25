@@ -86,7 +86,9 @@ def _text(raw: JsonValue, limit: int) -> str | None:
 def _page(raw: JsonValue) -> str | None:
     """A path only: anything else (a full URL, a non-string, 200+ chars) is dropped."""
     text = _text(raw, 10_000)
-    return text if text and text.startswith("/") and len(text) <= 200 else None
+    if not text or not text.startswith("/") or text.startswith("//"):
+        return None
+    return text if len(text) <= 200 and text.isprintable() else None
 
 
 def _lenient_analytics(value: JsonValue | AnalyticsContext) -> AnalyticsContext | None:

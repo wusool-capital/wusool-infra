@@ -80,6 +80,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
         const data=await resp.json();
         if(data.description)desc=data.description;
         if(data.sector&&ALL_SECTORS.includes(data.sector))sector=data.sector;
+        else if(desc)sector=detectSectorFromText(desc)||"";
       }
     }catch(e){
       console.warn("Enrichment failed:",e);

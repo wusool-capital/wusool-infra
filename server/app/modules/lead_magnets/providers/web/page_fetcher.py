@@ -29,7 +29,7 @@ _TOTAL_TIMEOUT_S = 5.0
 
 async def _is_public_https(url: str) -> bool:
     parts = urlsplit(url)
-    if parts.scheme != "https" or not parts.hostname:
+    if parts.scheme != "https" or not parts.hostname or parts.port not in (None, 443):
         return False
     try:
         infos = await asyncio.get_running_loop().getaddrinfo(
@@ -51,7 +51,9 @@ class HttpPageFetcher:
             return ""
 
     async def _fetch(self, url: str) -> str:
-        async with httpx.AsyncClient(follow_redirects=False, timeout=_TOTAL_TIMEOUT_S) as client:
+        async with httpx.AsyncClient(
+            follow_redirects=False, timeout=_TOTAL_TIMEOUT_S, trust_env=False
+        ) as client:
             for _ in range(_MAX_REDIRECTS + 1):
                 if not await _is_public_https(url):
                     logger.warning("lead_magnet_page_fetch_blocked url=%s", url)

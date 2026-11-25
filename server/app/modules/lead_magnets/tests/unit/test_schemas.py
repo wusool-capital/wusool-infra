@@ -252,7 +252,15 @@ def test_a_bad_analytics_page_is_dropped_not_rejected() -> None:
         "sector": "Technology & SaaS",
         "answers": {},
     }
-    for bad in ("https://evil.example/x", "no-slash", "/" + "a" * 200, 42, ["/x"]):
+    for bad in (
+        "https://evil.example/x",
+        "no-slash",
+        "/" + "a" * 200,
+        42,
+        ["/x"],
+        "//evil.example",
+        "/a\nb",
+    ):
         request = ReadinessRequest.model_validate({**body, "analytics": {"page": bad}})
         assert request.analytics is not None
         assert request.analytics.page is None, bad
