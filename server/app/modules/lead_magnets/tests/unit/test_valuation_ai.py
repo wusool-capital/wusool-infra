@@ -269,6 +269,54 @@ async def test_enrich_scrapes_the_given_domain_once() -> None:
     assert result.sector == "AI"
 
 
+class _FakePages:
+    def __init__(self, html: str = "") -> None:
+        self.html = html
+        self.fetched: list[str] = []
+
+    async def fetch_html(self, url):
+        self.fetched.append(url)
+        return self.html
+
+
+_META = "We design and fit out offices across the UAE for growing technology companies."
+_TITLE = "Acme Interiors | Office fit-out in Dubai and Abu Dhabi, built to last"
+
+
+def _page(meta: str, title: str = "Acme") -> str:
+    return f'<head><title>{title}</title><meta name="description" content="{meta}"></head>'
+
+
+async def test_enrich_uses_the_meta_description_without_ai() -> None:
+    llm, search, pages = _FakeLlm(), _FakeSearch(page="x"), _FakePages(_page(_META))
+    result = await ValuationAi(llm, search, pages).enrich(domain="acme.ae")
+
+    assert (result.description, result.sector) == (_META, "")
+    assert pages.fetched == ["https://acme.ae"]
+    assert llm.prompts == {}, "no Bedrock call when the meta description is usable"
+    assert search.scraped == [], "no Firecrawl call either"
+
+
+async def test_enrich_falls_back_to_og_description() -> None:
+    html = f'<head><meta property="og:description" content="{_META}"></head>'
+    result = await ValuationAi(_FakeLlm(), _FakeSearch(), _FakePages(html)).enrich(domain="acme.ae")
+    assert result.description == _META
+
+
+@pytest.mark.parametrize(
+    "html",
+    [_page("Too short to describe anything."), _page(_TITLE, title=_TITLE), ""],
+    ids=["too_short", "just_the_title", "blocked_or_empty"],
+)
+async def test_enrich_falls_back_when_meta_is_unusable(html: str) -> None:
+    llm = _FakeLlm(enrich={"description": "d", "sector": "AI"})
+    search = _FakeSearch(page="We fit out offices.")
+    result = await ValuationAi(llm, search, _FakePages(html)).enrich(domain="acme.ae")
+
+    assert (result.description, result.sector) == ("d", "AI")
+    assert search.scraped == ["https://acme.ae"]
+
+
 async def test_enrich_keeps_an_existing_scheme() -> None:
     search = _FakeSearch()
     await ValuationAi(_FakeLlm(), search).enrich(domain="https://acme.ae/about")

@@ -48,6 +48,7 @@ from app.modules.lead_magnets.providers.firecrawl.client import FirecrawlSearchC
 from app.modules.lead_magnets.providers.posthog.client import PostHogAnalytics
 from app.modules.lead_magnets.providers.sanity.article_source import SanityArticleSource
 from app.modules.lead_magnets.providers.sanity.report_source import SanityReportSource
+from app.modules.lead_magnets.providers.web.page_fetcher import HttpPageFetcher
 from app.modules.lead_magnets.providers.webflow.insights_cms import WebflowInsightsCms
 from app.modules.lead_magnets.providers.webflow.reports_cms import WebflowReportsCms
 from app.modules.notifications import EmailSenderPort, SesMailer, get_ses_client
@@ -346,7 +347,7 @@ def build_article_sync() -> ArticleSync:
 
 
 def build_valuation_ai() -> ValuationAi:
-    return ValuationAi(build_llm(), build_search())
+    return ValuationAi(build_llm(), build_search(), HttpPageFetcher())
 
 
 def build_submission_service(session: AsyncSession) -> LeadMagnetService:

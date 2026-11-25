@@ -17,7 +17,11 @@ import asyncio
 import logging
 from dataclasses import asdict
 
-from app.modules.lead_magnets.application.shared.ports import LeadLLMPort, SearchPort
+from app.modules.lead_magnets.application.shared.ports import (
+    LeadLLMPort,
+    PageFetcherPort,
+    SearchPort,
+)
 from app.modules.lead_magnets.domain.shared.dedup import normalise_domain
 from app.modules.lead_magnets.domain.shared.prompts import (
     analyze_prompt,
@@ -30,6 +34,7 @@ from app.modules.lead_magnets.domain.shared.schemas import (
     ComparablesResult,
     EnrichResult,
 )
+from app.modules.lead_magnets.domain.valuation.meta_description import usable_description
 from app.modules.lead_magnets.domain.valuation.strategic_analysis import (
     generate_strategic_analysis,
 )
@@ -58,9 +63,12 @@ _RESULTS_PER_QUERY = 5
 
 
 class ValuationAi:
-    def __init__(self, llm: LeadLLMPort, search: SearchPort) -> None:
+    def __init__(
+        self, llm: LeadLLMPort, search: SearchPort, pages: PageFetcherPort | None = None
+    ) -> None:
         self._llm = llm
         self._search = search
+        self._pages = pages
 
     async def enrich(self, *, domain: str, company: str | None = None) -> EnrichResult:
         """Description and sector from the company's own page.
@@ -69,6 +77,12 @@ class ValuationAi:
         already known, so there was never anything to search for.
         """
         url = domain if domain.startswith("http") else f"https://{domain}"
+        if self._pages is not None:
+            # The page's own meta description, when usable, spares the scrape and the
+            # model. The sector stays blank: the browser picks it from the text.
+            description = usable_description(await self._pages.fetch_html(url))
+            if description:
+                return EnrichResult(description=description, sector="")
         page = await self._search.scrape(url)
         if not page:
             logger.warning("lead_magnet_enrich_page_empty domain=%s", domain)

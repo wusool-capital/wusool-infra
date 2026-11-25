@@ -401,7 +401,9 @@ properties (`tool`, `step`, `language`, `source`, `submission_id`), and a test
 fails if it ever reads a field value. Session replay and autocapture stay off.
 
 **UTM tags** are stored in `tool_runs.payload` (`analytics.utm`; for reports
-`utm`), with no migration and no Attio attribute yet.
+`utm`), with no migration and no Attio attribute yet. The optional `analytics.page`
+(a path, up to 200 characters) is stored the same way and printed as "Page" in
+the team notice email; the run's `activities` row links to it.
 
 **Email links.** With `LEAD_MAGNET_PUBLIC_BASE_URL` set, each email's Book a
 Call button points at `GET /go/book-call/{tool}?sid=<submission id>`. Blank

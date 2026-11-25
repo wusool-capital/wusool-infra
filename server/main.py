@@ -73,6 +73,7 @@ from app.modules.enrichment.api.slack.handlers import (
     register_handlers as register_enrichment_handlers,
 )
 from app.modules.interactions.bootstrap import run_interactions_forever
+from app.modules.lead_magnets.api.cors import LeadMagnetCors
 from app.modules.lead_magnets.api.router import router as lead_magnets_router
 from app.modules.lead_magnets.api.static import ToolStatic, static_dir
 from app.modules.lead_magnets.bootstrap import run_sweeper_forever, shutdown_analytics
@@ -256,6 +257,9 @@ if settings.web_allowed_origins:
         allow_methods=["GET", "POST"],
         allow_headers=["Authorization", "Content-Type"],
     )
+# After the block above: the newest middleware is outermost, so a lead-magnet
+# preflight is answered here before the web app's CORS can reject it.
+app.add_middleware(LeadMagnetCors)
 
 
 @app.exception_handler(Exception)
