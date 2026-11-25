@@ -39,6 +39,13 @@ public_url = "https://63-184-6-136.sslip.io"
 # dependency (scribe writes meetings via scribe_pub) — not junk.
 extra_allowed_security_group_ids = ["sg-0684b8cf83abfd065"]
 
+# AZM-181: Postgres 18 with pg_cron, in place, now. prod.tfvars stays on 16
+# until AZM-183.
+engine_version              = "18"
+allow_major_version_upgrade = true
+apply_immediately           = true
+enable_pg_cron              = true
+
 # stacks/toolkit — image pinned by digest (Phase F). Built and pushed by
 # _build.yml; verified against ECR before pinning here.
 image_digest = "sha256:ad9e212f7c868cda1dabd4bc1c41da068b6448b32c13219d4bf6198dc2f42da2"
