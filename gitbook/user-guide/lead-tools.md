@@ -65,9 +65,6 @@ context; Buyer Network information belongs with buyer context. Records can
 appear a few moments after the on-screen result, so don't submit again while
 waiting.
 
-The team notice email has a **Page** row with the website page the visitor
-submitted from. It shows a dash when the form was not on the main website.
-
 ## Understand the result
 
 - **Valuation** combines several standard valuation methods. AI and public

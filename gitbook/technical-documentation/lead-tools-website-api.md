@@ -4,7 +4,7 @@
 
 The Astro website posts the Valuation, Readiness and Benchmark forms straight
 from the visitor's browser to the lead-tool endpoints. This page covers who may
-call them, what each call adds, and the limits that apply.
+call them, how the description lookup works, and the limits that apply.
 
 ## Calls from the website
 
@@ -16,12 +16,6 @@ They send `Access-Control-Allow-Origin` only for origins in
 - Origins match exactly: scheme, host, port, and no trailing slash.
 - `POST` and the `Content-Type` header are allowed, with no credentials.
 - An unlisted origin gets no CORS headers.
-
-## Page source
-
-The optional `analytics.page` field is a path of up to 200 characters, such as
-`/valuation`. It is stored with the run on `tool_runs` and listed as "Page" in
-the team notice email. A malformed value is dropped, never rejected.
 
 ## Company description lookup
 

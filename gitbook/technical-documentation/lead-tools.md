@@ -123,8 +123,7 @@ merged:
 
 A repeat submission is never rejected; it is recorded as a new attempt.
 
-Website calls, the page source field, the `/enrich` description lookup and the
-rate limits are on [Website API access](lead-tools-website-api.md).
+Website calls, the `/enrich` description lookup and the rate limits are on [Website API access](lead-tools-website-api.md).
 
 **Option lists.** An option the CRM doesn't know, such as an unexpected
 selling timeline, fails the Attio write after the run is recorded. That lead
