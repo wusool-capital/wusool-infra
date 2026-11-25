@@ -123,10 +123,8 @@ merged:
 
 A repeat submission is never rejected; it is recorded as a new attempt.
 
-**Rate limits** are per IP address per hour. The paid tool endpoints and
-report code requests allow 20, report views and code checks 300, and PDF
-downloads 30. They are held in memory, and the IP is taken from the last
-`X-Forwarded-For` entry.
+Website calls, the page source field, the `/enrich` description lookup and the
+rate limits are on [Website API access](lead-tools-website-api.md).
 
 **Option lists.** An option the CRM doesn't know, such as an unexpected
 selling timeline, fails the Attio write after the run is recorded. That lead

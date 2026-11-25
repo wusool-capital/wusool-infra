@@ -71,7 +71,9 @@ already default correctly):
   served from that host and their own `fetch()` calls carry it as
   `Origin`, not the Webflow site's origin. This is not a hard security
   boundary (`Origin` is forgeable), just what stops another site spending
-  the Bedrock/Firecrawl budget through its own visitors.
+  the Bedrock/Firecrawl budget through its own visitors. The same list
+  drives CORS (`api/cors.py`) for the Astro website: add its origin
+  (scheme, host, port, no trailing slash) to let it call the lead POSTs.
 - **`LEAD_MAGNET_RATE_PER_HOUR`** (default `20`) — per-IP cap on the
   spend-money endpoints. Raise if a legitimate burst (a marketing push)
   would exceed it.

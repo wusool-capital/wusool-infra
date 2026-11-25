@@ -52,6 +52,7 @@
   * [Gated reports](technical-documentation/lead-tools-reports.md)
   * [Sanity and Webflow publishing](technical-documentation/lead-tools-publishing.md)
   * [Website analytics](technical-documentation/lead-tools-analytics.md)
+  * [Website API access](technical-documentation/lead-tools-website-api.md)
 * [Security and data handling](technical-documentation/security.md)
 
 ## Operations and Handover

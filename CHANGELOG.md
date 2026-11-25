@@ -13,6 +13,11 @@ for current production evidence and open handover items.
 ### Changed
 
 - Dev's database moves to Postgres 18, upgraded in place, with pg_cron preloaded through a new parameter group (`cron.database_name = wusool_crm`). Prod stays on Postgres 16 until AZM-183. The new Terraform settings (`allow_major_version_upgrade`, `apply_immediately`, `enable_pg_cron`) default to off.
+### Added
+
+- The lead tools accept calls from the Astro website (AZM-206). The Valuation, Readiness and Benchmark endpoints answer the browser preflight and allow the origins in `LEAD_MAGNET_ALLOWED_ORIGINS`. Add the website origins to that secret before the site posts.
+- Submissions carry an optional page source (`analytics.page`). It is stored on the run and listed in the team notice email.
+- `/enrich` uses the page's meta description when it is usable, and skips Firecrawl and Bedrock in that case.
 
 ### Removed
 

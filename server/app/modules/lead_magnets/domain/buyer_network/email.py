@@ -8,6 +8,7 @@ from app.modules.lead_magnets.domain.shared.email_content import (
     ReplyDraft,
     format_consent,
     format_usd,
+    page_source,
     render_confirmation_shell,
     render_field_rows,
     render_internal_shell,
@@ -56,6 +57,7 @@ def build_internal(payload: JsonObject, ai: JsonObject, subjects: SubjectRefs) -
 
     rows = render_field_rows(
         [
+            ("Page", page_source(payload)),
             ("Organisation", company),
             ("Website", buyer.domain or "-"),
             ("Org Type", ", ".join(buyer.org_type) or "-"),

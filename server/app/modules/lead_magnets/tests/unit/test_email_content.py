@@ -435,3 +435,34 @@ def test_reply_draft_survives_special_characters_in_the_address_and_name() -> No
 def test_reply_draft_without_a_name_drops_the_first_name() -> None:
     body = _reply_query("valuation", name="")["body"][0]
     assert body.startswith("Hi,\n\n")
+
+
+def test_internal_email_lists_the_page_the_form_was_submitted_from() -> None:
+    from app.modules.lead_magnets.api.schemas import ReadinessRequest
+    from app.modules.lead_magnets.application.shared.email_dispatch import build_internal_email
+    from app.modules.lead_magnets.domain.shared.tool_run import SubjectRefs
+
+    request = ReadinessRequest.model_validate(
+        {
+            "submission_id": "s1",
+            "name": "Dana",
+            "company": "Acme",
+            "email": "dana@acme.com",
+            "sector": "Technology & SaaS",
+            "answers": {},
+            "analytics": {"consent": False, "page": "/deal-readiness"},
+        }
+    )
+    payload = request.model_dump()
+
+    html = build_internal_email("readiness", payload, {}, SubjectRefs()).html
+    assert ">Page<" in html
+    assert "/deal-readiness" in html
+
+
+def test_page_source_is_a_dash_when_absent() -> None:
+    from app.modules.lead_magnets.domain.shared.email_content import page_source
+
+    assert page_source({}) == "-"
+    assert page_source({"analytics": None}) == "-"
+    assert page_source({"analytics": {"page": None}}) == "-"
