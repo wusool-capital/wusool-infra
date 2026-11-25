@@ -730,3 +730,11 @@ async def test_analyze_response_model_accepts_both_the_full_and_fallback_shape()
     full_response = AnalyzeResponse(**full_result)
     assert full_response.sector_fit == "good"
     assert full_response.fundraise is not None
+
+
+def test_meta_description_is_capped_and_skips_an_empty_first_tag() -> None:
+    from app.modules.lead_magnets.domain.valuation.meta_description import usable_description
+
+    long = "x" * 6000
+    html = f'<meta name="description" content=""><meta name="description" content="{long}">'
+    assert usable_description(html) == "x" * 4000

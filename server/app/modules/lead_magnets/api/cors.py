@@ -57,7 +57,12 @@ class LeadMagnetCors:
 
         async def send_with_cors(message: Message) -> None:
             if message["type"] == "http.response.start":
-                headers = [*message.get("headers", [])]
+                # Drop one the inner app added, so the browser never sees two values.
+                headers = [
+                    h
+                    for h in message.get("headers", [])
+                    if h[0].lower() != b"access-control-allow-origin"
+                ]
                 headers.append((b"access-control-allow-origin", origin.encode("latin-1")))
                 headers.append((b"vary", b"Origin"))
                 message = {**message, "headers": headers}

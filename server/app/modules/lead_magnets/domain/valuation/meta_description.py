@@ -4,6 +4,8 @@ scrape-and-model path when the company already says what it does."""
 from html.parser import HTMLParser
 
 MIN_DESCRIPTION_CHARS = 50
+# The request schemas cap `description` at 4000, so a longer value would 422 the next call.
+MAX_DESCRIPTION_CHARS = 4000
 
 
 class _Head(HTMLParser):
@@ -20,9 +22,9 @@ class _Head(HTMLParser):
         elif tag == "meta":
             a = {k.lower(): (v or "") for k, v in attrs}
             content = " ".join(a.get("content", "").split())
-            if a.get("name", "").lower() == "description" and self.meta is None:
+            if a.get("name", "").lower() == "description" and not self.meta:
                 self.meta = content
-            elif a.get("property", "").lower() == "og:description" and self.og is None:
+            elif a.get("property", "").lower() == "og:description" and not self.og:
                 self.og = content
 
     def handle_endtag(self, tag: str) -> None:
@@ -42,5 +44,5 @@ def usable_description(html: str) -> str | None:
     title = " ".join(head.title.split()).casefold()
     for candidate in (head.meta, head.og):
         if candidate and len(candidate) >= MIN_DESCRIPTION_CHARS and candidate.casefold() != title:
-            return candidate
+            return candidate[:MAX_DESCRIPTION_CHARS]
     return None
