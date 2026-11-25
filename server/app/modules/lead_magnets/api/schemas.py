@@ -66,8 +66,6 @@ class AnalyticsContext(_Strict):
     visitor_id: str | None = Field(default=None, max_length=128)
     consent: bool = False
     utm: UtmTags | None = None
-    # The path the form was submitted from, e.g. `/valuation`.
-    page: str | None = Field(default=None, max_length=200)
 
     @model_validator(mode="after")
     def drop_visitor_without_consent(self) -> "AnalyticsContext":
@@ -81,14 +79,6 @@ _UTM_KEYS = ("source", "medium", "campaign", "term", "content")
 
 def _text(raw: JsonValue, limit: int) -> str | None:
     return (raw.strip()[:limit] or None) if isinstance(raw, str) else None
-
-
-def _page(raw: JsonValue) -> str | None:
-    """A path only: anything else (a full URL, a non-string, 200+ chars) is dropped."""
-    text = _text(raw, 10_000)
-    if not text or not text.startswith("/") or text.startswith("//"):
-        return None
-    return text if len(text) <= 200 and text.isprintable() else None
 
 
 def _lenient_analytics(value: JsonValue | AnalyticsContext) -> AnalyticsContext | None:
@@ -107,7 +97,6 @@ def _lenient_analytics(value: JsonValue | AnalyticsContext) -> AnalyticsContext 
         visitor_id=_text(value.get("visitor_id"), 128),
         consent=value.get("consent") is True,
         utm=utm,
-        page=_page(value.get("page")),
     )
 
 

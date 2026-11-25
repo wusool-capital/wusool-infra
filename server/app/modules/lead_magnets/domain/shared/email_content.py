@@ -12,8 +12,6 @@ from dataclasses import dataclass
 from html import escape
 from urllib.parse import quote
 
-from app.modules.utilities.domain.json_types import JsonObject
-
 
 @dataclass(frozen=True)
 class EmailContent:
@@ -161,13 +159,6 @@ def render_code_shell(*, tag: str, heading: str, sub: str, code: str, note: str)
 <tr><td style="padding:20px 36px;border-top:1px solid #eeeeee;background-color:#fafafa;">
 <p style="font-family:Inter,sans-serif;font-size:12px;color:#999999;margin:0;">Wusool Capital - M&amp;A Advisory, UAE &amp; GCC</p>
 </td></tr></table></td></tr></table></body></html>"""
-
-
-def page_source(payload: JsonObject) -> str:
-    """The path the form was submitted from, from the stored `analytics` block."""
-    analytics = payload.get("analytics")
-    page = analytics.get("page") if isinstance(analytics, dict) else None
-    return page if isinstance(page, str) and page else "-"
 
 
 def render_field_rows(pairs: list[tuple[str, str]]) -> str:
