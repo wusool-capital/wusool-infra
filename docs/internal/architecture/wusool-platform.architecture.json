@@ -525,7 +525,7 @@
     {
       "from": "website",
       "to": "toolkit",
-      "label": "embed.js iframe",
+      "label": "embed.js iframe + CORS POST",
       "variant": "emphasis",
       "labelAt": [
         300,
@@ -643,7 +643,7 @@
     {
       "from": "toolkit",
       "to": "research",
-      "label": "enrichment + Places APIs",
+      "label": "enrichment + Places APIs + page meta fetch",
       "variant": "dashed",
       "fromSide": "bottom",
       "toSide": "top"
