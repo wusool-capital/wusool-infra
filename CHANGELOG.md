@@ -10,6 +10,12 @@ for current production evidence and open handover items.
 
 ## 2026-11-25
 
+### Added
+
+- The lead tools accept calls from the Astro website (AZM-206). The Valuation, Readiness and Benchmark endpoints answer the browser preflight and allow the origins in `LEAD_MAGNET_ALLOWED_ORIGINS`. Add the website origins to that secret before the site posts.
+- Submissions carry an optional page source (`analytics.page`). It is stored on the run and listed in the team notice email.
+- `/enrich` uses the page's meta description when it is usable, and skips Firecrawl and Bedrock in that case.
+
 ### Removed
 
 - The `buyer_intel`, `vertical_kb` and `graph_edges` tables, with their models, and the `vector` extension. All three were empty and never written. Migration `ded7cf3cd954` refuses to drop a table that holds a row. This clears the way for the Postgres 18 upgrade (AZM-181).
