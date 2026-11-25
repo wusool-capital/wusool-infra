@@ -123,31 +123,8 @@ merged:
 
 A repeat submission is never rejected; it is recorded as a new attempt.
 
-**Calls from the website.** The Astro site posts the Valuation, Readiness and
-Benchmark forms from the browser. The six endpoints (`/enrich`, `/analyze`,
-`/compare`, `/submit-lead`, `/readiness/score`, `/benchmark`) answer the
-`OPTIONS` preflight with `204` and send `Access-Control-Allow-Origin` for
-origins in `LEAD_MAGNET_ALLOWED_ORIGINS` only. Origins match exactly (scheme,
-host, port, no trailing slash). `POST` and `Content-Type` are allowed, with no
-credentials. An unlisted origin gets no CORS headers.
-
-**Page source.** The optional `analytics.page` field is a path of up to 200
-characters, such as `/valuation`. It is stored with the run on `tool_runs` and
-listed as "Page" in the team notice email. A malformed value is dropped, never
-rejected.
-
-**`/enrich`** reads the page's own `<meta name="description">` (then
-`og:description`) over plain HTTPS first. It uses it when it is 50 or more
-characters and not just the page title, and returns an empty `sector` for the
-browser to pick. Only otherwise does it scrape with Firecrawl and ask the
-model. The fetch allows https only and refuses private, loopback and
-link-local addresses. It follows at most three redirects with the same checks,
-reads at most 512 KB and gives up after 5 seconds.
-
-**Rate limits** are per IP address per hour. The paid tool endpoints and
-report code requests allow 20, report views and code checks 300, and PDF
-downloads 30. They are held in memory, and the IP is taken from the last
-`X-Forwarded-For` entry.
+Website calls, the page source field, the `/enrich` description lookup and the
+rate limits are on [Website API access](lead-tools-website-api.md).
 
 **Option lists.** An option the CRM doesn't know, such as an unexpected
 selling timeline, fails the Attio write after the run is recorded. That lead
