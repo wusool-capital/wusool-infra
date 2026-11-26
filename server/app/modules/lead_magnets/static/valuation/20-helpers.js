@@ -51,7 +51,7 @@ const DLOM_PCT=30;
 // Stage 2 gives up after this and the summary settles on the preliminary
 // figures; the server's own Bedrock timeout is shorter, so this rarely fires.
 const ANALYST_TIMEOUT_MS=185000;
-const fmtResult=(v,cur="USD")=>{if(v===null||v===undefined||isNaN(v))return"-";const sy=CUR_SYM[cur]||"$";const converted=v*(CUR_RATE[cur]||1);const a=Math.abs(converted);let s;if(a>=1e9)s=(a/1e9).toFixed(1)+"B";else s=(a/1e6).toFixed(1)+"M";return converted<0?`(${sy}${s})`:`${sy}${s}`};
+const fmtResult=(v,cur="USD")=>{if(v===null||v===undefined||isNaN(v))return"-";const sy=CUR_SYM[cur]||"$";const converted=v*(CUR_RATE[cur]||1);const a=Math.abs(converted);const r=Math.round(a);let s;if(a>=1e9)s=(a/1e9).toFixed(1)+"B";else if(r>=1e6)s=(a/1e6).toFixed(1)+"M";else s=r.toLocaleString("en-US");return converted<0&&r>0?`(${sy}${s})`:`${sy}${s}`};
 const fmtM=v=>{if(v===null||v===undefined||isNaN(v)||v===0)return"-";return v.toFixed(1)+"x"};
 const fmtP=v=>{if(v===null||v===undefined||isNaN(v))return"-";return v.toFixed(2)+"%"};
 const fmtN=v=>{if(v===null||v===undefined||isNaN(v))return"-";return Math.round(v).toLocaleString()};
@@ -162,6 +162,14 @@ function getIndustryGrowth(sector){
   return{revGrowth:20,ebitMarginImpr:3,daaPct:5,capexPct:8,nwcPct:4,termGrowth:2.0};
 }
 
+// The server rejects these with 422, so catch them before submit. Last-raise is hidden unless raised.
+function gateNumberErrors(f){
+  const e={};
+  if(parseFloat(f.ownerSalary)<0)e.ownerSalary="Owner salary can't be negative.";
+  if(f.raised==="Yes"&&parseFloat(f.lastRaiseRevenue)<0)e.lastRaiseRevenue="Revenue at last raise can't be negative.";
+  return e;
+}
+
 function getTaxRate(geo){
   const t={
     "United Arab Emirates":9,"UAE":9,"Saudi Arabia":20,"KSA":20,
@@ -171,8 +179,10 @@ function getTaxRate(geo){
     "South Africa":27,"Kenya":30,"Turkey":23,"Qatar":0,"Bahrain":0,
     "Kuwait":15,"Jordan":20,"Lebanon":17,"Morocco":31,"Tunisia":25
   };
-  return t[geo]||20;
+  return t[geo]??20;
 }
+// 0 is a real tax rate (Qatar, Bahrain, or a typed 0); only a missing value falls back to 20.
+const taxPct=v=>Number.isFinite(v)?v:20;
 
 function detectSectorFromText(text){
   const t=(text||"").toLowerCase();

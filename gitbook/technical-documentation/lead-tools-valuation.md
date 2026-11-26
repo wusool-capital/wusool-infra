@@ -57,7 +57,14 @@ back to.
 The old browser tool was ported and diffed against the original over
 thousands of generated cases. One difference is deliberate: Qatar and
 Bahrain use 0%, the rate in the tool's own tax table. The old tool applied
-20% by mistake, which undervalued every profitable business there.
+20% by mistake, which undervalued every profitable business there. The page
+now agrees with the server, and a tax rate typed as 0 stays 0.
+
+## Input checks
+
+The gate form refuses a negative owner salary or last-raise revenue with a
+field message, because the server rejects both. Results under $1 million show
+whole dollars, not "$0.0M".
 
 ## Failure behavior
 
