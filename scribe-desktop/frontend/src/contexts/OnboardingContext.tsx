@@ -252,7 +252,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
         setCurrentStep(verifiedStatus.currentStep);
         setCompleted(verifiedStatus.completed);
-        setParakeetDownloaded(verifiedStatus.parakeetDownloaded);
+        // A download can finish while parakeet_init runs; don't revert that.
+        setParakeetDownloaded((prev) => prev || verifiedStatus.parakeetDownloaded);
 
         console.log('[OnboardingContext] Verified status:', verifiedStatus);
 

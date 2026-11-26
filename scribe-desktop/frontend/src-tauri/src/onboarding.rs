@@ -7,6 +7,9 @@ use anyhow::Result;
 use crate::state::AppState;
 use crate::database::repositories::setting::SettingsRepository;
 
+// Serializes read-modify-write of the store so a stale save cannot land after completion.
+static STATUS_WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnboardingStatus {
@@ -148,6 +151,7 @@ pub async fn save_onboarding_status_cmd<R: Runtime>(
     app: AppHandle<R>,
     status: OnboardingStatus,
 ) -> Result<(), String> {
+    let _guard = STATUS_WRITE_LOCK.lock().await;
     let stored = load_onboarding_status(&app)
         .await
         .map_err(|e| format!("Failed to load onboarding status: {}", e))?;
@@ -197,6 +201,7 @@ pub async fn complete_onboarding<R: Runtime>(
     info!("Saved transcription model config: provider=parakeet, model={}", crate::config::DEFAULT_PARAKEET_MODEL);
 
     // Step 2: Only NOW mark onboarding as complete (after DB operations succeed)
+    let _guard = STATUS_WRITE_LOCK.lock().await;
     let mut status = load_onboarding_status(&app)
         .await
         .map_err(|e| format!("Failed to load onboarding status: {}", e))?;
