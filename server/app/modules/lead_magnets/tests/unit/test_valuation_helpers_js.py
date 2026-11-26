@@ -103,3 +103,41 @@ def test_the_result_is_converted_before_it_is_formatted(tmp_path: Path) -> None:
         tmp_path,
     )
     assert shown == ["AED 1.1M", "AED 146,900", "-", "-"]
+
+
+_GATE_PICKS = [r"^function gateNumberErrors[\s\S]*?^}"]
+
+
+@_NEEDS_NODE
+def test_a_negative_owner_salary_or_last_raise_revenue_gets_a_field_message(
+    tmp_path: Path,
+) -> None:
+    """The server answers 422 to both, and the page only logged it, so the lead was lost."""
+    shown = _run_js(
+        _GATE_PICKS,
+        [
+            'Object.keys(gateNumberErrors({ownerSalary:"-50000",lastRaiseRevenue:""}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:"-1"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"-5",lastRaiseRevenue:"-5"}))',
+        ],
+        tmp_path,
+    )
+    assert shown == [["ownerSalary"], ["lastRaiseRevenue"], ["ownerSalary", "lastRaiseRevenue"]]
+
+
+@_NEEDS_NODE
+def test_blank_zero_and_positive_amounts_pass_and_a_loss_is_not_checked_here(
+    tmp_path: Path,
+) -> None:
+    """Profit before tax may be negative, and a lone "-" is still being typed."""
+    shown = _run_js(
+        _GATE_PICKS,
+        [
+            'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:""}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"0",lastRaiseRevenue:"250000"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"-",lastRaiseRevenue:"-"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"150000",lastRaisePBT:"-40000"}))',
+        ],
+        tmp_path,
+    )
+    assert shown == [[], [], [], []]

@@ -113,6 +113,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
     if(!f.sector)ne.sector="Required";
     if(!f.geo)ne.geo="Required";
     if(!f.revenue||parseFloat(f.revenue)<=0)ne.revenue="Valid revenue required";
+    Object.assign(ne,gateNumberErrors(f));
     if(!f.raised)ne.raised="Please select Yes or No";
     if(!f.consent)ne.consent="Please accept the Privacy Policy to continue";
     if(Object.keys(ne).length){setErr(ne);return}
@@ -202,6 +203,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
           <div className="fg">
             <label className="fl">Owner / Founder Annual Salary ({gateCur}) <Tip text="Total annual salary drawn by owners. Added back to profit for a cleaner EBITDA estimate."/></label>
             <input className="fi input-blue" name="ownerSalary" type="text" inputMode="numeric" value={fmtNumInput(f.ownerSalary)} onChange={chNum} placeholder="e.g. 150,000"/>
+            {err.ownerSalary&&<div className="fe">{err.ownerSalary}</div>}
           </div>
           <div className="sep"/>
           <div className="fg">
@@ -228,6 +230,7 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
                 <div className="fg" style={{minWidth:0}}>
                   <label className="fl">Annual Revenue at Last Fundraise ({gateCur}) <Tip text="Annual revenue at the time of your most recent round."/></label>
                   <input className="fi input-blue" name="lastRaiseRevenue" type="text" inputMode="numeric" value={fmtNumInput(f.lastRaiseRevenue)} onChange={chNum} placeholder="Optional"/>
+                  {err.lastRaiseRevenue&&<div className="fe">{err.lastRaiseRevenue}</div>}
                 </div>
                 <div className="fg" style={{minWidth:0}}>
                   <label className="fl">Profit Before Tax at Fundraise ({gateCur}) <Tip text="PBT at time of last raise."/></label>

@@ -162,6 +162,15 @@ function getIndustryGrowth(sector){
   return{revGrowth:20,ebitMarginImpr:3,daaPct:5,capexPct:8,nwcPct:4,termGrowth:2.0};
 }
 
+// The server answers 422 to a negative owner salary or last-raise revenue; the page used to
+// log it quietly and the lead was lost.
+function gateNumberErrors(f){
+  const e={};
+  if(parseFloat(f.ownerSalary)<0)e.ownerSalary="Owner salary can't be negative.";
+  if(parseFloat(f.lastRaiseRevenue)<0)e.lastRaiseRevenue="Revenue at last raise can't be negative.";
+  return e;
+}
+
 function getTaxRate(geo){
   const t={
     "United Arab Emirates":9,"UAE":9,"Saudi Arabia":20,"KSA":20,
