@@ -14,7 +14,9 @@ Tally popup.
    layout and URL don't change.
 2. It collects name, company, email, geography, sector, revenue, EBITDA,
    years active, and selling timeline, plus consent. Choosing "Other" for
-   sector reveals a free-text field.
+   sector reveals a free-text field. The form shows a field message for
+   revenue below 0, years that are not a whole number, or text in a number
+   field. EBITDA may be negative.
 3. `POST /get-started` records it through the
    [write contract](lead-tools.md#the-write-contract). The form collects
    AED and converts to USD in the browser; the server stores the USD figures

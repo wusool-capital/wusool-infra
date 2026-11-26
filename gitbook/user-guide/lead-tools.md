@@ -39,7 +39,8 @@ changes to **Done** once the full analysis finishes. The owner's company
 appears in Attio shortly afterwards.
 
 If the page reports a validation error, correct the highlighted field and
-submit again.
+submit again. Amounts must be plain numbers, and years in business must be a
+whole number.
 
 ## Read a gated report
 
