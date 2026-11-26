@@ -75,6 +75,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     screenRecording: 'not_determined',
   });
   const [permissionsSkipped, setPermissionsSkipped] = useState(false);
+  // Saving before the stored status loads would overwrite a completed onboarding with defaults.
+  const [isStatusLoaded, setIsStatusLoaded] = useState(false);
 
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
 
@@ -153,7 +155,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
 
     // Don't auto-save if completed (to avoid overwriting completion status)
     // Also don't auto-save if we are currently in the process of completing
-    if (completed || isCompletingRef.current) return;
+    if (!isStatusLoaded || completed || isCompletingRef.current) return;
 
     saveTimeoutRef.current = setTimeout(() => {
       saveOnboardingStatus();
@@ -162,7 +164,7 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
-  }, [currentStep, parakeetDownloaded, completed]);
+  }, [currentStep, parakeetDownloaded, completed, isStatusLoaded]);
 
   // Listen to Parakeet download progress
   useEffect(() => {
@@ -259,6 +261,8 @@ export function OnboardingProvider({ children }: { children: React.ReactNode }) 
       }
     } catch (error) {
       console.error('[OnboardingContext] Failed to load onboarding status:', error);
+    } finally {
+      setIsStatusLoaded(true);
     }
   };
 
