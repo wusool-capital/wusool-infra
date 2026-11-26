@@ -331,12 +331,12 @@ function DCFModule({gate,cfg,onUpdate,analyst,aiComps}){
     if(!wacc_inputs)return 0.12;
     const{ke,kd,sp,eqVal,d:dbt,tax}=wacc_inputs;
     const E=eqVal||1,D=dbt||0;
-    return(E/(E+D))*(ke/100)+(D/(E+D))*(kd/100)*(1-(tax||20)/100)+(sp||3)/100;
+    return(E/(E+D))*(ke/100)+(D/(E+D))*(kd/100)*(1-taxPct(tax)/100)+(sp||3)/100;
   },[wacc_inputs]);
 
   const dcfCalc=useMemo(()=>{
     if(!pf.length||!wacc_inputs)return{rows:[],tv:0,ev:0,eqVal:0};
-    const taxR=(wacc_inputs.tax||20)/100;
+    const taxR=taxPct(wacc_inputs.tax)/100;
     const gR=(termGrowth||2)/100;
     let sumDFCF=0;
     const rows=pf.map((r,i)=>{

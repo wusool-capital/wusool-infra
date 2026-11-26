@@ -4,6 +4,7 @@
 rather than loading the whole file. Skipped when Node is missing."""
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -141,3 +142,49 @@ def test_blank_zero_and_positive_amounts_pass_and_a_loss_is_not_checked_here(
         tmp_path,
     )
     assert shown == [[], [], [], []]
+
+
+_TAX_PICKS = [r"^function getTaxRate[\s\S]*?^}", r"^const taxPct=.*$"]
+
+
+@_NEEDS_NODE
+def test_a_zero_tax_country_stays_at_zero(tmp_path: Path) -> None:
+    """`t[geo]||20` turned Qatar and Bahrain into 20%; the server has them at 0."""
+    shown = _run_js(
+        _TAX_PICKS,
+        [
+            'getTaxRate("Qatar")',
+            'getTaxRate("Bahrain")',
+            'getTaxRate("Atlantis")',
+            'getTaxRate("")',
+        ],
+        tmp_path,
+    )
+    assert shown == [0, 0, 20, 20]
+
+
+@_NEEDS_NODE
+def test_a_typed_zero_tax_rate_is_kept_and_only_a_missing_one_falls_back(tmp_path: Path) -> None:
+    """`tax||20` silently changed a typed 0 to 20 because 0 is falsy."""
+    shown = _run_js(
+        _TAX_PICKS,
+        ["taxPct(0)", "taxPct(9)", "taxPct(undefined)", "taxPct(null)", "taxPct(NaN)"],
+        tmp_path,
+    )
+    assert shown == [0, 9, 20, 20, 20]
+
+
+@_NEEDS_NODE
+def test_the_page_tax_table_matches_the_server(tmp_path: Path) -> None:
+    """The page and the CRM figure must tax the same geography the same way."""
+    from app.modules.lead_magnets.domain.valuation.valuation import tax_rate
+
+    source = (_STATIC / "20-helpers.js").read_text(encoding="utf-8")
+    table = source[source.index("function getTaxRate") :].split("return t[geo]", 1)[0]
+    page = {name: float(rate) for name, rate in re.findall(r'"([^"]+)":(\d+(?:\.\d+)?)', table)}
+    assert len(page) >= 20
+
+    names = [*page, "Atlantis", ""]
+    shown = _run_js(_TAX_PICKS, [f"getTaxRate({json.dumps(n)})" for n in names], tmp_path)
+
+    assert dict(zip(names, shown, strict=True)) == {n: tax_rate(n) for n in names}

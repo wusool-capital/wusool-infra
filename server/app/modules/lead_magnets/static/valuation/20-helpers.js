@@ -180,8 +180,10 @@ function getTaxRate(geo){
     "South Africa":27,"Kenya":30,"Turkey":23,"Qatar":0,"Bahrain":0,
     "Kuwait":15,"Jordan":20,"Lebanon":17,"Morocco":31,"Tunisia":25
   };
-  return t[geo]||20;
+  return t[geo]??20;
 }
+// 0 is a real tax rate (Qatar, Bahrain, or a typed 0); only a missing value falls back to 20.
+const taxPct=v=>Number.isFinite(v)?v:20;
 
 function detectSectorFromText(text){
   const t=(text||"").toLowerCase();
