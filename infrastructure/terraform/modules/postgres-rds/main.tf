@@ -36,12 +36,45 @@ resource "aws_db_subnet_group" "this" {
   }
 }
 
+# Only when pg_cron is wanted, so an environment without it keeps the default group.
+resource "aws_db_parameter_group" "this" {
+  count = var.enable_pg_cron ? 1 : 0
+
+  name   = "${var.project}-${var.environment}-postgres${split(".", var.engine_version)[0]}"
+  family = "postgres${split(".", var.engine_version)[0]}"
+
+  # Keeps the RDS defaults (pg_stat_statements, pg_tle) and adds pg_cron.
+  parameter {
+    name         = "shared_preload_libraries"
+    value        = "pg_stat_statements,pg_tle,pg_cron"
+    apply_method = "pending-reboot"
+  }
+
+  parameter {
+    name         = "cron.database_name"
+    value        = var.db_name
+    apply_method = "pending-reboot"
+  }
+
+  # The family changes with the major version, which forces a new group.
+  lifecycle {
+    create_before_destroy = true
+  }
+
+  tags = {
+    Name = "${var.project}-${var.environment}-postgres${split(".", var.engine_version)[0]}"
+  }
+}
+
 resource "aws_db_instance" "this" {
   identifier = "${var.project}-${var.environment}-postgres"
 
   engine         = "postgres"
   engine_version = var.engine_version
   instance_class = var.instance_class
+
+  allow_major_version_upgrade = var.allow_major_version_upgrade
+  parameter_group_name        = try(aws_db_parameter_group.this[0].name, null)
 
   allocated_storage     = var.allocated_storage
   max_allocated_storage = max(var.allocated_storage, 100)
@@ -65,7 +98,7 @@ resource "aws_db_instance" "this" {
   skip_final_snapshot       = var.skip_final_snapshot
   final_snapshot_identifier = var.skip_final_snapshot ? null : "${var.project}-${var.environment}-postgres-final"
 
-  apply_immediately = false
+  apply_immediately = var.apply_immediately
 
   tags = {
     Name = "${var.project}-${var.environment}-postgres"

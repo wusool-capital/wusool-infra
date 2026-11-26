@@ -32,6 +32,21 @@ variable "engine_version" {
   default = "16"
 }
 
+variable "allow_major_version_upgrade" {
+  type    = bool
+  default = false
+}
+
+variable "apply_immediately" {
+  type    = bool
+  default = false
+}
+
+variable "enable_pg_cron" {
+  type    = bool
+  default = false
+}
+
 variable "instance_class" {
   type    = string
   default = "db.t4g.micro"

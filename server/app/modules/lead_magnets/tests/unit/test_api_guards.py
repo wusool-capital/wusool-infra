@@ -9,6 +9,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
 from app.modules.lead_magnets.api import dependencies as deps
+from app.modules.lead_magnets.api.cors import LeadMagnetCors
 from app.modules.lead_magnets.api.dependencies import (
     FixedWindowRateLimiter,
     client_ip,
@@ -100,3 +101,87 @@ def test_client_ip_takes_the_last_forwarded_entry() -> None:
 
 def test_client_ip_falls_back_to_the_peer() -> None:
     assert client_ip(_request_with(None)) == "172.18.0.2"
+
+
+def _cors_app() -> TestClient:
+    app = FastAPI()
+
+    @app.post("/enrich", dependencies=[Depends(require_allowed_origin)])
+    async def _enrich() -> dict:
+        return {"ok": True}
+
+    app.add_middleware(LeadMagnetCors)
+    return TestClient(app)
+
+
+def _allow(monkeypatch, origins: str) -> None:
+    monkeypatch.setenv("LEAD_MAGNET_ALLOWED_ORIGINS", origins)
+    get_settings.cache_clear()
+
+
+_PREFLIGHT = {
+    "Access-Control-Request-Method": "POST",
+    "Access-Control-Request-Headers": "content-type",
+}
+
+
+def test_preflight_from_a_listed_origin_gets_204_with_acao(monkeypatch) -> None:
+    _allow(monkeypatch, "https://tools.wusoolcapital.com http://localhost:4321")
+    response = _cors_app().options(
+        "/enrich", headers={"Origin": "http://localhost:4321", **_PREFLIGHT}
+    )
+
+    assert response.status_code == 204
+    assert response.headers["access-control-allow-origin"] == "http://localhost:4321"
+    assert response.headers["access-control-allow-methods"] == "POST"
+    assert response.headers["access-control-allow-headers"] == "Content-Type"
+    assert "access-control-allow-credentials" not in response.headers
+    assert response.headers["vary"] == "Origin"
+
+
+def test_preflight_from_an_unlisted_origin_gets_no_acao(monkeypatch) -> None:
+    _allow(monkeypatch, "https://tools.wusoolcapital.com")
+    response = _cors_app().options(
+        "/enrich", headers={"Origin": "https://evil.example", **_PREFLIGHT}
+    )
+
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_empty_allowlist_sends_no_cors_headers(monkeypatch) -> None:
+    _allow(monkeypatch, "")
+    response = _cors_app().post("/enrich", headers={"Origin": "https://evil.example"})
+
+    assert response.status_code == 200
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_post_from_a_listed_origin_still_works_and_carries_acao(monkeypatch) -> None:
+    _allow(monkeypatch, "https://tools.wusoolcapital.com")
+    response = _cors_app().post("/enrich", headers={"Origin": "https://tools.wusoolcapital.com"})
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://tools.wusoolcapital.com"
+    assert response.headers["vary"] == "Origin"
+
+
+def test_rejected_origin_gets_a_403_without_acao(monkeypatch) -> None:
+    _allow(monkeypatch, "https://tools.wusoolcapital.com")
+    response = _cors_app().post("/enrich", headers={"Origin": "https://evil.example"})
+
+    assert response.status_code == 403
+    assert "access-control-allow-origin" not in response.headers
+
+
+def test_other_paths_get_no_cors(monkeypatch) -> None:
+    _allow(monkeypatch, "http://localhost:4321")
+    app = FastAPI()
+
+    @app.get("/health")
+    async def _health() -> dict:
+        return {}
+
+    app.add_middleware(LeadMagnetCors)
+    response = TestClient(app).get("/health", headers={"Origin": "http://localhost:4321"})
+
+    assert "access-control-allow-origin" not in response.headers

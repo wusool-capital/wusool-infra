@@ -11,6 +11,7 @@ from app.modules.lead_magnets.application.shared.ports.article_source import Art
 from app.modules.lead_magnets.application.shared.ports.articles_cms import ArticlesCmsPort
 from app.modules.lead_magnets.application.shared.ports.attio import AttioWriterPort
 from app.modules.lead_magnets.application.shared.ports.llm import LeadLLMPort
+from app.modules.lead_magnets.application.shared.ports.page_fetcher import PageFetcherPort
 from app.modules.lead_magnets.application.shared.ports.peer_dataset import PeerDatasetPort
 from app.modules.lead_magnets.application.shared.ports.report_renderer import ReportRendererPort
 from app.modules.lead_magnets.application.shared.ports.report_source import ReportSourcePort
@@ -27,6 +28,7 @@ __all__ = [
     "ArticlesCmsPort",
     "AttioWriterPort",
     "LeadLLMPort",
+    "PageFetcherPort",
     "PeerDatasetPort",
     "ReportRendererPort",
     "ReportSourcePort",

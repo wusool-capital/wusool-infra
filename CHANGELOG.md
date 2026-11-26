@@ -8,6 +8,25 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-25
+
+### Changed
+
+- Dev's database moves to Postgres 18, upgraded in place, with pg_cron preloaded through a new parameter group (`cron.database_name = wusool_crm`). Prod stays on Postgres 16 until AZM-183. The new Terraform settings (`allow_major_version_upgrade`, `apply_immediately`, `enable_pg_cron`) default to off.
+- Prod's database is set to move to Postgres 18 the same way, in place, with pg_cron preloaded (AZM-183). It upgrades when this change is deployed to prod, with several minutes of downtime.
+### Added
+
+- The lead tools accept calls from the Astro website (AZM-206). The Valuation, Readiness and Benchmark endpoints answer the browser preflight and allow the origins in `LEAD_MAGNET_ALLOWED_ORIGINS`. Add the website origins to that secret before the site posts.
+- `/enrich` uses the page's meta description when it is usable, and skips Firecrawl and Bedrock in that case.
+
+### Removed
+
+- The `buyer_intel`, `vertical_kb` and `graph_edges` tables, with their models, and the `vector` extension. All three were empty and never written. Migration `ded7cf3cd954` refuses to drop a table that holds a row. This clears the way for the Postgres 18 upgrade (AZM-181).
+
+### Changed
+
+- Local Docker Compose and the CI schema and integration jobs run Postgres 18 (`pgvector/pgvector:pg18`), the version dev moves to next. Run `docker compose down -v` once to reset an old local volume.
+
 ## 2026-11-19
 
 ### Fixed

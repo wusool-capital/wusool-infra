@@ -59,10 +59,13 @@ module "postgres" {
 
   allowed_security_group_ids = local.allowed_security_group_ids
 
-  db_name             = var.db_name
-  master_username     = var.master_username
-  engine_version      = var.engine_version
-  instance_class      = var.instance_class
-  allocated_storage   = var.allocated_storage
-  snapshot_identifier = var.snapshot_identifier
+  db_name                     = var.db_name
+  master_username             = var.master_username
+  engine_version              = var.engine_version
+  allow_major_version_upgrade = var.allow_major_version_upgrade
+  apply_immediately           = var.apply_immediately
+  enable_pg_cron              = var.enable_pg_cron
+  instance_class              = var.instance_class
+  allocated_storage           = var.allocated_storage
+  snapshot_identifier         = var.snapshot_identifier
 }

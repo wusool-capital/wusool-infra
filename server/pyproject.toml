@@ -15,8 +15,8 @@ dependencies = [
     "aiohttp>=3.10.0",
     "boto3>=1.35.0",
     "firecrawl-py>=1.0.0",
-    # For `buyer_intel.brief_embedding`/`vertical_kb.embedding` (conditional
-    # `vector(1536)` columns - see those models' docstrings).
+    # Only migration 87320bb9dc8d imports it, so a fresh `alembic upgrade head`
+    # still needs it after ded7cf3cd954 dropped the vector tables.
     "pgvector>=0.3.6",
     # A real runtime dependency, not a dev tool: `alembic upgrade head` runs
     # inside the deployed container itself (RDS is private, CI has no direct

@@ -36,7 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: pgvector/pgvector:pg18
         env: { POSTGRES_USER: matching, POSTGRES_PASSWORD: matching, POSTGRES_DB: wusool_crm }
         ports: ['5432:5432']
         options: >-
