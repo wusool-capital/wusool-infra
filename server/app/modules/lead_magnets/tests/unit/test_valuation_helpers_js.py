@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from pydantic import JsonValue
 
 _STATIC = Path(__file__).parents[2] / "static" / "valuation"
 
@@ -33,7 +34,7 @@ process.stdout.write(JSON.stringify(out));
 """
 
 
-def _run_js(picks: list[str], calls: list[str], tmp_path: Path) -> list[str | float | None]:
+def _run_js(picks: list[str], calls: list[str], tmp_path: Path) -> list[JsonValue]:
     harness = tmp_path / "harness.mjs"
     harness.write_text(_HARNESS, encoding="utf-8")
     done = subprocess.run(  # noqa: S603  # a fixed command on files in this repository
@@ -118,8 +119,8 @@ def test_a_negative_owner_salary_or_last_raise_revenue_gets_a_field_message(
         _GATE_PICKS,
         [
             'Object.keys(gateNumberErrors({ownerSalary:"-50000",lastRaiseRevenue:""}))',
-            'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:"-1"}))',
-            'Object.keys(gateNumberErrors({ownerSalary:"-5",lastRaiseRevenue:"-5"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:"-1",raised:"Yes"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"-5",lastRaiseRevenue:"-5",raised:"Yes"}))',
         ],
         tmp_path,
     )
@@ -135,7 +136,7 @@ def test_blank_zero_and_positive_amounts_pass_and_a_loss_is_not_checked_here(
         _GATE_PICKS,
         [
             'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:""}))',
-            'Object.keys(gateNumberErrors({ownerSalary:"0",lastRaiseRevenue:"250000"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"0",lastRaiseRevenue:"250000",raised:"Yes"}))',
             'Object.keys(gateNumberErrors({ownerSalary:"-",lastRaiseRevenue:"-"}))',
             'Object.keys(gateNumberErrors({ownerSalary:"150000",lastRaisePBT:"-40000"}))',
         ],
@@ -188,3 +189,28 @@ def test_the_page_tax_table_matches_the_server(tmp_path: Path) -> None:
     shown = _run_js(_TAX_PICKS, [f"getTaxRate({json.dumps(n)})" for n in names], tmp_path)
 
     assert dict(zip(names, shown, strict=True)) == {n: tax_rate(n) for n in names}
+
+
+@_NEEDS_NODE
+def test_a_hidden_last_raise_field_is_not_checked(tmp_path: Path) -> None:
+    """That field only shows after "Yes", so an error on it would block submit with no message."""
+    shown = _run_js(
+        _GATE_PICKS,
+        [
+            'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:"-5",raised:"No"}))',
+            'Object.keys(gateNumberErrors({ownerSalary:"",lastRaiseRevenue:"-5",raised:""}))',
+        ],
+        tmp_path,
+    )
+    assert shown == [[], []]
+
+
+@_NEEDS_NODE
+def test_amounts_at_the_million_boundary_and_tiny_losses_read_sensibly(tmp_path: Path) -> None:
+    """Rounding must not print "$1,000,000" for just under a million, or "($0)" for a tiny loss."""
+    shown = _run_js(
+        _FMT_RESULT_PICKS,
+        ["fmtResult(999999.6)", "fmtResult(999999.4)", "fmtResult(-0.4)", "fmtResult(-500)"],
+        tmp_path,
+    )
+    assert shown == ["$1.0M", "$999,999", "$0", "($500)"]

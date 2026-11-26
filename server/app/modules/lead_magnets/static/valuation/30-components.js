@@ -124,8 +124,8 @@ function Gate({onSubmit,apiKey,setApiKey,submitting,alreadySubmitted}){
       revenue:toUSD(f.revenue),
       profitBeforeTax:toUSD(f.profitBeforeTax),
       ownerSalary:toUSD(f.ownerSalary),
-      lastRaiseRevenue:f.lastRaiseRevenue?toUSD(f.lastRaiseRevenue):null,
-      lastRaisePBT:f.lastRaisePBT?toUSD(f.lastRaisePBT):null
+      lastRaiseRevenue:f.raised==="Yes"&&f.lastRaiseRevenue?toUSD(f.lastRaiseRevenue):null,
+      lastRaisePBT:f.raised==="Yes"&&f.lastRaisePBT?toUSD(f.lastRaisePBT):null
     });
   };
 

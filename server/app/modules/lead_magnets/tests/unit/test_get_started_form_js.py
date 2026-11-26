@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from pydantic import JsonValue
 
 _SCRIPT = Path(__file__).parents[2] / "static" / "get-started" / "10-main.js"
 
@@ -22,7 +23,7 @@ const pick = (name) => {
   if (!m) throw new Error("function not found: " + name);
   return m[0];
 };
-const code = ["num", "toUsd", "strictNum", "fieldErrors"]
+const code = ["num", "toUsd", "fieldErrors"]
   .filter((n) => new RegExp(`^function ${n}\\\\(`, "m").test(src))
   .map(pick)
   .join("\\n");
@@ -33,7 +34,7 @@ process.stdout.write(JSON.stringify(out));
 """
 
 
-def _run_js(calls: list[str], tmp_path: Path) -> list[object]:
+def _run_js(calls: list[str], tmp_path: Path) -> list[JsonValue]:
     harness = tmp_path / "harness.mjs"
     harness.write_text(_HARNESS, encoding="utf-8")
     done = subprocess.run(  # noqa: S603  # a fixed command on files in this repository
