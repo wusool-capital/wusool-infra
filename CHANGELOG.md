@@ -8,6 +8,15 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-26
+
+### Fixed
+
+- The Valuation page showed a valuation under $1 million as "$0.0M". It now shows whole dollars (AZM-205).
+- The Valuation page's DCF taxed Qatar and Bahrain at 20% and changed a typed 0% tax rate to 20%. It now keeps 0%, as the server does (AZM-205).
+- The Valuation form lost the lead without a message when owner salary or last-raise revenue was negative. It now shows a field message (AZM-205).
+- The Get Started form lost the lead on "8.5" years or negative revenue, and read "12abc" as 12. It now rejects these with a field message and still accepts a loss-making EBITDA (AZM-205).
+
 ## 2026-11-25
 
 ### Changed
