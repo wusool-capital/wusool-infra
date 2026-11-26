@@ -72,12 +72,12 @@
         </div>
 
         <div class="grid">
-          <div class="fg"><label for="revenue">Annual revenue (AED) *</label><input class="fi" type="text" inputmode="numeric" id="revenue" name="revenue" placeholder="e.g. 12,000,000" required></div>
-          <div class="fg"><label for="ebitda">Annual EBITDA (AED) *</label><input class="fi" type="text" inputmode="numeric" id="ebitda" name="ebitda" placeholder="e.g. 2,400,000" required></div>
+          <div class="fg"><label for="revenue">Annual revenue (AED) *</label><input class="fi" type="text" inputmode="numeric" id="revenue" name="revenue" placeholder="e.g. 12,000,000" required><div class="errtext" id="e-revenue"></div></div>
+          <div class="fg"><label for="ebitda">Annual EBITDA (AED) *</label><input class="fi" type="text" inputmode="numeric" id="ebitda" name="ebitda" placeholder="e.g. 2,400,000" required><div class="errtext" id="e-ebitda"></div></div>
         </div>
 
         <div class="grid">
-          <div class="fg"><label for="yearsActive">Years in business *</label><input class="fi" type="text" inputmode="numeric" id="yearsActive" name="yearsActive" placeholder="e.g. 8" required></div>
+          <div class="fg"><label for="yearsActive">Years in business *</label><input class="fi" type="text" inputmode="numeric" id="yearsActive" name="yearsActive" placeholder="e.g. 8" required><div class="errtext" id="e-years"></div></div>
           <div class="fg">
             <label for="sellTimeline">When are you looking to sell? *</label>
             <select class="fi" id="sellTimeline" required>
@@ -118,7 +118,7 @@
 
 <script src="../shared/submission-id.js?v=1"></script>
 <script src="../shared/analytics.js?v=6"></script>
-<script src="10-main.js?v=1" onerror="window.__lmFail=1"></script>
+<script src="10-main.js?v=2" onerror="window.__lmFail=1"></script>
 <script src="../shared/height.js?v=3"></script>
 <script>
   if(window.__lmFail || typeof submitGetStartedForm!=="function"){

@@ -5,10 +5,25 @@
 // server-side converts again.
 const FX = 3.6725;
 
+// `parseFloat` would read "12abc" as 12 and "1e3" as 1000, so only plain numbers pass.
+function strictNum(v){
+  const s=String(v==null?"":v).trim().replace(/,/g,"");
+  return /^-?\d+(\.\d+)?$/.test(s)?parseFloat(s):null;
+}
+
 function num(v){
-  if(!v)return null;
-  const n=parseFloat(String(v).replace(/,/g,""));
-  return isNaN(n)?null:n;
+  return strictNum(v);
+}
+
+// The server takes whole years and revenue of 0 or more (422 otherwise); EBITDA may be a loss.
+function fieldErrors(raw){
+  const e={};
+  const revenue=strictNum(raw.revenue);
+  if(revenue===null||revenue<0)e.revenue="Enter revenue as a number, 0 or more.";
+  if(strictNum(raw.ebitda)===null)e.ebitda="Enter EBITDA as a number (negative if loss-making).";
+  const years=strictNum(raw.years);
+  if(years===null||years<0||!Number.isInteger(years))e.years="Enter whole years, for example 8.";
+  return e;
 }
 
 // AED -> USD. Returns null for a blank/unparseable field so the schema's own
@@ -60,6 +75,19 @@ async function submitGetStartedForm(e){
     document.getElementById("e-form").classList.add("show");
     return;
   }
+
+  const fieldIds={revenue:"revenue",ebitda:"ebitda",years:"yearsActive"};
+  const errors=fieldErrors({
+    revenue:document.getElementById("revenue").value,
+    ebitda:document.getElementById("ebitda").value,
+    years:document.getElementById("yearsActive").value
+  });
+  for(const key of Object.keys(fieldIds)){
+    const el=document.getElementById("e-"+key);
+    el.textContent=errors[key]||"";
+    el.classList.toggle("show",Boolean(errors[key]));
+  }
+  if(Object.keys(errors).length)return;
 
   const btn=document.getElementById("submit-btn");
   btn.disabled=true;
