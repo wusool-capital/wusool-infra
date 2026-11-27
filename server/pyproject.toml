@@ -79,6 +79,9 @@ known-third-party = ["mcp"]
 # instead of matching it. Line length is the only thing ignored here; F/I/UP/B
 # still apply.
 "alembic/versions/*.py" = ["E501"]
+# Embeds PGMQ 1.13.0's install SQL byte for byte (its sha256 is checked in the
+# docstring); upstream indents one line with a tab.
+"alembic/versions/e203b43ae297_engine_0002_pgmq.py" = ["E501", "E101"]
 # Generated from the benchmark tool's own `FLAGTEXT`/`TECH_FLAG` blocks. The
 # strings are client-facing prose written by the business and are quoted
 # verbatim, so re-wrapping them would fight the next regeneration for no
