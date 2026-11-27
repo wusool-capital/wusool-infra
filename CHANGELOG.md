@@ -12,7 +12,7 @@ for current production evidence and open handover items.
 
 ### Added
 
-- The Engine schema, built beside the old `public` tables (AZM-182, AZM-208): 139 tables in 12 schemas (`ref`, `core`, `intake`, `market`, `comms`, `outreach`, `work`, `docs`, `dataroom`, `firm`, `audit`, `usage`), the `util` functions, PGMQ with 20 queues, and 4 materialized views in `analytics` that pg_cron refreshes every 10 minutes. It is structure only: no rows are seeded and nothing is backfilled. Nothing reads or writes it yet, and the old tables are unchanged.
+- The Engine schema, built beside the old `public` tables (AZM-182, AZM-208). It has 139 tables in 12 schemas (`ref`, `core`, `intake`, `market`, `comms`, `outreach`, `work`, `docs`, `dataroom`, `firm`, `audit`, `usage`). It adds the `util` functions and PGMQ with 20 queues. Four materialized views in `analytics` refresh every 10 minutes through pg_cron. It is structure only: no rows are seeded and nothing is backfilled. Nothing reads or writes it yet, and the old tables are unchanged.
 
 ## 2026-11-26
 
