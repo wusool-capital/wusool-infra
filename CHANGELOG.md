@@ -8,6 +8,12 @@ The project has no version tags: merges to `dev` and `prod` deploy their
  respective environments. See [Delivery status](gitbook/operations-and-handover/delivery-status.md)
 for current production evidence and open handover items.
 
+## 2026-11-27
+
+### Added
+
+- The Engine schema, built beside the old `public` tables (AZM-182, AZM-208): 139 tables in 12 schemas (`ref`, `core`, `intake`, `market`, `comms`, `outreach`, `work`, `docs`, `dataroom`, `firm`, `audit`, `usage`), the `util` functions, PGMQ with 20 queues, and 4 materialized views in `analytics` that pg_cron refreshes every 10 minutes. It is structure only: no rows are seeded and nothing is backfilled. Nothing reads or writes it yet, and the old tables are unchanged.
+
 ## 2026-11-26
 
 ### Fixed

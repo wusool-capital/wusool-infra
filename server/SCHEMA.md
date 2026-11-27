@@ -19,7 +19,7 @@ head: **`e1f7a3c95b28`** (`add_organizations_lead_source_detail`).
   only tables that used the `vector` extension, were dropped with it in
   `ded7cf3cd954` (AZM-181).
 
-**Engine schemas (AZM-182, being built).** Everything below is the `public` schema. The new Engine schema is built beside it in `ref`, `core`, `audit`, `util` and `pgmq` (batch 1, revisions `b3ce91a23ac4` to `ab4da1081057`), from the DDL tab of the Wusool Engine go-live plan, which is its reference until the readers move. No ORM models map it yet.
+**Engine schemas (AZM-182, AZM-208).** Everything below is the `public` schema. The new Engine schema is built beside it: 139 tables in `ref`, `core`, `intake`, `market`, `comms`, `outreach`, `work`, `docs`, `dataroom`, `firm`, `audit` and `usage`, the `util` functions, the `pgmq` queues and 4 materialized views in `analytics` (revisions `b3ce91a23ac4` to `870b5937fc5e`). It is structure only: no rows are seeded and nothing is backfilled. The DDL tab of the Wusool Engine go-live plan is its reference until the readers move. No ORM models map it yet.
 
 Money-shaped JSONB columns (marked below) hold either `{"amount": ...,
 "currency": ...}` or `NULL` — never a fabricated value when Attio has none.
