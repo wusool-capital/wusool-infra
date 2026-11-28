@@ -2,6 +2,12 @@
 
 What changed in each version of the WusoolScribe desktop app, newest first. Entries for versions before 0.4.10 are summaries.
 
+## 0.8.8
+
+### Fixed
+
+* Scribe no longer reopens setup and asks for microphone and system audio access every time it starts. Finished setup now stays finished.
+
 ## 0.8.7
 
 ### What's new

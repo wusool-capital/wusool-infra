@@ -2,8 +2,14 @@
 const SLUG=new URLSearchParams(location.search).get("slug")||"";
 const REPORT_URL="/reports/"+encodeURIComponent(SLUG);
 
+// The preview as served; an unlock sends only what follows it, so the two are joined here.
+let previewHtml=null;
+
 // Unlock re-renders the whole report, restoring wrappers the preview cut left open.
-function render(data){
+async function render(data){
+  // Without the preview (a lost page state) the full report is fetched; the unlock cookie is set by now.
+  if(data.append)data=previewHtml===null?await fetchReport():{...data,html:previewHtml+data.html};
+  if(!data)return;
   document.getElementById("report").innerHTML=data.html;
   document.getElementById("gate").classList.toggle("hide",!data.locked);
   document.getElementById("stage").classList.toggle("locked",data.locked);
@@ -64,11 +70,17 @@ document.getElementById("report").addEventListener("click",e=>{
   link.rel="noopener";
 });
 
+async function fetchReport(){
+  const r=await fetch(REPORT_URL,{credentials:"same-origin"});
+  return r.ok?r.json():null;
+}
+
 async function loadReport(){
   // A missing report renders nothing, so the iframe stays at zero height.
-  const r=await fetch(REPORT_URL,{credentials:"same-origin"});
-  if(!r.ok)return;
-  render(await r.json());
+  const data=await fetchReport();
+  if(!data)return;
+  if(data.locked)previewHtml=data.html;
+  render(data);
 }
 
 async function submitGateForm(e){
@@ -107,7 +119,7 @@ async function submitGateForm(e){
   try{
     const data=await sendCode(payload);
     if(data.html!==undefined){
-      render(data);
+      await render(data);
       return;
     }
     pendingPayload=payload;
@@ -157,7 +169,7 @@ async function submitCodeForm(e){
   try{
     const r=await fetch(REPORT_URL+"/unlock/verify",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({challenge_id:challengeId,code:code})});
     if(r.ok){
-      render(await r.json());
+      await render(await r.json());
       return;
     }
     const id={400:"e-code",410:"e-expired"}[r.status]||"e-retry";

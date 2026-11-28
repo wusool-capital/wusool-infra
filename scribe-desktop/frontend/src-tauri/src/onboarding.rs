@@ -7,6 +7,9 @@ use anyhow::Result;
 use crate::state::AppState;
 use crate::database::repositories::setting::SettingsRepository;
 
+// Serializes read-modify-write of the store so a stale save cannot land after completion.
+static STATUS_WRITE_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct OnboardingStatus {
@@ -148,9 +151,23 @@ pub async fn save_onboarding_status_cmd<R: Runtime>(
     app: AppHandle<R>,
     status: OnboardingStatus,
 ) -> Result<(), String> {
+    let _guard = STATUS_WRITE_LOCK.lock().await;
+    let stored = load_onboarding_status(&app)
+        .await
+        .map_err(|e| format!("Failed to load onboarding status: {}", e))?;
+    if is_completion_downgrade(&stored, &status) {
+        warn!("Ignoring onboarding save that would undo completed onboarding");
+        return Ok(());
+    }
+
     save_onboarding_status(&app, &status)
         .await
         .map_err(|e| format!("Failed to save onboarding status: {}", e))
+}
+
+/// A stale frontend save must never reopen onboarding; resets go through `reset_onboarding_status_cmd`.
+fn is_completion_downgrade(stored: &OnboardingStatus, incoming: &OnboardingStatus) -> bool {
+    stored.completed && !incoming.completed
 }
 
 #[tauri::command]
@@ -184,6 +201,7 @@ pub async fn complete_onboarding<R: Runtime>(
     info!("Saved transcription model config: provider=parakeet, model={}", crate::config::DEFAULT_PARAKEET_MODEL);
 
     // Step 2: Only NOW mark onboarding as complete (after DB operations succeed)
+    let _guard = STATUS_WRITE_LOCK.lock().await;
     let mut status = load_onboarding_status(&app)
         .await
         .map_err(|e| format!("Failed to load onboarding status: {}", e))?;
@@ -222,5 +240,21 @@ mod tests {
         .expect("old onboarding status should remain compatible");
 
         assert_eq!(status.model_status.parakeet, "downloaded");
+    }
+
+    fn status(completed: bool) -> OnboardingStatus {
+        OnboardingStatus { completed, ..OnboardingStatus::default() }
+    }
+
+    #[test]
+    fn rejects_save_that_undoes_completed_onboarding() {
+        assert!(is_completion_downgrade(&status(true), &status(false)));
+    }
+
+    #[test]
+    fn allows_saves_that_do_not_undo_completion() {
+        assert!(!is_completion_downgrade(&status(false), &status(false)));
+        assert!(!is_completion_downgrade(&status(false), &status(true)));
+        assert!(!is_completion_downgrade(&status(true), &status(true)));
     }
 }
