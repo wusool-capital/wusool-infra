@@ -43,7 +43,7 @@ def test_sanity_images_are_resized_once_and_other_urls_are_untouched() -> None:
     )
     sized = web_images(html)
 
-    assert sized.count(img + "?w=1200&fm=webp&q=75") == 2
+    assert sized.count(img + "?w=1200&fit=max&fm=webp&q=75") == 2
     assert 'href="https://x.io/a.png"' in sized
     assert web_images(sized) == sized
 
@@ -69,3 +69,14 @@ def test_a_payload_that_cannot_decode_stays_inline_instead_of_stopping_the_repor
 
     assert [i.data for i in data_images(html)] == [b"abc"]
     assert swap_images(html, {}) == html
+
+
+def test_chromium_escaped_quotes_and_svgs_are_handled() -> None:
+    img = "https://cdn.sanity.io/images/p/d/a-10x10.png"
+    svg = "https://cdn.sanity.io/images/p/d/b-10x10.svg"
+    html = f"<div style='background:url(&quot;{img}&quot;)'></div><img src=\"{svg}\">"
+
+    assert web_images(html) == (
+        f"<div style='background:url(&quot;{img}?w=1200&fit=max&fm=webp&q=75&quot;)'></div>"
+        f'<img src="{svg}">'
+    )

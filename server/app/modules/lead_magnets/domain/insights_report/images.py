@@ -9,8 +9,8 @@ from dataclasses import dataclass
 # Non-base64 SVG URIs never match, so they stay inline. Fonts go too: a report repeats the
 # same few fonts in every style block, and as one URL the browser fetches each once.
 _DATA_IMAGE = re.compile(r"data:((?:image|font)/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})")
-_SANITY_IMAGE = re.compile(r"(https://cdn\.sanity\.io/images/[^\s\"'()?]+)(?![^\s\"'()]*\?)")
-_WEB_SIZE = "?w=1200&fm=webp&q=75"
+_SANITY_IMAGE = re.compile(r"(https://cdn\.sanity\.io/images/[^\s\"'()?&]+)(?![^\s\"'()]*\?)")
+_WEB_SIZE = "?w=1200&fit=max&fm=webp&q=75"
 
 
 @dataclass(frozen=True)
@@ -46,4 +46,10 @@ def swap_images(html: str, urls: dict[str, str]) -> str:
 def web_images(html: str) -> str:
     """Sanity image URLs resized to the page's width as WebP. The pasted PNGs are far larger
     than the 794 px page that shows them."""
-    return _SANITY_IMAGE.sub(lambda match: match.group(1) + _WEB_SIZE, html)
+    # Vectors stay vectors; `fit=max` keeps small pictures from being enlarged.
+    return _SANITY_IMAGE.sub(
+        lambda match: (
+            match.group(1) if match.group(1).endswith(".svg") else match.group(1) + _WEB_SIZE
+        ),
+        html,
+    )
