@@ -260,6 +260,8 @@ def test_the_right_code_returns_the_whole_report_and_remembers_the_reader(client
     assert response.status_code == 200
     assert response.json()["locked"] is False
     assert _REST in response.json()["html"]
+    assert response.json()["append"] is True, "the reader already holds the preview"
+    assert "part 0" not in response.json()["html"]
     assert response.headers["cache-control"] == "no-store"
     cookie = response.headers["set-cookie"]
     for part in ("wusool_reader=", "HttpOnly", "Secure", "SameSite=lax", "Path=/reports"):
@@ -443,6 +445,7 @@ def test_a_returning_reader_skips_the_gate_and_logs_one_read_per_new_report(clie
     other = client.get("/reports/other-report")
 
     assert same.json()["locked"] is False and _REST in same.json()["html"]
+    assert same.json()["append"] is False and "part 0" in same.json()["html"]
     assert other.json()["locked"] is False
     (recorded,) = world.recorded
     assert recorded["payload"]["submission_id"] == f"{reader}:other-report"

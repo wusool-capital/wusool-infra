@@ -120,13 +120,15 @@ async def read_report(
     return _unlocked(report)
 
 
-def _unlocked(report: ReportDocument) -> ReportResponse:
+def _unlocked(report: ReportDocument, *, rest_only: bool = False) -> ReportResponse:
     # The full copy stays so a failed live load still leaves the whole report readable.
+    # After an unlock the reader already holds the preview, so only the rest is sent.
     return ReportResponse(
         title=report.title,
-        html=report.html,
+        html=report.html[report.preview_end :] if rest_only else report.html,
         locked=False,
         interactive_url=report.interactive_url,
+        append=rest_only,
     )
 
 
@@ -324,7 +326,7 @@ async def _open_report(
         httponly=True,
         samesite="lax",
     )
-    return _unlocked(report)
+    return _unlocked(report, rest_only=True)
 
 
 @router.post("/reports/webhooks/sanity", status_code=status.HTTP_202_ACCEPTED)
