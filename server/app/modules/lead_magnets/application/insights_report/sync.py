@@ -15,7 +15,11 @@ from app.modules.lead_magnets.application.shared.ports import (
     ReportsCmsPort,
     ReportSourcePort,
 )
-from app.modules.lead_magnets.domain.insights_report.images import data_images, swap_images
+from app.modules.lead_magnets.domain.insights_report.images import (
+    data_images,
+    swap_images,
+    web_images,
+)
 from app.modules.lead_magnets.domain.insights_report.report import fingerprint
 from app.modules.lead_magnets.domain.insights_report.split import split_report
 
@@ -50,10 +54,12 @@ class ReportSync:
             if source.rendered_from != version:
                 rendered = await self._renderer.render(source.html, free_pages=source.free_pages)
                 rendered = await self._externalize_images(rendered)
-                preview, _ = split_report(rendered)
+                # The PDF prints from the full-size pictures; readers get the web-sized ones.
+                web = web_images(rendered)
+                preview, _ = split_report(web)
                 saved = await self._source.save_rendered(
                     source,
-                    html=rendered,
+                    html=web,
                     preview_end=len(preview),
                     rendered_from=version,
                     pdf_url=await self._print(slug, rendered),

@@ -2,7 +2,11 @@
 
 import base64
 
-from app.modules.lead_magnets.domain.insights_report.images import data_images, swap_images
+from app.modules.lead_magnets.domain.insights_report.images import (
+    data_images,
+    swap_images,
+    web_images,
+)
 
 
 def _uri(payload: bytes, mime: str = "image/png") -> str:
@@ -21,12 +25,27 @@ def test_each_distinct_image_is_found_once_in_page_order() -> None:
     ]
 
 
-def test_fonts_and_plain_svg_uris_are_left_inline() -> None:
-    font = "<style>@font-face{src:url(data:font/woff2;base64,AAAA)}</style>"
-    html = font + '<img src="data:image/svg+xml;utf8,<svg/>">'
+def test_fonts_are_found_and_plain_svg_uris_are_left_inline() -> None:
+    font = "data:font/woff2;base64,YWJjZA"
+    html = (
+        f"<style>@font-face{{src:url({font})}}</style>"
+        + '<img src="data:image/svg+xml;utf8,<svg/>">'
+    )
 
-    assert data_images(html) == []
-    assert swap_images(html, {}) == html
+    assert [(i.mime, i.data) for i in data_images(html)] == [("font/woff2", b"abcd")]
+    assert "data:image/svg" in swap_images(html, {font: "https://cdn.sanity.io/files/p/d/f.woff2"})
+
+
+def test_sanity_images_are_resized_once_and_other_urls_are_untouched() -> None:
+    img = "https://cdn.sanity.io/images/p/d/a-1024x1024.png"
+    html = (
+        f'<img src="{img}"><div style="background:url({img})"></div><a href="https://x.io/a.png">'
+    )
+    sized = web_images(html)
+
+    assert sized.count(img + "?w=1200&fm=webp&q=75") == 2
+    assert 'href="https://x.io/a.png"' in sized
+    assert web_images(sized) == sized
 
 
 def test_the_swap_reaches_attributes_and_css_alike() -> None:

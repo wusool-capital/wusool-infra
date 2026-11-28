@@ -1,12 +1,16 @@
-"""Swaps a flattened report's base64 images for URLs, since Sanity rejects saves over 4 MB. Pure."""
+"""Swaps a flattened report's base64 images and fonts for URLs, and sizes the images for the
+web. Sanity rejects saves over 4 MB and the free preview should be light. Pure."""
 
 import base64
 import binascii
 import re
 from dataclasses import dataclass
 
-# Fonts and non-base64 SVG URIs never match, so they stay inline.
-_DATA_IMAGE = re.compile(r"data:(image/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})")
+# Non-base64 SVG URIs never match, so they stay inline. Fonts go too: a report repeats the
+# same few fonts in every style block, and as one URL the browser fetches each once.
+_DATA_IMAGE = re.compile(r"data:((?:image|font)/[A-Za-z0-9.+-]+);base64,([A-Za-z0-9+/]+={0,2})")
+_SANITY_IMAGE = re.compile(r"(https://cdn\.sanity\.io/images/[^\s\"'()?]+)(?![^\s\"'()]*\?)")
+_WEB_SIZE = "?w=1200&fm=webp&q=75"
 
 
 @dataclass(frozen=True)
@@ -37,3 +41,9 @@ def data_images(html: str) -> list[DataImage]:
 def swap_images(html: str, urls: dict[str, str]) -> str:
     """`urls` maps each embedded URI to where it now lives."""
     return _DATA_IMAGE.sub(lambda match: urls.get(match.group(0), match.group(0)), html)
+
+
+def web_images(html: str) -> str:
+    """Sanity image URLs resized to the page's width as WebP. The pasted PNGs are far larger
+    than the 794 px page that shows them."""
+    return _SANITY_IMAGE.sub(lambda match: match.group(1) + _WEB_SIZE, html)
